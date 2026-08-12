@@ -1,0 +1,187 @@
+import { z } from "zod";
+
+/**
+ * §7.1 — the Domain Pack schema.
+ *
+ * A pack is a versioned *data* bundle, not code. Everything the engine needs to
+ * serve a new domain arrives through this shape, which is what makes §7.3's
+ * rule hold: adding a domain requires no code change.
+ */
+
+const slug = z
+  .string()
+  .min(2)
+  .max(64)
+  .regex(
+    /^[a-z0-9]+(-[a-z0-9]+)*$/,
+    "must be lowercase, hyphen-separated, no leading or trailing hyphen",
+  );
+
+/** §7.1 — maturity is declared to the user, never faked. */
+export const PackMaturity = z.enum(["curated", "standard", "generated"]);
+export type PackMaturity = z.infer<typeof PackMaturity>;
+
+/** §7.2 — evaluation-capability tier. */
+export const EvalTier = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+]);
+export type EvalTier = z.infer<typeof EvalTier>;
+
+/** §7.3 — the six workspaces. The pack picks one; no code branches on it. */
+export const Workspace = z.enum([
+  "text",
+  "code",
+  "query-sheet",
+  "media",
+  "audio",
+  "conversation",
+]);
+export type Workspace = z.infer<typeof Workspace>;
+
+export const SkillLevel = z.enum([
+  "foundational",
+  "core",
+  "advanced",
+  "specialist",
+]);
+
+export const BktPriors = z.object({
+  pInit: z.number().min(0).max(1),
+  pLearn: z.number().min(0).max(1),
+  pSlip: z.number().min(0).max(1),
+  pGuess: z.number().min(0).max(1),
+});
+
+export const PackSkill = z.object({
+  slug,
+  name: z.string().min(1),
+  description: z.string().min(1),
+  level: SkillLevel,
+  /** §16.4 — the skill *area*, which is what the interleaving bonus switches. */
+  area: z.string().min(1),
+  evalTier: EvalTier,
+  estimatedHours: z.number().positive().max(100),
+  canDoStatement: z.string().min(10),
+  observableEvidence: z.array(z.string().min(1)).min(1),
+  bktPriors: BktPriors,
+});
+export type PackSkill = z.infer<typeof PackSkill>;
+
+export const PackDependency = z.object({
+  from: slug,
+  to: slug,
+  type: z.enum(["hard", "soft"]),
+  strength: z.number().min(0).max(1).default(1),
+});
+export type PackDependency = z.infer<typeof PackDependency>;
+
+export const ItemType = z.enum([
+  "mcq",
+  "short_text",
+  "explain",
+  "code_read",
+  "micro_artifact",
+]);
+export type ItemType = z.infer<typeof ItemType>;
+
+/**
+ * §16.4 — "Free-text and produce-an-answer items outnumber MCQ ≥2:1". These are
+ * the types that count as production rather than recognition.
+ */
+export const PRODUCTION_ITEM_TYPES: ItemType[] = [
+  "short_text",
+  "explain",
+  "code_read",
+  "micro_artifact",
+];
+
+export const PackItem = z.object({
+  slug,
+  skill: slug,
+  type: ItemType,
+  /** 0..1, on the same scale as mastery so the diagnostic can match them up. */
+  difficulty: z.number().min(0).max(1),
+  discrimination: z.number().min(0).max(3).default(1),
+  prompt: z.string().min(10),
+  options: z.array(z.string().min(1)).min(2).optional(),
+  answerKey: z.unknown().optional(),
+});
+export type PackItem = z.infer<typeof PackItem>;
+
+export const RubricBands = z.object({
+  absent: z.string().min(1),
+  developing: z.string().min(1),
+  competent: z.string().min(1),
+  strong: z.string().min(1),
+});
+
+export const RubricCriterion = z.object({
+  id: slug,
+  name: z.string().min(1),
+  description: z.string().min(1),
+  weight: z.number().positive().max(1),
+  bands: RubricBands,
+});
+export type RubricCriterion = z.infer<typeof RubricCriterion>;
+
+export const PackRubric = z.object({
+  slug,
+  version: z.number().int().positive().default(1),
+  isPublic: z.boolean().default(true),
+  /** §14.6 — rubric coverage: every rubric needs at least four criteria. */
+  criteria: z.array(RubricCriterion).min(4),
+});
+export type PackRubric = z.infer<typeof PackRubric>;
+
+export const PackProject = z.object({
+  slug,
+  title: z.string().min(1),
+  brief: z.string().min(40),
+  rubric: slug,
+  evidenceType: z.string().min(1),
+  difficulty: z.number().min(0).max(1),
+  estimatedMinutes: z.number().int().positive(),
+  isPublic: z.boolean().default(false),
+  targetSkills: z.array(slug).min(1),
+  acceptanceCriteria: z.array(z.string().min(1)).min(1),
+});
+export type PackProject = z.infer<typeof PackProject>;
+
+export const PackQuality = z.object({
+  status: z.string().default("draft"),
+  reviewedBy: z.string().nullable().default(null),
+  reviewedAt: z.string().nullable().default(null),
+  score: z.number().min(0).max(100).nullable().default(null),
+});
+
+export const PackManifest = z.object({
+  slug,
+  name: z.string().min(1),
+  taxonomyParent: z.string().min(1).nullable().default(null),
+  maturity: PackMaturity,
+  evalTier: EvalTier,
+  workspace: Workspace,
+  version: z.number().int().positive().default(1),
+  evaluatorConfig: z.record(z.string(), z.unknown()).default({}),
+  quality: PackQuality.default({
+    status: "draft",
+    reviewedBy: null,
+    reviewedAt: null,
+    score: null,
+  }),
+  skills: z.array(PackSkill).min(1),
+  dependencies: z.array(PackDependency).default([]),
+});
+
+/** A fully assembled pack: manifest plus the item bank, rubrics and projects. */
+export const DomainPackSchema = PackManifest.extend({
+  items: z.array(PackItem).default([]),
+  rubrics: z.array(PackRubric).default([]),
+  projects: z.array(PackProject).default([]),
+});
+
+export type DomainPack = z.infer<typeof DomainPackSchema>;

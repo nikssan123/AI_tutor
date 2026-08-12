@@ -1,0 +1,97 @@
+# Project briefs.
+#
+# §8 screen 8: "This is where the product earns its price." Each brief ships with
+# its full rubric visible up front and acceptance criteria as a checklist.
+#
+# `isPublic: true` also makes the brief a `/projects/{slug}` SEO page (§10 B) —
+# a graded project brief with a published rubric is a tool and unique data, not
+# an article, which is what keeps it clear of scaled-content exposure (§12).
+
+projects:
+  - slug: sales-funnel-analysis
+    title: Revenue by channel, without double-counting
+    rubric: funnel-analysis
+    evidenceType: query
+    difficulty: 0.6
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [join-grain, group-by-grain, outer-joins, result-validation]
+    brief: >-
+      You have `orders`, `order_items`, `customers` and `channels`. Produce
+      monthly revenue by acquisition channel for the last 12 months, including
+      channels with no revenue in a given month.
+
+      The trap is deliberate: orders have many items, and a naive join will
+      triple your revenue. Your submission should make it obvious to a reviewer
+      that this did not happen to you.
+    acceptanceCriteria:
+      - One row per channel per month for the last 12 months, with no gaps.
+      - Revenue matches the order-level total to the penny.
+      - Channels with zero revenue in a month appear with 0, not absent.
+      - The submission includes at least one check you ran to verify the grain.
+
+  - slug: cohort-retention-table
+    title: Monthly cohort retention from a raw event log
+    rubric: cohort-retention
+    evidenceType: query
+    difficulty: 0.8
+    estimatedMinutes: 120
+    isPublic: true
+    targetSkills: [cohort-analysis, date-truncation-and-series, window-ranking, ctes]
+    brief: >-
+      From a single `events(user_id, event_name, occurred_at)` table, build a
+      monthly cohort retention table. Rows are signup month, columns are months
+      since signup, values are the percentage of that cohort still active.
+
+      Two things separate a correct answer from a plausible one: months with no
+      activity must appear as 0 rather than disappear, and months that have not
+      happened yet must be blank rather than 0.
+    acceptanceCriteria:
+      - Every user belongs to exactly one cohort.
+      - Month 0 is the signup month and shows 100% for every cohort.
+      - Inactive months inside a cohort's lifetime show 0, not blank.
+      - Future months show blank, not 0.
+      - Cohort size is visible alongside the percentages.
+
+  - slug: data-quality-audit
+    title: Audit a table you have been told to trust
+    rubric: data-quality-audit
+    evidenceType: query
+    difficulty: 0.55
+    estimatedMinutes: 75
+    isPublic: true
+    targetSkills: [distinct-and-duplicates, semi-and-anti-joins, null-semantics, result-validation]
+    brief: >-
+      You have inherited a `customers` table that a downstream team relies on.
+      Audit it and report what is wrong: duplicate identities, orphaned foreign
+      keys, NULLs in fields the schema says are required in practice, and values
+      outside plausible ranges.
+
+      Report findings ranked by how much damage each would do downstream, with a
+      reproducing query for each.
+    acceptanceCriteria:
+      - At least four distinct classes of problem are checked.
+      - Every finding names the table, column and affected row count.
+      - Every finding ships with a query the reader can run themselves.
+      - Findings are ranked, and the ranking is justified.
+
+  - slug: slow-query-rescue
+    title: Make a slow query fast without changing its answer
+    rubric: query-rescue
+    evidenceType: query
+    difficulty: 0.85
+    estimatedMinutes: 120
+    isPublic: true
+    targetSkills: [query-performance, join-grain, ctes, result-validation]
+    brief: >-
+      A dashboard query takes 40 seconds. Read its plan, work out why, and make
+      it fast. The only hard constraint is that the result set must be
+      byte-identical to the original, including for rows involving NULLs.
+
+      A fix that is fast and slightly wrong is worth less than no fix at all,
+      which is why equivalence carries as much weight here as speed.
+    acceptanceCriteria:
+      - The plan is included, before and after.
+      - The cause is named and supported by the plan, not guessed.
+      - Timings are shown for both versions on comparable data.
+      - Equivalence is demonstrated across the full result set, not spot-checked.

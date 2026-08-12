@@ -1,0 +1,33 @@
+# The control fixture: the smallest pack that passes every check.
+#
+# Every broken fixture beside it is this file with exactly one thing wrong, so a
+# failing test names the defect rather than a pile of unrelated noise.
+slug: orphan-skill
+name: Orphan Skill
+taxonomyParent: test
+maturity: curated
+evalTier: 2
+workspace: text
+skills:
+  - slug: alpha
+    name: Alpha
+    description: The first skill.
+    level: foundational
+    area: basics
+    evalTier: 2
+    estimatedHours: 1
+    canDoStatement: do the alpha thing correctly
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.2, pLearn: 0.2, pSlip: 0.1, pGuess: 0.2 }
+  - slug: beta
+    name: Beta
+    description: The second skill.
+    level: core
+    area: advanced-basics
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: do the beta thing correctly
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.1, pLearn: 0.2, pSlip: 0.1, pGuess: 0.1 }
+dependencies:
+  - { from: alpha, to: beta, type: hard }

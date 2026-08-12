@@ -1,0 +1,23 @@
+services:
+  db:
+    # pgvector on Postgres 17 — §18.1 wants pgvector in the same Postgres,
+    # no extra infra. Production swaps DATABASE_URL to Neon; nothing else changes.
+    image: pgvector/pgvector:pg17
+    container_name: online_uni_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: online_uni
+      POSTGRES_PASSWORD: online_uni
+      POSTGRES_DB: online_uni
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U online_uni -d online_uni"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

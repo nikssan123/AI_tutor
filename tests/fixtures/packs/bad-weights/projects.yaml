@@ -1,0 +1,13 @@
+projects:
+  - slug: minimal-project
+    title: A minimal project
+    rubric: minimal-rubric
+    evidenceType: document
+    difficulty: 0.5
+    estimatedMinutes: 30
+    isPublic: false
+    targetSkills: [alpha, beta]
+    brief: Produce a short document demonstrating both the alpha and the beta thing, with your reasoning shown.
+    acceptanceCriteria:
+      - Both skills are demonstrated.
+      - The reasoning is visible.

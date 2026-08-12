@@ -1,0 +1,194 @@
+# Rubrics.
+#
+# §4.2 law 2: every rubric is public *before* the work is done. The learner sees
+# exactly what they are judged on. That makes the evaluation trustworthy, makes
+# disagreement productive, and makes the rubric a linkable SEO asset (§10 B).
+#
+# Every criterion needs all four bands. The evaluator must place work in a band
+# and quote the artefact as evidence (§14.5) — a band with no description gives
+# it nothing to anchor to, which is where sycophantic grading creeps in.
+
+rubrics:
+  - slug: funnel-analysis
+    version: 1
+    isPublic: true
+    criteria:
+      - id: correct-grain
+        name: Result grain is correct
+        description: >-
+          The output has exactly one row per intended entity, and joins have not
+          inflated any aggregate.
+        weight: 0.3
+        bands:
+          absent: Totals are inflated by fan-out, or the grain is not stated anywhere.
+          developing: Grain is right for some columns but at least one aggregate double-counts.
+          competent: Grain is correct throughout and stated in a comment or the write-up.
+          strong: Grain is correct, stated, and explicitly verified in the submission.
+      - id: correct-answer
+        name: Answers the question asked
+        description: The numbers returned are the numbers the brief asked for, over the right population and period.
+        weight: 0.3
+        bands:
+          absent: Answers a different question, or the population is wrong.
+          developing: Broadly right but the filter or period is off.
+          competent: Correct figures over the correct population and period.
+          strong: Correct, and edge cases in the brief (refunds, cancellations) are handled deliberately.
+      - id: null-handling
+        name: Missing data is handled deliberately
+        description: NULLs and absent rows are handled on purpose, not by accident.
+        weight: 0.15
+        bands:
+          absent: NULLs silently drop rows or produce NULL totals.
+          developing: Some NULL handling, applied inconsistently.
+          competent: NULLs handled correctly wherever they can occur.
+          strong: NULL handling is correct and the choice is justified in the write-up.
+      - id: readability
+        name: A colleague could maintain it
+        description: CTEs or subqueries are named for what they answer; the query can be read top to bottom.
+        weight: 0.15
+        bands:
+          absent: One long query with no structure, or names like `t1`, `a`, `x`.
+          developing: Some structure, but the reader has to hold too much in their head.
+          competent: Clear steps with meaningful names.
+          strong: Reads like an explanation of the analysis, not just an implementation of it.
+      - id: validation
+        name: The result was checked
+        description: The submission shows evidence that the author verified the number before trusting it.
+        weight: 0.1
+        bands:
+          absent: No sign the result was checked at all.
+          developing: A check is mentioned but not shown.
+          competent: At least one concrete check is shown with its output.
+          strong: Multiple independent checks, including one that would have caught a grain error.
+
+  - slug: cohort-retention
+    version: 1
+    isPublic: true
+    criteria:
+      - id: cohort-assignment
+        name: Cohorts are assigned correctly
+        description: Each entity belongs to exactly one cohort, derived from its first qualifying event.
+        weight: 0.25
+        bands:
+          absent: Entities appear in several cohorts, or cohorts are assigned from an arbitrary event.
+          developing: First-event logic is present but mis-handles ties or timezone boundaries.
+          competent: Each entity is in exactly one cohort, based on its first event.
+          strong: Correct, and the tie/boundary rule is stated explicitly.
+      - id: period-offset
+        name: Period offsets are correct
+        description: "Month 0 means the signup period; offsets count from the cohort's own start, not from a fixed date."
+        weight: 0.25
+        bands:
+          absent: Offsets are calendar periods rather than periods since signup.
+          developing: Offsets are relative but off by one, or inconsistent across cohorts.
+          competent: Offsets are correct and consistent.
+          strong: Correct, with the month-0 convention documented.
+      - id: complete-periods
+        name: No missing periods
+        description: Periods with zero activity appear as zero rather than vanishing from the output.
+        weight: 0.2
+        bands:
+          absent: Zero-activity periods are missing, making retention look better than it is.
+          developing: Some periods filled, others missing.
+          competent: All periods present within each cohort's lifetime.
+          strong: All periods present, and periods after the data ends are correctly excluded rather than shown as zero.
+      - id: denominator
+        name: The denominator is right
+        description: Retention is measured against the cohort's own size, not the total population.
+        weight: 0.2
+        bands:
+          absent: Divides by the wrong population.
+          developing: Correct denominator but not held constant across periods.
+          competent: Cohort size used consistently as the denominator.
+          strong: Correct, with the cohort size shown alongside the percentages so a small cohort is visible.
+      - id: readability
+        name: A colleague could maintain it
+        description: The query is decomposed into named steps that map onto the analysis.
+        weight: 0.1
+        bands:
+          absent: A single opaque query.
+          developing: Partially decomposed.
+          competent: Named CTEs matching the analytical steps.
+          strong: Structure makes the method obvious without the write-up.
+
+  - slug: data-quality-audit
+    version: 1
+    isPublic: true
+    criteria:
+      - id: coverage
+        name: Checks cover the real failure modes
+        description: The audit looks for duplicates, orphaned references, NULLs in required fields, and out-of-range values.
+        weight: 0.3
+        bands:
+          absent: Only one class of problem is checked.
+          developing: Two classes checked; obvious gaps remain.
+          competent: All four classes checked.
+          strong: All four, plus at least one domain-specific check the brief did not name.
+      - id: precision
+        name: Findings are specific and actionable
+        description: Each finding names the table, column and row count affected.
+        weight: 0.25
+        bands:
+          absent: Findings are vague ("some data is bad").
+          developing: Findings name the table but not the scale.
+          competent: Every finding names table, column and affected row count.
+          strong: Findings also include a reproducing query someone else can run.
+      - id: no-false-positives
+        name: Findings survive scrutiny
+        description: Reported problems are genuine, not artefacts of the audit query itself.
+        weight: 0.25
+        bands:
+          absent: Several findings are caused by the audit's own joins.
+          developing: One finding is a false positive.
+          competent: All findings verified against the source tables.
+          strong: Verified, with the verification shown.
+      - id: prioritisation
+        name: Findings are ranked by impact
+        description: The reader can tell which problem to fix first and why.
+        weight: 0.2
+        bands:
+          absent: An unranked list.
+          developing: Ranked, but the ranking is not justified.
+          competent: Ranked by a stated notion of impact.
+          strong: Ranked, justified, and tied to a concrete downstream consequence.
+
+  - slug: query-rescue
+    version: 1
+    isPublic: true
+    criteria:
+      - id: diagnosis
+        name: The cause is correctly identified
+        description: The submission names why the query was slow, with evidence from the plan.
+        weight: 0.3
+        bands:
+          absent: Guesses at a cause with no evidence.
+          developing: Names a plausible cause but does not support it from the plan.
+          competent: Names the real cause and cites the plan.
+          strong: Names the cause, cites the plan, and rules out a competing explanation.
+      - id: improvement
+        name: The query is measurably faster
+        description: Before and after timings on comparable data.
+        weight: 0.3
+        bands:
+          absent: No measurement, or no improvement.
+          developing: Improved, but measured only once or on unrepresentative data.
+          competent: Clear improvement, measured on representative data.
+          strong: Clear improvement with the measurement method described well enough to repeat.
+      - id: correctness-preserved
+        name: The result is unchanged
+        description: The faster query returns exactly the same rows as the original.
+        weight: 0.3
+        bands:
+          absent: The result changed and this was not noticed.
+          developing: Result is the same on a spot check only.
+          competent: Equivalence demonstrated on the full result set.
+          strong: Equivalence demonstrated, including for NULL and edge-case rows.
+      - id: proportionality
+        name: The fix is proportionate
+        description: The change is the smallest one that solves the problem, without unnecessary new indexes or denormalisation.
+        weight: 0.1
+        bands:
+          absent: Adds indexes or tables with no justification.
+          developing: The fix works but does more than needed.
+          competent: A minimal, targeted change.
+          strong: Minimal, with the rejected heavier alternatives named and dismissed.

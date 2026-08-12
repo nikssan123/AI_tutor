@@ -1,0 +1,411 @@
+# SQL & Data Analysis — Curated Domain Pack
+#
+# Phase 0 / D3 (§23): hand-authored before any engine code depended on it, because
+# the pack's shape settles every schema in the system. Chosen as the first pack
+# for the reasons §23 gives: small graph, Tier 1 (machine-verifiable — a query
+# either returns the right rows or it does not), and real search demand.
+#
+# Everything here is data. Adding a domain must never require a code change (§7.3).
+
+slug: sql-data-analysis
+name: SQL & Data Analysis
+taxonomyParent: technical-entry
+maturity: curated # §7.1 — "Deeply supported" badge
+evalTier: 1 # §7.2 — execute the query, assert the result, then review quality
+workspace: query-sheet # §7.3 — result table + formula inspector
+
+evaluatorConfig:
+  model: opus
+  passes: 1 # Tier 1 needs no self-consistency pass; the tests are the ground truth
+  verifier: quote-match
+  tools: [run_query, compare_result_set]
+
+quality:
+  status: reviewed
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+# ---------------------------------------------------------------------------
+# Skills
+#
+# `area` is what §16.4's interleaving bonus keys off — it must be the skill
+# *area*, not the topic, or interleaving degenerates into "a different lesson
+# about joins".
+#
+# `bktPriors` are expert-seeded and refit from real data once there are ~500
+# observations per skill (§16.2). pGuess is materially higher for skills whose
+# items are mostly multiple-choice and near-zero for produce-an-answer skills.
+# ---------------------------------------------------------------------------
+skills:
+  # --- Foundations -----------------------------------------------------------
+  - slug: select-projection
+    name: SELECT and projection
+    description: >-
+      Choosing which columns to return, aliasing them, and computing derived
+      columns in the SELECT list.
+    level: foundational
+    area: foundations
+    evalTier: 1
+    estimatedHours: 1
+    canDoStatement: Write a SELECT that returns exactly the columns asked for, with clear aliases
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.35, pLearn: 0.25, pSlip: 0.08, pGuess: 0.2 }
+
+  - slug: filtering
+    name: Filtering with WHERE
+    description: >-
+      Comparison operators, boolean logic, IN, BETWEEN, LIKE, and the operator
+      precedence traps that quietly return the wrong rows.
+    level: foundational
+    area: foundations
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Filter rows with combined AND/OR conditions and get the precedence right
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.3, pLearn: 0.22, pSlip: 0.1, pGuess: 0.2 }
+
+  - slug: sorting-limiting
+    name: Sorting and limiting
+    description: ORDER BY with multiple keys and directions, LIMIT/OFFSET, and why an unordered LIMIT is not deterministic.
+    level: foundational
+    area: foundations
+    evalTier: 1
+    estimatedHours: 0.75
+    canDoStatement: Return a deterministic top-N result set with an explicit, total ordering
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.3, pLearn: 0.25, pSlip: 0.08, pGuess: 0.2 }
+
+  - slug: null-semantics
+    name: NULL semantics
+    description: >-
+      Three-valued logic, IS NULL vs = NULL, NULL propagation through arithmetic
+      and aggregation, COALESCE and NULLIF.
+    level: foundational
+    area: foundations
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Predict and control how NULLs affect a filter, a join and an aggregate
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.18, pSlip: 0.12, pGuess: 0.15 }
+
+  - slug: types-and-casting
+    name: Data types and casting
+    description: Implicit vs explicit casts, integer division, string-to-date parsing, and timezone-aware timestamps.
+    level: foundational
+    area: foundations
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Cast between types deliberately and avoid silent integer-division and timezone errors
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.2, pLearn: 0.18, pSlip: 0.12, pGuess: 0.15 }
+
+  # --- Aggregation -----------------------------------------------------------
+  - slug: aggregate-functions
+    name: Aggregate functions
+    description: COUNT, SUM, AVG, MIN, MAX, and how each one treats NULL.
+    level: core
+    area: aggregation
+    evalTier: 1
+    estimatedHours: 1
+    canDoStatement: Aggregate a column correctly, knowing which functions skip NULLs
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.25, pLearn: 0.22, pSlip: 0.1, pGuess: 0.2 }
+
+  - slug: group-by-grain
+    name: GROUP BY and result grain
+    description: >-
+      Choosing the grouping keys that produce the grain the question actually
+      asks for, and recognising when a result is at the wrong grain.
+    level: core
+    area: aggregation
+    evalTier: 1
+    estimatedHours: 2.5
+    canDoStatement: State the grain of a result set and write the GROUP BY that produces it
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.16, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: having-vs-where
+    name: HAVING vs WHERE
+    description: Filtering before aggregation versus after it, and the performance and correctness consequences of each.
+    level: core
+    area: aggregation
+    evalTier: 1
+    estimatedHours: 1
+    canDoStatement: Choose correctly between filtering rows and filtering groups, and say why
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.2, pSlip: 0.1, pGuess: 0.2 }
+
+  - slug: distinct-and-duplicates
+    name: DISTINCT and duplicate control
+    description: COUNT(DISTINCT x), DISTINCT ON, and diagnosing where duplicates entered a result set.
+    level: core
+    area: aggregation
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Detect where duplicate rows came from and remove them at the right point in the query
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.18, pSlip: 0.12, pGuess: 0.1 }
+
+  # --- Joins -----------------------------------------------------------------
+  - slug: inner-join
+    name: Inner joins
+    description: Joining two tables on a key, and reading a join condition as a row-matching rule.
+    level: core
+    area: joins
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Join two tables on the correct key and predict the shape of the result
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.22, pLearn: 0.2, pSlip: 0.1, pGuess: 0.15 }
+
+  - slug: outer-joins
+    name: Outer joins
+    description: LEFT, RIGHT and FULL joins, preserved rows, and why a WHERE clause on the right-hand table silently turns a LEFT JOIN into an INNER JOIN.
+    level: core
+    area: joins
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Preserve unmatched rows with an outer join without accidentally filtering them back out
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.17, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: join-grain
+    name: Join grain and fan-out
+    description: >-
+      The single most common source of wrong numbers in analytics: joining a
+      one-row-per-order table to a many-rows-per-order table and then summing a
+      column that has been duplicated.
+    level: core
+    area: joins
+    evalTier: 1
+    estimatedHours: 3
+    canDoStatement: Join three tables at the correct grain and prove the totals were not inflated by fan-out
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.14, pSlip: 0.14, pGuess: 0.05 }
+
+  - slug: self-joins
+    name: Self joins
+    description: Joining a table to itself for hierarchies, adjacency and pairwise comparison.
+    level: advanced
+    area: joins
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Write a self join with unambiguous aliases to compare rows within one table
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: semi-and-anti-joins
+    name: Semi and anti joins
+    description: EXISTS, NOT EXISTS, IN, NOT IN and the NULL trap in NOT IN; EXCEPT and INTERSECT.
+    level: advanced
+    area: joins
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Find rows that do or do not have a match without changing the result grain
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.15, pSlip: 0.12, pGuess: 0.08 }
+
+  # --- Composition -----------------------------------------------------------
+  - slug: subqueries
+    name: Subqueries
+    description: Scalar, row and table subqueries, and where each is legal.
+    level: core
+    area: composition
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Use a subquery in the right position to compute an intermediate result
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.15, pLearn: 0.18, pSlip: 0.1, pGuess: 0.12 }
+
+  - slug: ctes
+    name: Common table expressions
+    description: WITH clauses for readability, reuse within a query, and stepwise construction of a complex result.
+    level: core
+    area: composition
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Decompose a complex query into named CTEs that each answer one clear question
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.12, pLearn: 0.2, pSlip: 0.1, pGuess: 0.1 }
+
+  - slug: correlated-subqueries
+    name: Correlated subqueries
+    description: Subqueries that reference the outer row, when they are the clearest tool, and when they are a performance disaster.
+    level: advanced
+    area: composition
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Write a correlated subquery and explain what it costs relative to a join
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.14, pSlip: 0.13, pGuess: 0.06 }
+
+  # --- Window functions ------------------------------------------------------
+  - slug: window-basics
+    name: Window function basics
+    description: OVER and PARTITION BY, and the crucial difference from GROUP BY — windows add a column without collapsing rows.
+    level: advanced
+    area: windows
+    evalTier: 1
+    estimatedHours: 2.5
+    canDoStatement: Add an aggregate to every row with a window function instead of collapsing the result
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.12, pGuess: 0.06 }
+
+  - slug: window-ranking
+    name: Ranking functions
+    description: ROW_NUMBER, RANK, DENSE_RANK, NTILE, and the top-N-per-group pattern.
+    level: advanced
+    area: windows
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Return the top N rows per group with the right tie-breaking behaviour
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.05, pLearn: 0.16, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: window-frames
+    name: Window frames
+    description: ROWS and RANGE frames, running totals, moving averages, and the default frame that surprises everyone.
+    level: specialist
+    area: windows
+    evalTier: 1
+    estimatedHours: 2.5
+    canDoStatement: Compute a running total or moving average with an explicit, correct frame clause
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.04, pLearn: 0.13, pSlip: 0.14, pGuess: 0.05 }
+
+  - slug: lag-lead
+    name: LAG and LEAD
+    description: Period-over-period comparison, gap detection, and sessionisation.
+    level: advanced
+    area: windows
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Compare each row to the previous or next row within a partition
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.05, pLearn: 0.17, pSlip: 0.12, pGuess: 0.07 }
+
+  # --- Analysis --------------------------------------------------------------
+  - slug: date-truncation-and-series
+    name: Date truncation and time series
+    description: DATE_TRUNC, generating a complete date spine, and why missing days are the most common time-series bug.
+    level: advanced
+    area: analysis
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Produce a time series with no missing periods, including days with zero activity
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.07, pLearn: 0.15, pSlip: 0.13, pGuess: 0.06 }
+
+  - slug: cohort-analysis
+    name: Cohort analysis
+    description: Assigning entities to cohorts by first event and measuring behaviour by period offset.
+    level: specialist
+    area: analysis
+    evalTier: 1
+    estimatedHours: 3
+    canDoStatement: Build a cohort retention table from a raw event log
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.03, pLearn: 0.12, pSlip: 0.14, pGuess: 0.03 }
+
+  - slug: conditional-aggregation
+    name: Conditional aggregation and pivoting
+    description: SUM(CASE WHEN …), FILTER clauses, and turning long data into wide.
+    level: advanced
+    area: analysis
+    evalTier: 1
+    estimatedHours: 1.5
+    canDoStatement: Pivot a long result into columns with conditional aggregation
+    observableEvidence: [query]
+    bktPriors: { pInit: 0.08, pLearn: 0.18, pSlip: 0.11, pGuess: 0.08 }
+
+  - slug: result-validation
+    name: Validating a result
+    description: >-
+      Sanity checks, row-count reconciliation, spot-checking against a known
+      answer, and the habit of asking "what would this look like if it were
+      wrong?" before shipping a number.
+    level: advanced
+    area: analysis
+    evalTier: 1
+    estimatedHours: 2
+    canDoStatement: Check a query result for correctness before trusting it, and say what you checked
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.14, pSlip: 0.14, pGuess: 0.05 }
+
+  # --- Performance -----------------------------------------------------------
+  - slug: query-performance
+    name: Query performance basics
+    description: Reading an EXPLAIN plan, index usage, sargability, and the handful of rewrites that fix most slow analytical queries.
+    level: specialist
+    area: performance
+    evalTier: 1
+    estimatedHours: 3
+    canDoStatement: Read an EXPLAIN plan, name why a query is slow, and rewrite it to be faster
+    observableEvidence: [query, explanation]
+    bktPriors: { pInit: 0.04, pLearn: 0.12, pSlip: 0.14, pGuess: 0.04 }
+
+# ---------------------------------------------------------------------------
+# Dependencies — `from` is the prerequisite, `to` is the skill that needs it.
+#
+# `hard` means cannot learn without; `soft` means easier with. The planner gates
+# eligibility on hard edges only and uses soft edges for readiness scoring
+# (§16.1), so marking something hard that is merely helpful will lock learners
+# out of material they could handle.
+# ---------------------------------------------------------------------------
+dependencies:
+  # Foundations
+  - { from: select-projection, to: filtering, type: hard }
+  - { from: select-projection, to: sorting-limiting, type: hard }
+  - { from: filtering, to: null-semantics, type: hard }
+  - { from: select-projection, to: types-and-casting, type: hard }
+
+  # Aggregation
+  - { from: select-projection, to: aggregate-functions, type: hard }
+  - { from: null-semantics, to: aggregate-functions, type: soft, strength: 0.7 }
+  - { from: aggregate-functions, to: group-by-grain, type: hard }
+  - { from: group-by-grain, to: having-vs-where, type: hard }
+  - { from: filtering, to: having-vs-where, type: hard }
+  - { from: aggregate-functions, to: distinct-and-duplicates, type: hard }
+  - { from: group-by-grain, to: distinct-and-duplicates, type: soft, strength: 0.6 }
+
+  # Joins
+  - { from: filtering, to: inner-join, type: hard }
+  - { from: inner-join, to: outer-joins, type: hard }
+  - { from: null-semantics, to: outer-joins, type: soft, strength: 0.8 }
+  - { from: outer-joins, to: join-grain, type: hard }
+  - { from: group-by-grain, to: join-grain, type: hard }
+  - { from: distinct-and-duplicates, to: join-grain, type: soft, strength: 0.7 }
+  - { from: inner-join, to: self-joins, type: hard }
+  - { from: outer-joins, to: semi-and-anti-joins, type: hard }
+  - { from: null-semantics, to: semi-and-anti-joins, type: soft, strength: 0.9 }
+
+  # Composition
+  - { from: filtering, to: subqueries, type: hard }
+  - { from: subqueries, to: ctes, type: hard }
+  - { from: subqueries, to: correlated-subqueries, type: hard }
+  - { from: inner-join, to: correlated-subqueries, type: soft, strength: 0.6 }
+
+  # Windows
+  - { from: group-by-grain, to: window-basics, type: hard }
+  - { from: ctes, to: window-basics, type: soft, strength: 0.5 }
+  - { from: window-basics, to: window-ranking, type: hard }
+  - { from: window-basics, to: window-frames, type: hard }
+  - { from: window-basics, to: lag-lead, type: hard }
+  - { from: sorting-limiting, to: window-ranking, type: soft, strength: 0.6 }
+
+  # Analysis
+  - { from: types-and-casting, to: date-truncation-and-series, type: hard }
+  - { from: outer-joins, to: date-truncation-and-series, type: hard }
+  - { from: date-truncation-and-series, to: cohort-analysis, type: hard }
+  - { from: window-ranking, to: cohort-analysis, type: hard }
+  - { from: lag-lead, to: cohort-analysis, type: soft, strength: 0.6 }
+  - { from: aggregate-functions, to: conditional-aggregation, type: hard }
+  - { from: group-by-grain, to: conditional-aggregation, type: hard }
+  - { from: join-grain, to: result-validation, type: hard }
+  - { from: distinct-and-duplicates, to: result-validation, type: soft, strength: 0.8 }
+
+  # Performance
+  - { from: join-grain, to: query-performance, type: hard }
+  - { from: ctes, to: query-performance, type: soft, strength: 0.5 }
+  - { from: window-basics, to: query-performance, type: soft, strength: 0.4 }

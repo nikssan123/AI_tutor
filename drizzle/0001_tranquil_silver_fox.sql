@@ -1,0 +1,2 @@
+DROP INDEX "internal_link_pair_idx";--> statement-breakpoint
+ALTER TABLE "internal_link" ADD CONSTRAINT "internal_link_from_page_id_to_page_id_link_type_pk" PRIMARY KEY("from_page_id","to_page_id","link_type");

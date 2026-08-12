@@ -1,0 +1,40 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+/**
+ * Minimal .env loader for the CLI scripts (migrate, packs:seed). Next.js loads
+ * .env.local itself; these scripts run outside it.
+ *
+ * Existing process env always wins, so CI secrets are never overwritten by a
+ * stray local file.
+ */
+export function loadEnv(files = [".env.local", ".env"]): void {
+  for (const file of files) {
+    let raw: string;
+    try {
+      raw = readFileSync(resolve(process.cwd(), file), "utf8");
+    } catch {
+      continue;
+    }
+
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+
+      const key = trimmed.slice(0, eq).trim();
+      if (key in process.env) continue;
+
+      let value = trimmed.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  }
+}

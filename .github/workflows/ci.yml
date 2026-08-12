@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      # pgvector, matching docker-compose.yml — the pack seeding and migration
+      # tests run against a real Postgres rather than a mock.
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: online_uni
+          POSTGRES_PASSWORD: online_uni
+          POSTGRES_DB: online_uni
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U online_uni -d online_uni"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://online_uni:online_uni@localhost:5433/online_uni
+      BETTER_AUTH_SECRET: ci-secret-value-at-least-32-characters
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # §8.5.4 — the palette is authored once in theme.ts and emitted to
+      # tokens.css. This fails if the checked-in CSS has drifted, which is what
+      # stops the two dark blocks silently diverging.
+      - name: Design tokens are up to date
+        run: pnpm tokens:check
+
+      # Keeps the 100% coverage number honest: no ignore comments, no new
+      # exclusions, thresholds unchanged.
+      - name: Coverage audit
+        run: pnpm coverage:audit
+
+      # §24 E2 — a pack with a cycle, a hallucinated skill reference or an
+      # MCQ-heavy item bank cannot reach production.
+      - name: Validate domain packs
+        run: pnpm packs:validate
+
+      - name: Migrations apply
+        run: pnpm db:migrate
+
+      - name: Seed packs
+        run: pnpm packs:seed
+
+      - name: Tests with coverage
+        run: pnpm coverage
+
+      - name: Build
+        run: pnpm build
+
+      # §13.3's non-negotiable check, and the reason the Next 16 deviation was
+      # safe: metadata must appear inside <head>, verified against raw HTML
+      # rather than the browser DOM.
+      - name: Metadata is in <head>
+        run: |
+          pnpm start &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && break
+            sleep 2
+          done
+          RAW=$(curl -s http://localhost:3000/)
+          HEAD_END=$(printf '%s' "$RAW" | grep -bo '</head>' | head -1 | cut -d: -f1)
+          for needle in '<title>' 'name="description"' 'rel="canonical"'; do
+            POS=$(printf '%s' "$RAW" | grep -bo "$needle" | head -1 | cut -d: -f1)
+            if [ -z "$POS" ] || [ "$POS" -ge "$HEAD_END" ]; then
+              echo "::error::$needle is missing or appears after </head>"
+              exit 1
+            fi
+          done
+          echo "✓ title, description and canonical are all inside <head>"
+
+      - name: App routes are not indexable
+        run: |
+          curl -s http://localhost:3000/robots.txt | grep -q 'Disallow: /today' \
+            || { echo "::error::/today is not disallowed in robots.txt"; exit 1; }
+          curl -s http://localhost:3000/design | grep -q 'noindex' \
+            || { echo "::error::an app route is missing its noindex"; exit 1; }
+          echo "✓ app routes are disallowed and noindexed"

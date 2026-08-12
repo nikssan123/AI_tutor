@@ -1,0 +1,23 @@
+items:
+  - slug: alpha-write
+    skill: alpha
+    type: short_text
+    difficulty: 0.2
+    prompt: Write out how you would do the alpha thing.
+  - slug: alpha-explain
+    skill: alpha
+    type: explain
+    difficulty: 0.4
+    prompt: Explain why the alpha thing is done that way.
+  - slug: beta-write
+    skill: beta
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: Produce a small artefact demonstrating the beta thing.
+  - slug: beta-pick
+    skill: beta
+    type: mcq
+    difficulty: 0.3
+    prompt: Which of these is the beta thing?
+    options: ["The first one", "The second one"]
+    answerKey: { correct: 0 }

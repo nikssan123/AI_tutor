@@ -1,0 +1,11 @@
+items:
+  - slug: alpha-write
+    skill: alpha
+    type: short_text
+    difficulty: 0.2
+    prompt: Write out how you would do the alpha thing.
+  - slug: alpha-explain
+    skill: alpha
+    type: explain
+    difficulty: 0.4
+    prompt: Explain why the alpha thing is done that way.

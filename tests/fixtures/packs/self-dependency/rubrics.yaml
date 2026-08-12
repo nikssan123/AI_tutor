@@ -1,0 +1,41 @@
+rubrics:
+  - slug: minimal-rubric
+    version: 1
+    isPublic: true
+    criteria:
+      - id: correctness
+        name: Correctness
+        description: The answer is right.
+        weight: 0.4
+        bands:
+          absent: Wrong.
+          developing: Partly right.
+          competent: Right.
+          strong: Right, and robust to edge cases.
+      - id: clarity
+        name: Clarity
+        description: A colleague could follow it.
+        weight: 0.2
+        bands:
+          absent: Unreadable.
+          developing: Follows with effort.
+          competent: Clear.
+          strong: Clear and well structured.
+      - id: completeness
+        name: Completeness
+        description: Everything asked for is present.
+        weight: 0.2
+        bands:
+          absent: Major omissions.
+          developing: Minor omissions.
+          competent: Complete.
+          strong: Complete, with the reasoning shown.
+      - id: validation
+        name: Validation
+        description: The author checked their own work.
+        weight: 0.2
+        bands:
+          absent: No checks.
+          developing: A check is claimed but not shown.
+          competent: A check is shown.
+          strong: Several independent checks are shown.

@@ -1,0 +1,134 @@
+/*
+ * GENERATED FILE — do not edit.
+ *
+ * Source of truth: src/lib/theme.ts
+ * Regenerate:      pnpm tokens:build
+ * CI check:        pnpm tokens:check
+ *
+ * §8.5.4 — three states, not two: Light, Dark, and System (the default).
+ * Only an explicit choice writes data-theme.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Palette — light */
+  --ground: #FAFAFA;
+  --surface: #FFFFFF;
+  --raised: #FFFFFF;
+  --ink: #17191C;
+  --ink-muted: #5C6169;
+  --ink-faint: #70747A;
+  --hairline: #E8E9EB;
+  --accent: #00785C;
+  --accent-weak: #E6F4F0;
+  --attention: #B26A00;
+  --problem: #B3261E;
+  --shadow-raised: 0 1px 2px rgb(23 25 28 / .04), 0 12px 32px rgb(23 25 28 / .07);
+
+  /* Type — §8.5.3 */
+  --font-sans: "Instrument Sans", "Instrument Sans Fallback", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --text-display-size: 2.5rem;
+  --text-display-line: 1.1;
+  --text-display-weight: 650;
+  --text-display-tracking: -0.03em;
+  --text-title-size: 1.5rem;
+  --text-title-line: 1.25;
+  --text-title-weight: 600;
+  --text-title-tracking: -0.02em;
+  --text-lead-size: 1.1875rem;
+  --text-lead-line: 1.5;
+  --text-lead-weight: 400;
+  --text-lead-tracking: -0.01em;
+  --text-body-size: 1rem;
+  --text-body-line: 1.6;
+  --text-body-weight: 400;
+  --text-body-tracking: 0;
+  --text-label-size: 0.875rem;
+  --text-label-line: 1.4;
+  --text-label-weight: 550;
+  --text-label-tracking: 0;
+  --text-meta-size: 0.8125rem;
+  --text-meta-line: 1.4;
+  --text-meta-weight: 400;
+  --text-meta-tracking: 0.01em;
+
+  /* Geometry — 4px rhythm */
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-pill: 999px;
+  --touch-min: 44px;
+  --measure: 68ch;
+
+  /* Motion — §8.5.6 */
+  --ease-spring: linear(0,.0067,.0265,.0587,.1021,.1553,.2168,.2851,.3587,.4361,.5157,.5961,.6757,.7531,.8269,.8956,.9578,1.0116,1.0553,1.0872,1.0951,1.0784,1.0435,1.0139,1);
+  --ease-out: cubic-bezier(.22,.61,.36,1);
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-panel: 320ms;
+}
+
+/*
+ * System preference. Guarded so an explicit "light" choice still wins when the
+ * OS is dark — without the :not(), the toggle only works in one direction.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0E1013;
+    --surface: #16191D;
+    --raised: #1D2126;
+    --ink: #F2F3F4;
+    --ink-muted: #A2A9B2;
+    --ink-faint: #82888F;
+    --hairline: #262A2F;
+    --accent: #35C79A;
+    --accent-weak: #12302A;
+    --attention: #E0A33C;
+    --problem: #F2726A;
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
+  }
+}
+
+/* Explicit choice. Same values as above — emitted, never hand-copied. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0E1013;
+  --surface: #16191D;
+  --raised: #1D2126;
+  --ink: #F2F3F4;
+  --ink-muted: #A2A9B2;
+  --ink-faint: #82888F;
+  --hairline: #262A2F;
+  --accent: #35C79A;
+  --accent-weak: #12302A;
+  --attention: #E0A33C;
+  --problem: #F2726A;
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
+}
+
+/*
+ * §8.5.4 — learner artefacts always render at true colour. A photograph or a
+ * chart being *evaluated* must never be dimmed, inverted or tinted: the grade
+ * depends on how it actually looks, so a dark-mode filter would make the
+ * verdict wrong. Fixed neutral mat, identical in both themes.
+ */
+.artifact-mat {
+  background: #8a8a8a;
+  color-scheme: light;
+  filter: none;
+}
+
+/* §8.5.6 — prefers-reduced-motion collapses everything to a 100ms fade. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 100ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 100ms !important;
+    transition-property: opacity !important;
+    scroll-behavior: auto !important;
+  }
+}

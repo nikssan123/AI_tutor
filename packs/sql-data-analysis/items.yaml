@@ -1,0 +1,575 @@
+# Diagnostic and retrieval item bank.
+#
+# §16.4's pack build-time rule: free-text and produce-an-answer items must
+# outnumber multiple-choice by at least 2:1. Recognition is easy to author and
+# easy to game; recall and production are what actually move mastery. The
+# validator enforces the ratio, so this file cannot quietly drift toward MCQ.
+#
+# `difficulty` is on the same 0..1 scale as mastery, so the adaptive diagnostic
+# can pick the item closest to the current estimate (§16.2).
+
+items:
+  # --- select-projection -----------------------------------------------------
+  - slug: select-alias-basic
+    skill: select-projection
+    type: short_text
+    difficulty: 0.15
+    prompt: >-
+      A table `orders` has columns `id`, `customer_id`, `total_cents`. Write a
+      query returning the order id and the total in whole currency units, with
+      the second column named `total`.
+    answerKey:
+      mustContain: ["select", "orders"]
+      resultShape: [id, total]
+
+  - slug: select-derived-column
+    skill: select-projection
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      From `orders(id, subtotal_cents, tax_cents)`, return each order's id and
+      the grand total in cents as `grand_total_cents`.
+    answerKey:
+      mustContain: ["subtotal_cents", "tax_cents"]
+
+  - slug: select-star-critique
+    skill: select-projection
+    type: explain
+    difficulty: 0.35
+    prompt: >-
+      A colleague ships a dashboard query that begins `SELECT * FROM orders
+      JOIN customers ON …`. Name two concrete problems this will cause later.
+    answerKey:
+      concepts: [ambiguous-duplicate-columns, breaks-on-schema-change, unnecessary-io]
+
+  # --- filtering -------------------------------------------------------------
+  - slug: filter-and-or-precedence
+    skill: filtering
+    type: code_read
+    difficulty: 0.4
+    prompt: |-
+      Which rows does this return?
+
+        SELECT * FROM orders
+        WHERE status = 'shipped' OR status = 'delivered' AND total_cents > 5000;
+
+      State precisely what the author almost certainly meant, and what they got.
+    answerKey:
+      concepts: [and-binds-tighter-than-or, missing-parentheses]
+
+  - slug: filter-between-inclusive
+    skill: filtering
+    type: mcq
+    difficulty: 0.2
+    prompt: "`WHERE created_at BETWEEN '2026-01-01' AND '2026-01-31'` on a timestamp column misses which rows?"
+    options:
+      - Nothing — it covers all of January
+      - Rows on 31 January after midnight
+      - Rows on 1 January before midnight
+      - Rows with a NULL created_at only
+    answerKey: { correct: 1 }
+
+  - slug: filter-like-pattern
+    skill: filtering
+    type: short_text
+    difficulty: 0.25
+    prompt: >-
+      Return every customer whose email is on the domain `example.com`, without
+      matching `notexample.com`.
+    answerKey:
+      mustContain: ["like", "@example.com"]
+
+  # --- sorting-limiting ------------------------------------------------------
+  - slug: sort-nondeterministic-limit
+    skill: sorting-limiting
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      A report runs `SELECT * FROM orders ORDER BY created_at DESC LIMIT 10`
+      and two people get different rows for the same data. Explain how, and fix it.
+    answerKey:
+      concepts: [ties-in-sort-key, need-total-ordering, add-tiebreak-column]
+
+  - slug: sort-multi-key
+    skill: sorting-limiting
+    type: short_text
+    difficulty: 0.2
+    prompt: Return orders sorted by status ascending, then by total descending.
+    answerKey:
+      mustContain: ["order by", "desc"]
+
+  # --- null-semantics --------------------------------------------------------
+  - slug: null-equality
+    skill: null-semantics
+    type: mcq
+    difficulty: 0.3
+    prompt: "What does `SELECT * FROM t WHERE col = NULL` return?"
+    options:
+      - Every row where col is NULL
+      - No rows at all
+      - Every row
+      - A syntax error
+    answerKey: { correct: 1 }
+
+  - slug: null-in-aggregate
+    skill: null-semantics
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      `AVG(score)` over 10 rows, 3 of which have a NULL score, returns 71.4.
+      Over what denominator was that computed, and how would you compute the
+      average over all 10 rows treating NULL as zero?
+    answerKey:
+      concepts: [aggregates-skip-nulls, denominator-is-7, coalesce-to-zero]
+
+  - slug: null-not-in-trap
+    skill: null-semantics
+    type: code_read
+    difficulty: 0.6
+    prompt: |-
+      `SELECT * FROM a WHERE a.id NOT IN (SELECT b.a_id FROM b);`
+
+      `b.a_id` is nullable and contains at least one NULL. What does this return,
+      and why?
+    answerKey:
+      concepts: [returns-nothing, three-valued-logic, use-not-exists]
+
+  - slug: null-coalesce-write
+    skill: null-semantics
+    type: short_text
+    difficulty: 0.35
+    prompt: Return each customer's `nickname`, falling back to `first_name`, then to the literal 'there'.
+    answerKey:
+      mustContain: ["coalesce"]
+
+  # --- types-and-casting -----------------------------------------------------
+  - slug: cast-integer-division
+    skill: types-and-casting
+    type: code_read
+    difficulty: 0.35
+    prompt: |-
+      `SELECT completed / total AS rate FROM tasks;` returns 0 for every row,
+      though both columns are populated and completed is sometimes non-zero.
+      Explain and fix.
+    answerKey:
+      concepts: [integer-division-truncates, cast-to-numeric]
+
+  - slug: cast-timezone
+    skill: types-and-casting
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      A daily-signups chart shows a spike every Monday that the product team
+      cannot explain. The `created_at` column is `timestamptz` and the query
+      groups by `DATE(created_at)`. What is the most likely cause?
+    answerKey:
+      concepts: [timezone-conversion, session-timezone, explicit-at-time-zone]
+
+  - slug: cast-explicit
+    skill: types-and-casting
+    type: mcq
+    difficulty: 0.25
+    prompt: Which expression safely turns the text '2026-08-12' into a date in standard SQL?
+    options:
+      - "DATE('2026-08-12')"
+      - "CAST('2026-08-12' AS DATE)"
+      - "'2026-08-12'::string"
+      - "TO_TEXT('2026-08-12')"
+    answerKey: { correct: 1 }
+
+  # --- aggregate-functions ---------------------------------------------------
+  - slug: agg-count-variants
+    skill: aggregate-functions
+    type: explain
+    difficulty: 0.35
+    prompt: >-
+      On the same table, `COUNT(*)` returns 100, `COUNT(email)` returns 87 and
+      `COUNT(DISTINCT email)` returns 84. Explain each number.
+    answerKey:
+      concepts: [count-star-counts-rows, count-col-skips-nulls, distinct-dedupes]
+
+  - slug: agg-sum-write
+    skill: aggregate-functions
+    type: short_text
+    difficulty: 0.2
+    prompt: Return the total revenue across all orders as `revenue_cents`.
+    answerKey:
+      mustContain: ["sum"]
+
+  # --- group-by-grain --------------------------------------------------------
+  - slug: grain-state-question
+    skill: group-by-grain
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      "Revenue per customer per month." State the grain of the result in one
+      line, then write the GROUP BY clause that produces it.
+    answerKey:
+      mustContain: ["group by"]
+      concepts: [one-row-per-customer-per-month]
+
+  - slug: grain-wrong-grain-read
+    skill: group-by-grain
+    type: code_read
+    difficulty: 0.55
+    prompt: |-
+      SELECT c.country, o.id, SUM(o.total_cents)
+      FROM customers c JOIN orders o ON o.customer_id = c.id
+      GROUP BY c.country, o.id;
+
+      The analyst wanted revenue by country. What did they get instead?
+    answerKey:
+      concepts: [grain-is-country-and-order, remove-order-id-from-group-by]
+
+  - slug: grain-micro-artifact
+    skill: group-by-grain
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Given `events(user_id, event_name, occurred_at)`, write a query returning
+      one row per user per day with the number of events. Include days a user was
+      active only; a later exercise will add the zero-days.
+    answerKey:
+      resultShape: [user_id, day, event_count]
+
+  # --- having-vs-where -------------------------------------------------------
+  - slug: having-choose
+    skill: having-vs-where
+    type: mcq
+    difficulty: 0.3
+    prompt: You want customers whose *2026* orders total more than £1,000. Where does the year filter belong?
+    options:
+      - In HAVING, alongside the total filter
+      - In WHERE, before aggregation
+      - Either — they are equivalent
+      - In the ORDER BY
+    answerKey: { correct: 1 }
+
+  - slug: having-explain
+    skill: having-vs-where
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      Explain, in terms of when each clause runs, why moving a filter from
+      HAVING to WHERE can change the answer as well as the speed.
+    answerKey:
+      concepts: [where-filters-rows, having-filters-groups, changes-aggregate-input]
+
+  # --- distinct-and-duplicates ----------------------------------------------
+  - slug: dupes-find-source
+    skill: distinct-and-duplicates
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A query that returned 1,000 rows yesterday returns 1,340 today, and the
+      underlying tables have not grown. Describe how you would locate the source
+      of the extra rows.
+    answerKey:
+      concepts: [check-join-cardinality, group-by-key-having-count-gt-1, isolate-tables-one-at-a-time]
+
+  - slug: dupes-count-distinct
+    skill: distinct-and-duplicates
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      From a joined result that has fanned out, return the number of *distinct*
+      orders per country.
+    answerKey:
+      mustContain: ["count(distinct"]
+
+  # --- inner-join ------------------------------------------------------------
+  - slug: join-basic-write
+    skill: inner-join
+    type: short_text
+    difficulty: 0.25
+    prompt: Return each order's id alongside its customer's name.
+    answerKey:
+      mustContain: ["join", "on"]
+
+  - slug: join-condition-read
+    skill: inner-join
+    type: mcq
+    difficulty: 0.3
+    prompt: An inner join between a 100-row table and a 50-row table on a non-unique key returns how many rows?
+    options:
+      - Exactly 50
+      - Exactly 100
+      - At most 150
+      - Anywhere from 0 to 5,000
+    answerKey: { correct: 3 }
+
+  # --- outer-joins -----------------------------------------------------------
+  - slug: outer-where-trap
+    skill: outer-joins
+    type: code_read
+    difficulty: 0.6
+    prompt: |-
+      SELECT c.id, COUNT(o.id)
+      FROM customers c LEFT JOIN orders o ON o.customer_id = c.id
+      WHERE o.status = 'shipped'
+      GROUP BY c.id;
+
+      The analyst wanted every customer including those with no shipped orders.
+      What went wrong, and what is the fix?
+    answerKey:
+      concepts: [where-on-right-table-drops-nulls, move-condition-into-on-clause]
+
+  - slug: outer-join-write
+    skill: outer-joins
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Return every product with its total units sold, including products that
+      have never sold — those should show 0, not NULL.
+    answerKey:
+      mustContain: ["left join", "coalesce"]
+
+  # --- join-grain ------------------------------------------------------------
+  - slug: grain-fanout-read
+    skill: join-grain
+    type: code_read
+    difficulty: 0.7
+    prompt: |-
+      SELECT o.id, SUM(o.total_cents) AS revenue
+      FROM orders o
+      JOIN order_items i ON i.order_id = o.id
+      GROUP BY o.id;
+
+      Revenue is roughly triple the expected figure. Explain exactly why.
+    answerKey:
+      concepts: [one-order-many-items, order-total-duplicated-per-item, aggregate-before-join]
+
+  - slug: grain-fanout-fix
+    skill: join-grain
+    type: micro_artifact
+    difficulty: 0.75
+    prompt: >-
+      Fix the previous query so revenue is correct while still allowing a filter
+      on item-level attributes. Say which approach you chose and why.
+    answerKey:
+      concepts: [pre-aggregate-in-cte, or-sum-distinct-on-order, exists-filter]
+
+  - slug: grain-prove-it
+    skill: join-grain
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      You have written a three-table join and believe the grain is correct.
+      Describe the check you would run *before* sending the number to anyone.
+    answerKey:
+      concepts: [row-count-before-and-after-join, count-distinct-key-equals-row-count]
+
+  # --- self-joins ------------------------------------------------------------
+  - slug: self-join-manager
+    skill: self-joins
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      `employees(id, name, manager_id)`. Return each employee's name next to
+      their manager's name.
+    answerKey:
+      mustContain: ["employees", "join"]
+
+  # --- semi-and-anti-joins ---------------------------------------------------
+  - slug: anti-join-write
+    skill: semi-and-anti-joins
+    type: short_text
+    difficulty: 0.5
+    prompt: Return every customer who has never placed an order, using NOT EXISTS.
+    answerKey:
+      mustContain: ["not exists"]
+
+  - slug: semi-join-grain
+    skill: semi-and-anti-joins
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Why is `WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id)`
+      safer than `JOIN orders o ON o.customer_id = c.id` when you only want to
+      know *whether* a customer has ordered?
+    answerKey:
+      concepts: [exists-does-not-fan-out, join-multiplies-rows]
+
+  # --- subqueries / ctes -----------------------------------------------------
+  - slug: subquery-scalar
+    skill: subqueries
+    type: short_text
+    difficulty: 0.4
+    prompt: Return every order whose total is above the overall average order total.
+    answerKey:
+      mustContain: ["select", "avg"]
+
+  - slug: cte-decompose
+    skill: ctes
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Rewrite a nested three-level subquery of your choosing as named CTEs.
+      Name each CTE after the question it answers.
+    answerKey:
+      mustContain: ["with"]
+
+  - slug: correlated-cost
+    skill: correlated-subqueries
+    type: explain
+    difficulty: 0.7
+    prompt: >-
+      A correlated subquery in the SELECT list runs once per outer row. Describe
+      when that is acceptable and when you would rewrite it as a join or window.
+    answerKey:
+      concepts: [row-count-drives-cost, rewrite-as-lateral-or-window]
+
+  # --- windows ---------------------------------------------------------------
+  - slug: window-vs-groupby
+    skill: window-basics
+    type: mcq
+    difficulty: 0.4
+    prompt: What is the key difference between `SUM(x) OVER (PARTITION BY g)` and `SUM(x) … GROUP BY g`?
+    options:
+      - There is none; they are aliases
+      - The window version keeps every input row
+      - The window version is always faster
+      - GROUP BY cannot be used with SUM
+    answerKey: { correct: 1 }
+
+  - slug: window-share-of-total
+    skill: window-basics
+    type: micro_artifact
+    difficulty: 0.55
+    prompt: >-
+      Return every order with its total and that order's share of its customer's
+      lifetime spend, as a percentage.
+    answerKey:
+      mustContain: ["over", "partition by"]
+
+  - slug: window-top-n-per-group
+    skill: window-ranking
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Return the three highest-value orders for each customer. Say how your
+      query breaks ties, and why you chose that behaviour.
+    answerKey:
+      mustContain: ["row_number", "partition by"]
+
+  - slug: window-rank-vs-dense
+    skill: window-ranking
+    type: mcq
+    difficulty: 0.45
+    prompt: "Scores 10, 10, 9. What does RANK() return for the third row, and DENSE_RANK()?"
+    options:
+      - 3 and 3
+      - 3 and 2
+      - 2 and 2
+      - 2 and 3
+    answerKey: { correct: 1 }
+
+  - slug: window-frame-default
+    skill: window-frames
+    type: explain
+    difficulty: 0.75
+    prompt: >-
+      `SUM(x) OVER (ORDER BY d)` gives a running total, but `SUM(x) OVER ()`
+      gives the grand total. Explain what the default frame is in each case and
+      why adding ORDER BY changes the result.
+    answerKey:
+      concepts: [default-frame-range-unbounded-preceding-to-current-row, no-order-means-whole-partition]
+
+  - slug: window-moving-average
+    skill: window-frames
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: Compute a trailing 7-day moving average of daily revenue with an explicit frame clause.
+    answerKey:
+      mustContain: ["rows between", "preceding"]
+
+  - slug: lag-period-over-period
+    skill: lag-lead
+    type: micro_artifact
+    difficulty: 0.55
+    prompt: >-
+      Return each month's revenue alongside the previous month's, and the
+      percentage change.
+    answerKey:
+      mustContain: ["lag"]
+
+  # --- analysis --------------------------------------------------------------
+  - slug: date-spine-explain
+    skill: date-truncation-and-series
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      A daily-active-users chart is missing the days when nobody signed in,
+      making the trend line look better than it is. Describe the fix.
+    answerKey:
+      concepts: [generate-date-series, left-join-spine-to-data, coalesce-zero]
+
+  - slug: date-trunc-write
+    skill: date-truncation-and-series
+    type: short_text
+    difficulty: 0.35
+    prompt: Return revenue by calendar month for 2026, with months as the first day of the month.
+    answerKey:
+      mustContain: ["date_trunc"]
+
+  - slug: cohort-build
+    skill: cohort-analysis
+    type: micro_artifact
+    difficulty: 0.85
+    prompt: >-
+      From `events(user_id, occurred_at)`, build a monthly cohort retention
+      table: rows are signup month, columns are months since signup, values are
+      the share of the cohort still active.
+    answerKey:
+      concepts: [first-event-per-user, month-offset, share-of-cohort-size]
+
+  - slug: pivot-conditional
+    skill: conditional-aggregation
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Return one row per customer with three columns: orders placed in 2024,
+      2025 and 2026.
+    answerKey:
+      mustContain: ["case when", "sum"]
+
+  - slug: validate-checklist
+    skill: result-validation
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      You are about to send a revenue figure to a finance team. List the checks
+      you run first, and what each one would catch.
+    answerKey:
+      concepts: [row-count-reconciliation, spot-check-known-value, grain-check, null-check]
+
+  - slug: validate-spot-the-lie
+    skill: result-validation
+    type: code_read
+    difficulty: 0.7
+    prompt: |-
+      A query reports 100% conversion for one segment. The segment has 3 users.
+      What would you check before reporting this, and what will you probably find?
+    answerKey:
+      concepts: [small-denominator, filter-too-narrow, check-cohort-size]
+
+  # --- performance -----------------------------------------------------------
+  - slug: perf-sargable
+    skill: query-performance
+    type: code_read
+    difficulty: 0.7
+    prompt: |-
+      `WHERE DATE(created_at) = '2026-08-12'` does not use the index on
+      `created_at`. Explain why, and rewrite it so it does.
+    answerKey:
+      concepts: [function-on-column-blocks-index, use-half-open-range]
+
+  - slug: perf-explain-read
+    skill: query-performance
+    type: explain
+    difficulty: 0.8
+    prompt: >-
+      An EXPLAIN plan shows a sequential scan on a 40-million-row table followed
+      by a hash join. Name two things you would check before adding an index.
+    answerKey:
+      concepts: [is-the-filter-selective, is-an-index-already-there, row-estimate-vs-actual]
