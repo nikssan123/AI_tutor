@@ -6,6 +6,8 @@ import {
   EvalTierNote,
   GoalSearch,
   JsonLdScript,
+  PageFrame,
+  PageIntro,
   RubricLadder,
   SectionHead,
   SiteFooter,
@@ -150,6 +152,67 @@ describe("GoalSearch", () => {
 
     expect(hero.querySelector("input")!.className).toContain("h-14");
     expect(plain.querySelector("input")!.className).not.toContain("h-14");
+  });
+});
+
+/**
+ * §8.5.9 — one width and one rhythm across the marketing routes. The pages used
+ * to pick their own (max-w-2xl here, max-w-3xl there), which nobody notices on
+ * any single page and everybody feels moving between four.
+ */
+describe("PageFrame", () => {
+  const crumbs = [{ name: "Home", path: "/" }];
+
+  it("is the main landmark and carries the breadcrumbs", () => {
+    render(<PageFrame crumbs={crumbs}>body</PageFrame>);
+    expect(screen.getByRole("main")).toBeDefined();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeDefined();
+  });
+
+  it("uses one width for documents and a narrow one for tasks", () => {
+    const { container: doc } = render(
+      <PageFrame crumbs={crumbs}>body</PageFrame>,
+    );
+    const { container: task } = render(
+      <PageFrame crumbs={crumbs} narrow>
+        body
+      </PageFrame>,
+    );
+
+    expect(doc.querySelector("main")!.className).toContain("max-w-5xl");
+    // The running check is a task, not a document: one question on screen and
+    // nothing else (§8.5.1), where a wide column would be actively worse.
+    expect(task.querySelector("main")!.className).toContain("max-w-2xl");
+  });
+});
+
+describe("PageIntro", () => {
+  it("puts the page title in the one h1", () => {
+    render(<PageIntro title="Graded projects" lead="Every rubric public." />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Graded projects",
+    );
+    expect(screen.getByText("Every rubric public.")).toBeDefined();
+  });
+
+  it("renders the optional icon, facts and action when given them", () => {
+    render(
+      <PageIntro
+        icon={<StepsIcon />}
+        title="SQL"
+        lead="A path."
+        facts={<span>26 skills</span>}
+        action={<button type="button">Take the check</button>}
+      />,
+    );
+    expect(screen.getByText("26 skills")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Take the check" })).toBeDefined();
+  });
+
+  it("omits the facts row entirely rather than leaving an empty rule", () => {
+    // A bare border-t with nothing under it reads as a broken layout.
+    const { container } = render(<PageIntro title="SQL" lead="A path." />);
+    expect(container.querySelector(".border-t")).toBeNull();
   });
 });
 

@@ -14,7 +14,7 @@ import {
   StepsIcon,
   SubjectIcon,
 } from "@/components/icons";
-import { HeroTitle, Lead, Meta } from "@/components/ui";
+import { HeroTitle, Lead, LinkCard, Meta, stagger } from "@/components/ui";
 import { allTopics, featuredProject } from "@/lib/content";
 import { organisation, website } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
@@ -87,9 +87,6 @@ const STEPS = [
     body: "Every point quotes your own work back at you.",
   },
 ];
-
-/** §8.5.6 — 24ms between items, first render only. */
-const stagger = (i: number) => ({ "--rise-delay": `${i * 24}ms` }) as React.CSSProperties;
 
 export default function HomePage() {
   const topics = allTopics();
@@ -273,15 +270,7 @@ export default function HomePage() {
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
             {topics.map((topic, i) => (
               <li key={topic.slug} className="rise" style={stagger(i)}>
-                <Link
-                  href={`/learn/${topic.slug}`}
-                  className={
-                    "flex h-full flex-col gap-4 rounded-[var(--radius-card)] bg-surface p-6 " +
-                    "shadow-[var(--shadow-raised)] " +
-                    "transition-[box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] " +
-                    "hover:-translate-y-0.5 hover:shadow-[var(--shadow-lifted)]"
-                  }
-                >
+                <LinkCard href={`/learn/${topic.slug}`} className="gap-4 p-6">
                   <span className="flex size-10 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
                     <SubjectIcon taxonomyParent={topic.taxonomyParent} />
                   </span>
@@ -295,7 +284,7 @@ export default function HomePage() {
                   <span className="mt-auto border-t border-hairline pt-4">
                     <EvalTierNote tier={topic.evalTier} />
                   </span>
-                </Link>
+                </LinkCard>
               </li>
             ))}
           </ul>

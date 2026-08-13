@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChecklistIcon, GridIcon, StepsIcon } from "@/components/icons";
 import {
-  Breadcrumbs,
   EvalTierNote,
   JsonLdScript,
+  PageFrame,
+  PageIntro,
+  RubricLadder,
+  SectionHead,
 } from "@/components/marketing";
-import {
-  Card,
-  DisplayTitle,
-  Lead,
-  Meta,
-  Status,
-  Title,
-} from "@/components/ui";
+import { LinkCard, Meta, stagger } from "@/components/ui";
 import { allProjects, findProject } from "@/lib/content";
 import { breadcrumbs, howTo } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
@@ -26,6 +23,12 @@ import { canonical } from "@/lib/site";
  * scaled-content exposure §12 is written about. And §4.2 law 2 makes it a
  * product requirement, not a marketing choice — "every rubric is public before
  * the work is done."
+ *
+ * §8.5.9 — the rubric section used to hand-roll its own band display, with a
+ * three-deep nested ternary picking a `Status` tone per band and `problem`
+ * (rose-red, the failure colour) standing in for "Absent". It now uses the same
+ * `RubricLadder` the landing page does, so there is one rendering of a grading
+ * standard on the site rather than two that can disagree.
  */
 export const revalidate = 86_400;
 
@@ -50,8 +53,6 @@ export async function generateMetadata({
   };
 }
 
-const BANDS = ["absent", "developing", "competent", "strong"] as const;
-
 export default async function ProjectPage({
   params,
 }: {
@@ -68,123 +69,135 @@ export default async function ProjectPage({
     { name: project.title, path: `/projects/${project.slug}` },
   ];
 
+  // Heaviest first: the criterion that decides the grade should be the one the
+  // reader meets first, not whichever the pack author happened to type first.
+  const criteria = [...project.rubricDetail.criteria].sort(
+    (a, b) => b.weight - a.weight,
+  );
+
   return (
     <>
       <JsonLdScript blocks={[breadcrumbs(crumbs), howTo(project)]} />
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-14 px-6 py-16">
-        <Breadcrumbs crumbs={crumbs} />
+      <PageFrame crumbs={crumbs}>
+        <PageIntro
+          title={project.title}
+          lead={project.brief}
+          facts={
+            <>
+              <Meta>~{project.estimatedMinutes} minutes</Meta>
+              <Meta>Evidence: {project.evidenceType}</Meta>
+              <EvalTierNote tier={project.evalTier} />
+            </>
+          }
+        />
 
-        <header className="flex flex-col gap-5">
-          <DisplayTitle>{project.title}</DisplayTitle>
-          <Lead>{project.brief}</Lead>
-          <div className="flex flex-wrap items-center gap-6">
-            <Meta>~{project.estimatedMinutes} minutes</Meta>
-            <Meta>Evidence: {project.evidenceType}</Meta>
-            <EvalTierNote tier={project.evalTier} />
-          </div>
-        </header>
-
-        <section className="flex flex-col gap-4">
-          <Title>Done means</Title>
-          <ul className="flex list-none flex-col gap-3 p-0 m-0">
-            {project.acceptanceCriteria.map((criterion) => (
-              <li key={criterion} className="flex items-start gap-3">
+        {/* ── 01 Done means ────────────────────────────────────────────────── */}
+        <section className="flex flex-col gap-8">
+          <SectionHead
+            step="01"
+            label="Done means"
+            title="What you have to hand in"
+            icon={<StepsIcon />}
+          />
+          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
+            {project.acceptanceCriteria.map((criterion, i) => (
+              <li
+                key={criterion}
+                className="rise flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-raised)]"
+                style={stagger(i)}
+              >
                 <span
                   aria-hidden="true"
                   className="mt-2 inline-block size-2 shrink-0 rounded-full bg-accent"
                 />
-                <span className="max-w-[var(--measure)]">{criterion}</span>
+                <span className="text-[length:var(--text-label-size)] text-ink">
+                  {criterion}
+                </span>
               </li>
             ))}
           </ul>
         </section>
 
-        {/* ── The rubric, in full, before the work ───────────────────────── */}
-        <section className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <Title>How it will be graded</Title>
-            <Lead>
-              This is the actual rubric. Your submission is scored against each
-              criterion, and every score has to quote your work as evidence.
-            </Lead>
-          </div>
+        {/* ── 02 The rubric, in full, before the work ──────────────────────── */}
+        {/*
+         * The one full-bleed accent field on this page, for the same reason the
+         * landing page has one: this section *is* the product's argument, and a
+         * band that changes colour is what tells a scrolling reader so.
+         *
+         * It escapes PageFrame's column with a negative margin rather than
+         * living outside `<main>`, because the rubric is the page's primary
+         * content and pulling it out of the main landmark to get a background
+         * colour would be a real accessibility regression for a cosmetic win.
+         */}
+        <section className="-mx-6 flex flex-col gap-10 bg-accent-weak px-6 py-16 sm:rounded-[var(--radius-card)] sm:px-10">
+          <SectionHead
+            step="02"
+            label="How it will be graded"
+            title="The actual rubric, published before you start"
+            icon={<ChecklistIcon />}
+            onField
+          />
 
-          {project.rubricDetail.criteria.map((criterion) => (
-            <Card key={criterion.id} className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <span className="text-[length:var(--text-title-size)] font-semibold">
-                  {criterion.name}
-                </span>
-                <Meta>{Math.round(criterion.weight * 100)}% of the grade</Meta>
-              </div>
-              <p className="max-w-[var(--measure)] text-ink-muted">
-                {criterion.description}
-              </p>
+          <Meta tone="muted" className="max-w-[var(--measure)]">
+            Your submission is scored against each criterion, and every score has
+            to quote your work back at you as evidence. §4.2 law 2 — you read
+            this first, so you can disagree with the verdict on specifics.
+          </Meta>
 
-              <dl className="flex flex-col gap-3 m-0">
-                {BANDS.map((band) => (
-                  <div key={band} className="flex flex-col gap-1">
-                    <dt>
-                      <Status
-                        tone={
-                          band === "strong"
-                            ? "verified"
-                            : band === "competent"
-                              ? "verified"
-                              : band === "developing"
-                                ? "attention"
-                                : "problem"
-                        }
-                      >
-                        {band}
-                      </Status>
-                    </dt>
-                    <dd className="m-0 max-w-[var(--measure)] text-ink-muted">
-                      {criterion.bands[band]}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </Card>
-          ))}
+          <ul className="grid list-none grid-cols-1 gap-5 p-0 m-0 lg:grid-cols-2">
+            {criteria.map((criterion, i) => (
+              <li
+                key={criterion.id}
+                className="rise rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-lifted)]"
+                style={stagger(i)}
+              >
+                <RubricLadder criterion={criterion} />
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <section className="flex flex-col gap-4">
-          <Title>What this proves</Title>
-          <Lead>
+        {/* ── 03 What this proves ─────────────────────────────────────────── */}
+        <section className="flex flex-col gap-8">
+          <SectionHead
+            step="03"
+            label="What this proves"
+            title="The skills a pass would move"
+            icon={<GridIcon />}
+          />
+          <Meta>
             Passing this moves these skills in your mastery ledger — with this
             submission attached as the evidence.
-          </Lead>
-          <ul className="flex list-none flex-col gap-2 p-0 m-0">
-            {project.skills.map((skill) => (
-              <li key={skill.slug}>
-                <Link
-                  href={`/check/${project.topicSlug}/${skill.slug}`}
-                  className="flex flex-col gap-1 rounded-[var(--radius-card)] bg-surface p-4 hover:bg-accent-weak"
-                >
-                  <span className="font-[550]">{skill.name}</span>
-                  <span className="text-ink-muted">{skill.canDoStatement}</span>
-                </Link>
+          </Meta>
+          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
+            {project.skills.map((skill, i) => (
+              <li key={skill.slug} className="rise" style={stagger(i)}>
+                <LinkCard href={`/check/${project.topicSlug}/${skill.slug}`}>
+                  <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                    {skill.name}
+                  </span>
+                  <span className="text-[length:var(--text-label-size)] text-ink-muted">
+                    {skill.canDoStatement}
+                  </span>
+                </LinkCard>
               </li>
             ))}
           </ul>
         </section>
 
-        <section className="flex flex-col gap-3">
-          <Meta>
-            Part of{" "}
-            <Link href={`/learn/${project.topicSlug}`} className="text-accent">
-              {project.topicName}
-            </Link>
-            . See all{" "}
-            <Link href="/projects" className="text-accent">
-              graded projects
-            </Link>
-            .
-          </Meta>
-        </section>
-      </main>
+        <Meta>
+          Part of{" "}
+          <Link href={`/learn/${project.topicSlug}`} className="text-accent">
+            {project.topicName}
+          </Link>
+          . See all{" "}
+          <Link href="/projects" className="text-accent">
+            graded projects
+          </Link>
+          .
+        </Meta>
+      </PageFrame>
     </>
   );
 }

@@ -656,6 +656,27 @@ Two places where "extremely simple" genuinely conflicts with the plan, and the r
 - **Light and dark are both first-class** — full spec in §8.5.4. Palettes authored once in TS and emitted to both selector blocks by a Tailwind plugin; inline anti-FOUC script in `<head>`; `color-scheme` set on `:root`; CI contrast checks in both themes.
 - **Ship a `tokens.css` and a `/design` reference route in week 1**, before any product screen. Rendering the full component set on one page is the cheapest possible guard against drift, and it doubles as the visual-regression target.
 
+## 8.5.9 Page composition
+
+Added after the first full pass of marketing pages shipped. Every rule in §8.5.1–8.5.8 was being followed, and the result was still dull — because restraint was being applied to *content* while nothing at all was being said about *composition*. Six pages came out as one narrow column of same-weight text.
+
+**The failure mode, precisely:** "calm" was read as "flat". A page with no elevation, no width variation, no colour field and no entrance is not calm; it is unfinished. Restraint is a constraint on how many things you use, not on whether the page has a shape.
+
+| Rule | Why |
+|---|---|
+| **One frame: `max-w-5xl`, one vertical rhythm.** `PageFrame` owns it | Pages had picked `max-w-2xl` and `max-w-3xl` independently. Nobody notices on one page; everybody feels it across four |
+| **Every card carries elevation.** `Card` or `LinkCard`, never bare `bg-surface` | `--surface` on `--ground` is a **2% value step** in light. A card without a shadow is not a card |
+| **Hover lifts, it never tints.** `--shadow-raised` → `--shadow-lifted`, no `hover:bg-accent-weak` | The accent means *verified*. A card is not verified because you pointed at it |
+| **Collections are responsive grids**, not single-column stacks | A 26-item column is a scroll; a 3-column grid is a map |
+| **Sections open with a `SectionHead`** — numbered eyebrow, display-size title | A bare `Title` over prose at the same weight is what makes a page read as one long list |
+| **First paint staggers.** `rise` + `stagger(i)`, 24ms, capped at 8 | §8.5.6, and it costs zero JS. Uncapped, the 26th row lands 600ms late |
+| **`--text-hero` is the landing page only.** Everything else opens with `DisplayTitle` | If every page shouts, the landing page cannot |
+| **Meta text on `--accent-weak` uses `tone="muted"`** | `--ink-faint` measures 4.15:1 there — under the 4.5:1 bar 13px text is held to |
+
+**One documented exception — task screens keep the narrow column.** The running skill check (`PageFrame narrow`), goal setup, sign-in and Today are things you *do*, not things you read: one question or one form on screen and nothing else. §8.5.1's "one idea per screen" beats a consistent width there, and a goal form read across 1024px would be worse, not better. Everything a visitor *reads* — the four marketing routes — uses the full frame.
+
+**The density rule still holds.** §8.5.7 already licenses the length ("Long is fine; *dense* is not"), and none of the above adds a thing to read: it adds shape to what is already there. Four scroll bands with one idea each is not five things at rest.
+
 ---
 
 # 9. SEO Strategy

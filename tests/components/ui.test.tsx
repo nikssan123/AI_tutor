@@ -11,11 +11,13 @@ import {
   EmptyState,
   HeroTitle,
   Lead,
+  LinkCard,
   MaturityBadge,
   Meta,
   Row,
   RowList,
   Skeleton,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
@@ -91,6 +93,58 @@ describe("typography", () => {
     const cls = container.firstElementChild!.className;
     expect(cls).toContain("mt-4");
     expect(cls).toContain("text-ink");
+  });
+});
+
+/**
+ * §8.5.9 — the rule these two exist to enforce.
+ *
+ * Every index page had hand-rolled its own clickable card as `bg-surface p-5`
+ * with no elevation, which in light is `#FFFFFF` on `#FAFAFA` — a 2% value
+ * step, i.e. no visible card at all. The component is the fix; these tests are
+ * what stop it being un-fixed one page at a time.
+ */
+describe("LinkCard", () => {
+  it("always carries elevation, so a card is visible in light mode", () => {
+    render(<LinkCard href="/learn">Subject</LinkCard>);
+    expect(screen.getByRole("link").className).toContain("--shadow-raised");
+  });
+
+  it("lifts to the deeper shadow on hover rather than tinting", () => {
+    // hover:bg-accent-weak was the old affordance and it fought the accent's
+    // "verified" meaning — a card is not verified because you pointed at it.
+    render(<LinkCard href="/learn">Subject</LinkCard>);
+    const cls = screen.getByRole("link").className;
+    expect(cls).toContain("hover:shadow-[var(--shadow-lifted)]");
+    expect(cls).not.toContain("hover:bg-accent-weak");
+  });
+
+  it("fills its grid row, so a row of cards has a straight bottom edge", () => {
+    render(<LinkCard href="/learn">Subject</LinkCard>);
+    expect(screen.getByRole("link").className).toContain("h-full");
+  });
+
+  it("keeps its own classes when given more", () => {
+    render(
+      <LinkCard href="/learn" className="p-6">
+        Subject
+      </LinkCard>,
+    );
+    const cls = screen.getByRole("link").className;
+    expect(cls).toContain("p-6");
+    expect(cls).toContain("bg-surface");
+  });
+});
+
+describe("stagger", () => {
+  it("spaces items 24ms apart (§8.5.6)", () => {
+    expect(stagger(0)).toEqual({ "--rise-delay": "0ms" });
+    expect(stagger(3)).toEqual({ "--rise-delay": "72ms" });
+  });
+
+  it("caps the delay so a long list does not out-wait the reader", () => {
+    // 24ms × 26 skills would leave the last row arriving 600ms late.
+    expect(stagger(50)).toEqual(stagger(8));
   });
 });
 

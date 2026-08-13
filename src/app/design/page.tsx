@@ -17,15 +17,17 @@ import {
   EmptyState,
   HeroTitle,
   Lead,
+  LinkCard,
   MaturityBadge,
   Meta,
   Row,
   RowList,
   Skeleton,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
-import { RubricLadder } from "@/components/marketing";
+import { RubricLadder, SectionHead } from "@/components/marketing";
 import { featuredProject } from "@/lib/content";
 
 /**
@@ -159,6 +161,27 @@ export default function DesignPage() {
       </Section>
 
       <Section
+        title="Link card"
+        note="§8.5.9 — the one clickable card. Every index page used to hand-roll its own as bg-surface with no shadow, which in light is #FFFFFF on #FAFAFA: a 2% step, i.e. no visible card. Hover lifts; it never tints, because a card is not 'verified' because you pointed at it."
+      >
+        <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
+          {[
+            ["Join grain and fan-out", "Point at me"],
+            ["GROUP BY and result grain", "Then at me"],
+          ].map(([title, hint], i) => (
+            <li key={title} className="rise" style={stagger(i)}>
+              <LinkCard href="/design">
+                <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                  {title}
+                </span>
+                <Meta>{hint}</Meta>
+              </LinkCard>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section
         title="Row list"
         note="A card containing full-width rows. Not a data table."
       >
@@ -207,6 +230,29 @@ export default function DesignPage() {
             action={<Button variant="text">Change plan</Button>}
           />
         </Card>
+      </Section>
+
+      <Section
+        title="Section head"
+        note="§8.5.9 — a numbered eyebrow over a display-size title. Sections used to be a bare Title over prose at the same weight, which is what made pages read as one long list. `onField` swaps the icon chip to a surface, because on the accent field an accent-weak chip is the same fill as its background."
+      >
+        <div className="flex flex-col gap-8">
+          <SectionHead
+            step="01"
+            label="On ground"
+            title="The default"
+            icon={<StepsIcon />}
+          />
+          <div className="rounded-[var(--radius-card)] bg-accent-weak p-6">
+            <SectionHead
+              step="02"
+              label="On the accent field"
+              title="Chip becomes a surface"
+              icon={<ChecklistIcon />}
+              onField
+            />
+          </div>
+        </div>
       </Section>
 
       <Section

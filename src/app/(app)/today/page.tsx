@@ -13,6 +13,7 @@ import {
   EmptyState,
   Lead,
   Meta,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
@@ -95,21 +96,27 @@ export default async function TodayPage({ searchParams }: Props) {
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-      <div className="flex items-center gap-3">
-        <span className="text-ink-muted">
+      <div className="rise flex items-center gap-4">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
           <SubjectIcon taxonomyParent={pack.taxonomyParent} />
         </span>
         <DisplayTitle>Today</DisplayTitle>
       </div>
 
-      <Card>
-        <div className="flex flex-col gap-5">
+      <Card className="rise p-0 overflow-hidden" style={stagger(1)}>
+        <div className="flex flex-col gap-5 p-7">
           <div className="flex items-baseline justify-between gap-4">
             <Title>{pack.name}</Title>
             <Meta>{planned.totalMinutes} min</Meta>
           </div>
 
-          <Lead>{planned.reason}</Lead>
+          {/* The planner's own `reason`, template-filled from the components
+              that actually decided the choice (§16.1). It is the single most
+              important sentence on the screen, so it gets the accent field
+              rather than sitting in the same grey as everything else. */}
+          <div className="rounded-[var(--radius-control)] bg-accent-weak px-5 py-4">
+            <Lead className="text-ink">{planned.reason}</Lead>
+          </div>
 
           {planned.backingOff ? (
             <Status tone="attention">
@@ -118,14 +125,17 @@ export default async function TodayPage({ searchParams }: Props) {
           ) : null}
 
           {planned.blocks.length > 0 ? (
-            <ul className="flex list-none flex-col gap-0 p-0 m-0 overflow-hidden rounded-[var(--radius-card)] bg-raised">
+            <ul className="flex list-none flex-col gap-0 p-0 m-0 overflow-hidden rounded-[var(--radius-control)] bg-raised">
               {planned.blocks.map((block, i) => (
                 <li
                   key={`${block.type}-${i}`}
-                  className="flex items-center justify-between gap-4 border-b border-hairline px-5 py-3 last:border-b-0"
+                  className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-3 last:border-b-0"
+                  style={stagger(i + 2)}
                 >
                   <span className="flex items-center gap-3">
-                    <Meta>{BLOCK_LABEL[block.type]}</Meta>
+                    <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
+                      {BLOCK_LABEL[block.type]}
+                    </span>
                     <span>{blockDetail(block, skillNames)}</span>
                   </span>
                   <Meta>{block.estMinutes} min</Meta>
@@ -136,25 +146,29 @@ export default async function TodayPage({ searchParams }: Props) {
             <EmptyState message="Nothing is unlocked right now — every skill on your path is either done or waiting on a prerequisite." />
           )}
 
-          <div className="flex flex-wrap items-center gap-4">
-            {/* The session runner is E7. Until it exists this card says what it
-                would contain rather than offering a button that goes nowhere. */}
-            <Meta>The session runner arrives with E7.</Meta>
-            <Link href={`/today?minutes=${SHORTER}`} className="text-accent font-[550]">
-              I have less time
-            </Link>
-          </div>
+        </div>
+
+        {/* The session runner is E7. Until it exists this card says what it
+            would contain rather than offering a button that goes nowhere. */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
+          <Meta>The session runner arrives with E7.</Meta>
+          <Link
+            href={`/today?minutes=${SHORTER}`}
+            className="text-accent font-[550] hover:underline underline-offset-4"
+          >
+            I have less time
+          </Link>
         </div>
       </Card>
 
       {planned.compression ? (
-        <Card>
+        <Card className="rise flex flex-col gap-2" style={stagger(3)}>
           <Status tone="attention">Deadline</Status>
           <Meta>{planned.compression.message}</Meta>
         </Card>
       ) : null}
 
-      <div className="flex flex-col gap-3">
+      <div className="rise flex flex-col gap-3" style={stagger(4)}>
         <Title>Your path</Title>
         <Meta>
           {projection.requiredSkillIds.length} skills to go ·{" "}

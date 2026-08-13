@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
-import { cx, Meta, Status, Title } from "@/components/ui";
+import { cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
 import type { RubricCriterion } from "@/lib/packs/types";
@@ -40,6 +40,91 @@ export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
         ))}
       </ol>
     </nav>
+  );
+}
+
+/**
+ * §8.5.9 — the marketing page frame.
+ *
+ * One width and one vertical rhythm for every route, so moving between pages
+ * does not move the content under the reader. The pages used to pick their own
+ * (`max-w-2xl` here, `max-w-3xl` there), which is the sort of drift nobody
+ * notices on any single page and everybody feels across four.
+ *
+ * `narrow` is the one exception, for a screen that is a task rather than a
+ * document — the running skill check, where §8.5.1's "one idea per screen"
+ * beats a consistent width.
+ */
+export function PageFrame({
+  crumbs,
+  narrow = false,
+  className,
+  children,
+}: {
+  crumbs: Crumb[];
+  narrow?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <main
+      className={cx(
+        "mx-auto flex flex-col gap-16 px-6 pt-10 pb-28",
+        narrow ? "max-w-2xl" : "max-w-5xl",
+        className,
+      )}
+    >
+      <Breadcrumbs crumbs={crumbs} />
+      {children}
+    </main>
+  );
+}
+
+/**
+ * The top of a marketing page: title, one lead, and a row of facts.
+ *
+ * Exists so the four routes cannot drift into four different header shapes,
+ * which is exactly what had happened — one had an icon beside the title, one
+ * put its metadata above the lead, one had no metadata row at all.
+ */
+export function PageIntro({
+  icon,
+  title,
+  lead,
+  facts,
+  action,
+}: {
+  /** Decorative; the title beside it already says the same thing. */
+  icon?: React.ReactNode;
+  title: string;
+  lead: string;
+  /** Status dots, durations, counts — the row under the lead. */
+  facts?: React.ReactNode;
+  /** At most one, and only when the page has an obvious next step. */
+  action?: React.ReactNode;
+}) {
+  return (
+    <header className="flex flex-col gap-6">
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center gap-4">
+          {icon ? (
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
+              {icon}
+            </span>
+          ) : null}
+          <DisplayTitle>{title}</DisplayTitle>
+        </div>
+        <Lead>{lead}</Lead>
+      </div>
+
+      {facts ? (
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-hairline pt-5">
+          {facts}
+        </div>
+      ) : null}
+
+      {action}
+    </header>
   );
 }
 
@@ -276,6 +361,10 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
           of the grade
         </span>
       </div>
+
+      <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
+        {criterion.description}
+      </p>
 
       <ol className="flex list-none flex-col gap-0 p-0 m-0">
         {rungs.map((rung, i) => {

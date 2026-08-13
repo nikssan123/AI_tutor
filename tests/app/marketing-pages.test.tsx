@@ -6,6 +6,7 @@ import {
   allTopics,
   featuredProject,
   findPack,
+  findProject,
 } from "@/lib/content";
 
 const notFoundMock = vi.fn(() => {
@@ -219,7 +220,17 @@ describe("/learn", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
       "What you can learn",
     );
-    expect(screen.getByText("Subjects")).toBeDefined();
+    expect(screen.getByText(/01 · Subjects/)).toBeDefined();
+    expect(screen.getByText(/02 · Graded projects/)).toBeDefined();
+
+    // Every subject and every brief is reachable from the hub — it is the top
+    // of the internal link graph (§13.3), so a missing card is a dead branch.
+    for (const topic of allTopics()) {
+      expect(screen.getByText(topic.name), topic.slug).toBeDefined();
+    }
+    for (const project of allProjects()) {
+      expect(screen.getByText(project.title), project.slug).toBeDefined();
+    }
   });
 
   it("states what each subject can verify, not just how deep it goes", async () => {
@@ -366,12 +377,33 @@ describe("/projects/[slug] — §4.2 law 2", () => {
 
   it("shows each criterion's weight so the grade is predictable", async () => {
     render(await project.default({ params: p }));
-    expect(screen.getAllByText(/% of the grade/).length).toBeGreaterThanOrEqual(4);
+    const criteria = findProject("slow-query-rescue")!.rubricDetail.criteria;
+
+    // The weight is its own element beside " of the grade" rather than one
+    // sentence, so the figure can carry the emphasis. Both halves are asserted:
+    // a percentage with no label is a number nobody can act on.
+    expect(screen.getAllByText(/of the grade/).length).toBe(criteria.length);
+    for (const criterion of criteria) {
+      expect(
+        screen.getAllByText(`${Math.round(criterion.weight * 100)}%`).length,
+        criterion.id,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("orders the rubric heaviest-criterion-first", async () => {
+    // The criterion that decides the grade should be the one the reader meets
+    // first, not whichever the pack author happened to type first.
+    render(await project.default({ params: p }));
+    const shown = screen
+      .getAllByText(/of the grade/)
+      .map((el) => Number(el.textContent!.match(/(\d+)%/)![1]));
+    expect(shown).toEqual([...shown].sort((a, b) => b - a));
   });
 
   it("lists the acceptance criteria as 'done means'", async () => {
     render(await project.default({ params: p }));
-    expect(screen.getByText("Done means")).toBeDefined();
+    expect(screen.getByText(/01 · Done means/)).toBeDefined();
     expect(
       screen.getByText("The plan is included, before and after."),
     ).toBeDefined();
@@ -379,7 +411,19 @@ describe("/projects/[slug] — §4.2 law 2", () => {
 
   it("says which skills the work would prove", async () => {
     render(await project.default({ params: p }));
-    expect(screen.getByText("What this proves")).toBeDefined();
+    expect(screen.getByText(/03 · What this proves/)).toBeDefined();
+  });
+
+  /**
+   * There is one rendering of a grading standard on the site. This page used to
+   * hand-roll its own, which meant "Absent" was drawn in `--problem` — the
+   * rose-red failure colour — for a band that just means "not there yet".
+   */
+  it("renders its rubric with the same ladder the landing page uses", async () => {
+    render(await project.default({ params: p }));
+    expect(screen.getAllByText(/the bar you have to clear/).length).toBe(
+      findProject("slow-query-rescue")!.rubricDetail.criteria.length,
+    );
   });
 
   it("pre-renders every project", () => {

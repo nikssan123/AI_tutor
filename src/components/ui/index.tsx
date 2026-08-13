@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 
 /**
  * §8.5.5 — the component vocabulary.
@@ -129,6 +130,57 @@ export function Card({
       {...props}
     />
   );
+}
+
+/**
+ * A `Card` you can click — the single most repeated pattern on the marketing
+ * side, and the one that kept drifting.
+ *
+ * Every index page had hand-rolled its own version as `bg-surface p-5
+ * hover:bg-accent-weak`, with no elevation at all. In light that is `#FFFFFF`
+ * on `#FAFAFA`: a 2% value step, which is why those pages read as flat lists of
+ * text rather than as cards. Existing as one component is what stops the next
+ * page inventing a ninth variant.
+ *
+ * `h-full` so a card in a grid row matches its tallest sibling rather than
+ * leaving a ragged bottom edge.
+ */
+export function LinkCard({
+  href,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof Link>) {
+  return (
+    <Link
+      href={href}
+      className={cx(
+        "flex h-full flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-5",
+        "shadow-[var(--shadow-raised)]",
+        // §8.5.6 — state changes cross-fade and nothing travels far. 2px.
+        "transition-[box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-out)]",
+        "hover:-translate-y-0.5 hover:shadow-[var(--shadow-lifted)]",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * §8.5.6 — "list items stagger 24ms on first render only." Pair with the
+ * `rise` class; the delay is a custom property so the animation itself stays
+ * in CSS and the route ships no motion JS (§8.5.8).
+ *
+ * Capped, because 24ms × 26 skills is a 600ms wait for the last row — a
+ * stagger that outlives the reader's patience stops being polish.
+ */
+export function stagger(index: number): React.CSSProperties {
+  return {
+    "--rise-delay": `${Math.min(index, 8) * 24}ms`,
+  } as React.CSSProperties;
 }
 
 /**

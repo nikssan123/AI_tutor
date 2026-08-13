@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChecklistIcon, GridIcon, StepsIcon } from "@/components/icons";
 import {
-  Breadcrumbs,
   EvalTierNote,
   JsonLdScript,
+  PageFrame,
+  PageIntro,
+  SectionHead,
 } from "@/components/marketing";
-import { Card, DisplayTitle, Lead, Meta, Title } from "@/components/ui";
+import { LinkCard, Meta, stagger } from "@/components/ui";
 import {
   allPacks,
   CHECKS_ARE_NEVER_INDEXED,
@@ -51,6 +54,32 @@ export async function generateMetadata({
   };
 }
 
+/** The three graph relations, rendered identically because they are the same
+ *  shape of information — only the heading and the reason differ. */
+function SkillLinks({
+  packSlug,
+  slugs,
+  name,
+}: {
+  packSlug: string;
+  slugs: string[];
+  name: (slug: string) => string;
+}) {
+  return (
+    <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
+      {slugs.map((slug, i) => (
+        <li key={slug} className="rise" style={stagger(i)}>
+          <LinkCard href={`/check/${packSlug}/${slug}`} className="p-4">
+            <span className="text-[length:var(--text-label-size)] font-[550] text-ink">
+              {name(slug)}
+            </span>
+          </LinkCard>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function CheckPage({
   params,
 }: {
@@ -75,70 +104,97 @@ export default async function CheckPage({
     <>
       <JsonLdScript blocks={[breadcrumbs(crumbs)]} />
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-12 px-6 py-16">
-        <Breadcrumbs crumbs={crumbs} />
-
-        <header className="flex flex-col gap-5">
-          <DisplayTitle>{detail.name}</DisplayTitle>
-          <Lead>{detail.description}</Lead>
-          <div className="flex flex-wrap items-center gap-6">
-            <Meta>{detail.level}</Meta>
-            <Meta>~{detail.estimatedHours}h</Meta>
-            <EvalTierNote tier={detail.evalTier} />
-          </div>
-        </header>
-
-        <Card className="flex flex-col gap-3">
-          <Title>What counts as knowing this</Title>
-          <p className="max-w-[var(--measure)] text-[length:var(--text-lead-size)]">
-            {detail.canDoStatement}
-          </p>
-          <Meta>
-            That sentence is the bar. Mastery only moves when your work
-            demonstrates it — reading about it does not count.
-          </Meta>
-        </Card>
+      <PageFrame crumbs={crumbs}>
+        <PageIntro
+          title={detail.name}
+          lead={detail.description}
+          facts={
+            <>
+              <Meta>{detail.level}</Meta>
+              <Meta>~{detail.estimatedHours}h</Meta>
+              <EvalTierNote tier={detail.evalTier} />
+            </>
+          }
+        />
 
         {/*
-          Honest about state rather than a fake "coming soon" CTA. §4.2 law 5:
-          declared limits are a feature, and a disabled button pretending to be
-          a product is the overclaiming the whole positioning rejects.
-        */}
-        <Card className="flex flex-col gap-3">
-          <Title>The check itself</Title>
-          <p className="max-w-[var(--measure)] text-ink-muted">
-            The adaptive assessment for this skill is built but not yet wired up
-            — it needs the diagnostic engine, which is the next piece of work.
-            The item bank behind it already exists: {detail.itemCount} question
-            {detail.itemCount === 1 ? "" : "s"} written and validated for this
-            skill.
-          </p>
-          <Meta>
-            This page is served but kept out of search until the check runs. A
-            page that promises a tool it does not have is the thing we are trying
-            not to build.
-          </Meta>
-        </Card>
+         * The bar and the honest state of the tool, side by side. These are the
+         * two things a visitor actually needs from this page, and stacking them
+         * as two full-width cards made the second look like an afterthought.
+         */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div
+            className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-accent-weak p-7"
+            style={stagger(0)}
+          >
+            <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+              The bar
+            </span>
+            <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+              What counts as knowing this
+            </span>
+            <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-lead-size)] leading-[var(--text-lead-line)] text-ink">
+              {detail.canDoStatement}
+            </p>
+            {/* §8.5.4 — --ink-faint is under the 4.5:1 bar on the accent field. */}
+            <Meta tone="muted">
+              That sentence is the bar. Mastery only moves when your work
+              demonstrates it — reading about it does not count.
+            </Meta>
+          </div>
+
+          {/*
+            Honest about state rather than a fake "coming soon" CTA. §4.2 law 5:
+            declared limits are a feature, and a disabled button pretending to
+            be a product is the overclaiming the whole positioning rejects.
+          */}
+          <div
+            className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)]"
+            style={stagger(1)}
+          >
+            <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-attention">
+              Not ready yet
+            </span>
+            <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+              The check itself
+            </span>
+            <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
+              The adaptive assessment for this skill is built but not yet wired
+              up — it needs the diagnostic engine, which is the next piece of
+              work. The item bank behind it already exists: {detail.itemCount}{" "}
+              question{detail.itemCount === 1 ? "" : "s"} written and validated
+              for this skill.
+            </p>
+            <Meta className="mt-auto">
+              This page is served but kept out of search until the check runs. A
+              page that promises a tool it does not have is the thing we are
+              trying not to build.
+            </Meta>
+          </div>
+        </div>
 
         {detail.hardPrerequisites.length > 0 ? (
-          <section className="flex flex-col gap-3">
-            <Title>You&rsquo;ll need these first</Title>
-            <ul className="flex list-none flex-col gap-2 p-0 m-0">
-              {detail.hardPrerequisites.map((slug) => (
-                <li key={slug}>
-                  <Link
-                    href={`/check/${pack.slug}/${slug}`}
-                    className="block rounded-[var(--radius-card)] bg-surface p-4 hover:bg-accent-weak"
-                  >
-                    {name(slug)}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <section className="flex flex-col gap-8">
+            <SectionHead
+              step="01"
+              label="Prerequisites"
+              title="You'll need these first"
+              icon={<StepsIcon />}
+            />
+            <SkillLinks
+              packSlug={pack.slug}
+              slugs={detail.hardPrerequisites}
+              name={name}
+            />
           </section>
         ) : (
-          <section className="flex flex-col gap-2">
-            <Title>Where it sits</Title>
+          <section className="flex flex-col gap-4">
+            <SectionHead
+              step="01"
+              label="Prerequisites"
+              title="Where it sits"
+              icon={<StepsIcon />}
+            />
             <Meta>
               No prerequisites — this is a starting point in {pack.name}.
             </Meta>
@@ -146,38 +202,34 @@ export default async function CheckPage({
         )}
 
         {detail.softPrerequisites.length > 0 ? (
-          <section className="flex flex-col gap-3">
-            <Title>Helpful, but not required</Title>
-            <ul className="flex list-none flex-col gap-2 p-0 m-0">
-              {detail.softPrerequisites.map((slug) => (
-                <li key={slug}>
-                  <Link
-                    href={`/check/${pack.slug}/${slug}`}
-                    className="block rounded-[var(--radius-card)] bg-surface p-4 hover:bg-accent-weak"
-                  >
-                    {name(slug)}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <section className="flex flex-col gap-8">
+            <SectionHead
+              step="02"
+              label="Softer ground"
+              title="Helpful, but not required"
+              icon={<GridIcon />}
+            />
+            <SkillLinks
+              packSlug={pack.slug}
+              slugs={detail.softPrerequisites}
+              name={name}
+            />
           </section>
         ) : null}
 
         {detail.unlocks.length > 0 ? (
-          <section className="flex flex-col gap-3">
-            <Title>What it unlocks</Title>
-            <ul className="flex list-none flex-col gap-2 p-0 m-0">
-              {detail.unlocks.map((slug) => (
-                <li key={slug}>
-                  <Link
-                    href={`/check/${pack.slug}/${slug}`}
-                    className="block rounded-[var(--radius-card)] bg-surface p-4 hover:bg-accent-weak"
-                  >
-                    {name(slug)}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <section className="flex flex-col gap-8">
+            <SectionHead
+              step="03"
+              label="Downstream"
+              title="What it unlocks"
+              icon={<ChecklistIcon />}
+            />
+            <SkillLinks
+              packSlug={pack.slug}
+              slugs={detail.unlocks}
+              name={name}
+            />
           </section>
         ) : null}
 
@@ -188,7 +240,7 @@ export default async function CheckPage({
           </Link>
           .
         </Meta>
-      </main>
+      </PageFrame>
     </>
   );
 }

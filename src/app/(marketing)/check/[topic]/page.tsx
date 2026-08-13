@@ -2,9 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { Breadcrumbs, EvalTierNote, SectionHead } from "@/components/marketing";
+import { EvalTierNote, PageFrame, SectionHead } from "@/components/marketing";
 import { ChecklistIcon, SubjectIcon } from "@/components/icons";
-import { Button, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import {
+  Button,
+  DisplayTitle,
+  Lead,
+  Meta,
+  stagger,
+  Status,
+  Title,
+} from "@/components/ui";
 import { CHECKS_ARE_NEVER_INDEXED, findPack } from "@/lib/content";
 import {
   DEFAULT_BUDGET,
@@ -83,11 +91,15 @@ export default async function CheckRunPage({ params }: Params) {
     { name: "Skill check", path: `/check/${topic}` },
   ];
 
+  /*
+   * §8.5.9's one documented exception to the max-w-5xl frame: this is a task,
+   * not a document. One question at a time, nothing else on screen — a wide
+   * column here would be actively worse (§8.5.1, one idea per screen).
+   */
   const shell = (children: React.ReactNode) => (
-    <main className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-16">
-      <Breadcrumbs crumbs={crumbs} />
+    <PageFrame crumbs={crumbs} narrow className="gap-10">
       {children}
-    </main>
+    </PageFrame>
   );
 
   /* ── Intro ───────────────────────────────────────────────────────────── */
@@ -95,17 +107,20 @@ export default async function CheckRunPage({ params }: Params) {
     const closed = items.filter((i) => i.type === "mcq").length;
     return shell(
       <>
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
+        <div className="rise flex items-center gap-4">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
             <SubjectIcon taxonomyParent={pack.taxonomyParent} />
           </span>
           <DisplayTitle>{pack.name} — skill check</DisplayTitle>
         </div>
-        <Lead>
+        <Lead className="rise" style={stagger(1)}>
           About {DEFAULT_BUDGET} questions, ten minutes, no account. It adapts as
           you answer and covers as much of the subject as it can.
         </Lead>
-        <div className="flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-5">
+        <div
+          className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]"
+          style={stagger(2)}
+        >
           <Title>What it can and cannot tell you</Title>
           <Meta>
             {closed} of the {items.length} questions in this subject can be
@@ -136,11 +151,12 @@ export default async function CheckRunPage({ params }: Params) {
             : `${summary.assessedCount} of ${skills.length} skills were machine-marked. The rest are still unknown.`}
         </Lead>
 
-        <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface overflow-hidden">
-          {summary.verdicts.map((verdict) => (
+        <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-raised)] overflow-hidden">
+          {summary.verdicts.map((verdict, i) => (
             <li
               key={verdict.skillSlug}
-              className="flex items-center justify-between gap-4 border-b border-hairline px-5 py-4 last:border-b-0"
+              className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-4 last:border-b-0"
+              style={stagger(i)}
             >
               <Link
                 href={`/check/${topic}/${verdict.skillSlug}`}
@@ -211,13 +227,16 @@ export default async function CheckRunPage({ params }: Params) {
         </Meta>
         <Title>{item.prompt}</Title>
 
-        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-5">
+        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]">
           <Meta>What you wrote</Meta>
-          <p className="whitespace-pre-wrap">{cookie.p.r || "(left blank)"}</p>
+          <p className="whitespace-pre-wrap m-0">
+            {cookie.p.r || "(left blank)"}
+          </p>
         </div>
 
-        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-accent-weak p-5">
-          <Meta>A good answer covers</Meta>
+        <div className="rise flex flex-col gap-2 rounded-[var(--radius-card)] bg-accent-weak p-6">
+          {/* §8.5.4 — --ink-faint is under the small-text bar on this fill. */}
+          <Meta tone="muted">A good answer covers</Meta>
           <ul className="flex list-disc flex-col gap-1 pl-5 m-0">
             {key.map((concept) => (
               <li key={concept}>{concept}</li>
@@ -257,10 +276,14 @@ export default async function CheckRunPage({ params }: Params) {
         <input type="hidden" name="item" value={item.slug} />
 
         {closed ? (
-          <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface overflow-hidden">
+          <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-raised)] overflow-hidden">
             {/* The validator rejects any mcq with fewer than two options. */}
             {item.options!.map((option, i) => (
-              <li key={option} className="border-b border-hairline last:border-b-0">
+              <li
+                key={option}
+                className="rise border-b border-hairline last:border-b-0 hover:bg-accent-weak"
+                style={stagger(i)}
+              >
                 <label className="flex cursor-pointer items-center gap-3 px-5 py-4">
                   <input
                     type="radio"

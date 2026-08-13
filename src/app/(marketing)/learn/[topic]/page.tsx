@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SubjectIcon } from "@/components/icons";
+import { ChecklistIcon, GridIcon, SubjectIcon } from "@/components/icons";
 import {
-  Breadcrumbs,
   EvalTierNote,
   JsonLdScript,
+  PageFrame,
+  PageIntro,
+  SectionHead,
 } from "@/components/marketing";
 import {
-  Card,
-  DisplayTitle,
-  Lead,
+  LinkCard,
   MaturityBadge,
   Meta,
-  Title,
+  stagger,
 } from "@/components/ui";
 import {
   allPacks,
@@ -49,9 +49,7 @@ export async function generateMetadata({
     description: `A validated ${summary.skillCount}-skill path for ${pack.name.toLowerCase()}, with ${summary.projectCount} graded projects and published rubrics. Roughly ${summary.totalHours} hours of real work.`,
     alternates: { canonical: canonical(`/learn/${pack.slug}`) },
     // §12.1 — a page earns indexing; it is never granted by default.
-    robots: summary.indexable
-      ? undefined
-      : { index: false, follow: true },
+    robots: summary.indexable ? undefined : { index: false, follow: true },
   };
 }
 
@@ -87,83 +85,84 @@ export default async function TopicPage({
         ]}
       />
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-14 px-6 py-16">
-        <Breadcrumbs crumbs={crumbs} />
+      <PageFrame crumbs={crumbs}>
+        <PageIntro
+          icon={<SubjectIcon taxonomyParent={pack.taxonomyParent} />}
+          title={pack.name}
+          lead={`${summary.skillCount} skills across ${areas.length} areas, ordered by what depends on what. ${summary.projectCount} of them end in work that gets graded against a published rubric.`}
+          facts={
+            <>
+              <MaturityBadge maturity={summary.maturity} />
+              <EvalTierNote tier={summary.evalTier} />
+            </>
+          }
+          action={
+            /* The whole point of a skill map is to find out where you are on
+               it, so the entry into the check sits above the map, not under. */
+            <Link
+              href={`/check/${pack.slug}`}
+              className="inline-flex min-h-[var(--touch-min)] w-full items-center justify-center rounded-[var(--radius-control)] bg-accent px-6 text-[length:var(--text-label-size)] font-[550] text-white shadow-[var(--shadow-raised)] transition-opacity duration-[var(--dur-fast)] hover:opacity-90 sm:w-auto"
+            >
+              Take the skill check — about 10 minutes
+            </Link>
+          }
+        />
 
-        <header className="flex flex-col gap-5">
-          <span className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
-              <SubjectIcon taxonomyParent={pack.taxonomyParent} />
-            </span>
-            <DisplayTitle>{pack.name}</DisplayTitle>
-          </span>
-          <Lead>
-            {summary.skillCount} skills across {areas.length} areas, ordered by
-            what depends on what. {summary.projectCount} of them end in work that
-            gets graded against a published rubric.
-          </Lead>
-          <div className="flex flex-wrap items-center gap-6">
-            <MaturityBadge maturity={summary.maturity} />
-            <EvalTierNote tier={summary.evalTier} />
-          </div>
-          {/* The whole point of a skill map is to find out where you are on it,
-              so the entry into the check sits above the map rather than under it. */}
-          <Link
-            href={`/check/${pack.slug}`}
-            className="inline-flex min-h-[var(--touch-min)] w-full items-center justify-center rounded-[var(--radius-control)] bg-accent px-6 text-[length:var(--text-label-size)] font-[550] text-white hover:opacity-90 sm:w-auto"
-          >
-            Take the skill check — about 10 minutes
-          </Link>
-        </header>
-
-        <Card className="flex flex-wrap gap-x-12 gap-y-4">
+        {/* §8.5.5 bans dense metric grids, and four numbers on separate cards
+            is exactly that. One card, four figures, no chrome per figure. */}
+        <div className="grid grid-cols-2 gap-6 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)] sm:grid-cols-4">
           {[
             ["Skills", String(summary.skillCount)],
             ["Graded projects", String(summary.projectCount)],
             ["Estimated hours", `~${summary.totalHours}`],
             ["Areas", String(areas.length)],
-          ].map(([label, value]) => (
-            <div key={label} className="flex flex-col">
-              <Meta>{label}</Meta>
-              <span className="text-[length:var(--text-title-size)] font-semibold">
+          ].map(([label, value], i) => (
+            <div key={label} className="rise flex flex-col gap-1" style={stagger(i)}>
+              <span className="text-[length:var(--text-display-size)] font-[650] leading-none tracking-[var(--text-display-tracking)] text-accent">
                 {value}
               </span>
+              <Meta>{label}</Meta>
             </div>
           ))}
-        </Card>
+        </div>
 
-        <section className="flex flex-col gap-8">
-          <div className="flex flex-col gap-2">
-            <Title>What you&rsquo;ll be able to do</Title>
-            <Meta>
-              Each line is a capability statement — the thing your work has to
-              demonstrate before the skill counts as mastered.
-            </Meta>
-          </div>
+        {/* ── 01 The skill map ─────────────────────────────────────────────── */}
+        <section className="flex flex-col gap-10">
+          <SectionHead
+            step="01"
+            label="The skill map"
+            title="What you'll be able to do"
+            icon={<GridIcon />}
+          />
+          <Meta>
+            Each line is a capability statement — the thing your work has to
+            demonstrate before the skill counts as mastered.
+          </Meta>
 
           {areas.map((area) => (
-            <div key={area} className="flex flex-col gap-3">
-              <Meta>{area.replace(/-/g, " ")}</Meta>
-              <ul className="flex list-none flex-col gap-2 p-0 m-0">
+            <div key={area} className="flex flex-col gap-4">
+              <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+                {area.replace(/-/g, " ")}
+              </span>
+              <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
                 {skills
                   .filter((s) => s.area === area)
-                  .map((skill) => (
-                    <li key={skill.slug}>
-                      <Link
-                        href={`/check/${pack.slug}/${skill.slug}`}
-                        className="flex flex-col gap-1 rounded-[var(--radius-card)] bg-surface p-4 hover:bg-accent-weak"
-                      >
-                        <span className="font-[550]">{skill.name}</span>
-                        <span className="text-ink-muted">
+                  .map((skill, i) => (
+                    <li key={skill.slug} className="rise" style={stagger(i)}>
+                      <LinkCard href={`/check/${pack.slug}/${skill.slug}`}>
+                        <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                          {skill.name}
+                        </span>
+                        <span className="text-[length:var(--text-label-size)] text-ink-muted">
                           {skill.canDoStatement}
                         </span>
-                        <Meta>
+                        <Meta className="mt-auto">
                           {skill.level} · ~{skill.estimatedHours}h
                           {skill.hardPrerequisites.length > 0
                             ? ` · needs ${skill.hardPrerequisites.length} earlier skill${skill.hardPrerequisites.length === 1 ? "" : "s"}`
                             : " · no prerequisites"}
                         </Meta>
-                      </Link>
+                      </LinkCard>
                     </li>
                   ))}
               </ul>
@@ -171,26 +170,31 @@ export default async function TopicPage({
           ))}
         </section>
 
-        <section className="flex flex-col gap-4">
-          <Title>The graded work</Title>
-          <Lead>
+        {/* ── 02 The graded work ───────────────────────────────────────────── */}
+        <section className="flex flex-col gap-8">
+          <SectionHead
+            step="02"
+            label="The graded work"
+            title="Where the proof actually comes from"
+            icon={<ChecklistIcon />}
+          />
+          <Meta>
             The rubric is published before you start. That makes the verdict
             trustworthy and any disagreement productive.
-          </Lead>
-          <ul className="flex list-none flex-col gap-3 p-0 m-0">
-            {projects.map((project) => (
-              <li key={project.slug}>
-                <Link
-                  href={`/projects/${project.slug}`}
-                  className="flex flex-col gap-1 rounded-[var(--radius-card)] bg-surface p-5 hover:bg-accent-weak"
-                >
-                  <span className="font-[550]">{project.title}</span>
-                  <Meta>
+          </Meta>
+          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 lg:grid-cols-2">
+            {projects.map((project, i) => (
+              <li key={project.slug} className="rise" style={stagger(i)}>
+                <LinkCard href={`/projects/${project.slug}`} className="gap-4 p-6">
+                  <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                    {project.title}
+                  </span>
+                  <Meta className="mt-auto">
                     {project.rubricDetail.criteria.length} criteria ·{" "}
                     {project.estimatedMinutes} min · targets{" "}
                     {project.skills.length} skills
                   </Meta>
-                </Link>
+                </LinkCard>
               </li>
             ))}
           </ul>
@@ -202,7 +206,7 @@ export default async function TopicPage({
             not submitted for search indexing.
           </Meta>
         ) : null}
-      </main>
+      </PageFrame>
     </>
   );
 }

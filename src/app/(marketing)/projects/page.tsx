@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Breadcrumbs, JsonLdScript } from "@/components/marketing";
-import { DisplayTitle, Lead, Meta, Title } from "@/components/ui";
+import { ChecklistIcon } from "@/components/icons";
+import {
+  JsonLdScript,
+  PageFrame,
+  PageIntro,
+  SectionHead,
+} from "@/components/marketing";
+import { LinkCard, Meta, stagger } from "@/components/ui";
 import { allProjects } from "@/lib/content";
 import { breadcrumbs } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
@@ -25,42 +30,55 @@ export default function ProjectsIndexPage() {
   return (
     <>
       <JsonLdScript blocks={[breadcrumbs(crumbs)]} />
-      <main className="mx-auto flex max-w-3xl flex-col gap-12 px-6 py-16">
-        <Breadcrumbs crumbs={crumbs} />
+      <PageFrame crumbs={crumbs}>
+        <PageIntro
+          icon={<ChecklistIcon />}
+          title="Graded projects"
+          lead="Each brief publishes the rubric it will be marked against, before you start. That is what makes the verdict trustworthy — and what makes disagreeing with it productive."
+          facts={
+            <>
+              <Meta>{projects.length} briefs</Meta>
+              <Meta>
+                {new Set(projects.map((p) => p.topicName)).size} subjects
+              </Meta>
+              <Meta>Every rubric public</Meta>
+            </>
+          }
+        />
 
-        <div className="flex flex-col gap-5">
-          <DisplayTitle>Graded projects</DisplayTitle>
-          <Lead>
-            Each brief publishes the rubric it will be marked against, before you
-            start. That is what makes the verdict trustworthy — and what makes
-            disagreeing with it productive.
-          </Lead>
-        </div>
+        <section className="flex flex-col gap-8">
+          <SectionHead
+            step="01"
+            label="The briefs"
+            title="Pick something you would actually have to do"
+            icon={<ChecklistIcon />}
+          />
 
-        <section className="flex flex-col gap-4">
-          <Title>{projects.length} briefs</Title>
-          <ul className="flex list-none flex-col gap-3 p-0 m-0">
-            {projects.map((project) => (
-              <li key={project.slug}>
-                <Link
-                  href={`/projects/${project.slug}`}
-                  className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-5 hover:bg-accent-weak"
-                >
-                  <span className="font-[550]">{project.title}</span>
-                  <span className="max-w-[var(--measure)] text-ink-muted">
+          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 lg:grid-cols-2">
+            {projects.map((project, i) => (
+              <li key={project.slug} className="rise" style={stagger(i)}>
+                <LinkCard href={`/projects/${project.slug}`} className="gap-4 p-6">
+                  <Meta>{project.topicName}</Meta>
+                  <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                    {project.title}
+                  </span>
+                  <span className="text-[length:var(--text-label-size)] text-ink-muted">
                     {project.brief.slice(0, 160)}
                     {project.brief.length > 160 ? "…" : ""}
                   </span>
-                  <Meta>
-                    {project.rubricDetail.criteria.length} criteria ·{" "}
-                    {project.estimatedMinutes} min · {project.topicName}
-                  </Meta>
-                </Link>
+                  <span className="mt-auto flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-hairline pt-4">
+                    <Meta>
+                      {project.rubricDetail.criteria.length} criteria
+                    </Meta>
+                    <Meta>{project.estimatedMinutes} min</Meta>
+                    <Meta>Evidence: {project.evidenceType}</Meta>
+                  </span>
+                </LinkCard>
               </li>
             ))}
           </ul>
         </section>
-      </main>
+      </PageFrame>
     </>
   );
 }
