@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "admin:grant": "tsx scripts/admin-grant.ts",
     "build": "next build",
     "coverage": "vitest run --coverage",
     "coverage:audit": "tsx scripts/coverage-audit.ts",

@@ -20,6 +20,14 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+vi.mock("@/lib/admin/guard", () => ({
+  requireAdmin: async () => ({
+    userId: "u1",
+    email: "admin@example.com",
+    role: "admin",
+  }),
+}));
+
 const { default: PackPage } = await import("@/app/admin/packs/[slug]/page");
 
 afterEach(() => {

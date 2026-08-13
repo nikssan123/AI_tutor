@@ -1,22 +1,52 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 const notFoundMock = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
 });
+const requireAdminMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   notFound: () => notFoundMock(),
+}));
+
+// Stubbed; the guard itself is tested in tests/lib/admin-guard.test.ts. What
+// this file pins is that the viewer calls it — it was reachable by anyone until
+// the admin console landed.
+vi.mock("@/lib/admin/guard", () => ({
+  requireAdmin: () => requireAdminMock(),
 }));
 
 const { default: PackPage, metadata } = await import(
   "@/app/admin/packs/[slug]/page"
 );
 
+beforeEach(() => {
+  requireAdminMock.mockResolvedValue({
+    userId: "u1",
+    email: "admin@example.com",
+    role: "admin",
+  });
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+});
+
+describe("access", () => {
+  it("is guarded", async () => {
+    await PackPage({ params: Promise.resolve({ slug: "sql-data-analysis" }) });
+    expect(requireAdminMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not read the pack off disk when the guard rejects", async () => {
+    requireAdminMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(
+      PackPage({ params: Promise.resolve({ slug: "sql-data-analysis" }) }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
 });
 
 /**

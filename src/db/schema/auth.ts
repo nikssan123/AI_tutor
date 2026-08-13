@@ -29,6 +29,18 @@ export const user = pgTable(
     plan: text("plan").notNull().default("free"),
     stripeCustomerId: text("stripe_customer_id"),
 
+    /**
+     * Authorization for `/admin`. A string rather than an `isAdmin` boolean
+     * because the second role we need is "read-only support", not a second
+     * god-mode — and a boolean cannot express that without a second migration.
+     *
+     * Defaults to `user`, is never null, and is not writable by the account it
+     * belongs to: `src/lib/auth.ts` marks it `input: false` so it cannot be set
+     * through sign-up or update-user. Granting it is a deliberate act performed
+     * by `pnpm admin:grant`.
+     */
+    role: text("role").notNull().default("user"),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

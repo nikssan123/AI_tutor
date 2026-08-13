@@ -43,6 +43,13 @@
       "when": 1786615926020,
       "tag": "0005_busy_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786616587222,
+      "tag": "0006_classy_killraven",
+      "breakpoints": true
     }
   ]
 }

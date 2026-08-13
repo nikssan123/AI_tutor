@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { join } from "node:path";
+import { requireAdmin } from "@/lib/admin/guard";
 import { loadPack, PACKS_DIR } from "@/lib/packs/loader";
 import { toEngineGraph, validatePack } from "@/lib/packs/validate";
 import { layoutGraph } from "@/lib/packs/layout";
@@ -37,6 +38,8 @@ export default async function PackPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await requireAdmin();
+
   const { slug } = await params;
 
   let pack;
