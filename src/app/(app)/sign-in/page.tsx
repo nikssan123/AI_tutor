@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SignInForm } from "./sign-in-form";
 import { signInWithGoogleAction } from "./actions";
 import { googleEnabled } from "@/lib/auth";
+import { requireGuest } from "@/lib/account/session";
 import { safeDestination } from "@/lib/account/next-url";
 import { Button, DisplayTitle, Lead, stagger, Status } from "@/components/ui";
 import { AuthFrame } from "@/components/app-shell";
@@ -45,6 +46,12 @@ export default async function SignInPage({ searchParams }: Props) {
   // to be trusted to do it — and so a hostile `?next=` is already gone by the
   // time anything renders it into a link.
   const destination = safeDestination(next);
+
+  // Nobody signed in has any business on this screen. The guard is in the page
+  // rather than the layout because a layout cannot stop the page below it from
+  // rendering, and it runs before anything else here so the form is never built
+  // for someone who will not see it.
+  await requireGuest(destination);
 
   return (
     <AuthFrame>

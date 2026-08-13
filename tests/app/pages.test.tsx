@@ -24,6 +24,7 @@ vi.mock("next/headers", () => ({
 }));
 
 const currentUserMock = vi.fn();
+const requireGuestMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
@@ -35,6 +36,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/account/session", () => ({
   currentUser: () => currentUserMock(),
   requireUser: () => currentUserMock(),
+  requireGuest: (next?: string) => requireGuestMock(next),
 }));
 
 afterEach(() => {
@@ -170,6 +172,24 @@ describe("/sign-in", () => {
     const { default: SignInPage } = await import("@/app/(app)/sign-in/page");
     render(await SignInPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Sign in");
+  });
+
+  it("checks for a session before it builds the form", async () => {
+    // The marketing header is static and says "Sign in" to everyone, so this
+    // screen is where a signed-in learner arrives by following it. The guard
+    // runs first, and carries where they were headed with it — otherwise
+    // being already signed in costs them the subject they came with.
+    requireGuestMock.mockImplementationOnce(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+    const { default: SignInPage } = await import("@/app/(app)/sign-in/page");
+
+    await expect(
+      SignInPage({
+        searchParams: Promise.resolve({ next: "/start?topic=sql" }),
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(requireGuestMock).toHaveBeenCalledWith("/start?topic=sql");
   });
 });
 

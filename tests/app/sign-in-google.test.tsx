@@ -11,7 +11,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 const signInSocial = vi.fn();
 const googleEnabledMock = vi.fn();
+const getSession = vi.fn();
 
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
@@ -19,7 +21,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/lib/auth", () => ({
-  getAuth: () => ({ api: { signInSocial } }),
+  // The session module is deliberately left real here, so these render the
+  // page through the same guard production does rather than around it.
+  getAuth: () => ({ api: { signInSocial, getSession } }),
   googleEnabled: () => googleEnabledMock(),
 }));
 
@@ -30,6 +34,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   googleEnabledMock.mockReturnValue(true);
   signInSocial.mockResolvedValue({ url: "https://accounts.google.test/o" });
+  getSession.mockResolvedValue(null);
 });
 
 afterEach(cleanup);
@@ -133,5 +138,26 @@ describe("/sign-in", () => {
     expect(
       container.querySelector<HTMLInputElement>('input[name="next"]')!.value,
     ).toBe("/today");
+  });
+
+  it("never shows the form to someone who is already signed in", async () => {
+    // The marketing header is static, so it offers "Sign in" to signed-in
+    // learners too. Following it should put them in the app, not in front of
+    // a form asking them to do again what they have already done.
+    getSession.mockResolvedValue({ user: { id: "u1", email: "a@b.co" } });
+
+    await expect(
+      SignInPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("REDIRECT:/today");
+  });
+
+  it("takes them where they were headed, not just to /today", async () => {
+    getSession.mockResolvedValue({ user: { id: "u1", email: "a@b.co" } });
+
+    await expect(
+      SignInPage({
+        searchParams: Promise.resolve({ next: "/start?topic=rust" }),
+      }),
+    ).rejects.toThrow("REDIRECT:/start?topic=rust");
   });
 });

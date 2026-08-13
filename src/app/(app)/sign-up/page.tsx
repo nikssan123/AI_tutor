@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { googleEnabled, MIN_PASSWORD_LENGTH } from "@/lib/auth";
+import { requireGuest } from "@/lib/account/session";
 import { safeDestination, withDestination } from "@/lib/account/next-url";
 import { signInWithGoogleAction } from "../sign-in/actions";
 import {
@@ -40,6 +41,11 @@ const label = "text-[length:var(--text-label-size)] font-[550]";
 export default async function SignUpPage({ searchParams }: Props) {
   const { error, email, next } = await searchParams;
   const destination = safeDestination(next);
+
+  // Same guard as /sign-in: a second account is not what someone already in one
+  // is asking for, and the sign-up form cannot tell them so — it does not know
+  // who they are.
+  await requireGuest(destination);
 
   return (
     <AuthFrame>

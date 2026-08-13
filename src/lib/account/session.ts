@@ -2,6 +2,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
+import { safeDestination } from "@/lib/account/next-url";
 import { DEFAULT_ROLE } from "@/lib/admin/guard";
 
 /**
@@ -87,4 +88,30 @@ export async function requireUser(): Promise<AccountUser> {
   const session = await currentSession();
   if (!session) redirect("/sign-in");
   return toAccountUser(session.user);
+}
+
+/**
+ * The mirror of `requireUser`, for the screens that only mean anything signed
+ * out: sign in, and create an account.
+ *
+ * The marketing header is static — it has to be, for §13.3's rendering
+ * guarantee — so it says "Sign in" to everyone, signed in or not. Following it
+ * used to hand a signed-in learner a form asking them to do something they had
+ * already done, with no hint of which account they were in. This turns that
+ * click into what the person actually meant by it: take me into the app.
+ *
+ * `next` is honoured rather than ignored, so the offer someone was carrying
+ * survives being already signed in — a learner who takes `/learn`'s "we'll
+ * build it" offer lands on `/start`, not on `/today` having lost the subject.
+ * It is sanitised here as well as at the screen, because a redirect built from
+ * an unchecked parameter is an open redirect no matter who else checked it.
+ *
+ * Deliberately *not* on `/forgot-password` or `/reset-password`: having a
+ * session on this device and having forgotten the password are not exclusive,
+ * and `/account` can only change a password for someone who can type the
+ * current one. Guarding those would strand exactly the person who needs them.
+ */
+export async function requireGuest(next?: string | null): Promise<void> {
+  const session = await currentSession();
+  if (session) redirect(safeDestination(next));
 }

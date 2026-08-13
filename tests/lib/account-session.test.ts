@@ -19,7 +19,7 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 
-const { currentUser, requireUser, toAccountUser } = await import(
+const { currentUser, requireGuest, requireUser, toAccountUser } = await import(
   "@/lib/account/session"
 );
 
@@ -118,5 +118,38 @@ describe("requireUser", () => {
       id: "u1",
       email: "learner@example.com",
     });
+  });
+});
+
+describe("requireGuest", () => {
+  it("lets a signed-out visitor through to the form", async () => {
+    getSessionMock.mockResolvedValue(null);
+    await requireGuest();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("sends someone already signed in into the app instead", async () => {
+    // The marketing header says "Sign in" to everyone, because it is static.
+    // Following it while signed in should land in the app, not on a form.
+    getSessionMock.mockResolvedValue(SIGNED_IN);
+    await expect(requireGuest()).rejects.toThrow("REDIRECT:/today");
+  });
+
+  it("keeps the destination the visitor was carrying", async () => {
+    // Taking /learn's "we'll build it" offer while signed in has to still end
+    // at /start with the subject, not at /today having dropped it.
+    getSessionMock.mockResolvedValue(SIGNED_IN);
+    await expect(requireGuest("/start?topic=sql")).rejects.toThrow(
+      "REDIRECT:/start?topic=sql",
+    );
+  });
+
+  it("will not be talked into redirecting off-site", async () => {
+    // The redirect is built from a query parameter, so it is an open redirect
+    // unless this module checks it too — regardless of who checked it first.
+    getSessionMock.mockResolvedValue(SIGNED_IN);
+    await expect(requireGuest("//evil.example")).rejects.toThrow(
+      "REDIRECT:/today",
+    );
   });
 });

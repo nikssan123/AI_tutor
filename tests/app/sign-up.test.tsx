@@ -17,6 +17,7 @@ const sendVerificationOTP = vi.fn();
 const googleEnabledMock = vi.fn();
 const requireUserMock = vi.fn();
 const currentUserMock = vi.fn();
+const requireGuestMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -36,6 +37,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/account/session", () => ({
   requireUser: () => requireUserMock(),
   currentUser: () => currentUserMock(),
+  requireGuest: (next?: string) => requireGuestMock(next),
 }));
 
 const { signUpAction } = await import("@/app/(app)/sign-up/actions");
@@ -178,6 +180,17 @@ describe("/sign-up", () => {
     expect(
       container.querySelector<HTMLInputElement>('input[name="next"]')!.value,
     ).toBe("/today");
+  });
+
+  it("checks for a session before offering a second account", async () => {
+    // Someone already signed in cannot be told "you have an account" by this
+    // screen — it does not know who they are. The guard answers instead, and
+    // takes the destination they arrived with.
+    requireGuestMock.mockRejectedValueOnce(new Error("REDIRECT:/today"));
+
+    await expect(SignUpPage({ searchParams: search({ next: TOPIC }) })).rejects
+      .toThrow("REDIRECT:/today");
+    expect(requireGuestMock).toHaveBeenCalledWith(TOPIC);
   });
 });
 
