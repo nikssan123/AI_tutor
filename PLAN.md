@@ -25,8 +25,10 @@ inline — §7.1 and §8 screen 3 have the substantial ones.
 For what exists right now, and what to pick up next, go straight to
 **§24's build status table**. The short version: the engine, the intake
 conversation, the diagnostic, the curriculum, the session and tutor, and
-on-demand pack generation are all in. **E8 — submission and evaluation — is next,
-and it is the one the whole thesis rests on** (§4.2 law 1, §14.5).
+on-demand pack generation are all in, and so is **E8 — submission and evaluation,
+the one the whole thesis rests on** (§4.2 law 1, §14.5). E8's code is complete
+and the loop has been run end to end; what remains is the hand-graded corpus its
+acceptance criteria need. **E9 is the next epic to build.**
 
 `IMPLEMENTATION.md` is the per-pass record, including the things that only
 showed up against the real API. Read the "Still open" section at the end of the
@@ -1768,18 +1770,22 @@ before picking the next thing up.**
 | **E6** Curriculum + validator | ✅ Done | `src/lib/curriculum/` |
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
-| **E8** Submission + Evaluation | ⬜ **Next** | — |
+| **E8** Submission + Evaluation | 🟡 **Built, not accepted** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; κ and band-stability criteria still unmet |
 | **E9** Mastery map + progress | ⬜ Not started | — |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
-**E8 is the next epic, and the plan is emphatic about why** (§24's own ordering
-note): if the schedule slips you cut SEO pages and free tools, *never* E5 or E8.
-E5 is done. E8 is the differentiator and the only major promise the product now
-makes that it cannot yet keep — `apply` blocks in a session say plainly that work
-cannot be handed in yet.
+**E8's code is done and the loop has been watched run** — a real submission from
+the textarea through Inngest to a marked result, at $0.108 and about 45 seconds
+(IMPLEMENTATION.md pass 19). What is *not* done is accepting it: κ ≥ 0.6 against
+a hand-graded set, and two runs landing within one band ≥85% of the time. Both
+need the Phase-0 corpus in §23, which lists "grade 5 real submissions by hand" as
+a MUST that was never done. **That corpus is the next piece of work on E8, and it
+is human work rather than code.**
+
+After it, **E9 — the mastery map — is the next epic to build.**
 
 ## E7.5 — Generated packs (built between E7 and E8)
 
@@ -1873,7 +1879,7 @@ matching pack triggers Generated-pack creation") could not be met without it.
 **Dep:** E6.
 **Accept:** a 30-minute session renders in <3s to first token; ≤50% `explain` blocks enforced in code; every session opens with retrieval items; tutor context is cached (`cache_read_input_tokens > 0` asserted in tests).
 
-### E8 — Submission + Evaluation Agent (days 16–21) — **the differentiator** ⬅ **NEXT**
+### E8 — Submission + Evaluation Agent (days 16–21) — **the differentiator** — 🟡 built, awaiting the calibration corpus
 **Why:** §14.5. This is the product.
 **In:** artefacts (repo URL / file / paste / image / audio), rubric.
 **Out:** `Evaluation` with per-criterion scores + evidence quotes + confidence; `MasteryUpdate` rows.

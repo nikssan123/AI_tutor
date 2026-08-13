@@ -53,9 +53,8 @@ vi.mock("@/lib/inngest/client", async (importOriginal) => ({
 const { default: SubmissionPage, confidenceLevel } = await import(
   "@/app/(app)/submission/[id]/page"
 );
-const { projectForBlock, submitWorkAction } = await import(
-  "@/app/(app)/submission/actions"
-);
+const { submitWorkAction } = await import("@/app/(app)/submission/actions");
+const { projectForBlock } = await import("@/lib/submissions/project");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
 const params = (id = "sub-1") => Promise.resolve({ id });

@@ -1482,3 +1482,92 @@ that does not exist: Cohen's κ ≥ 0.6 against a hand-graded set, and two runs
 landing within one band ≥85% of the time. §23's Phase 0 lists "grade 5 real
 submissions by hand" as a MUST that was never done, and it is a prerequisite the
 build owes rather than something code can supply.
+
+---
+
+# Delivery record — pass 19: watching the loop run
+
+Pass 18 closed with one sentence: *"The loop has not been watched end to end
+with Inngest running."* This is that run. It took the fixture below, one real
+submission and $0.108, and it found two things 2123 passing tests could not.
+
+## The session page was 500ing, and no test could see it
+
+`submission/actions.ts` is a `"use server"` module, and every export from one
+must be an async function. It exported `projectForBlock`, a synchronous helper.
+That type-checks, lints, and passes every unit test — the test imported the
+function directly and it worked fine — and then fails in the bundler, which took
+`session/[id]/page.tsx` down with it.
+
+So the hand-in form did not render at all. The feature shipped in pass 18 was
+unreachable in a browser from the moment it was committed, and the whole suite
+was green over it.
+
+The helper now lives in `@/lib/submissions/project`. More usefully,
+`scripts/server-actions-audit.ts` runs in `pnpm verify` and fails the build on
+any non-async export from a `"use server"` file. This is the second time this
+rule has bitten — a `MAX_TURNS` constant did it in pass 14 — so it is now
+checked rather than remembered. The audit was confirmed against both shapes by
+reintroducing them.
+
+## A hand-in of whitespace vanished silently
+
+`submitWorkAction` redirects to `?error=empty` when the artefact trims to
+nothing. The session page never read `searchParams`, so the learner came back to
+an identical page with their box empty and no explanation.
+
+`required` does not save it: a textarea of spaces satisfies the browser, and the
+trim happens on the server. Found by handing in six spaces against the running
+app.
+
+## What the run actually proved
+
+A real no-JS form POST, the progressive-enhancement path the session is built
+for, through every step:
+
+| | |
+|---|---|
+| POST → server action | 303 to `/submission/{id}` |
+| Inngest event | `submission/evaluate.requested` published and picked up |
+| Waiting screen | "Marking your work", `meta refresh` live |
+| Two Opus passes | 21.1s + 22.4s, band spread 1 |
+| Result screen | 38%, Tier 2 evidence, every criterion quoting the work |
+| Audit trail | mastery 0.12 → 0.166, `lastSuccessAt` still null |
+| **Cost** | **$0.108 per marked submission** |
+
+The skill is tier 1 and the evaluation came back tier 2 — §7.2's cap holding,
+because there is no execution sandbox to justify the stronger claim.
+
+The marking was good, and unflattering in the right direction: the submission
+ignored the brief's month dimension and 12-month window, and the grader said so
+and quoted the `GROUP BY` to prove it. `lastSuccessAt` stayed null because 38%
+is not a success, while mastery still moved slightly — `pLearn` on a genuine
+attempt.
+
+## The fixture
+
+`scripts/submission-loop-fixture.ts` puts a learner in front of an `apply`
+block: user, goal, session, and a signed Better Auth cookie minted from the
+session row rather than typed into a form. The diagnostic and the curriculum are
+fixtured rather than run — both were verified against the real API in earlier
+passes, and re-running them costs dollars to prove something already proven.
+Everything from the textarea onwards is real.
+
+Worth recording for the next person: the cookie signature is **standard padded
+base64, URL-encoded whole**, per better-call's `signCookieValue`. The
+`base64urlnopad` in better-auth's own `cookies/index.mjs` belongs to the
+session-data cache payload and is rejected by `getSignedCookie`.
+
+2124 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Still open
+
+Unchanged, and now the only thing between E8 and done: §24 E8's last two
+acceptance criteria need a corpus that does not exist — Cohen's κ ≥ 0.6 against
+a hand-graded set, and two runs landing within one band ≥85% of the time. §23's
+Phase 0 lists "grade 5 real submissions by hand" as a MUST that was never done.
+
+Neither the `failed` nor the `human_review` path has been watched live. Both are
+branch-tested, and forcing either against the real API costs money to see a
+screen that is already covered — but "tested" is not "watched", which is the
+lesson of this pass.

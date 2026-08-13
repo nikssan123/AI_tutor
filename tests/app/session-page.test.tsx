@@ -111,6 +111,7 @@ function view(over: {
 }
 
 const params = Promise.resolve({ id: "sess-1" });
+const search = Promise.resolve({});
 
 /** Renders the page and any async children it streamed behind Suspense. */
 async function show(node: React.ReactElement) {
@@ -129,17 +130,17 @@ afterEach(cleanup);
 describe("the session screen", () => {
   it("sends a learner with no such session back to today", async () => {
     sessionViewMock.mockResolvedValue(undefined);
-    await expect(SessionPage({ params })).rejects.toThrow("REDIRECT:/today");
+    await expect(SessionPage({ params, searchParams: search })).rejects.toThrow("REDIRECT:/today");
   });
 
   it("shows where the learner is in the session", async () => {
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/Block 1 of 1/)).toBeDefined();
     expect(screen.getByText("Join grain")).toBeDefined();
   });
 
   it("renders an explain block's can-do statement", async () => {
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(skill.canDoStatement)).toBeDefined();
   });
 
@@ -160,7 +161,7 @@ describe("the session screen", () => {
       }),
     );
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("What decides the row count?")).toBeDefined();
     expect(screen.getByLabelText("Your answer")).toBeDefined();
   });
@@ -194,17 +195,17 @@ describe("the session screen", () => {
     // claims. Collapsing the third into either of the others is how a product
     // ends up claiming evidence it never had.
     sessionViewMock.mockResolvedValue(answered(true, "model"));
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("Marked correct")).toBeDefined();
     cleanup();
 
     sessionViewMock.mockResolvedValue(answered(false, "model"));
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("Not right yet")).toBeDefined();
     cleanup();
 
     sessionViewMock.mockResolvedValue(answered(null, "ungraded"));
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/doesn.t count/)).toBeDefined();
   });
 
@@ -214,7 +215,7 @@ describe("the session screen", () => {
     blank.response!.answer = "";
     sessionViewMock.mockResolvedValue(blank);
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/left this one blank/)).toBeDefined();
   });
 
@@ -236,9 +237,42 @@ describe("the session screen", () => {
       }),
     );
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByPlaceholderText("Paste your work here…")).toBeDefined();
     expect(screen.getByRole("button", { name: "Hand it in" })).toBeDefined();
+    // Nothing bounced, so nothing is being explained.
+    expect(screen.queryByText(/nothing in the box/)).toBeNull();
+  });
+
+  it("says why a hand-in of nothing but whitespace bounced", async () => {
+    /*
+     * `required` does not catch it: a box of spaces satisfies the browser, then
+     * trims to empty on the server. Found by handing in whitespace against the
+     * running app — the redirect carried `?error=empty` and the page ignored
+     * it, so the work appeared to vanish with no explanation.
+     */
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Write the query",
+            rubricId: null,
+            evidenceType: "sql",
+            estMinutes: 15,
+          },
+        ],
+      }),
+    );
+
+    await show(
+      await SessionPage({
+        params,
+        searchParams: Promise.resolve({ error: "empty" }),
+      }),
+    );
+    expect(screen.getByText(/nothing in the box to mark/)).toBeDefined();
   });
 
   it("keeps a reflection without marking it", async () => {
@@ -246,7 +280,7 @@ describe("the session screen", () => {
       view({ blocks: [{ type: "reflect", prompt: "How did that go?", estMinutes: 5 }] }),
     );
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByLabelText("Your reflection")).toBeDefined();
     expect(screen.getByText(/not counted as evidence/)).toBeDefined();
   });
@@ -265,7 +299,7 @@ describe("the session screen", () => {
       },
     });
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("harder than it looked")).toBeDefined();
   });
 
@@ -283,7 +317,7 @@ describe("the session screen", () => {
       },
     });
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/skipped this one/)).toBeDefined();
   });
 
@@ -296,7 +330,7 @@ describe("the session screen", () => {
       }),
     );
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("your last query")).toBeDefined();
   });
 
@@ -307,7 +341,7 @@ describe("the session screen", () => {
       mastery: undefined,
     });
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("Today's session")).toBeDefined();
   });
 
@@ -318,7 +352,7 @@ describe("the session screen", () => {
       mastery: undefined,
     });
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("c")).toBeDefined();
   });
 
@@ -334,13 +368,13 @@ describe("the session screen", () => {
       }),
     );
 
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/Block 2 of 3/)).toBeDefined();
   });
 
   it("offers to finish once the blocks run out", async () => {
     sessionViewMock.mockResolvedValue(view({ blockIndex: 1 }));
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByRole("button", { name: "Finish session" })).toBeDefined();
   });
 
@@ -348,14 +382,14 @@ describe("the session screen", () => {
     sessionViewMock.mockResolvedValue(
       view({ blockIndex: 1, completedAt: new Date() }),
     );
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.queryByRole("button", { name: "Finish session" })).toBeNull();
     expect(screen.getByText(/already finished/)).toBeDefined();
   });
 
   it("says the tutor is unavailable rather than showing a dead panel", async () => {
     hasApiKeyMock.mockReturnValue(false);
-    await show(await SessionPage({ params }));
+    await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/tutor is unavailable/)).toBeDefined();
   });
 });

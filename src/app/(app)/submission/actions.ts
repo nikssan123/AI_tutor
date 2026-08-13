@@ -8,8 +8,8 @@ import { resolvePack } from "@/lib/content/resolve";
 import { activeGoal } from "@/lib/goals/store";
 import { normaliseArtefact } from "@/lib/evaluation";
 import { createSubmission } from "@/lib/submissions/store";
+import { projectForBlock } from "@/lib/submissions/project";
 import { EVENTS, inngest } from "@/lib/inngest/client";
-import type { DomainPack } from "@/lib/packs/types";
 
 /**
  * Handing work in — §24 E8's front door.
@@ -17,29 +17,11 @@ import type { DomainPack } from "@/lib/packs/types";
  * A form POST like everything else here, and for the same reason: this is the
  * moment the product either does the thing it promised or does not, and it must
  * not depend on a bundle downloading first.
- */
-
-/**
- * The project an `apply` block is asking for.
  *
- * A block carries a rubric id rather than a project slug (§14.9.2's session
- * contract), so the project is the one that publishes that rubric. Falling back
- * to a project targeting the skill covers a block composed before the pack had
- * rubrics on its projects — a thin pack, not a broken one.
+ * Nothing but `async` actions may be exported from this file — see
+ * `@/lib/submissions/project`, which is where the one helper that used to live
+ * here went after it broke the session page at bundle time.
  */
-export function projectForBlock(
-  pack: DomainPack,
-  rubricId: string | null,
-  skillSlug: string,
-) {
-  const byRubric = rubricId
-    ? pack.projects.find((p) => p.rubric === rubricId)
-    : undefined;
-
-  return (
-    byRubric ?? pack.projects.find((p) => p.targetSkills.includes(skillSlug))
-  );
-}
 
 export async function submitWorkAction(formData: FormData): Promise<void> {
   const session = await getAuth().api.getSession({ headers: await headers() });

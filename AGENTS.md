@@ -17,7 +17,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - If a branch is unreachable, delete it rather than ignore it. If a line is genuinely untestable, that is a design problem — restructure it so it can be tested.
 - Never make a suite pass by skipping: no `.skip`, no `.only`, no commented-out assertions, no loosened expectations.
 
-**Before every commit, run `pnpm verify`** (typecheck → lint → tokens:check → coverage:audit → packs:validate → coverage) and read the output. Commit only on a clean pass. If it fails, fix the code or the test and re-run — a failing or partial run is never "good enough to commit and clean up later".
+**Before every commit, run `pnpm verify`** (typecheck → lint → tokens:check → coverage:audit → actions:audit → packs:validate → coverage) and read the output.
+
+`actions:audit` enforces one rule the other steps cannot see: a `"use server"`
+module may export nothing but async functions. A constant or a sync helper
+exported from one type-checks, lints and passes every test, then fails in the
+bundler and takes the whole route down. Put such helpers in a plain module. Commit only on a clean pass. If it fails, fix the code or the test and re-run — a failing or partial run is never "good enough to commit and clean up later".
 
 The run needs Postgres up (`docker compose up -d`) and `DATABASE_URL` **exported in the shell** — vitest does not read `.env.local`:
 

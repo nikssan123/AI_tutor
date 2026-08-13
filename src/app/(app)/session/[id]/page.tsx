@@ -48,11 +48,15 @@ const BLOCK_LABEL: Record<SessionBlock["type"], string> = {
   reflect: "Reflect",
 };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+};
 
-export default async function SessionPage({ params }: Props) {
+export default async function SessionPage({ params, searchParams }: Props) {
   const user = await requireUser();
   const { id } = await params;
+  const { error } = await searchParams;
   const db = getDb();
   const now = new Date();
 
@@ -115,6 +119,7 @@ export default async function SessionPage({ params }: Props) {
             packSlug={view.goal.packSlug}
             userId={user.id}
             now={now}
+            error={error}
           />
         </Card>
       )}
@@ -183,6 +188,8 @@ interface BodyProps {
   packSlug: string;
   userId: string;
   now: Date;
+  /** Why the last hand-in bounced, if it did. */
+  error?: string;
 }
 
 function BlockBody(props: BodyProps) {
@@ -306,6 +313,18 @@ function ApplyBlock(
         Do this away from the screen, in whatever you normally work in. Paste it
         back here when you are ready and it gets marked against the rubric.
       </Meta>
+
+      {/*
+        A hand-in that was nothing but whitespace. `required` does not catch it
+        — a box of spaces satisfies the browser and then trims to empty — so
+        without this the work appears to vanish and nothing says why.
+      */}
+      {props.error === "empty" ? (
+        <Status tone="attention">
+          There was nothing in the box to mark. Paste your work in and hand it
+          in again.
+        </Status>
+      ) : null}
 
       {/* §24 E8. A form POST, so handing work in needs no JavaScript either. */}
       <form action={submitWorkAction} className="flex flex-col gap-3">
