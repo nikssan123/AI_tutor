@@ -558,3 +558,79 @@ into a different mastery state afterwards, silently.
 The 80KB marketing JS budget. Every pack still `unreviewed`. And `/today` shows
 the session it would run rather than running it — the session runner is E7, and
 it needs the key.
+
+---
+
+# Delivery record — pass 8: E6's gate, and the first real model calls
+
+You added `ANTHROPIC_API_KEY`, which unblocks E6–E8. This pass builds E6's
+half that matters most — §14.6's Curriculum Validator, "the anti-mediocrity
+gate" — plus the model layer E7 and E8 will also sit on.
+
+## Verified against the real API, not written blind
+
+A live run against `photography`, before any of it was committed:
+
+- Sonnet 5 returned a valid 17-module curriculum in 41s, **first attempt**, no
+  schema retry needed.
+- All four blocking checks passed.
+- Three warnings fired, and every one was a **real finding**: the path spent 30
+  of the 45.5 available hours, its difficulty ramp stepped backwards three
+  times, and Opus 5's adversarial pass caught an acceptance criterion in module
+  0 that cannot be met as written.
+
+That last one is the argument for the whole gate. A curriculum that reads
+perfectly can still ask for something impossible, and no amount of prompting
+catches it as reliably as a second model told to go looking.
+
+## The gate
+
+Eight of §14.6's nine checks are pure code in `src/lib/curriculum/validate.ts`.
+Only the factual spot-check needs a model, and it is **injected**, so the cheap
+deterministic checks can never quietly acquire a dependency on the expensive
+non-deterministic one. The report always carries all nine, in the plan's order —
+§24 E6 asks for "all nine checks run *and are reported*", and a check that
+silently stopped running is exactly what that phrasing guards against.
+
+Two severities were a judgement call the plan leaves open. `no_already_mastered`
+and `rubric_coverage` are **blocking**: the first is the product's central
+promise, and the second is §4.2 law 2 — the bar is published before the work
+starts, so a project nobody can grade is not shippable.
+
+## The model layer
+
+`callStructured` is the one place a model call is made, and it encodes §14.9's
+rules as code rather than as prompt text:
+
+- **Structured output via tool use, enforced twice.** The JSON Schema steers;
+  the Zod contract decides. Structured outputs cannot express array bounds,
+  string lengths, or numeric floors — half of what §14.9.2's contracts assert —
+  so a schema-only guarantee would be about shape, not content.
+- **The cache breakpoint sits on the frozen system prompt** (§14.9.4), with
+  volatile learner state strictly after it. `cacheReadInputTokens` comes back on
+  every result, because §14.9.4 is explicit that a silent cache miss "triples
+  the bill with no error and no log line".
+- **Schema failure retries exactly once, naming what was wrong** (§14.9.5).
+  A refusal is never retried and `stop_reason` is read before content.
+- **Prompts are versioned constants in git** (§14.9.6) — a prompt change is a
+  reviewable commit, not an edit in an admin screen.
+
+## Deviation, flagged
+
+§14.6 specifies embedding similarity for the redundancy check. There is no
+embedding provider here, and adding one to compare 40 short strings would be a
+dependency bought for a rounding error. It is lexical cosine instead — which
+catches the case E6's acceptance criteria actually name (duplicate modules) and
+would miss two paraphrases sharing no vocabulary. Named in the source, not
+buried.
+
+1174 tests, 100% coverage, `pnpm verify` clean.
+
+## E6 is not finished
+
+Built: the validator, the architect, the spot-check, the model layer. Still
+open: the repair loop that applies the `repair` payloads the checks already
+emit, the fall-back-to-canonical-path after two failures (§14.9.5), persistence
+into `Curriculum`/`CurriculumModule`, and `/goals/[id]/path`. The pieces above
+are the ones the rest depends on, and they are the ones worth verifying against
+a real model first.

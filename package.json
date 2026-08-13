@@ -28,6 +28,7 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm tokens:check && pnpm coverage:audit && pnpm packs:validate && pnpm coverage"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "@radix-ui/react-dialog": "1.1.23",
     "@radix-ui/react-slot": "1.3.3",
     "@radix-ui/react-switch": "1.3.7",
