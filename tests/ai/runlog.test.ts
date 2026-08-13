@@ -208,11 +208,26 @@ live("the AgentRun log", () => {
   it("logs an anonymous run without billing anyone for it", async () => {
     // The free tier still needs a per-agent cost breakdown — it is where an
     // abuse spike shows up first — but there is no learner to bill.
-    const before = await db.select().from(agentRun);
-    await recordAgentRun(db, { userId: null, meta: meta(), status: "ok" }, NOW);
-    const after = await db.select().from(agentRun);
+    //
+    // Cleaned up explicitly: an anonymous row has no user to cascade from, so
+    // leaving it behind would pollute every other suite that aggregates spend.
+    const agentName = `anon-probe-${crypto.randomUUID()}`;
+    await recordAgentRun(
+      db,
+      { userId: null, meta: meta({ promptName: agentName }), status: "ok" },
+      NOW,
+    );
 
-    expect(after.length).toBe(before.length + 1);
+    const rows = await db
+      .select()
+      .from(agentRun)
+      .where(eq(agentRun.agentName, agentName));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.userId).toBeNull();
+    expect(rows[0]!.costCents).toBeCloseTo(1.05, 5);
+
+    await db.delete(agentRun).where(eq(agentRun.agentName, agentName));
   });
 
   it("does not bill an unpriced model as free", async () => {

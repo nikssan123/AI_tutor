@@ -696,3 +696,80 @@ Verified end to end: two live Haiku calls logged two `agent_run` rows at
 0.186c and 0.183c, accumulating to a single ledger row of 0.369c for 2026-08.
 
 1180 tests, 100% coverage, `pnpm verify` clean.
+
+---
+
+# Delivery record — pass 10: finishing E6
+
+Pass 8 built §14.6's validator and the model layer. This closes the epic: the
+repair step, the canonical fallback, persistence, and the path screen.
+
+## §14.6's policy, as control flow
+
+> "Fails closed: a failed check regenerates that portion, and after 2 failures
+> it falls back to the pack's canonical path."
+
+`generate.ts` is that sentence:
+
+1. Generate → validate. Passing curriculum ships as-is.
+2. Failing but **mechanically** repairable → repair, re-validate, ship if it
+   now passes. No second generation spent on something the graph already knows
+   how to fix.
+3. Otherwise regenerate, once.
+4. Still failing → the canonical path.
+
+`repair.ts` applies only the fail actions that are decisions the graph and the
+mastery state have already made — insert the missing prerequisite, drop what the
+learner demonstrated, merge duplicates. "Regenerate", "rescope" and the human
+review queue are judgement calls and stay with the caller. Every drop comes back
+phrased for the learner, because §14.6 asks for it to be *shown*, not just done.
+
+`canonical.ts` is pure code, and that is the point: it is what a learner gets
+when the model could not produce something valid, so it cannot itself depend on
+a model. Topological order with ties broken by (level, slug) — deterministic,
+and every blocking check satisfied by construction rather than by luck. It is
+still run through the validator, because "built to pass" and "passed" are
+different claims and only one of them is checked.
+
+It returns `null` rather than padding when fewer than three skills remain.
+Inventing work to clear the contract's floor would be worse than saying there is
+no path.
+
+## The path screen
+
+`/goals/[id]/path` renders the DAG with the accent outline on what is **next**
+rather than on what is finished — the question the page answers is "what am I
+doing". Below it: the modules in order, what was skipped and why, and the
+validator's own report, so a learner can see what was checked before they were
+shown anything. No percentage anywhere (§24 E9), asserted by test.
+
+Generation is a button on that page, not part of the goal form. §14.9.3 says
+"sync only where a human is waiting": creating a goal stays instant, and the
+minute-long wait happens where it was asked for. Moving it to Inngest is E7's
+job.
+
+## Two things worth naming
+
+**The prerequisite check treats a module's own skills as covered.** §14.4 allows
+three skills per module and bundling a skill with its prerequisite is the most
+natural use of that; the strict reading would have quietly pushed the architect
+towards one skill per module. Found by a test that disagreed with the comment
+above the code it was testing.
+
+**A canonical fallback is stored `validated`, not `active`.** It is a real
+curriculum a learner can work from, but flattening it into the same status as a
+tailored path would lose exactly the signal §14.9.5 asks to be logged for pack
+improvement.
+
+## Fixed: a test of mine polluting shared state
+
+The anonymous-run test in `tests/ai/runlog.test.ts` left an `agent_run` row
+behind — a null `userId` has no user to cascade from — which broke a
+concurrently-developed suite that aggregates spend. Now cleaned up explicitly.
+
+## E6 is done
+
+All nine checks run and are reported; a curriculum with a missing prerequisite,
+duplicate modules, or 400 hours against a 20-hour budget is caught, and the
+first two are repaired; the path page renders the DAG and shows what was
+skipped and why.
