@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+
+const currentUserMock = vi.fn();
+
+// SiteHeader reads the session now, which is what makes it async. Everything
+// else in this file is still a plain synchronous server component.
+vi.mock("@/lib/account/session", () => ({
+  currentUser: () => currentUserMock(),
+}));
+
 import {
   Breadcrumbs,
   EvalTierNote,
@@ -78,16 +87,33 @@ describe("JsonLdScript", () => {
 });
 
 describe("SiteHeader", () => {
-  it("offers three destinations, flat (§8.5.5)", () => {
-    render(<SiteHeader />);
+  it("offers three destinations, flat (§8.5.5)", async () => {
+    currentUserMock.mockResolvedValue(null);
+    render(await SiteHeader());
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(
       [...nav.querySelectorAll("a")].map((a) => a.textContent),
     ).toEqual(["Learn", "Projects", "Sign in"]);
   });
 
-  it("links the wordmark home", () => {
-    render(<SiteHeader />);
+  it("does not offer to sign in someone who already is", async () => {
+    // The whole reason this component reads the session. Three destinations
+    // still, because the third becomes the way back into the app rather than
+    // disappearing and leaving a hole where the person's route in used to be.
+    currentUserMock.mockResolvedValue({ id: "u1", email: "a@b.co" });
+    render(await SiteHeader());
+    const nav = screen.getByRole("navigation", { name: "Main" });
+
+    expect(
+      [...nav.querySelectorAll("a")].map((a) => a.textContent),
+    ).toEqual(["Learn", "Projects", "Keep learning"]);
+    expect(nav.querySelector('a[href="/sign-in"]')).toBeNull();
+    expect(nav.querySelector('a[href="/today"]')).not.toBeNull();
+  });
+
+  it("links the wordmark home", async () => {
+    currentUserMock.mockResolvedValue(null);
+    render(await SiteHeader());
     expect(screen.getByText("online_uni").getAttribute("href")).toBe("/");
   });
 });

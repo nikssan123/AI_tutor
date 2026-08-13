@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { SiteFooter, SiteHeader } from "@/components/marketing";
 import {
   allProjects,
   allTopics,
@@ -44,8 +46,25 @@ const CLAIM: Record<number, string> = {
 
 describe("marketing layout", () => {
   it("wraps content in the site header and footer", () => {
-    render(<MarketingLayout>{<p>content</p>}</MarketingLayout>);
-    expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
+    /*
+     * Asserted structurally rather than by rendering. `SiteHeader` reads the
+     * session, so it is an async component — a client-side render pass cannot
+     * resolve one, and what it draws is covered in its own suite
+     * (tests/components/marketing.test.tsx) where it can be awaited. What the
+     * layout is responsible for is the composition, and that is what this
+     * checks: header, then children, then footer.
+     */
+    const tree = MarketingLayout({
+      children: <p>content</p>,
+    }) as React.ReactElement<{ children: React.ReactNode }>;
+    const [header, main, footer] = React.Children.toArray(
+      tree.props.children,
+    ) as React.ReactElement<{ children: React.ReactNode }>[];
+
+    expect(header!.type).toBe(SiteHeader);
+    expect(footer!.type).toBe(SiteFooter);
+
+    render(<>{main!.props.children}</>);
     expect(screen.getByText("content")).toBeDefined();
   });
 });

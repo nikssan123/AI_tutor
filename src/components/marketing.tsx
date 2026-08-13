@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
 import { Card, cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import { currentUser } from "@/lib/account/session";
+import { DEFAULT_DESTINATION } from "@/lib/account/next-url";
 import { evalTierClaim } from "@/lib/claims";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
@@ -139,7 +141,24 @@ export function JsonLdScript({ blocks }: { blocks: JsonLd[] }) {
   );
 }
 
-export function SiteHeader() {
+/**
+ * The one component on the marketing surface that knows who is looking.
+ *
+ * It reads the session, which is why every route under `(marketing)/layout`
+ * now renders per request instead of being prerendered daily. That is the cost
+ * of the header telling the truth: whether there is a session lives in the
+ * request's cookie, and a page built once and served to everyone cannot hold a
+ * per-person answer. It is a deliberate trade, not an oversight — §13.3's
+ * static guarantee now covers the OG image routes and `sitemap`/`robots`,
+ * which have no header, rather than the pages.
+ *
+ * Signed in, the sign-in link is not rendered at all. What takes its place is
+ * the thing the click actually meant — the way back into the app — because a
+ * nav with a hole in it strands the person it was hiding the button from.
+ */
+export async function SiteHeader() {
+  const user = await currentUser();
+
   return (
     <header className="border-b border-hairline">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-5">
@@ -164,10 +183,10 @@ export function SiteHeader() {
             Projects
           </Link>
           <Link
-            href="/sign-in"
+            href={user ? DEFAULT_DESTINATION : "/sign-in"}
             className="text-[length:var(--text-label-size)] font-[550] text-accent"
           >
-            Sign in
+            {user ? "Keep learning" : "Sign in"}
           </Link>
         </nav>
       </div>
