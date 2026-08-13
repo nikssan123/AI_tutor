@@ -142,8 +142,17 @@ export type SessionBlock =
       type: "check";
       skillId: string;
       prompt: string;
+      /** What a correct answer demonstrates — what a grader marks against. */
       expected: string;
       isRetrieval: boolean;
+      /**
+       * The item bank entry this recall came from, when it came from one.
+       *
+       * Beyond §14.9.2's shape, and needed for the loop to close: the runner has
+       * to reschedule *the item it served*, not merely the skill, or a learner
+       * with two queued items for one skill answers once and both come back.
+       */
+      itemId: string | null;
       estMinutes: number;
     }
   | {

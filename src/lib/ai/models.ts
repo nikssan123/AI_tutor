@@ -50,12 +50,49 @@ export const STEP_MODELS = {
   resourceResearcher: "standard",
   lessonGenerator: "standard",
   tutor: "standard",
+  /**
+   * §14.2 — "Assessment Agent: Haiku 4.5 *only* to grade free-text." §14.9.3's
+   * cost table has no row for a session's recall checks, because it predates
+   * there being a session to run; the routing rule it would follow is this one,
+   * and a two-line recall answer is not work for the standard tier.
+   */
+  checkGrader: "fast",
   artifactIngestor: "fast",
   rubricGrader: "deep",
   consistencyPass: "deep",
   coherenceCheck: "fast",
   reflectionAgent: "standard",
 } as const satisfies Record<string, ModelTier>;
+
+/**
+ * §14.9.3's "Effort / thinking" column, which had never been read.
+ *
+ * The table gives extended thinking to exactly three steps and writes "none"
+ * against every other. Sending it anyway is not free: a live lesson generation
+ * on `high` took 40 seconds and cost 5.8c against the plan's $0.05 budget, for
+ * a step whose output is four short fields. `null` means send no thinking
+ * parameters at all.
+ */
+export const STEP_EFFORT = {
+  goalAnalyzer: null,
+  diagnosticOpenItems: null,
+  diagnosticSummary: null,
+  skillGraphProjector: null,
+  curriculumArchitect: null,
+  curriculumValidator: "high",
+  resourceResearcher: null,
+  lessonGenerator: null,
+  tutor: null,
+  artifactIngestor: null,
+  rubricGrader: "high",
+  consistencyPass: "medium",
+  coherenceCheck: null,
+  checkGrader: null,
+  reflectionAgent: null,
+} as const satisfies Record<
+  keyof typeof STEP_MODELS,
+  "low" | "medium" | "high" | "xhigh" | "max" | null
+>;
 
 /**
  * §14.9.7 limit 1 — on breach of the per-user monthly cap, degrade Opus to

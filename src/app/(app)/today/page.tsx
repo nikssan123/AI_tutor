@@ -18,6 +18,7 @@ import {
   Title,
 } from "@/components/ui";
 import type { SessionBlock } from "@/lib/engine";
+import { startSessionAction } from "../session/[id]/actions";
 
 /**
  * §8 screen 6 — the daily dashboard, and the retention surface. It must answer
@@ -92,7 +93,7 @@ export default async function TodayPage({ searchParams }: Props) {
     );
   }
 
-  const { pack, projection, session: planned, skillNames } = view;
+  const { pack, projection, session: planned, skillNames, openSessionId } = view;
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
@@ -148,14 +149,19 @@ export default async function TodayPage({ searchParams }: Props) {
 
         </div>
 
-        {/* The session runner is E7. Until it exists this card says what it
-            would contain rather than offering a button that goes nowhere.
-
-            It used to say "arrives with E7" — an internal epic code, printed to
-            a signed-in learner who has no way to know what E7 is. The state is
-            worth declaring; our roadmap shorthand is not. */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
-          <Meta>You can&rsquo;t work through a session here yet.</Meta>
+          {/* A form, not a link: starting a session writes rows. The action
+              hands back the session already in progress if there is one, so a
+              second click cannot split a learner's answers across two. */}
+          {planned.blocks.length > 0 ? (
+            <form action={startSessionAction}>
+              <Button type="submit">
+                {openSessionId ? "Carry on" : "Start session"}
+              </Button>
+            </form>
+          ) : (
+            <Meta>Nothing to start today.</Meta>
+          )}
           <Link
             href={`/today?minutes=${SHORTER}`}
             className="text-accent font-[550] hover:underline underline-offset-4"

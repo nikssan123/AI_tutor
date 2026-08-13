@@ -269,19 +269,37 @@ describe("callStructured", () => {
     expect(result.usage.cacheCreationInputTokens).toBe(0);
   });
 
-  it("uses adaptive thinking and high effort by default, and honours overrides", async () => {
-    const { client, create } = stub([reply(), reply()]);
+  it("takes its effort from §14.9.3's table, not from a default", async () => {
+    // The plan gives extended thinking to three steps and writes "none" against
+    // every other one. That column had never been read: every call was sent at
+    // `high`, which a live lesson generation paid for in seconds and cents.
+    const { client, create } = stub([reply(), reply(), reply()]);
 
     await callStructured(client, call);
-    const first = create.mock.calls[0]![0];
-    expect(first.thinking).toEqual({ type: "adaptive" });
-    expect(first.output_config).toEqual({ effort: "high" });
-    expect(first.max_tokens).toBe(16_000);
+    const architect = create.mock.calls[0]![0];
+    expect(architect.thinking).toBeUndefined();
+    expect(architect.output_config).toBeUndefined();
+    expect(architect.max_tokens).toBe(16_000);
+
+    await callStructured(client, { ...call, step: "curriculumValidator" });
+    const validator = create.mock.calls[1]![0];
+    expect(validator.thinking).toEqual({ type: "adaptive" });
+    expect(validator.output_config).toEqual({ effort: "high" });
 
     await callStructured(client, { ...call, effort: "low", maxTokens: 2048 });
-    const second = create.mock.calls[1]![0];
-    expect(second.output_config).toEqual({ effort: "low" });
-    expect(second.max_tokens).toBe(2048);
+    const overridden = create.mock.calls[2]![0];
+    expect(overridden.output_config).toEqual({ effort: "low" });
+    expect(overridden.max_tokens).toBe(2048);
+  });
+
+  it("lets a caller force thinking off for a step the table thinks on", async () => {
+    const { client, create } = stub([reply()]);
+    await callStructured(client, {
+      ...call,
+      step: "curriculumValidator",
+      effort: null,
+    });
+    expect(create.mock.calls[0]![0].thinking).toBeUndefined();
   });
 
   it("returns the cost, latency and prompt version an AgentRun row needs", async () => {

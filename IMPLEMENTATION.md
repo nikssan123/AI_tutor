@@ -953,3 +953,106 @@ and the right one flipped `email_verified` and issued a fresh session. (The
 code was recovered from its hash locally to complete the round trip — which is
 also the reminder that hashing is not what makes a six-digit code safe; the
 three-attempt limit is.)
+
+---
+
+# Delivery record — pass 13: E7, the session runner and the tutor
+
+`/today` had been showing the session it *would* run since pass 7. This runs it.
+
+The planner has been finished since pass 1 and, until now, permanently planning
+someone's first day: `todayFor` handed it `history: []`, `attempts: []`,
+`retrievalQueue: []` and `sessionIndex: 1`, because nothing wrote sessions.
+Four of §16.1's nine scoring terms read those. Writing them is most of this pass.
+
+## What a session is now
+
+`/session/[id]`, one block at a time, with visible progress. Every transition is
+a form POST to a Server Action, so a session runs with **no client JavaScript** —
+reading, answering, being marked, finishing. The tutor panel is the single
+exception and says so in a `<noscript>`.
+
+| Piece | Where |
+|---|---|
+| Session persistence, history, retrieval queue | `src/lib/session/store.ts` |
+| Learner Context Block (§14.3) | `src/lib/session/context.ts` |
+| Lesson Generator + Postgres cache (§14.9.4 layer 2) | `src/lib/session/lesson.ts` |
+| Free-text grader (§14.2) | `src/lib/session/grade.ts` |
+| One answered block, end to end | `src/lib/session/run.ts` |
+| Streamed chat call | `src/lib/ai/chat.ts` |
+| Tutor prompt, transcript, `Interaction` logging | `src/lib/session/tutor.ts` |
+
+## Three decisions worth defending
+
+**A written answer is never Tier 1 evidence.** Tier 1's claim is "verified: this
+works", and it is earned by executing something — explaining a join in prose is
+not running one. So `evidenceTierFor` caps a graded answer at Tier 2 and never
+lets it beat the skill's own tier: a Tier 3 photography skill stays Tier 3
+whatever the learner writes about it (§7.2).
+
+**A grader that could not run did not pass.** A failed call records the answer,
+moves the session on, and leaves mastery alone — `correct: null`, and the screen
+says "not marked, this one doesn't count". Recording an unreachable model as a
+wrong answer would back a learner off a skill because our grader was down; as a
+right one it would put mastery on the board with no evidence under it (§4.2 law 1).
+
+**The Learner Context Block carries no timestamp and no UUID.** It sits behind
+the cache breakpoint, and §14.9.4's rules are all silent failures. Recency is
+rendered in day-scale bands and mastery in words, so the prefix is byte-identical
+across the minutes a session lasts. The consequence, stated because it matters:
+the block is deliberately stale within the day. That is right for a tutor's
+background knowledge and wrong for a grader's verdict, which is why grading reads
+mastery directly instead.
+
+## Defects found
+
+1. **Retrieval check blocks put a queue id where the expected answer goes.** The
+   composer wrote `expected: item.itemId`, and §14.9.2 defines `expected` as what
+   a correct answer establishes. Invisible for six passes because nothing read the
+   field; the first thing to read it was a grader, which would have marked every
+   recall answer wrong. `expected` now holds the recall target and the id has its
+   own field — which the runner needs anyway, or a learner with two queued items
+   on one skill answers once and both come back.
+2. **§14.9.3's "Effort / thinking" column had never been read.** Every structured
+   call was sent at `effort: high`, including the eleven steps the plan marks
+   "none". Found by a live lesson generation, not by a test. `STEP_EFFORT` now
+   carries the plan's column and a caller can still override it.
+3. **`nextSessionIndex` defaulted a row that always exists.** An aggregate with
+   no `group by` returns exactly one row; the fallback was a branch nothing could
+   reach, so it is gone rather than tested.
+
+## Verified against the real API
+
+A live run before committing: a lesson generated first attempt, a right and a
+wrong answer marked with usable feedback, a misconception extracted verbatim
+("joins only filter rows, reducing row count"), and two streamed tutor turns
+that answered by building a three-row worked example rather than restating the
+rule. Three things that run showed which no test would have:
+
+- **The lesson costs 6.3c and takes 42s** against §14.9.3's $0.05 budget, because
+  it comes back ~4,000 output tokens long against the plan's 3k. The page already
+  streams its shell first and shows a skeleton, so this is a wait rather than a
+  blank screen, but it is over budget and not yet fixed.
+- **`cache_read_input_tokens` came back 0 on both tutor turns.** The breakpoint is
+  placed correctly; the prefix is simply too short to cache. Our system prompt
+  plus context block is ~750 tokens, under Sonnet's minimum cacheable prefix,
+  because the block renders at ~270 tokens rather than the ~1,200 §14.3 assumes.
+  So §24 E7's "tutor context is cached" holds in the test suite against a stub
+  and does **not** hold live today. Padding the prompt to move the number would
+  be buying the assertion rather than passing it.
+- **A check generated from a compound can-do statement asks more than a writing
+  box can hold.** "Join three tables at the correct grain **and prove** the totals
+  were not inflated" is two questions; a learner who answered the first half was
+  marked wrong, and defensibly so. The grader prompt now says plainly that the
+  learner is writing *about* the skill rather than performing it, but the real fix
+  is authored items with real answer keys — which is pass 6's finding about the
+  item bank, arriving again from a different direction.
+
+1763 tests, 100% on all four metrics, `pnpm verify` and `pnpm build` clean.
+
+## Still open
+
+The lesson's length budget. The 80KB marketing JS budget (untouched here — the
+tutor panel is referenced only by the session route's manifest, and the landing
+page's is unchanged). Every pack still `unreviewed`. And `apply` blocks say
+plainly that work cannot be handed in yet: submissions and grading are E8.

@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   MODELS,
+  STEP_EFFORT,
   STEP_MODELS,
   degrade,
   supportsAdaptiveThinking,
@@ -51,7 +52,12 @@ export interface StructuredCall<T> {
   /** §14.9.7 limit 1 — degrade Opus to Sonnet before queueing or notifying. */
   degraded?: boolean;
   maxTokens?: number;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  /**
+   * Overrides §14.9.3's effort for this step. `null` forces thinking off. Left
+   * unset, the step's own row in `STEP_EFFORT` decides — which is where the
+   * plan wrote it down.
+   */
+  effort?: "low" | "medium" | "high" | "xhigh" | "max" | null;
 }
 
 export type ParseOutcome<T> =
@@ -134,6 +140,7 @@ export async function callStructured<T>(
   clock: () => number = Date.now,
 ): Promise<CallResult<T>> {
   const model = modelFor(call.step, call.degraded);
+  const effort = call.effort === undefined ? STEP_EFFORT[call.step] : call.effort;
   const startedAt = clock();
   let usage = EMPTY_USAGE;
   let lastError = "";
@@ -170,12 +177,13 @@ export async function callStructured<T>(
     const response = await client.messages.create({
       model,
       max_tokens: call.maxTokens ?? 16_000,
-      // Only where the model has them. Haiku 4.5 400s on either parameter, so
-      // sending them unconditionally breaks every call to the fast tier.
-      ...(supportsAdaptiveThinking(model)
+      // Only where the model has them *and* where §14.9.3 asked for them.
+      // Haiku 4.5 400s on either parameter, and a step the plan marked "none"
+      // pays for thinking it was never supposed to do.
+      ...(supportsAdaptiveThinking(model) && effort !== null
         ? {
             thinking: { type: "adaptive" as const },
-            output_config: { effort: call.effort ?? "high" },
+            output_config: { effort },
           }
         : {}),
       system: [

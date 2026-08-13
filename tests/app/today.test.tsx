@@ -49,6 +49,7 @@ function view(overrides: {
       prompt: "p",
       expected: "e",
       isRetrieval: true,
+      itemId: null,
       estMinutes: 4,
     },
     {
@@ -89,6 +90,7 @@ function view(overrides: {
       ...overrides.session,
     },
     skillNames: new Map(pack.skills.map((s) => [s.slug, s.name])),
+    openSessionId: undefined,
   };
 }
 
@@ -215,16 +217,21 @@ describe("with a plan", () => {
     expect(screen.queryByText(/optional/)).toBeNull();
   });
 
-  it("says the runner is not built rather than offering a dead button", async () => {
+  it("offers to start the session", async () => {
     todayForMock.mockResolvedValue(view());
     render(await TodayPage({ searchParams: search() }));
 
-    // The state is worth declaring; the epic code it used to name ("arrives
-    // with E7") meant nothing to the learner reading it.
-    expect(
-      screen.getByText(/can.t work through a session here yet/i),
-    ).toBeDefined();
-    expect(screen.queryByRole("button", { name: /start/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start session" })).toBeDefined();
+  });
+
+  it("offers to carry on when a session is already open", async () => {
+    // The wording is the whole point: "Start session" over a session already
+    // holding three answers would read as an offer to throw them away.
+    todayForMock.mockResolvedValue({ ...view(), openSessionId: "s-1" });
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Carry on" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Start session" })).toBeNull();
   });
 
   it("copes with a plan that has no blocks left to give", async () => {
@@ -257,6 +264,7 @@ describe("with a plan", () => {
               prompt: "p",
               expected: "e",
               isRetrieval: false,
+              itemId: null,
               estMinutes: 2,
             },
           ],
@@ -283,6 +291,7 @@ describe("with a plan", () => {
               prompt: "p",
               expected: "e",
               isRetrieval: true,
+              itemId: null,
               estMinutes: 2,
             },
             {
@@ -291,6 +300,7 @@ describe("with a plan", () => {
               prompt: "p",
               expected: "e",
               isRetrieval: false,
+              itemId: null,
               estMinutes: 2,
             },
             {

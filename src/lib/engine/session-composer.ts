@@ -129,8 +129,13 @@ export function composeSession(input: ComposeInput): ComposeResult {
       prompt: skill
         ? `Recall: ${skill.canDoStatement}`
         : `Recall the prior skill for item ${item.itemId}`,
-      expected: item.itemId,
+      // The recall target, not the queue row's id. This field held `itemId`
+      // until something finally read it: §14.9.2 defines `expected` as what a
+      // correct answer looks like, and a grader handed a queue id marks every
+      // answer wrong. The id it used to carry now has its own field.
+      expected: skill ? skill.canDoStatement : item.itemId,
       isRetrieval: true,
+      itemId: item.itemId,
       estMinutes: item.estMinutes,
     });
     used += item.estMinutes;
@@ -177,6 +182,7 @@ export function composeSession(input: ComposeInput): ComposeResult {
       prompt: `Walk through the worked example in your own words: ${topSkill.canDoStatement}`,
       expected: topSkill.canDoStatement,
       isRetrieval: false,
+      itemId: null,
       estMinutes: left,
     });
     used += left;
@@ -240,6 +246,7 @@ export function composeSession(input: ComposeInput): ComposeResult {
     prompt: `In your own words: ${topSkill.canDoStatement}`,
     expected: topSkill.canDoStatement,
     isRetrieval: false,
+    itemId: null,
     estMinutes: checkMinutes,
   });
   used += checkMinutes;

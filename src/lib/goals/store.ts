@@ -173,6 +173,41 @@ export async function sessionMinutesFor(
 }
 
 /**
+ * One skill's mastery, written back after an observation.
+ *
+ * Upsert rather than update: a skill can be observed for the first time in a
+ * session — the diagnostic only seeds the skills it actually asked about — and
+ * an update that matched no row would drop the evidence silently.
+ */
+export async function upsertMastery(
+  db: Db,
+  userId: string,
+  packSlug: string,
+  state: MasteryState,
+  now: Date,
+): Promise<void> {
+  const row = {
+    userId,
+    skillId: skillId(packSlug, state.skillId),
+    mastery: state.mastery,
+    confidence: state.confidence,
+    evidenceCount: state.evidenceCount,
+    lastSuccessAt: toDate(state.lastSuccessAt),
+    lastPracticedAt: toDate(state.lastPracticedAt),
+    decayHalfLifeDays: state.decayHalfLifeDays,
+    updatedAt: now,
+  };
+
+  await db
+    .insert(learnerSkillMastery)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [learnerSkillMastery.userId, learnerSkillMastery.skillId],
+      set: row,
+    });
+}
+
+/**
  * Mastery for one pack, translated back into the slug space the engine reads.
  *
  * Joined against `skill` rather than recomputing UUIDs, because the join is

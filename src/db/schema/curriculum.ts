@@ -102,6 +102,14 @@ export const learningSession = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     /** SessionBlock[] from §14.9.2. */
     blocks: jsonb("blocks").notNull(),
+    /**
+     * §8 screen 7 — "pause and resume mid-session". The block a learner is on
+     * is a column rather than a field inside `responses` because "how far do
+     * people get before they stop" is the question this table exists to answer.
+     */
+    blockIndex: integer("block_index").notNull().default(0),
+    /** One entry per answered block: what was written, and how it was graded. */
+    responses: jsonb("responses").notNull().default([]),
     durationMinutes: real("duration_minutes"),
     selfReportedDifficulty: integer("self_reported_difficulty"),
   },

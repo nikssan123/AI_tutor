@@ -7,6 +7,13 @@ import type { PlannedSession } from "@/lib/engine";
 import type { SkillProjection } from "@/lib/contracts/goal";
 import { activeGoal, masteryFor, sessionMinutesFor, type StoredGoal } from "./store";
 import { projectSkills } from "./projection";
+import {
+  dueRetrieval,
+  nextSessionIndex,
+  openSession,
+  recentAttempts,
+  recentOutcomes,
+} from "@/lib/session/store";
 
 /**
  * Everything `/today` needs, assembled from the database and planned.
@@ -30,6 +37,11 @@ export interface TodayView {
   session: PlannedSession;
   /** Name per skill slug, for rendering blocks the engine returns by id. */
   skillNames: Map<string, string>;
+  /**
+   * The id of a session already under way, so the card offers to resume rather
+   * than to start — and so a second start cannot orphan the first one's answers.
+   */
+  openSessionId: string | undefined;
 }
 
 export interface TodayOptions {
@@ -56,6 +68,19 @@ export async function todayFor(
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, userId, goal.packSlug);
   const projection = projectSkills({ graph, mastery, now: nowIso });
+  const areaOf = new Map(pack.skills.map((s) => [s.slug, s.area]));
+
+  // Everything the planner was handed as an empty array until E7 wrote it.
+  // Four of §16.1's nine terms read these, so a learner's tenth session used to
+  // be scored exactly like their first.
+  const [history, attempts, retrievalQueue, sessionIndex, open] =
+    await Promise.all([
+      recentOutcomes(db, userId, goal.id, (slug) => areaOf.get(slug)),
+      recentAttempts(db, userId, goal.id),
+      dueRetrieval(db, userId, goal.packSlug),
+      nextSessionIndex(db, userId, goal.id),
+      openSession(db, userId, goal.id),
+    ]);
 
   const session = plan({
     now: nowIso,
@@ -63,19 +88,16 @@ export async function todayFor(
     graph,
     goalSkillIds: projection.requiredSkillIds,
     mastery,
-    // Sessions and retrieval items are written by E7; until then the planner
-    // legitimately sees a learner with no history, which is exactly the "fresh
-    // beginner" scenario it is already tested against.
-    history: [],
-    attempts: [],
-    retrievalQueue: [],
+    history,
+    attempts,
+    retrievalQueue,
     constraints: {
       availableMinutes:
         options.availableMinutes ?? (await sessionMinutesFor(db, userId)),
       weeklyHours: goal.spec.weeklyHours,
       deadline: goal.spec.deadline,
     },
-    sessionIndex: 1,
+    sessionIndex,
   });
 
   return {
@@ -84,5 +106,6 @@ export async function todayFor(
     projection,
     session,
     skillNames: new Map(pack.skills.map((s) => [s.slug, s.name])),
+    openSessionId: open?.id,
   };
 }

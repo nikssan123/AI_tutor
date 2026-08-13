@@ -458,6 +458,7 @@ describe("explainRatio", () => {
           prompt: "p",
           expected: "e",
           isRetrieval: false,
+          itemId: null,
           estMinutes: 30,
         },
       ]),
