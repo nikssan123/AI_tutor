@@ -162,3 +162,34 @@ export const spendLedger = pgTable(
   // tolerate being wrong in.
   (t) => [uniqueIndex("spend_ledger_user_period_idx").on(t.userId, t.period)],
 );
+
+/**
+ * §7.1's Generated tier, in progress.
+ *
+ * A pack takes around three minutes and several model calls to author, so it
+ * cannot happen inside a request. This is the row the wait screen polls and the
+ * row that stops ten people asking for Rust from starting ten generations: the
+ * build is keyed by slug, not by learner, because the pack it produces is
+ * shared by everyone who asks for that subject.
+ */
+export const packBuild = pgTable(
+  "pack_build",
+  {
+    slug: text("slug").primaryKey(),
+    /** The subject as the analyzer resolved it, for the authoring call. */
+    subject: text("subject").notNull(),
+    /** Who asked first. Null once they are gone; the pack outlives them. */
+    requestedBy: text("requested_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    /** building | ready | failed */
+    status: text("status").notNull().default("building"),
+    /** Why it failed, in the learner's language. */
+    detail: text("detail"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("pack_build_status_idx").on(t.status, t.startedAt)],
+);

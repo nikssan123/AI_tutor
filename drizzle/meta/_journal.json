@@ -64,6 +64,20 @@
       "when": 1786628837351,
       "tag": "0008_neat_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786633966021,
+      "tag": "0009_concerned_makkari",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786634325893,
+      "tag": "0010_wide_quasar",
+      "breakpoints": true
     }
   ]
 }

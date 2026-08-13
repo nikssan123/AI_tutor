@@ -34,7 +34,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
-vi.mock("@/db", () => ({ getDb: () => ({}) }));
+// `finish` clears the stored conversation, so the stub answers to delete.
+vi.mock("@/db", () => ({
+  getDb: () => ({ delete: () => ({ where: async () => undefined }) }),
+}));
 // These exercise the disk half of `resolvePack` with the real `findPack`. The
 // database half has nothing to find and no stub db to find it with, so a miss
 // on disk is a miss outright — which is what "not a real pack" means here.
@@ -43,7 +46,12 @@ vi.mock("@/lib/goals/store", () => ({
   createGoal: (...args: unknown[]) => createGoalMock(...(args as [])),
 }));
 
-const { default: StartPage } = await import("@/app/(app)/start/page");
+/*
+ * The form moved to /start/form when §8 screen 3's conversation took over
+ * /start. It is kept as the no-JavaScript, no-model fallback, and it still
+ * fills the same GoalSpec — which is what these tests are about.
+ */
+const { default: StartPage } = await import("@/app/(app)/start/form/page");
 const { createGoalAction } = await import("@/app/(app)/start/actions");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
@@ -121,7 +129,7 @@ describe("the screen", () => {
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {
-    const { metadata } = await import("@/app/(app)/start/page");
+    const { metadata } = await import("@/app/(app)/start/form/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });
@@ -140,7 +148,7 @@ describe("creating the goal", () => {
     // but `required` is a courtesy to the browser, not a control on the server.
     const { topic: _omitted, ...rest } = valid;
     await expect(createGoalAction(form(rest))).rejects.toThrow(
-      "REDIRECT:/start?error=subject",
+      "REDIRECT:/start/form?error=subject",
     );
     expect(createGoalMock).not.toHaveBeenCalled();
   });
@@ -148,14 +156,14 @@ describe("creating the goal", () => {
   it("rejects a subject that is not a real pack", async () => {
     await expect(
       createGoalAction(form({ ...valid, topic: "underwater-basket-weaving" })),
-    ).rejects.toThrow("REDIRECT:/start?error=subject");
+    ).rejects.toThrow("REDIRECT:/start/form?error=subject");
     expect(createGoalMock).not.toHaveBeenCalled();
   });
 
   it("hands a bad field back to the form rather than throwing", async () => {
     await expect(
       createGoalAction(form({ ...valid, weeklyHours: "900" })),
-    ).rejects.toThrow(/REDIRECT:\/start\?error=/);
+    ).rejects.toThrow(/REDIRECT:\/start\/form\?error=/);
     expect(createGoalMock).not.toHaveBeenCalled();
   });
 

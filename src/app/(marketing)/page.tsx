@@ -14,7 +14,7 @@ import {
   StepsIcon,
   SubjectIcon,
 } from "@/components/icons";
-import { HeroTitle, Lead, LinkCard, Meta, stagger } from "@/components/ui";
+import { Card, HeroTitle, Lead, LinkCard, Meta, stagger } from "@/components/ui";
 import { allTopics, featuredProject } from "@/lib/content";
 import { organisation, website } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
@@ -297,10 +297,36 @@ export default function HomePage() {
             ))}
           </ul>
 
-          <Meta>
-            Three so far. We add a subject only after a person has written and
-            checked it.
-          </Meta>
+          {/*
+            This used to read "we add a subject only after a person has written
+            and checked it", which stopped being true when packs started being
+            built on demand. Both halves are said here rather than the flattering
+            one: a hand-checked subject and one written on request are not the
+            same thing, and §7.1's whole argument is that the difference is
+            declared rather than hidden.
+          */}
+          <Card className="rise flex flex-col items-start gap-4">
+            <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+              Not one of those three? Say so, and we&rsquo;ll build it.
+            </span>
+            <Lead>
+              Tell us what you want to get good at — Rust, negotiation,
+              watercolour, anything. We write the skills, work out what depends
+              on what, and put together the questions that find out where you
+              already are. It takes about three minutes.
+            </Lead>
+            <Meta>
+              The three above were written and checked by a person. One we build
+              for you is marked <strong>Experimental</strong> until it has been,
+              so you always know which you are looking at.
+            </Meta>
+            <Link
+              href="/start"
+              className="min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90"
+            >
+              Build my subject
+            </Link>
+          </Card>
 
           <Breadcrumbs crumbs={[{ name: "Home", path: "/" }]} />
         </section>

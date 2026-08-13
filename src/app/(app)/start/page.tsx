@@ -1,238 +1,259 @@
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
+import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
-import { allTopics } from "@/lib/content";
-import { cookieName, decode } from "@/lib/check/session";
-import { SubjectIcon } from "@/components/icons";
+import { getDb } from "@/db";
+import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
+import { loadIntake } from "@/lib/goals/intake-store";
 import {
   Button,
   Card,
   DisplayTitle,
   Lead,
   Meta,
-  stagger,
   Status,
+  Title,
+  stagger,
 } from "@/components/ui";
-import { createGoalAction } from "./actions";
+import {
+  buildFromConversationAction,
+  openAction,
+  replyAction,
+  restartAction,
+} from "./actions";
 
 /**
- * §8 screen 3 — goal creation.
+ * §8 screen 3 — goal creation, as the conversation the plan always described.
  *
- * The plan describes this as a conversation, not a form, and it should be one:
- * the Goal Analyzer's job is to take "I want to switch into data" and work out
- * the subject, the level and the budget. Until that model is wired up, asking
- * directly is the honest version of the same screen — it collects exactly the
- * fields §14.9.2's `GoalSpec` needs, and it does not pretend to understand
- * anything it wasn't told.
+ * "Chat, one question at a time, with **smart chips** for common answers so most
+ * replies are one tap. Live-updating sidebar showing what's been captured."
+ *
+ * No client JavaScript. Every turn is a form POST that redirects back here, so
+ * the screen is a pure function of the stored conversation and a refresh
+ * re-reads it rather than re-sending an answer. The chips are submit buttons
+ * carrying their own value, which is what makes "one tap" work without a bundle.
  */
 export const metadata: Metadata = {
   title: "Set a goal",
   robots: { index: false, follow: false },
 };
 
-const OUTCOMES = [
-  { value: "career", label: "Work — a job, a promotion, a change" },
-  { value: "project", label: "Something specific I want to make" },
-  { value: "exam", label: "An exam or certification" },
-  { value: "personal", label: "For myself" },
-  { value: "curiosity", label: "Curiosity" },
-];
-
-const LEVELS = [
-  { value: "none", label: "Never done it" },
-  { value: "beginner", label: "Dabbled a bit" },
-  { value: "intermediate", label: "Can do the basics" },
-  { value: "advanced", label: "Experienced, filling gaps" },
-];
-
 type Props = { searchParams: Promise<{ error?: string }> };
+
+const ERRORS: Record<string, string> = {
+  analyzer: "That didn't go through. Try saying it again.",
+  subject: "We couldn't work out what you wanted to learn. Try again?",
+  busy: "You already have a course being built. Give that one a moment.",
+};
+
+/** One captured field in the sidebar. Absent fields say so rather than hide. */
+function Captured({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-t border-hairline py-2.5 first:border-t-0">
+      <Meta tone="muted">{label}</Meta>
+      <span
+        className={
+          value === null
+            ? "text-[length:var(--text-label-size)] text-ink-faint"
+            : "text-[length:var(--text-label-size)] font-[550] text-ink text-right"
+        }
+      >
+        {value ?? "—"}
+      </span>
+    </div>
+  );
+}
+
+const LEVELS: Record<string, string> = {
+  none: "Never done it",
+  beginner: "Dabbled a bit",
+  intermediate: "Can do the basics",
+  advanced: "Experienced",
+};
+
+const OUTCOMES: Record<string, string> = {
+  career: "Work",
+  project: "Something to make",
+  exam: "An exam",
+  personal: "For myself",
+  curiosity: "Curiosity",
+};
 
 export default async function StartPage({ searchParams }: Props) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
   const { error } = await searchParams;
-  const topics = allTopics();
-  const jar = await cookies();
-
-  // A visitor who took a check before signing up should see that it counted for
-  // something, on the screen where it starts counting (§24 E11).
-  const answered = new Set(
-    topics
-      .filter((t) => decode(jar.get(cookieName(t.slug))?.value).a.length > 0)
-      .map((t) => t.slug),
-  );
+  const intake = await loadIntake(getDb(), session.user.id);
+  const captured = intake.captured;
+  const asked = turnsTaken(intake.messages);
 
   const input =
-    "min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink placeholder:text-ink-faint focus:border-accent transition-colors duration-[var(--dur-fast)]";
-
-  /* A form field's name is a label, not a heading. Every one of these used to
-     be a `Title` — 24px semibold — which turned a six-field form into a stack
-     of section headings with inputs between them. */
-  const fieldLabel =
-    "text-[length:var(--text-label-size)] font-[650] text-ink";
-
-  /* One radio in a wrapping row. Repeated for outcome and level, which are the
-     same control asking about different things. */
-  const choice = (
-    name: string,
-    options: ReadonlyArray<{ value: string; label: string }>,
-  ) => (
-    <div className="flex flex-wrap gap-2">
-      {options.map((option, i) => (
-        <label
-          key={option.value}
-          className="flex min-h-[var(--touch-min)] cursor-pointer items-center gap-2.5 rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-[length:var(--text-label-size)] transition-colors duration-[var(--dur-fast)] hover:border-accent has-checked:border-accent has-checked:bg-accent-weak"
-        >
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            defaultChecked={i === 0}
-            required
-            className="accent-[var(--color-accent)]"
-          />
-          {option.label}
-        </label>
-      ))}
-    </div>
-  );
+    "min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink placeholder:text-ink-faint focus:border-accent transition-colors duration-[var(--dur-fast)]";
 
   return (
-    /* §8.5.9 — a task screen, so it keeps the narrow column. A goal form read
-       across 1024px would be worse, not better. */
-    <main className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-16">
+    /* §8.5.9 — a task screen. The sidebar earns the wider column here because
+       it is the thing that makes the conversation feel like progress rather
+       than a chat window; it stacks below on narrow screens. */
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-6 py-16">
       <div className="rise flex flex-col gap-5">
         <DisplayTitle>What do you want to get good at?</DisplayTitle>
         <Lead>
-          Pick a subject and tell us how much time you actually have. We&rsquo;ll
-          work out what to do first — and what to skip because you can already do
-          it.
+          Tell us in your own words. Anything — if we don&rsquo;t already cover
+          it, we&rsquo;ll build it.
         </Lead>
       </div>
 
-      {error ? <Status tone="problem">{error}</Status> : null}
+      {error ? <Status tone="problem">{ERRORS[error] ?? ERRORS.subject}</Status> : null}
 
-      <form action={createGoalAction} className="flex flex-col gap-6">
-        {/* ── Subject ──────────────────────────────────────────────────────── */}
-        <Card className="rise flex flex-col gap-4 p-0" style={stagger(1)}>
-          <fieldset className="flex flex-col gap-4 border-0 p-0 m-0">
-            <legend className="sr-only">Subject</legend>
-            <span className={`${fieldLabel} px-6 pt-6`}>Subject</span>
-            <ul className="flex list-none flex-col gap-0 p-0 m-0">
-              {topics.map((topic, i) => (
-                <li
-                  key={topic.slug}
-                  className="border-t border-hairline last:rounded-b-[var(--radius-card)] last:overflow-hidden"
-                >
-                  <label className="flex min-h-[var(--touch-min)] cursor-pointer items-center gap-3 px-6 py-4 transition-colors duration-[var(--dur-fast)] hover:bg-accent-weak has-checked:bg-accent-weak">
+      <div className="flex flex-col gap-8 md:flex-row md:items-start">
+        {/* ── The conversation ─────────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {intake.messages.length === 0 ? (
+            <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
+              <Title>Let&rsquo;s work out what you need</Title>
+              <Meta>
+                A few questions — no more than {MAX_TURNS}. You can skip any of
+                them.
+              </Meta>
+              <form action={openAction}>
+                <Button type="submit">Start</Button>
+              </form>
+            </Card>
+          ) : (
+            <>
+              <ol className="flex list-none flex-col gap-4 p-0 m-0">
+                {intake.messages.map((message, i) => (
+                  <li
+                    key={i}
+                    className={
+                      message.r === "l"
+                        ? "self-end max-w-[85%] rounded-[var(--radius-card)] bg-accent-weak px-5 py-3.5"
+                        : "self-start max-w-[90%] rounded-[var(--radius-card)] border border-hairline px-5 py-3.5"
+                    }
+                  >
+                    <span className="sr-only">
+                      {message.r === "l" ? "You said" : "We asked"}:{" "}
+                    </span>
+                    {message.t}
+                  </li>
+                ))}
+              </ol>
+
+              {intake.done ? (
+                <Card className="flex flex-col items-start gap-4">
+                  <form action={buildFromConversationAction}>
+                    <Button type="submit">Build my plan</Button>
+                  </form>
+                  <form action={restartAction}>
+                    <button
+                      type="submit"
+                      className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink"
+                    >
+                      Start over
+                    </button>
+                  </form>
+                </Card>
+              ) : (
+                <>
+                  {/* Chips are submit buttons carrying their own answer, which
+                      is how one tap works with no JavaScript at all. */}
+                  {intake.chips.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {intake.chips.map((chip) => (
+                        <form action={replyAction} key={chip}>
+                          <input type="hidden" name="reply" value={chip} />
+                          <button
+                            type="submit"
+                            className="min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-[length:var(--text-label-size)] transition-colors duration-[var(--dur-fast)] hover:border-accent hover:bg-accent-weak"
+                          >
+                            {chip}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <form action={replyAction} className="flex flex-col gap-3">
+                    <label htmlFor="reply" className="sr-only">
+                      Your answer
+                    </label>
                     <input
-                      type="radio"
-                      name="topic"
-                      value={topic.slug}
-                      defaultChecked={i === 0}
+                      id="reply"
+                      name="reply"
+                      maxLength={500}
                       required
-                      className="accent-[var(--color-accent)]"
+                      autoComplete="off"
+                      placeholder="Type your answer…"
+                      className={input}
                     />
-                    <span className="text-accent">
-                      <SubjectIcon taxonomyParent={topic.taxonomyParent} />
-                    </span>
-                    <span className="font-[550]">{topic.name}</span>
-                    <span className="ml-auto flex items-center gap-3">
-                      {answered.has(topic.slug) ? (
-                        <Status tone="verified">Your check comes with you</Status>
-                      ) : null}
-                      {/* --ink-faint is under the small-text bar on the
-                          accent-weak fill a checked row takes (§8.5.4). */}
-                      <Meta tone="muted">{topic.skillCount} skills</Meta>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </fieldset>
-        </Card>
+                    <div className="flex items-center gap-4">
+                      <Button type="submit">Send</Button>
+                      <Meta tone="muted">
+                        {asked} of {MAX_TURNS} questions
+                      </Meta>
+                    </div>
+                  </form>
 
-        {/* ── About the goal ───────────────────────────────────────────────── */}
-        <Card className="rise flex flex-col gap-8" style={stagger(2)}>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="rawGoal" className={fieldLabel}>
-              In your own words
-            </label>
-            <Meta>
-              Optional. Stored exactly as you write it — nothing reads it yet.
-            </Meta>
-            <input
-              id="rawGoal"
-              name="rawGoal"
-              maxLength={500}
-              placeholder="I want to stop guessing at my shutter speed"
-              className={input}
-            />
-          </div>
-
-          <fieldset className="flex flex-col gap-3 border-0 p-0 m-0">
-            <legend className="sr-only">What this is for</legend>
-            <span className={fieldLabel}>What&rsquo;s it for?</span>
-            {choice("outcomeType", OUTCOMES)}
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-3 border-0 p-0 m-0">
-            <legend className="sr-only">Where you are starting from</legend>
-            <span className={fieldLabel}>Where are you starting?</span>
-            <Meta>Just a starting point. The check adjusts it.</Meta>
-            {choice("statedLevel", LEVELS)}
-          </fieldset>
-        </Card>
-
-        {/* ── Time ─────────────────────────────────────────────────────────── */}
-        <Card className="rise flex flex-col gap-8" style={stagger(3)}>
-          <div className="flex flex-wrap gap-8">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="weeklyHours" className={fieldLabel}>
-                Hours a week
-              </label>
-              <input
-                id="weeklyHours"
-                name="weeklyHours"
-                type="number"
-                min={0.5}
-                max={40}
-                step={0.5}
-                defaultValue={3}
-                required
-                className={`${input} w-32`}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label htmlFor="deadline" className={fieldLabel}>
-                Deadline
-              </label>
-              <Meta>Optional. A real date changes what gets cut.</Meta>
-              <input id="deadline" name="deadline" type="date" className={input} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label htmlFor="motivation" className={fieldLabel}>
-              Why now?
-            </label>
-            <Meta>Optional.</Meta>
-            <input
-              id="motivation"
-              name="motivation"
-              maxLength={500}
-              className={input}
-            />
-          </div>
-        </Card>
-
-        <div className="rise" style={stagger(5)}>
-          <Button type="submit">Build my plan</Button>
+                  <form action={restartAction}>
+                    <button
+                      type="submit"
+                      className="self-start text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink"
+                    >
+                      Start over
+                    </button>
+                  </form>
+                </>
+              )}
+            </>
+          )}
         </div>
-      </form>
+
+        {/* ── What we have so far ──────────────────────────────────────────── */}
+        <Card className="rise w-full md:w-72 md:shrink-0" style={stagger(2)}>
+          <div className="flex flex-col">
+            <Title className="pb-3 text-[length:var(--text-label-size)]">
+              What we have so far
+            </Title>
+            <Captured label="Subject" value={captured?.subject ?? null} />
+            <Captured
+              label="Level"
+              value={
+                captured?.statedLevel ? LEVELS[captured.statedLevel]! : null
+              }
+            />
+            <Captured
+              label="Time"
+              value={
+                captured?.weeklyHours
+                  ? `${captured.weeklyHours} hrs/week`
+                  : null
+              }
+            />
+            <Captured label="Deadline" value={captured?.deadline ?? null} />
+            <Captured
+              label="For"
+              value={
+                captured?.outcomeType ? OUTCOMES[captured.outcomeType]! : null
+              }
+            />
+            {captured?.matchedPack ? (
+              <div className="pt-4">
+                <Status tone="verified">We cover this one already</Status>
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+
+      <Meta tone="muted">
+        Would rather fill in a form?{" "}
+        <Link href="/start/form" className="underline underline-offset-4">
+          Do that instead
+        </Link>
+        .
+      </Meta>
     </main>
   );
 }

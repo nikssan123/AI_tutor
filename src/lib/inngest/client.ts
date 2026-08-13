@@ -20,4 +20,6 @@ export const EVENTS = {
   evaluate: "submission/evaluate.requested",
   /** §16.1: the nightly planner run. Pure code, no LLM. */
   planNightly: "planner/nightly.requested",
+  /** §7.1: authoring a Generated pack for a subject nobody has curated. */
+  buildPack: "pack/generate.requested",
 } as const;

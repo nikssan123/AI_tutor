@@ -1177,3 +1177,82 @@ Analyzer, the ≤6-turn cap, matching a subject to the catalogue before generati
 one — is next, along with the background job that runs generation off the request
 path, the Experimental badge everywhere a generated pack appears, and the rate
 limit that has to exist before any of this is reachable by the public.
+
+---
+
+# Delivery record — pass 15: /start stops being a form
+
+§8 screen 3 has said "**Not a form**" since the plan was written, and `/start`
+has been one since pass 1 — honestly labelled as a stand-in, but a form. This is
+the conversation, and the path from a subject nobody has curated to a learner
+having a plan.
+
+## The conversation
+
+The Goal Analyzer produces the same `GoalSpec` the form produces, which was the
+whole reason that contract was written before either intake existed: the
+conversation plugs into a consumer that has worked for fourteen passes rather
+than being the first thing that ever fed it. The form is still there at
+`/start/form` — it is the fallback when the analyzer is unavailable, and the only
+intake that works with a model and JavaScript both out of the picture.
+
+No client JavaScript, like every other screen here. Chips are submit buttons
+carrying their own answer, which is how "most replies are one tap" works without
+a bundle. The conversation lives in a row rather than a cookie, unlike the Skill
+Check's: six exchanges of prose do not fit in 4KB, and unlike the check the
+learner is already signed in, so there is a user to key it to.
+
+The six-turn cap is enforced twice, in application code both times (§24 E3 is
+explicit that it is "not prompt"): once by telling the model this is its last
+turn, and once by ending the conversation whatever the model returns.
+
+**Found by running it, not by testing it.** The first version ended the
+conversation as soon as clarity passed 0.6 — which meant the analyzer asked "is
+anything getting in the way?" and the learner watched their plan appear without
+ever answering. Clarity now decides whether to keep *asking*; only the model
+saying it is done, or the cap, ends anything. §8 screen 3 had it the right way
+round all along: below 0.6 it asks one more question.
+
+Also found live: a learner who taps "Complete beginner" was recorded as
+`beginner`, which the product displays as "Dabbled a bit". The enum values do not
+say what they mean and nothing told the model that `none` is the one that means
+never. They are spelled out in the tool schema now.
+
+## The wait
+
+A pack takes about three minutes to author, so the gap path hands off to a build
+row and an Inngest function. The row is keyed by **slug, not by learner**, which
+is what makes §7.1's "promoted to Standard after 5 users" mean anything and what
+stops ten people asking for Rust from starting ten $0.61 generations. One build
+at a time per learner; a build older than fifteen minutes is treated as dead so a
+worker that fell over cannot wedge a subject forever.
+
+The wait screen refreshes itself with a `<meta>` tag. A failed build says what
+actually went wrong — "7 items; a diagnostic needs at least 24" — rather than
+"something went wrong, try again", and offers the retry next to it.
+
+## The landing page
+
+`/` used to say "Three so far. We add a subject only after a person has written
+and checked it." That stopped being true in pass 14. It now says both halves:
+three written and checked by a person, anything else built on request and marked
+Experimental until it has been. Saying only the flattering half is the exact
+failure §7.1 exists to prevent.
+
+## Two things simplified rather than covered
+
+`finish()` re-resolved a pack every caller had already resolved, which added a
+branch that could not be reached. It takes the pack now. The item-slug collision
+loop in the generator was the same: skill slugs are already unique, so
+`${skill}-${n}` cannot repeat, and the loop was guarding against nothing.
+
+1980 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Still open
+
+The admin queue for reviewing generated packs, and §7.1's promotion gate — the
+`quality_status` column exists and nothing moves a pack through it yet. The
+Experimental badge appears on the wait screen and the landing page but not yet on
+`/today` or the path screen. And the whole flow has been driven by hand in a
+browser rather than end to end with Inngest running, so the build event has been
+verified as sent and the handler as correct, but not the two together.

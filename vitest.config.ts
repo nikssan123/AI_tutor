@@ -10,6 +10,7 @@ const DATABASE_TESTS = [
   "tests/lib/admin-console.test.ts",
   "tests/lib/auth.test.ts",
   "tests/lib/goal-store.test.ts",
+  "tests/packs/build.test.ts",
   "tests/packs/read.test.ts",
   "tests/packs/seed.test.ts",
   "tests/session/store.test.ts",
