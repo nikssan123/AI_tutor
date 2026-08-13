@@ -5,7 +5,7 @@ import { learningSession, user } from "@/db/schema";
 import { findPack } from "@/lib/content";
 import { loadPack } from "@/lib/packs/loader";
 import { seedPack } from "@/lib/packs/seed";
-import { createGoal, upsertMastery } from "@/lib/goals/store";
+import { createGoal, setGoalStatus, upsertMastery } from "@/lib/goals/store";
 import { recordMasteryUpdate } from "@/lib/session/store";
 import { createSubmission, recordEvaluation } from "@/lib/submissions/store";
 import { artefactEvidence, weekActivity } from "@/lib/mastery/store";
@@ -32,6 +32,8 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const live = DATABASE_URL ? describe : describe.skip;
 
 const PACK = "photography";
+/** A second subject, so "the ledger spans your subjects" is testable at all. */
+const OTHER = "sql-data-analysis";
 const NOW = new Date("2026-08-13T12:00:00.000Z");
 const IN_WINDOW = new Date("2026-08-10T12:00:00.000Z");
 const BEFORE_WINDOW = new Date("2026-08-01T12:00:00.000Z");
@@ -93,7 +95,6 @@ live("the mastery ledger, against the database", () => {
   const { db, close } = createClient(DATABASE_URL!, 2);
   const pack = findPack(PACK)!;
   const [first, second] = pack.skills;
-  const project = pack.projects[0]!;
   const users: string[] = [];
 
   async function newUser(): Promise<string> {
@@ -103,16 +104,24 @@ live("the mastery ledger, against the database", () => {
     return id;
   }
 
-  /** A goal in the seeded pack, optionally with mastery already on it. */
+  /**
+   * A goal, optionally with mastery already on it.
+   *
+   * `packSlug` defaults to the pack everything else in this file uses; the
+   * cross-subject tests pass the second one. It has to be a real argument
+   * rather than `spec.domain` alone, because the two must agree — the goal's
+   * `packId` column and the spec's domain are written from it in one place.
+   */
   async function goalFor(
     userId: string,
     mastery: MasteryState[] = [],
     overrides: Partial<GoalSpec> = {},
+    packSlug: string = PACK,
   ): Promise<string> {
     return createGoal(db, {
       userId,
-      packSlug: PACK,
-      spec: spec(overrides),
+      packSlug,
+      spec: spec({ domain: packSlug, ...overrides }),
       mastery,
       now: NOW,
     });
@@ -124,11 +133,15 @@ live("the mastery ledger, against the database", () => {
     skillSlug: string,
     at: Date,
     prior: MasteryState = held(skillSlug),
+    packSlug: string = PACK,
   ): Promise<string> {
+    const from = findPack(packSlug)!;
+    const brief = from.projects[0]!;
+
     const id = await createSubmission(db, {
       userId,
-      packSlug: PACK,
-      projectSlug: project.slug,
+      packSlug,
+      projectSlug: brief.slug,
       artefact: "a photograph of a window",
       truncated: false,
       skillSlug,
@@ -138,10 +151,10 @@ live("the mastery ledger, against the database", () => {
     await recordEvaluation(db, {
       submissionId: id,
       userId,
-      packSlug: PACK,
-      rubricSlug: project.rubric,
+      packSlug,
+      rubricSlug: brief.rubric,
       rubricVersion: 1,
-      skill: pack.skills.find((s) => s.slug === skillSlug)!,
+      skill: from.skills.find((s) => s.slug === skillSlug)!,
       mastery: prior,
       result: graded(),
       model: "claude-opus-5",
@@ -153,8 +166,12 @@ live("the mastery ledger, against the database", () => {
   }
 
   beforeAll(async () => {
-    // The reads join `skill`, so the pack has to actually be there.
+    // The reads join `skill`, so the packs have to actually be there. Two of
+    // them, because the ledger's whole point is that it spans a learner's
+    // subjects rather than the running course's — which cannot be tested with
+    // one. Seeding is an upsert, so re-running is free.
     await seedPack(db, loadPack(`packs/${PACK}`));
+    await seedPack(db, loadPack(`packs/${OTHER}`));
   }, 60_000);
 
   afterAll(async () => {
@@ -348,11 +365,12 @@ live("the mastery ledger, against the database", () => {
       const submissionId = await handIn(userId, first!.slug, IN_WINDOW);
 
       const view = await ledgerFor(db, userId, NOW);
-      expect(view!.ledger.canDo.map((e) => e.skillSlug)).toEqual([first!.slug]);
-      expect(view!.ledger.canDo[0]!.submissionId).toBe(submissionId);
-      expect(view!.ledger.canDo[0]!.statement).toBe(first!.canDoStatement);
+      const claimed = view!.claims[0]!.entries;
+      expect(claimed.map((e) => e.skillSlug)).toEqual([first!.slug]);
+      expect(claimed[0]!.submissionId).toBe(submissionId);
+      expect(claimed[0]!.statement).toBe(first!.canDoStatement);
 
-      const unproven = view!.ledger.whatsLeft.find(
+      const unproven = view!.whatsLeft.find(
         (e) => e.skillSlug === second!.slug,
       );
       expect(unproven!.standing).toBe("unproven");
@@ -399,9 +417,119 @@ live("the mastery ledger, against the database", () => {
       await upsertMastery(db, userId, PACK, held(first!.slug), NOW);
 
       const view = await ledgerFor(db, userId, NOW);
-      expect(view!.ledger.canDo).toHaveLength(0);
-      expect(view!.pack.slug).toBe(PACK);
-      expect(view!.goal.packSlug).toBe(PACK);
+      // A subject with nothing proved in it is not a group at all: a heading
+      // over an empty list is a worse answer than no heading.
+      expect(view!.claims).toHaveLength(0);
+      expect(view!.active!.pack.slug).toBe(PACK);
+      expect(view!.active!.goal.packSlug).toBe(PACK);
+    });
+
+    /**
+     * §1 calls the ledger "an evidence-backed, per-skill record of what you
+     * have demonstrably done". That record belongs to the learner, not to
+     * whichever course happens to be running — it used to vanish the moment one
+     * was paused, which made the product's stated competitive advantage the
+     * most perishable thing in it.
+     */
+    describe("across courses", () => {
+      it("keeps the claims when the course they came from is put away", async () => {
+        const userId = await newUser();
+        const goalId = await goalFor(userId, [held(first!.slug)]);
+        await handIn(userId, first!.slug, IN_WINDOW);
+        await setGoalStatus(db, userId, goalId, "paused");
+
+        const view = await ledgerFor(db, userId, NOW);
+        expect(view!.active).toBeUndefined();
+        expect(view!.claims[0]!.entries.map((e) => e.skillSlug)).toEqual([
+          first!.slug,
+        ]);
+        expect(view!.provedCount).toBe(1);
+        // The group says where the course stands; the claim is unqualified.
+        expect(view!.claims[0]!.status).toBe("paused");
+      });
+
+      /**
+       * "What's left" is a statement about a path, and a learner between
+       * courses is not on one. Merged across subjects it would list everything
+       * they had not proved in every subject they had ever touched and call
+       * that their remaining work.
+       */
+      it("has nothing left over when no course is running", async () => {
+        const userId = await newUser();
+        const goalId = await goalFor(userId, [held(first!.slug)]);
+        await handIn(userId, first!.slug, IN_WINDOW);
+        await setGoalStatus(db, userId, goalId, "paused");
+
+        expect((await ledgerFor(db, userId, NOW))!.whatsLeft).toEqual([]);
+      });
+
+      it("gathers claims from every subject the learner has studied", async () => {
+        const userId = await newUser();
+        await goalFor(userId, [held(first!.slug)]);
+        await handIn(userId, first!.slug, IN_WINDOW);
+
+        // A second subject, started after the first — which puts the first one
+        // aside, and makes this the running course.
+        const otherSkill = findPack(OTHER)!.skills[0]!;
+        await goalFor(userId, [held(otherSkill.slug)], {}, OTHER);
+        await handIn(
+          userId,
+          otherSkill.slug,
+          IN_WINDOW,
+          held(otherSkill.slug),
+          OTHER,
+        );
+
+        const view = await ledgerFor(db, userId, NOW);
+        expect(view!.claims.map((g) => g.packSlug)).toEqual([OTHER, PACK]);
+        expect(view!.provedCount).toBe(2);
+        // The first course was put aside to make room, not abandoned.
+        expect(view!.claims.find((g) => g.packSlug === PACK)!.status).toBe(
+          "paused",
+        );
+      });
+
+      /**
+       * Mastery is keyed per learner per skill, so a learner who started a
+       * subject twice holds one set of claims. Two goals must not render them
+       * twice.
+       */
+      it("shows one group per subject, not one per course", async () => {
+        const userId = await newUser();
+        await goalFor(userId, [held(first!.slug)]);
+        await handIn(userId, first!.slug, IN_WINDOW);
+        await goalFor(userId, [held(first!.slug)]);
+
+        const view = await ledgerFor(db, userId, NOW);
+        expect(view!.claims).toHaveLength(1);
+        expect(view!.provedCount).toBe(1);
+      });
+
+      /** The one being worked on leads, however old it is. */
+      it("puts the running course first, not the newest one", async () => {
+        const userId = await newUser();
+        const older = await goalFor(userId, [held(first!.slug)]);
+        await handIn(userId, first!.slug, IN_WINDOW);
+
+        const otherSkill = findPack(OTHER)!.skills[0]!;
+        await goalFor(userId, [held(otherSkill.slug)], {}, OTHER);
+        await handIn(
+          userId,
+          otherSkill.slug,
+          IN_WINDOW,
+          held(otherSkill.slug),
+          OTHER,
+        );
+
+        // Picking the older course back up makes it the running one, and
+        // `goalsFor` still returns the newer one first — so this only passes if
+        // the ordering follows what is running rather than what is recent.
+        await setGoalStatus(db, userId, older, "active");
+
+        const view = await ledgerFor(db, userId, NOW);
+        expect(view!.claims[0]!.packSlug).toBe(PACK);
+        expect(view!.active!.goal.id).toBe(older);
+      });
     });
   });
 });

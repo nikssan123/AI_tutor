@@ -486,6 +486,11 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
     this" cannot fire on a claim at all — clearing 0.85 with mastery capped at
     1 leaves decay no room above 0.15. The reachable question is *would this
     still count in a week*, which is also the one worth answering.
+- **The ledger belongs to the learner, not to the running course.** §1 calls it "an evidence-backed, per-skill record of what you have demonstrably done", and until a course could end (§8 screen 11a) it was gated on the active goal — so the moment one was paused, the product's stated competitive advantage became the most perishable thing in it. It now spans every subject the learner has studied, grouped by subject with each group labelled by where its course stands. A claim is not qualified by that label: the hand-in happened, and putting the course away does not un-happen it.
+  - **Grouped by subject, not by course.** Mastery is keyed per learner per skill, so someone who started photography twice holds one set of claims. Two goals would otherwise print them twice.
+  - **The heading appears only from the second subject onwards.** With one course — every learner before this, and most after — a band heading names what the page has already named twice.
+  - **"What's left" stays the running course's, alone.** It is a statement about a *path*, and a learner between courses is not on one. Merged across subjects it would be worse than empty: it would list everything they had never proved in every subject they had ever touched and call that their remaining work. Between courses the tab says there is no path rather than showing one.
+  - **`/progress` did not follow, and that is the line.** The two screens shared an assembly so their count and rows could not drift; they now answer different questions. `/progress` is about a **course** — a week against a commitment, the remainder repriced at the pace kept — and with nothing running there is no commitment and no remainder to report. `/mastery` is about a **person**. They still share `buildLedger`, which is where drift would actually have mattered: one definition of what counts as proved.
 - **No graph on this screen.** The DAG lives on the path (§8 screen 5), where
   the question is "what is the shape of this subject". Here the question is
   "what can I prove", and that is a list with links, not a picture.
@@ -1901,7 +1906,7 @@ before picking the next thing up.**
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
-| **E9.7** Goal lifecycle | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts` — §8 screen 11a |
+| **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
@@ -1944,6 +1949,15 @@ goal; both stay true. What changes is that "the newest active row wins" stops
 being a tiebreak and becomes an invariant: `pauseOthers` runs inside the same
 transaction as any write that could produce a second active row, so there is
 never a moment when two exist for one learner.
+
+**And the ledger now outlives a course**, which is the half that was blocked on
+the lifecycle rather than merely waiting behind it: `/mastery` spans every
+subject the learner has studied, because §1's "record of what you have
+demonstrably done" is a record about a person. `/progress` and `/calendar`
+deliberately did **not** follow — both are screens about a running course by
+definition (a week measured against a commitment; when the work lands), and with
+nothing running there is nothing for either to report. §8 screen 10 has the
+reasoning and the one thing that had to stay course-bound.
 
 **E9.5 gave the fourth answer in §2.4 a screen.** "It holds you accountable"
 names scheduled commitments, streaks, overdue work and spaced retrieval; all

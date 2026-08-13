@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { findPack } from "@/lib/content";
 import type { LedgerEntry, Standing } from "@/lib/mastery/ledger";
-import type { LedgerView } from "@/lib/mastery/view";
+import type { ClaimGroup, LedgerView } from "@/lib/mastery/view";
 
 /**
  * §8 screen 10 — the mastery map.
@@ -55,20 +55,34 @@ const entry = (
   ...overrides,
 });
 
-function view(overrides: Partial<LedgerView["ledger"]> = {}): LedgerView {
+const ACTIVE: NonNullable<LedgerView["active"]> = {
+  goal: {
+    id: "g1",
+    packSlug: pack.slug,
+    spec: {} as NonNullable<LedgerView["active"]>["goal"]["spec"],
+    createdAt: new Date("2026-08-13T09:00:00.000Z"),
+  },
+  pack,
+};
+
+const group = (
+  overrides: Partial<ClaimGroup> = {},
+): ClaimGroup => ({
+  packSlug: pack.slug,
+  packName: pack.name,
+  status: "active",
+  entries: [entry("shown")],
+  ...overrides,
+});
+
+function view(overrides: Partial<LedgerView> = {}): LedgerView {
+  const claims = overrides.claims ?? [group()];
   return {
-    goal: {
-      id: "g1",
-      packSlug: pack.slug,
-      spec: {} as LedgerView["goal"]["spec"],
-      createdAt: new Date("2026-08-13T09:00:00.000Z"),
-    },
-    pack,
-    ledger: {
-      canDo: [entry("shown")],
-      whatsLeft: [entry("untouched")],
-      ...overrides,
-    },
+    active: ACTIVE,
+    claims,
+    provedCount: claims.reduce((n, g) => n + g.entries.length, 0),
+    whatsLeft: [entry("untouched")],
+    ...overrides,
   };
 }
 
@@ -144,7 +158,7 @@ describe("what I can do", () => {
   });
 
   it("says when a claim is on its way out", async () => {
-    ledgerForMock.mockResolvedValue(view({ canDo: [entry("fading")] }));
+    ledgerForMock.mockResolvedValue(view({ claims: [group({ entries: [entry("fading")] })] }));
     render(await MasteryPage({ searchParams: search() }));
 
     expect(screen.getByText("Slipping")).toBeDefined();
@@ -174,7 +188,7 @@ describe("what I can do", () => {
   });
 
   it("sends a learner with nothing proved back to today", async () => {
-    ledgerForMock.mockResolvedValue(view({ canDo: [] }));
+    ledgerForMock.mockResolvedValue(view({ claims: [] }));
     render(await MasteryPage({ searchParams: search() }));
 
     expect(screen.getByText(/Hand in the work at the end of a session/)).toBeDefined();
@@ -235,5 +249,98 @@ describe("what's left", () => {
     render(await MasteryPage({ searchParams: search({ show: "left" }) }));
 
     expect(screen.getByText(/every skill in it is yours/)).toBeDefined();
+  });
+});
+
+/**
+ * §1 calls the ledger "an evidence-backed, per-skill record of what you have
+ * demonstrably done". It belongs to the learner rather than to whichever course
+ * is running — it used to disappear the moment one was paused, which made the
+ * product's stated competitive advantage the most perishable thing in it.
+ */
+describe("between courses", () => {
+  const between = (claims: ClaimGroup[]) =>
+    view({ active: undefined, claims, whatsLeft: [] });
+
+  it("still shows what the learner proved", async () => {
+    ledgerForMock.mockResolvedValue(
+      between([group({ status: "paused" })]),
+    );
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(
+      screen.getByText("Expose a backlit portrait without losing the highlights"),
+    ).toBeDefined();
+    expect(screen.getByRole("link", { name: "See the work" })).toBeDefined();
+  });
+
+  it("says the record is theirs whether or not a course is running", async () => {
+    ledgerForMock.mockResolvedValue(between([group({ status: "achieved" })]));
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.getByText(/stays yours whether or not/i)).toBeDefined();
+  });
+
+  /** "To go" is a statement about a path, and they are not on one. */
+  it("quotes no remainder", async () => {
+    ledgerForMock.mockResolvedValue(between([group({ status: "paused" })]));
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.getByText(/across everything you have studied/i)).toBeDefined();
+    expect(screen.queryByText(/to go/i)).toBeNull();
+  });
+
+  /**
+   * Merged across subjects, "what's left" would list everything the learner
+   * had not proved in every subject they had ever touched and call it their
+   * remaining work.
+   */
+  it("has no what's-left to show, and says why", async () => {
+    ledgerForMock.mockResolvedValue(between([group({ status: "paused" })]));
+    render(await MasteryPage({ searchParams: search({ show: "left" }) }));
+
+    expect(screen.getByText(/no path to have anything left on/i)).toBeDefined();
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+});
+
+describe("more than one subject", () => {
+  const two = [
+    group({ packSlug: "photography", packName: "Photography", status: "paused" }),
+    group({
+      packSlug: "sql-data-analysis",
+      packName: "SQL & Data Analysis",
+      status: "achieved",
+      entries: [entry("shown", { skillSlug: "joins", name: "Joins" })],
+    }),
+  ];
+
+  it("names each subject and how its course stands", async () => {
+    ledgerForMock.mockResolvedValue(view({ claims: two, provedCount: 2 }));
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.getByText("Photography")).toBeDefined();
+    expect(screen.getByText("SQL & Data Analysis")).toBeDefined();
+    expect(screen.getByText("Paused")).toBeDefined();
+    expect(screen.getByText("Finished")).toBeDefined();
+  });
+
+  it("counts every claim, not just the running course's", async () => {
+    ledgerForMock.mockResolvedValue(view({ claims: two, provedCount: 2 }));
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.getByText("2")).toBeDefined();
+  });
+
+  /**
+   * With one course — every learner before a course could end, and most of them
+   * after — a band heading would name something the page has already named
+   * twice. §8.5.1's density rule counts it either way.
+   */
+  it("adds no heading when there is only one subject", async () => {
+    ledgerForMock.mockResolvedValue(view());
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.queryByText(pack.name)).toBeNull();
   });
 });

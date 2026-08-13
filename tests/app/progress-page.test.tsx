@@ -68,7 +68,6 @@ function view(overrides: Partial<Digest> = {}): DigestView {
       createdAt: new Date("2026-08-13T09:00:00.000Z"),
     },
     pack,
-    ledger: { canDo: [], whatsLeft: [] },
     digest: digest(overrides),
     from: new Date("2026-08-06T12:00:00.000Z"),
     to: new Date("2026-08-13T12:00:00.000Z"),
