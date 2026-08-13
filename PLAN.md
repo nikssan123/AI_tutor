@@ -15,6 +15,25 @@ Because you chose "build first, validate after," I have not reduced MVP scope �
 
 ---
 
+# 0. Where the build is
+
+**This plan describes the product; it is not a status report.** Sections written
+before something was built still read as future tense, and a few of them turned
+out to be wrong in ways only building revealed. Those carry a **"Built."** note
+inline — §7.1 and §8 screen 3 have the substantial ones.
+
+For what exists right now, and what to pick up next, go straight to
+**§24's build status table**. The short version: the engine, the intake
+conversation, the diagnostic, the curriculum, the session and tutor, and
+on-demand pack generation are all in. **E8 — submission and evaluation — is next,
+and it is the one the whole thesis rests on** (§4.2 law 1, §14.5).
+
+`IMPLEMENTATION.md` is the per-pass record, including the things that only
+showed up against the real API. Read the "Still open" section at the end of the
+last pass before starting anything.
+
+---
+
 # 1. Executive Verdict
 
 ## **BUILD — WITH A MAJOR PIVOT OF THE VALUE PROPOSITION**
@@ -272,6 +291,23 @@ DomainPack {
 
 This is how you honestly serve "any skill" on day one. Any goal works. Coverage is universal. Depth is declared, not faked.
 
+> **Built.** See §24 E7.5. What building it changed about this section:
+>
+> - **A Generated pack is capped below tier 1**, whatever its workspace. Tier 1
+>   means "execute + assert" (§7.2) and a pack with no evaluator config cannot.
+>   Curated packs in the same workspace still reach tier 1; the difference is a
+>   person built the evaluator.
+> - **A Generated pack is not "queued for validation"** — it is validated before
+>   it is written, and one that cannot clear the bar is never created. The
+>   learner is told so. There is no half-pack state.
+> - **The promotion rule needed a second condition.** "Promoted to Standard after
+>   5 users" is necessary but not sufficient; it must also still pass validation
+>   at the moment of promotion, since packs can be edited and edges can be added.
+>   Both are enforced in `promotePack`, not in the admin UI.
+> - **Packs are shared, keyed by slug.** Ten people asking for Rust cause one
+>   generation. This is what makes "after 5 users" meaningful and what keeps the
+>   economics sane at $0.61 a pack.
+
 **The 12 Curated packs at launch** — chosen for WTP × evaluability × search demand:
 Python & programming fundamentals · SQL & data analysis · Machine learning / AI engineering · Web development (JS/React) · Cloud & DevOps · Cybersecurity · Excel & spreadsheet modelling · Digital marketing & SEO · Personal finance & investing · Business writing & communication · Statistics & data literacy · Product management
 
@@ -364,6 +400,18 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
 - **Data:** `LearningGoal`, `LearnerProfile`.
 - **AI:** **Goal Analyzer** (Sonnet 5, structured output → `GoalSpec`). Asks only for fields it can't infer. Refuses to ask more than 6 questions — hard cap in application code, not prompt.
 - **Note:** signup is deferred until *after* the diagnostic result. Show value first.
+- **Built.** Two things this description got wrong in practice:
+  - **Clarity must not end the conversation.** Ending as soon as clarity passes
+    0.6 means the analyzer asks a question and the learner watches their plan
+    appear without answering it. Clarity decides whether to keep *asking*; only
+    the analyzer declaring itself done, or the turn cap, ends anything.
+  - **The catalogue goes in the prompt.** The analyzer is handed the real slugs
+    and asked to name one, and its answer is then checked against what exists —
+    a model naming `python-fundamentals` does not make that pack exist. A miss
+    goes to §7.1's Generated tier rather than being an error.
+  - Signup is *not* currently deferred: `/start` requires a session. The
+    anonymous Skill Check is the show-value-first surface, and it carries its
+    result into the account (§24 E11).
 
 ### 4. Adaptive diagnostic — `/assess/{goalId}`
 - **Purpose:** locate the learner on the skill graph in **8–12 minutes**, never more.
@@ -894,7 +942,7 @@ The LLM never decides *what the learner should do next*. It converts unstructure
 
 | Component | Real agent? | Implementation | Model | Sync? |
 |---|---|---|---|---|
-| **Goal Analyzer** | ⚠️ Light | Structured-output loop, hard cap of 6 turns | Sonnet 5 | Sync, streamed |
+| **Goal Analyzer** | ⚠️ Light | Structured-output loop, hard cap of 6 turns | Sonnet 5 | Sync (form POST, not streamed — the screen has no client JS) |
 | **Learner Profiler** | ❌ | Deterministic aggregation over events | — | — |
 | **Assessment Agent** | ❌ **Code** | IRT-lite item selection from the pack's bank | Haiku 4.5 *only* to grade free-text | Sync |
 | **Skill Graph Builder** | ⚠️ Build-time | Pack seed + personalized pruning; **not** per-request generation | Opus 5 (authoring) | Async |
@@ -903,6 +951,9 @@ The LLM never decides *what the learner should do next*. It converts unstructure
 | **Resource Researcher** | ✅ | Web search + fetch tools, verify-and-cite | Sonnet 5 + `web_search_20260209` | Async, batched |
 | **Lesson Generator** | ❌ | One templated call per block | Sonnet 5 | Sync, streamed |
 | **Tutor** | ❌ | Chat with cached learner-context prefix | Sonnet 5 | Sync, streamed |
+| **Pack Graph Author** | ⚠️ Light | Skills + dependency order for an uncurated subject | **Opus 5** | Async (Inngest) |
+| **Pack Item Author** | ❌ | Assessment items, batched by skill area | Sonnet 5 | Async (Inngest) |
+| **Pack Rubric Author** | ❌ | Projects + rubrics for a generated pack | Sonnet 5 | Async (Inngest) |
 | **Practice / Project Generator** | ❌ | Structured call, rubric attached | Sonnet 5 | Async, pre-generated |
 | **Evaluation Agent** | ✅ **Yes — the crown jewel** | Multi-pass, tool-using, rubric-anchored (§14.5) | **Opus 5**, adaptive thinking | Async, 30–120s |
 | **Mastery Model** | ❌ **Pure code** | BKT + decay (§16) | — | — |
@@ -1702,6 +1753,81 @@ Everything in §17.2 MUST HAVE. Detailed in §24 and §27.
 
 Ordered by dependency. Each epic: why it exists → inputs → outputs → dependencies → acceptance criteria.
 
+## Build status — where the implementation actually is
+
+`IMPLEMENTATION.md` carries the per-pass record; this is the map. **Read this
+before picking the next thing up.**
+
+| Epic | State | Where it lives |
+|---|---|---|
+| **E1** Foundation | ✅ Done | `src/db/`, `src/lib/inngest/`, `src/lib/auth.ts` |
+| **E2** Domain Pack system | ✅ Done | `src/lib/packs/` — loader, validator, seeder, **and `read.ts`** |
+| **E3** Goal intake | ✅ Done | `src/lib/goals/analyzer.ts`, `match.ts`, `/start` — the conversation, not the form |
+| **E4** Adaptive diagnostic | ✅ Done | `src/lib/engine/diagnostic.ts`, `/check/{topic}` |
+| **E5** Mastery model + planner | ✅ Done | `src/lib/engine/` — BKT, scoring, planner, composer |
+| **E6** Curriculum + validator | ✅ Done | `src/lib/curriculum/` |
+| **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
+| **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
+| **E8** Submission + Evaluation | ⬜ **Next** | — |
+| **E9** Mastery map + progress | ⬜ Not started | — |
+| **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
+| **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
+| **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
+| **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
+
+**E8 is the next epic, and the plan is emphatic about why** (§24's own ordering
+note): if the schedule slips you cut SEO pages and free tools, *never* E5 or E8.
+E5 is done. E8 is the differentiator and the only major promise the product now
+makes that it cannot yet keep — `apply` blocks in a session say plainly that work
+cannot be handed in yet.
+
+## E7.5 — Generated packs (built between E7 and E8)
+
+Not an epic in the original plan, because §7.1 described the Generated tier as a
+property of the pack system rather than as work. It turned out to be the largest
+single piece after the engine, and E3's acceptance criterion ("a goal with no
+matching pack triggers Generated-pack creation") could not be met without it.
+
+**What it added, in dependency order:**
+
+1. `packs/read.ts` — reading a pack back out of the database. Nothing had ever
+   done this; `seedPack` had been write-only since pass 1. Without it a generated
+   pack has nowhere to live, because the production filesystem is read-only.
+2. `content/resolve.ts` — disk first, database second, and **only in `(app)`**.
+   Marketing stays synchronous and disk-backed because it is the SEO surface.
+3. `packs/generate/` — three calls: skill graph (deep tier), item bank
+   (standard, batched by area), rubrics and projects (standard).
+4. `goals/analyzer.ts` — §8 screen 3's conversation, replacing the form.
+5. `pack_build` + the Inngest `pack/generate.requested` function — authoring
+   takes about three minutes and cannot happen in a request.
+6. `admin/generated.ts` — the review queue and §7.1's promotion gate.
+
+**Numbers to plan against, measured rather than estimated:**
+
+| | |
+|---|---|
+| Cost per pack | **$0.61** (graph $0.14 · items ~$0.27 · rubrics $0.19) |
+| Wall time | **~190–200s**, of which the rubric author is ~120s |
+| Typical output | 14 skills · ~55 items · 3–5 rubrics · 3–5 projects |
+| Shared by | everyone who asks for that subject — the cost is per *subject* |
+
+**Rules enforced in code, which any later change must not quietly undo:**
+
+- A generated pack **may never claim §7.2 tier 1**. Tier 1 licenses "Verified:
+  this works" and is earned by executing the artefact; a pack with no evaluator
+  and no human review cannot. `MAX_GENERATED_TIER` in `generate/derive.ts` caps
+  it per workspace.
+- The skill graph is **acyclic by construction** — prerequisites may only name
+  skills listed earlier, and a forward reference is dropped.
+- Slugs, BKT priors, evaluation tiers and rubric weights are **computed, never
+  asked for**. They are what `validatePack` blocks on and what models are worst
+  at.
+- A later call never quotes a name back. Skills carry opaque references
+  (`s0`, `s1`) because a model told `- Name (level)` returns *"Name (level)"* as
+  the name, which cost two entire generations to find.
+- **No canonical fallback.** A subject nobody curated has nothing to fall back
+  to, so generation fails honestly rather than shipping a thin pack.
+
 ### E1 — Foundation (days 1–3)
 **Why:** everything else sits on it.
 **Build:** Next.js 15 App Router with the `(marketing)`/`(app)` split · Drizzle schema for all bold entities in §15 · Neon + migrations · Better Auth · Inngest wiring · PostHog + Sentry + Langfuse · CI (typecheck, lint, test, migrate) · Vercel preview deploys.
@@ -1747,7 +1873,7 @@ Ordered by dependency. Each epic: why it exists → inputs → outputs → depen
 **Dep:** E6.
 **Accept:** a 30-minute session renders in <3s to first token; ≤50% `explain` blocks enforced in code; every session opens with retrieval items; tutor context is cached (`cache_read_input_tokens > 0` asserted in tests).
 
-### E8 — Submission + Evaluation Agent (days 16–21) — **the differentiator**
+### E8 — Submission + Evaluation Agent (days 16–21) — **the differentiator** ⬅ **NEXT**
 **Why:** §14.5. This is the product.
 **In:** artefacts (repo URL / file / paste / image / audio), rubric.
 **Out:** `Evaluation` with per-criterion scores + evidence quotes + confidence; `MasteryUpdate` rows.
