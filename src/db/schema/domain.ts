@@ -121,7 +121,13 @@ export const learnerSkillMastery = pgTable(
     mastery: doublePrecision("mastery").notNull(),
     confidence: doublePrecision("confidence").notNull(),
     evidenceCount: integer("evidence_count").notNull().default(0),
-    lastObservedAt: timestamp("last_observed_at", { withTimezone: true }),
+    /**
+     * The last *correct* observation, which is the one decay counts from. Not
+     * the same as `lastPracticedAt` below: failing a retrieval is practice, and
+     * it must not reset the retention clock, or a learner could hold a skill up
+     * indefinitely by getting it wrong.
+     */
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     lastPracticedAt: timestamp("last_practiced_at", { withTimezone: true }),
     /** Starts at 7, doubles on each successful spaced retrieval, capped at 180. */
     decayHalfLifeDays: real("decay_half_life_days").notNull().default(7),

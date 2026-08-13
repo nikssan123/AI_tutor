@@ -46,6 +46,24 @@ export const MASTERY_TARGET = 0.85;
 /** §16.1 step 3 — the deadline override multiplier. */
 export const DEADLINE_CRITICALITY_MULTIPLIER = 2.0;
 
+/**
+ * Estimated hours still owed on a skill, discounted by how much of it the
+ * learner already has.
+ *
+ * Exported because two different surfaces quote a number of hours — the
+ * deadline check below, and the projection shown on the path screen (§8 screen
+ * 5, "an honest completion estimate"). Two formulas would eventually disagree
+ * in front of the learner, and the one on screen is the one they would believe.
+ */
+export function remainingHoursFor(
+  skill: EngineSkill,
+  effective: number,
+): number {
+  return (
+    skill.estimatedHours * (clamp(MASTERY_TARGET - effective) / MASTERY_TARGET)
+  );
+}
+
 /** How many recent sessions the momentum and interleaving terms consider. */
 export const MOMENTUM_WINDOW = 2;
 
@@ -342,9 +360,7 @@ export function isBehindSchedule(
   const remainingHours = eligibleIds.reduce((sum, id) => {
     const skill = ctx.skillsById.get(id);
     if (!skill) return sum;
-    const remaining =
-      clamp(MASTERY_TARGET - ctx.effectiveById.get(id)!) / MASTERY_TARGET;
-    return sum + skill.estimatedHours * remaining;
+    return sum + remainingHoursFor(skill, ctx.effectiveById.get(id)!);
   }, 0);
 
   return remainingHours > weeksAvailable * weeklyHours;

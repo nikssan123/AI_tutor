@@ -6,6 +6,7 @@ import {
   type DiagnosticSkill,
   type DiagnosticState,
 } from "@/lib/engine/diagnostic";
+import type { DomainPack } from "@/lib/packs/types";
 
 /**
  * Where a running Skill Check lives between requests.
@@ -88,6 +89,37 @@ export function decode(raw: string | undefined): CheckCookie {
   } catch {
     return { a: [] };
   }
+}
+
+/**
+ * A pack as the diagnostic engine wants it.
+ *
+ * Shared rather than inlined per caller: the check screen and goal intake both
+ * replay the same cookie, and if they built their inputs differently the answers
+ * a visitor gave before signing up would reconstruct into a *different* mastery
+ * state afterwards — silently, and in the direction nobody would check.
+ */
+export function toDiagnostic(pack: DomainPack): {
+  skills: DiagnosticSkill[];
+  items: DiagnosticItem[];
+} {
+  return {
+    skills: pack.skills.map((s) => ({
+      slug: s.slug,
+      name: s.name,
+      priors: s.bktPriors,
+    })),
+    items: pack.items.map((i) => ({
+      slug: i.slug,
+      skill: i.skill,
+      type: i.type,
+      difficulty: i.difficulty,
+      discrimination: i.discrimination,
+      prompt: i.prompt,
+      options: i.options,
+      answerKey: i.answerKey,
+    })),
+  };
 }
 
 /**

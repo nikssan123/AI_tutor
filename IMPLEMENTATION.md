@@ -486,3 +486,75 @@ else "Not assessed". Thin, and true.
 is wrong with the code; the packs need more `mcq` items, and §16.4's 2:1 ratio
 leaves room for roughly 39 before the constraint binds. That is authoring work,
 not engineering.
+
+---
+
+# Delivery record — pass 7: the signed-in loop
+
+Everything built so far worked for someone who had not signed up. A signed-in
+learner reached an empty `/today` and a note saying the planner existed. E5 was
+finished in pass 1 and had never once run against a real learner.
+
+This pass connects them, with **no LLM call anywhere in it**: goal → skill
+projection → seeded mastery → a planned session on `/today`.
+
+## What it is
+
+| Piece | Where | What it does |
+|---|---|---|
+| `GoalSpec`, `SkillProjection` | `src/lib/contracts/goal.ts` | §14.9.2's step contracts, as Zod |
+| Goal intake | `/start` + `src/lib/goals/intake.ts` | Form → `GoalSpec`, no model involved |
+| Skill projection | `src/lib/goals/projection.ts` | Pure: required / optional / skipped, with reasons |
+| Goal store | `src/lib/goals/store.ts` | The slug ↔ UUID seam, in exactly one place |
+| `/today` | `src/app/(app)/today/page.tsx` | The planner's real output, reason sentence and all |
+
+E3's remaining half is the Goal Analyzer — turning "I want to switch into data"
+into these fields. That needs the key. Everything the analyzer would *produce*
+now has a working consumer, which is the useful half to have built first.
+
+## Three things worth naming
+
+**The projection ignores the stated level.** The form asks where you're
+starting from because §8 screen 3 asks; §7.2 puts self-report at Tier 5, and
+Tier 5 never moves the record. So nothing in `projection.ts` reads it, and a
+test asserts a claimed expert is projected exactly like a claimed beginner. It
+would have been very easy to skip ahead on someone's own say-so and call it
+personalisation.
+
+**Exclusion requires evidence, not a high number.** A pack whose priors start a
+skill above 0.85 has said nothing about *this* learner, so that skill stays on
+the path. Only `evidenceCount > 0` and effective mastery over the bar takes it
+off, and the reason quotes the skill's own can-do statement rather than a score.
+
+**The anonymous check survives signup** (§24 E11) by being *replayed*, not
+copied. The cookie holds answers; mastery is recomputed through the same BKT.
+A forged cookie can therefore only claim which answers were given — and
+self-marked answers are Tier 5, which the engine refuses to let raise mastery.
+
+## Two defects found in existing code
+
+1. **`learner_skill_mastery` had no column for the field the decay model
+   reads.** It stored `last_observed_at`, which duplicates `last_practiced_at`;
+   the engine decays from `lastSuccessAt`, and that had nowhere to live. The
+   test covering the column even said "decay is measured from the last success,
+   not the last attempt" while asserting the wrong name. Renamed in migrations
+   0003/0004 — the column had never been written to.
+2. **Two formulas for remaining hours.** The deadline check computed one; the
+   path estimate was about to compute another. Extracted to
+   `remainingHoursFor`, because two hour counts that disagree would disagree in
+   front of the learner.
+
+Also extracted `toDiagnostic` so the check screen and goal intake build engine
+inputs identically — otherwise answers given before signup could reconstruct
+into a different mastery state afterwards, silently.
+
+## Verification
+
+1072 tests, 100% coverage on every file in this pass, `typecheck`, `lint`,
+`tokens:check`, `coverage:audit` and `packs:validate` all clean.
+
+## Still open
+
+The 80KB marketing JS budget. Every pack still `unreviewed`. And `/today` shows
+the session it would run rather than running it — the session runner is E7, and
+it needs the key.

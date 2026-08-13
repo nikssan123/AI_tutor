@@ -124,8 +124,14 @@ describe("learner_skill_mastery — 'the single most important table'", () => {
   it("records when the skill was last *successfully* demonstrated", () => {
     // Decay is measured from the last success, not the last attempt — practising
     // and failing does not reset the clock.
-    expect(columnNames(schema.learnerSkillMastery)).toContain("last_observed_at");
+    expect(columnNames(schema.learnerSkillMastery)).toContain("last_success_at");
     expect(columnNames(schema.learnerSkillMastery)).toContain("last_practiced_at");
+    // The two are genuinely different columns, and the engine reads the first
+    // one for decay. Storing only "last observed" would let a learner keep a
+    // skill alive by repeatedly getting it wrong.
+    expect(columnNames(schema.learnerSkillMastery)).not.toContain(
+      "last_observed_at",
+    );
   });
 });
 

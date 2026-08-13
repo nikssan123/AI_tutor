@@ -11,8 +11,6 @@ import {
   isComplete,
   selectNextItem,
   summarise,
-  type DiagnosticItem,
-  type DiagnosticSkill,
 } from "@/lib/engine/diagnostic";
 import {
   cookieName,
@@ -20,6 +18,7 @@ import {
   needsSelfMark,
   readableAnswerKey,
   replay,
+  toDiagnostic,
 } from "@/lib/check/session";
 import { startCheck, submitAnswer, submitSelfMark } from "./actions";
 import { canonical } from "@/lib/site";
@@ -56,23 +55,7 @@ function toEngine(topic: string) {
   const pack = findPack(topic);
   if (!pack) notFound();
 
-  const skills: DiagnosticSkill[] = pack.skills.map((s) => ({
-    slug: s.slug,
-    name: s.name,
-    priors: s.bktPriors,
-  }));
-  const items: DiagnosticItem[] = pack.items.map((i) => ({
-    slug: i.slug,
-    skill: i.skill,
-    type: i.type,
-    difficulty: i.difficulty,
-    discrimination: i.discrimination,
-    prompt: i.prompt,
-    options: i.options,
-    answerKey: i.answerKey,
-  }));
-
-  return { pack, skills, items };
+  return { pack, ...toDiagnostic(pack) };
 }
 
 /* ── Screens ────────────────────────────────────────────────────────────── */

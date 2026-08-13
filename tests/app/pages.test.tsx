@@ -79,30 +79,10 @@ describe("(app) layout — §13.1's structural noindex", () => {
  * asserted there against SiteFooter rather than against the page.
  */
 
-describe("/today — the retention surface (§8 screen 6)", () => {
-  it("redirects an unauthenticated visitor to sign in", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { default: TodayPage } = await import("@/app/(app)/today/page");
-    await expect(TodayPage()).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirectMock).toHaveBeenCalledWith("/sign-in");
-  });
-
-  it("shows one primary card and nothing else (§8.5.1 density rule)", async () => {
-    getSessionMock.mockResolvedValue({ user: { email: "a@b.co" } });
-    const { default: TodayPage } = await import("@/app/(app)/today/page");
-    render(await TodayPage());
-
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Today");
-    // No feed, no browse: §8 screen 6 allows exactly one primary card.
-    expect(screen.queryAllByRole("list")).toHaveLength(0);
-    expect(screen.getByText(/don't have a goal yet/i)).toBeDefined();
-  });
-
-  it("is noindexed in its own right as well as by the layout", async () => {
-    const { metadata } = await import("@/app/(app)/today/page");
-    expect(metadata.robots).toEqual({ index: false, follow: false });
-  });
-});
+/*
+ * /today moved to its own suite — tests/app/today.test.tsx — once it started
+ * planning against a real goal and needed the database stubbed for it.
+ */
 
 describe("/design — the drift guard (§8.5.8)", () => {
   it("renders the full component vocabulary on one page", async () => {

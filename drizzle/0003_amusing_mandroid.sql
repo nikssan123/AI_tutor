@@ -1,0 +1,1 @@
+ALTER TABLE "learner_skill_mastery" ADD COLUMN "last_success_at" timestamp with time zone;

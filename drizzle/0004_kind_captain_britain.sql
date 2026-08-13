@@ -1,0 +1,1 @@
+ALTER TABLE "learner_skill_mastery" DROP COLUMN "last_observed_at";
