@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { todayFor } from "@/lib/goals/today";
+import { loadIntake } from "@/lib/goals/intake-store";
+import { resumableIntake } from "@/lib/goals/onboarding";
+import { coursesFor, pickUpAgain } from "@/lib/goals/courses";
+import { answeredTopics } from "@/lib/check/session";
+import { allTopics } from "@/lib/content";
 import { SubjectIcon } from "@/components/icons";
+import { SubjectList } from "@/components/subject-list";
+import { CourseList } from "@/components/course-list";
 import {
   Button,
   ButtonLink,
@@ -40,6 +47,16 @@ export const metadata: Metadata = {
 /** Minutes offered by "I have less time". */
 const SHORTER = 15;
 
+/**
+ * How many subjects the no-goal screen shows before sending you to `/subjects`.
+ *
+ * Four rather than the whole catalogue, because §8.5.1's density rule counts
+ * this band as one thing only while it stays a sample. A full list here would
+ * make `/today` a browse screen, which is the one thing §8 screen 6 says it must
+ * never be.
+ */
+const PREVIEW = 4;
+
 const BLOCK_LABEL: Record<SessionBlock["type"], string> = {
   explain: "Read",
   check: "Recall",
@@ -65,6 +82,125 @@ function blockDetail(block: SessionBlock, names: Map<string, string>): string {
   }
 }
 
+/**
+ * `/today` with no course running.
+ *
+ * It used to be one card saying "You don't have a goal yet" with one button —
+ * and the same card, in the same words, was also the whole of `/calendar`,
+ * `/mastery` and `/progress`. Four destinations, one dead end, four times. This
+ * is the screen that owes the learner something instead, and it owes them
+ * exactly three things in §8.5.1's budget: what they already started, what they
+ * could start, and how to find out where they stand first.
+ *
+ * "Nothing running" rather than "no goal yet" is deliberate: `todayFor` also
+ * returns nothing when a goal outlives the pack it was created against, and
+ * telling that learner they never set a goal is false.
+ */
+async function nothingRunningYet(userId: string) {
+  const topics = allTopics();
+  const db = getDb();
+  const [intake, courses, jar] = await Promise.all([
+    loadIntake(db, userId),
+    coursesFor(db, userId),
+    cookies(),
+  ]);
+
+  const resume = resumableIntake(intake);
+  const again = pickUpAgain(courses);
+  const checked = answeredTopics(
+    topics.map((t) => t.slug),
+    (name) => jar.get(name)?.value,
+  );
+
+  return (
+    <AppFrame>
+      <AppHeader
+        title="Today"
+        lead="One thing at a time, chosen for you — once there is a course to choose from."
+      />
+
+      {/*
+       * The primary card, and the only filled button on the screen (§8.5.5). A
+       * conversation someone walked away from is a better offer than a fresh
+       * one, so when there is one it takes this slot rather than sitting below
+       * the invitation to start again.
+       */}
+      <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
+        {resume ? (
+          <>
+            <Title>
+              {resume.ready
+                ? "Your course is ready to build"
+                : "You were partway through"}
+            </Title>
+            <Lead>
+              {resume.subject
+                ? `We were talking about ${resume.subject}.`
+                : "We were working out what you wanted."}{" "}
+              {resume.ready
+                ? "Nothing more to answer — it just needs building."
+                : `${resume.turns} of ${resume.ofTurns} questions answered.`}
+            </Lead>
+            <ButtonLink href="/start">
+              {resume.ready ? "Build it" : "Carry on"}
+            </ButtonLink>
+          </>
+        ) : (
+          <>
+            <Title>Pick something to get good at</Title>
+            <Lead>
+              Tell us in your own words and we&rsquo;ll work out what to do
+              first — and what to skip because you can already do it. If we
+              don&rsquo;t cover it yet, we&rsquo;ll build it.
+            </Lead>
+            <ButtonLink href="/start">Tell us what you want</ButtonLink>
+          </>
+        )}
+      </Card>
+
+      {/*
+       * A course put aside beats anything on the catalogue: the learner has
+       * already chosen it, already has mastery behind it, and the queue kept
+       * running while it was away. Kept as its own band rather than competing
+       * with the primary card, so both offers survive.
+       */}
+      {again.length > 0 ? (
+        <section className="rise flex flex-col gap-6" style={stagger(2)}>
+          <SectionHead label="You have these already" title="Pick one back up" />
+          <CourseList courses={again} />
+          <Meta>
+            Everything you proved on these is still yours — picking one up puts
+            it back on your Today.
+          </Meta>
+        </section>
+      ) : null}
+
+      <section className="rise flex flex-col gap-6" style={stagger(3)}>
+        <SectionHead
+          label="Or look around"
+          title="Subjects we cover"
+          action={
+            <Link
+              href="/subjects"
+              className="font-[550] text-accent underline-offset-4 hover:underline"
+            >
+              See everything
+            </Link>
+          }
+        />
+
+        <Lead>
+          Not sure where you&rsquo;d start? A ten-minute check finds your gaps
+          before you commit to anything, and whatever you answer comes with you
+          into the course.
+        </Lead>
+
+        <SubjectList topics={topics.slice(0, PREVIEW)} checked={checked} />
+      </section>
+    </AppFrame>
+  );
+}
+
 type Props = { searchParams: Promise<{ minutes?: string }> };
 
 export default async function TodayPage({ searchParams }: Props) {
@@ -78,22 +214,10 @@ export default async function TodayPage({ searchParams }: Props) {
       Number.isFinite(requested) && requested > 0 ? requested : undefined,
   });
 
-  if (!view) {
-    return (
-      <AppFrame width="narrow">
-        <AppHeader
-          title="Today"
-          lead="One thing at a time, chosen for you. Nothing here until there is a goal to choose from."
-        />
-        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-          <EmptyState
-            message="You don't have a goal yet. Once you do, this is where the one thing worth doing today will be."
-            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
-          />
-        </Card>
-      </AppFrame>
-    );
-  }
+  // Awaited rather than rendered as an element: an async component nested in a
+  // returned tree is resolved by the RSC renderer, which means the page's own
+  // tests would be asserting against a promise.
+  if (!view) return nothingRunningYet(session.user.id);
 
   const { pack, projection, session: planned, skillNames, openSessionId } = view;
 

@@ -117,12 +117,20 @@ describe("before there is anything to date", () => {
     );
   });
 
-  it("offers to set a goal rather than showing an empty month", async () => {
+  it("says what this screen will hold rather than only what is missing", async () => {
     calendarForMock.mockResolvedValue(undefined);
     render(await CalendarPage({ searchParams: search() }));
 
-    expect(screen.getByText(/don't have a goal yet/i)).toBeDefined();
-    expect(screen.getByText("Set a goal")).toBeDefined();
+    expect(screen.getByText(/everything owed and everything already done/i)).toBeDefined();
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /** See the same test on `/mastery`: nothing here can tell the two apart. */
+  it("does not claim the learner has no goal, which it cannot know", async () => {
+    calendarForMock.mockResolvedValue(undefined);
+    render(await CalendarPage({ searchParams: search() }));
+
+    expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {

@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { allTopics } from "@/lib/content";
-import { cookieName, decode } from "@/lib/check/session";
+import { answeredTopics } from "@/lib/check/session";
 import { SubjectIcon } from "@/components/icons";
 import {
   Button,
@@ -58,11 +58,11 @@ export default async function StartPage({ searchParams }: Props) {
   const jar = await cookies();
 
   // A visitor who took a check before signing up should see that it counted for
-  // something, on the screen where it starts counting (§24 E11).
-  const answered = new Set(
-    topics
-      .filter((t) => decode(jar.get(cookieName(t.slug))?.value).a.length > 0)
-      .map((t) => t.slug),
+  // something, on the screen where it starts counting (§24 E11). Shared with
+  // `/subjects` and the no-goal `/today`, which make the same promise.
+  const answered = answeredTopics(
+    topics.map((t) => t.slug),
+    (name) => jar.get(name)?.value,
   );
 
   const input =

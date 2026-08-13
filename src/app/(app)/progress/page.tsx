@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { digestFor } from "@/lib/mastery/view";
+import { coursesFor } from "@/lib/goals/courses";
+import { CourseList } from "@/components/course-list";
 import {
   ButtonLink,
   Card,
@@ -48,7 +50,33 @@ export default async function ProgressPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const view = await digestFor(getDb(), session.user.id, new Date());
+  const db = getDb();
+  const [view, courses] = await Promise.all([
+    digestFor(db, session.user.id, new Date()),
+    coursesFor(db, session.user.id),
+  ]);
+
+  /*
+   * The courses band, on both branches of this screen.
+   *
+   * It has to be on both: a learner who paused everything has no digest, and if
+   * the list lived only under one there would be no way back to a course they
+   * put aside. This is the one place in the product where a course is started,
+   * stopped or picked up, which is deliberate — the same three buttons on three
+   * screens would drift, and two of the three actions are hard to walk back.
+   */
+  const yourCourses =
+    courses.length > 0 ? (
+      <section className="rise flex flex-col gap-6" style={stagger(4)}>
+        <SectionHead label="Your courses" title="What you have on" />
+        <CourseList courses={courses} />
+        <Meta>
+          Putting a course aside keeps everything you proved on it. Finishing one
+          isn&rsquo;t something you can press — it happens when every skill on the
+          path has work behind it.
+        </Meta>
+      </section>
+    ) : null;
 
   if (!view) {
     return (
@@ -57,12 +85,17 @@ export default async function ProgressPage() {
           title="Your week"
           lead="Every seven days, an honest read on the pace you are actually keeping."
         />
+        {/* Named for what this screen will hold rather than for what is
+            missing, and pointed at the one door that now leads somewhere.
+            "No course running" rather than "no goal yet" because `digestFor`
+            also returns nothing when a goal outlives its subject. */}
         <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
           <EmptyState
-            message="You don't have a goal yet. Once you do, this is where each week gets an honest read."
-            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
+            message="No course running, so there is no week to read yet. Once one is, this is where the hours you kept get set against the hours you meant to."
+            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
           />
         </Card>
+        {yourCourses}
       </AppFrame>
     );
   }
@@ -193,6 +226,8 @@ export default async function ProgressPage() {
           )}
         </Card>
       </section>
+
+      {yourCourses}
     </AppFrame>
   );
 }

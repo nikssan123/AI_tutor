@@ -31,8 +31,14 @@ and the loop has been run end to end; what remains is the hand-graded corpus its
 acceptance criteria need. **E9 — the mastery ledger and the weekly digest — is
 in too**, which means the loop now closes: work is set, marked, and the verdict
 lands somewhere a learner can point at. **`/calendar` (§8 screen 14) is in**, and
-with it the accountability half of §2.4. **E10 is the next epic to build**, and
-from here the remaining work is acquisition and money rather than product.
+with it the accountability half of §2.4. **`/subjects` (§8 screen 15) is in**,
+and with it the state every earlier screen had skipped: the signed-in learner
+with no course running, who used to meet the same dead-end card on four
+destinations (§8 screen 6a). **E10 is the next epic to build**, and from here the
+remaining work is acquisition and money rather than product. **A course can now
+end** — pause, stop, swap, and a `achieved` that is earned rather than pressed
+(§8 screen 11a) — which also makes *between courses* a state a learner can
+actually be in.
 
 `IMPLEMENTATION.md` is the per-pass record, including the things that only
 showed up against the real API. Read the "Still open" section at the end of the
@@ -503,6 +509,36 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
   is expressed per week either way, and a calendar week shows an empty digest
   every Monday morning.
 
+### 11a. The goal lifecycle — on `/progress`, and nowhere else
+- **Purpose:** let a course end. `learning_goal.status` declared `active | paused | achieved | abandoned` from §15 onwards and nothing ever wrote anything but `active`, so a learner could start a course and then never finish, pause, stop or swap it. §11's screen is the right home: the one that tells you the pace you are actually keeping is exactly where *put this aside* belongs.
+- **One place, deliberately.** Starting, stopping and picking up all live here. `/today` and `/subjects` list courses to pick back up but never offer the destructive two. Three screens wording these differently would be a hazard, not untidiness — two of the three are hard for a learner to walk back.
+- **`achieved` is not the learner's to set, and there is no button for it anywhere.** §3's table criticises roadmap.sh for progress that is self-declared; a "mark this course complete" control is that same self-declaration one level up, claiming a whole course rather than one skill, on no evidence at all. It is written by `markAchievedIfComplete` after a marked hand-in and at no other time — that being the only event that can add a skill to the ledger's claims.
+- **One course at a time; any number over time.** This is the answer to the question `activeGoal`'s own comment deferred. §8 screen 6 shows one card and §17 scopes the MVP to a single active goal, and both still hold. The change is that "newest active row wins" stops being a tiebreak and becomes an invariant: `pauseOthers` runs in the same transaction as anything that could create a second active row, so two never coexist.
+- **Making room is not a verdict.** Starting or resuming a course *pauses* the one that was running rather than abandoning it. The learner never said the old one was a mistake, and paused is the status they can come back from without the product having decided for them.
+- **Putting a course away keeps everything proved on it.** `learner_skill_mastery` and `retrieval_queue_item` are keyed per learner per skill and were never the goal's to begin with.
+
+> **What building it changed, and it is not a small one.**
+>
+> The first cut asked *"is every **required** skill claimed?"* — and that
+> question can never be answered yes. `projectSkills` drops a skill from
+> `requiredSkillIds` at `MASTERY_TARGET`, which is the **same bar**
+> `buildLedger` claims it at, so the two sets are disjoint by construction. A
+> finished course has an *empty* required list — and so does a learner who aced
+> the diagnostic and has handed in nothing, so the remainder cannot tell those
+> two apart at all.
+>
+> The question has to be asked of the set that does not move: **every
+> non-optional skill the course covers** (`courseSkillIds`), all of them
+> claimed. That distinguishes the two cases exactly, and on the right grounds —
+> the ace-the-diagnostic learner's skills were skipped on the strength of
+> *answers*, and §4.2 law 1 says answers are not evidence.
+>
+> **And it is recorded, not derived.** Derived from `effectiveMastery` it would
+> read the decay curve, so a course finished in March and untouched until June
+> would quietly un-finish itself. Decay is an honest statement about what a
+> claim is worth *today* — which is what §8 screen 10 shows and what `/calendar`
+> dates. It is not a statement that the work was never done.
+
 ### 12. Proof Page (public/shareable) — `/p/{handle}/{slug}`
 - **Purpose:** the growth loop, and the artefact people actually want.
 - **UI:** goal, duration, hours invested, skill list with evidence, projects with rubric scores, timeline. Owner controls: private (default) · unlisted link · public. Public pages are **`noindex` until they pass the quality gate** (§12): ≥3 evaluated artefacts, ≥1 completed project, non-trivial written reflection.
@@ -522,6 +558,21 @@ Weekly hours, deadlines, notification cadence and channel, privacy defaults, dat
 - **AI:** none, at any point. Every date is arithmetic over rows another part of the product wrote.
 - **Nothing here is a new source of truth.** The lapse dates ask `effectiveMastery` rather than solving the decay curve; the remaining hours come from the `remainingHoursFor` the path screen quotes; the pace actually kept is the same rolling seven days `/progress` prices its second estimate at. A fourth screen with its own opinion about any of those would eventually contradict the other three in front of the same learner.
 - **Days are UTC days**, keyed by the `YYYY-MM-DD` the planner already writes. Fixing the learner who works either side of UTC midnight needs a timezone §15 does not yet store.
+
+### 15. Subjects — `/subjects` — *not in the original list*
+- **Purpose:** the door in, for the learner who has signed up and has no course. Until this screen there was exactly one: `/start`, a six-turn conversation. That is the right door for someone who knows what they want and a commitment interview for someone looking around, and the four destinations behind it — `/today`, `/calendar`, `/mastery`, `/progress` — all rendered the *same card in the same words*: "You don't have a goal yet", one button. Four dead ends, one of them repeated four times.
+- **UI:** every subject, one row each: what it covers, how many hours, §7.1's maturity badge, and both offers — take the ten-minute check, or start here. Below the list, the honest bit: the catalogue is not the limit, and a subject nobody has written is one sentence away (§7.1's Generated tier).
+- **This is not a browse surface, and §8.5.1 still forbids one.** It is not in the nav, and nothing links to it once a course is running. It is the entrance, and it closes behind you.
+- **Data:** `allTopics()` — the same static content the marketing catalogue reads. **AI:** none, at any point.
+- **Why the badge matters more here than anywhere else.** §7.1 says depth is declared, not faked. Every other screen shows the badge for a pack the learner already committed to. This is the one screen where the declaration is *load-bearing*, because it is where the choice is made, and part of that choice is between a subject a person wrote and one a machine did.
+
+### 6a. Today, with no course running — the state screen 6 never described
+- Screen 6 answers "what do I do now" for a learner who has a course. The learner who does not got "nothing", and got it four times over. What that learner is owed is the same thing screen 6 owes everyone else: one obvious next action.
+- **Three things, in §8.5.1's budget:** what they already started · what they could start · how to find out where they stand first.
+- **An abandoned conversation outranks a fresh invitation.** `goal_intake` has always persisted a conversation walked away from mid-question, and nothing anywhere told the learner it was still there — the row was written, kept, and never mentioned. It now takes the primary card, and it distinguishes two offers that are not the same: *carry on answering* (3 of 6), and *we have everything, it just needs building*. The second is much the better thing to have walked away from, and it was indistinguishable from the first.
+- **The subject sample is a sample and is pinned as one.** Four rows and a link out. A full catalogue here would make `/today` the browse screen screen 6 exists to refuse.
+- **"No course running", never "you don't have a goal yet."** All four screens assert absence from the same `undefined`, and that `undefined` has two causes: no goal, and *a goal whose pack no longer resolves* (a deployment event — see the note in `today.ts`). The old copy told the second learner they had never set a goal, which is false. The new copy is true in both cases, which is cheaper than a discriminated union and honest either way.
+- **The three secondary screens stop repeating the front door.** Each now names what *it* will hold — the ledger with its links, the week against the week you meant, everything with a date on it — and points at `/subjects`. Four identical cards were not a copy problem; they were four screens with nothing to say.
 
 ---
 
@@ -1849,6 +1900,8 @@ before picking the next thing up.**
 | **E8** Submission + Evaluation | 🟡 **Built, not accepted** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; κ and band-stability criteria still unmet |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
+| **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
+| **E9.7** Goal lifecycle | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts` — §8 screen 11a |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
@@ -1868,6 +1921,29 @@ actually kept. Everything E1–E9 promised a learner is now reachable in a brows
 **E10 — the SEO infrastructure — is the next epic to build**, and the ones after
 it (E11 free tools, E12 content, E13 billing) are acquisition and money rather
 than product.
+
+**E9.6 fixed the state nobody had designed.** Every screen in E1–E9.5 was built
+for a learner with a course running. The learner without one — which is every
+learner for the length of their first session, and every learner who signs up
+and looks around before committing — met the same card on four destinations.
+The fix was mostly not new features: `goal_intake` rows were already persisting
+an abandoned conversation nothing ever mentioned, and the check answers §24 E11
+carries into a course had no signed-in surface to be taken on. §8 screen 6a has
+the reasoning; the one genuinely new thing is `/subjects` (screen 15).
+
+**E9.7 made a course something that can end.** `learning_goal.status` had
+declared `active | paused | achieved | abandoned` since §15 and nothing had ever
+written anything but `active`. See §8 screen 11a for the shape and for the one
+rule that decided the design — that `achieved` is not the learner's to set.
+
+`activeGoal`'s deferred question — "multiple concurrent goals are a real product
+question and this is the answer until that question is asked properly" — is now
+answered, and the answer is **one course at a time, any number of courses over
+time.** §8 screen 6 shows one card and §17 scopes the MVP to a single active
+goal; both stay true. What changes is that "the newest active row wins" stops
+being a tiebreak and becomes an invariant: `pauseOthers` runs inside the same
+transaction as any write that could produce a second active row, so there is
+never a moment when two exist for one learner.
 
 **E9.5 gave the fourth answer in §2.4 a screen.** "It holds you accountable"
 names scheduled commitments, streaks, overdue work and spaced retrieval; all

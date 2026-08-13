@@ -38,6 +38,25 @@ function isOptional(skill: EngineSkill): boolean {
   return skill.level === "specialist";
 }
 
+/**
+ * Every skill this course is *for* — the whole non-optional set, not the part
+ * still to do.
+ *
+ * `requiredSkillIds` answers "what is left", and shrinks as a learner proves
+ * things: a skill leaves it at `MASTERY_TARGET`, which is the same bar the
+ * ledger claims it at. So "every required skill is claimed" is a question that
+ * can never be answered yes — the two sets are disjoint by construction, and a
+ * finished course has an *empty* required list, which is also what a learner who
+ * aced the diagnostic has.
+ *
+ * This is the set that does not move, so it is the one a finished course can be
+ * measured against. Exported for `isAchieved`, which is the only caller that
+ * needs the course rather than the remainder.
+ */
+export function courseSkillIds(graph: EngineSkillGraph): string[] {
+  return graph.skills.filter((s) => !isOptional(s)).map((s) => s.id);
+}
+
 /** "Write a SQL query…" → "write a SQL query…", for mid-sentence use. */
 function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);

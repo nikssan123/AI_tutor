@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answeredTopics,
   COOKIE_PREFIX,
   cookieName,
   decode,
@@ -51,6 +52,44 @@ describe("cookieName", () => {
 
   it("strips anything that is not a slug, so a path cannot be injected", () => {
     expect(cookieName("../../evil; Path=/")).toBe(`${COOKIE_PREFIX}evilPath`);
+  });
+});
+
+/**
+ * Three screens promise "your check comes with you" — the goal form, the
+ * catalogue and the no-goal `/today`. They share this so the promise cannot
+ * appear on one and not another for the same visitor.
+ */
+describe("answeredTopics", () => {
+  const jar = (entries: Record<string, string>) => (name: string) =>
+    entries[name];
+
+  it("names the subjects with answers in them", () => {
+    const read = jar({
+      [cookieName("photography")]: encode({ s: 1, a: [{ i: "closed", c: 1 }] }),
+    });
+    expect(answeredTopics(["photography", "sql"], read)).toEqual(
+      new Set(["photography"]),
+    );
+  });
+
+  it("ignores a subject the visitor has no cookie for", () => {
+    expect(answeredTopics(["photography"], () => undefined).size).toBe(0);
+  });
+
+  /**
+   * Pressing Start writes the cookie before a single question is answered.
+   * Promising that check "comes with you" would be promising nothing, and
+   * `masteryFromCheck` would carry exactly nothing across to prove it.
+   */
+  it("does not count a check that was started but never answered", () => {
+    const read = jar({ [cookieName("photography")]: encode({ s: 1, a: [] }) });
+    expect(answeredTopics(["photography"], read).size).toBe(0);
+  });
+
+  it("treats a tampered cookie as no answers rather than throwing", () => {
+    const read = jar({ [cookieName("photography")]: "not-base64-json" });
+    expect(answeredTopics(["photography"], read).size).toBe(0);
   });
 });
 

@@ -1,18 +1,28 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createClient } from "@/db";
-import { learnerSkillMastery, user } from "@/db/schema";
+import {
+  evaluation,
+  learnerSkillMastery,
+  masteryUpdate,
+  submission,
+  user,
+} from "@/db/schema";
 import { findPack } from "@/lib/content";
 import { loadPack } from "@/lib/packs/loader";
 import { seedPack } from "@/lib/packs/seed";
-import { skillId } from "@/lib/packs/ids";
+import { rubricId, skillId } from "@/lib/packs/ids";
 import {
   activeGoal,
   createGoal,
   DEFAULT_SESSION_MINUTES,
+  goalsFor,
   masteryFor,
   sessionMinutesFor,
+  setGoalStatus,
 } from "@/lib/goals/store";
+import { markAchievedIfComplete } from "@/lib/goals/achievement";
+import { coursesFor } from "@/lib/goals/courses";
 import { todayFor } from "@/lib/goals/today";
 import type { GoalSpec } from "@/lib/contracts/goal";
 import type { MasteryState } from "@/lib/engine";
@@ -261,6 +271,61 @@ live("todayFor — assembling what /today plans against", () => {
     await close();
   });
 
+  /**
+   * A marked hand-in behind every skill in the pack, which is what the ledger
+   * requires before it will claim one (§24 E9 — "every capability statement
+   * links to the artefact that proves it").
+   *
+   * Written as rows rather than by running the grader: what is under test is
+   * whether the course notices it is finished, and driving Opus through fifty
+   * submissions to find out would be a slow way to ask.
+   */
+  async function proveEverySkill(userId: string): Promise<void> {
+    for (const skill of pack.skills) {
+      const submissionId = crypto.randomUUID();
+      const evaluationId = crypto.randomUUID();
+
+      await db.insert(submission).values({
+        id: submissionId,
+        userId,
+        projectId: null,
+        exerciseId: null,
+        status: "complete",
+        submittedAt: NOW,
+      });
+      await db.insert(evaluation).values({
+        id: evaluationId,
+        submissionId,
+        rubricId: rubricId(PACK, pack.rubrics[0]!.slug),
+        rubricVersion: 1,
+        overallScore: 0.9,
+        confidence: 0.9,
+        evalTier: 1,
+        criterionResults: [],
+        strengths: [],
+        gaps: [],
+        nextActions: [],
+        modelUsed: "test",
+        promptVersion: "1",
+        verifierPassed: true,
+        humanReviewed: false,
+        createdAt: NOW,
+      });
+      await db.insert(masteryUpdate).values({
+        userId,
+        skillId: skillId(PACK, skill.slug),
+        evaluationId,
+        priorMastery: 0.5,
+        posteriorMastery: 0.99,
+        delta: 0.49,
+        observationConfidence: 0.9,
+        evidenceTier: 1,
+        reason: "test fixture",
+        createdAt: NOW,
+      });
+    }
+  }
+
   it("returns nothing at all until a goal exists", async () => {
     expect(await todayFor(db, await newUser(), NOW)).toBeUndefined();
   });
@@ -357,5 +422,292 @@ live("todayFor — assembling what /today plans against", () => {
     });
 
     expect(await todayFor(db, userId, NOW)).toBeUndefined();
+  });
+
+  /* ── The lifecycle ──────────────────────────────────────────────────────── */
+
+  describe("one course runs at a time", () => {
+    it("puts the running course aside when a second is started", async () => {
+      const userId = await newUser();
+      const firstGoal = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+      const secondGoal = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec({ rawGoal: "the second one" }),
+        mastery: [],
+        now: new Date("2026-08-14T09:00:00.000Z"),
+      });
+
+      // Not "the newest of two active rows wins" — the older one is genuinely
+      // moved, so there is exactly one active row to win.
+      const goals = await goalsFor(db, userId);
+      expect(goals.find((g) => g.id === firstGoal)?.status).toBe("paused");
+      expect(goals.find((g) => g.id === secondGoal)?.status).toBe("active");
+      expect(goals.filter((g) => g.status === "active")).toHaveLength(1);
+    });
+
+    it("puts the running course aside when another is picked up", async () => {
+      const userId = await newUser();
+      const firstGoal = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+      const secondGoal = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec({ rawGoal: "the second one" }),
+        mastery: [],
+        now: new Date("2026-08-14T09:00:00.000Z"),
+      });
+
+      expect(await setGoalStatus(db, userId, firstGoal, "active")).toBe(true);
+
+      expect((await activeGoal(db, userId))?.id).toBe(firstGoal);
+      const goals = await goalsFor(db, userId);
+      expect(goals.find((g) => g.id === secondGoal)?.status).toBe("paused");
+      expect(goals.filter((g) => g.status === "active")).toHaveLength(1);
+    });
+  });
+
+  describe("putting a course away", () => {
+    it("leaves nothing running, and leaves the course to come back to", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [state(pack.skills[0]!.slug)],
+        now: NOW,
+      });
+
+      expect(await setGoalStatus(db, userId, goalId, "paused")).toBe(true);
+      expect(await activeGoal(db, userId)).toBeUndefined();
+
+      const [course] = await goalsFor(db, userId);
+      expect(course?.status).toBe("paused");
+    });
+
+    /** The rows are keyed per learner per skill; they were never the goal's. */
+    it("keeps the mastery the learner earned on it", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [state(pack.skills[0]!.slug)],
+        now: NOW,
+      });
+
+      await setGoalStatus(db, userId, goalId, "abandoned");
+      expect(await masteryFor(db, userId, PACK)).toHaveLength(1);
+    });
+
+    it("refuses to move a course that is not this learner's", async () => {
+      const owner = await newUser();
+      const stranger = await newUser();
+      const goalId = await createGoal(db, {
+        userId: owner,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      expect(await setGoalStatus(db, stranger, goalId, "abandoned")).toBe(false);
+      expect((await activeGoal(db, owner))?.id).toBe(goalId);
+    });
+  });
+
+  describe("listing a learner's courses", () => {
+    it("names them in the pack's own words", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      expect(await coursesFor(db, userId)).toEqual([
+        {
+          goalId: expect.any(String),
+          name: pack.name,
+          taxonomyParent: pack.taxonomyParent,
+          status: "active",
+        },
+      ]);
+    });
+
+    it("drops a course whose spec no longer parses", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+      await db.execute(
+        `update learning_goal set goal_spec = '{"rawGoal":"broken"}'::jsonb where user_id = '${userId}'`,
+      );
+
+      expect(await goalsFor(db, userId)).toEqual([]);
+    });
+
+    /**
+     * A status the column holds but the product does not know. Guessing
+     * "active" would put a course back in front of a learner who had put it
+     * away, so the row is dropped rather than defaulted.
+     */
+    it("drops a course whose status the product does not recognise", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+      await db.execute(
+        `update learning_goal set status = 'archived' where user_id = '${userId}'`,
+      );
+
+      expect(await goalsFor(db, userId)).toEqual([]);
+    });
+
+    /** There is no honest row to draw for a course nobody can name. */
+    it("drops a course whose pack has left the build", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec({ domain: "a-pack-that-was-deleted" }),
+        mastery: [],
+        now: NOW,
+      });
+
+      // The goal row is readable — its pack is still joined — but the pack
+      // behind the *spec* is gone, so there is no name for it.
+      expect(await goalsFor(db, userId)).toHaveLength(1);
+      expect(await coursesFor(db, userId)).toEqual([]);
+    });
+  });
+
+  /**
+   * §4.2 law 1 at course scale. `markAchievedIfComplete` runs after every marked
+   * hand-in, and the overwhelmingly common answer is "not yet".
+   */
+  describe("finishing a course", () => {
+    it("does not finish one with work still to prove", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      expect(await markAchievedIfComplete(db, userId, pack, NOW)).toBe(false);
+      expect((await goalsFor(db, userId))[0]?.status).toBe("active");
+    });
+
+    it("does not finish a course that is not the one running", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+      await setGoalStatus(db, userId, goalId, "paused");
+
+      expect(await markAchievedIfComplete(db, userId, pack, NOW)).toBe(false);
+    });
+
+    it("does nothing at all for a learner with no course running", async () => {
+      expect(
+        await markAchievedIfComplete(db, await newUser(), pack, NOW),
+      ).toBe(false);
+    });
+
+    /**
+     * The one that matters, and the one the first draft of this got wrong.
+     *
+     * Mastery above the bar on every skill empties `requiredSkillIds` — which
+     * is what a learner who aced the diagnostic looks like too. Nothing has
+     * been handed in, so nothing is claimed, so the course is not finished.
+     * §4.2 law 1: answers are not evidence.
+     */
+    it("does not finish a course nothing has been handed in on", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: pack.skills.map((s) => state(s.slug, { mastery: 0.99 })),
+        now: NOW,
+      });
+
+      expect(await markAchievedIfComplete(db, userId, pack, NOW)).toBe(false);
+      expect((await goalsFor(db, userId))[0]?.status).toBe("active");
+    });
+
+    it("finishes a course once every skill on it has marked work behind it", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: pack.skills.map((s) => state(s.slug, { mastery: 0.99 })),
+        now: NOW,
+      });
+
+      // The evidence the ledger insists on: a marked hand-in per skill. The
+      // claim is what makes this different from the test above, which has
+      // identical mastery and no artefacts.
+      await proveEverySkill(userId);
+
+      expect(await markAchievedIfComplete(db, userId, pack, NOW)).toBe(true);
+      expect((await goalsFor(db, userId))[0]?.status).toBe("achieved");
+      // Finishing takes it out of the running, so `/today` stops planning it.
+      expect(await activeGoal(db, userId)).toBeUndefined();
+      void goalId;
+    });
+
+    /**
+     * Recorded rather than derived. Derived from `effectiveMastery`, a course
+     * finished in March and untouched until June would quietly un-finish
+     * itself — decay is honest about what a claim is worth today, not a claim
+     * that the work was never done.
+     */
+    it("stays finished once it is", async () => {
+      const userId = await newUser();
+      await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: pack.skills.map((s) => state(s.slug, { mastery: 0.99 })),
+        now: NOW,
+      });
+      await proveEverySkill(userId);
+      await markAchievedIfComplete(db, userId, pack, NOW);
+
+      // A year later, every claim long since decayed below the bar.
+      const later = new Date("2027-08-13T09:00:00.000Z");
+      expect(await markAchievedIfComplete(db, userId, pack, later)).toBe(false);
+      expect((await goalsFor(db, userId))[0]?.status).toBe("achieved");
+    });
   });
 });

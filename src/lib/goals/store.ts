@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import type { Db } from "@/db";
 import {
   learnerProfile,
@@ -9,6 +9,7 @@ import {
 import { packId, skillId } from "@/lib/packs/ids";
 import { GoalSpec } from "@/lib/contracts/goal";
 import type { MasteryState } from "@/lib/engine";
+import { isGoalStatus, type GoalStatus } from "./lifecycle";
 
 /**
  * Persistence for a learner's goal and their mastery state.
@@ -47,6 +48,35 @@ function toIso(value: Date | null): string | null {
 }
 
 /**
+ * Puts every *other* course of this learner's out of the running.
+ *
+ * Paused rather than abandoned: making room for a new course is not a statement
+ * that the old one was a mistake, and the learner never said it was. Paused is
+ * the status they can come back from without the product having decided for
+ * them.
+ *
+ * Takes the transaction rather than the database because both callers are
+ * inside one — the invariant is worth nothing if another request can slip an
+ * insert between the update and the write it was protecting.
+ */
+async function pauseOthers(
+  tx: Parameters<Parameters<Db["transaction"]>[0]>[0],
+  userId: string,
+  keep: string,
+): Promise<void> {
+  await tx
+    .update(learningGoal)
+    .set({ status: "paused" })
+    .where(
+      and(
+        eq(learningGoal.userId, userId),
+        eq(learningGoal.status, "active"),
+        ne(learningGoal.id, keep),
+      ),
+    );
+}
+
+/**
  * Creates the goal and everything a first `/today` needs to plan against, in
  * one transaction: a profile carrying the weekly budget, the goal itself, and
  * whatever mastery the learner has already evidenced.
@@ -78,6 +108,12 @@ export async function createGoal(db: Db, input: NewGoal): Promise<string> {
           updatedAt: input.now,
         },
       });
+
+    // One course runs at a time, and the invariant is kept here rather than
+    // hoped for: without this, starting a second course leaves two rows active
+    // and `activeGoal` silently picks whichever is newer, which is a plan
+    // quietly swapping under a learner who was never told they had two.
+    await pauseOthers(tx, input.userId, goalId);
 
     await tx.insert(learningGoal).values({
       id: goalId,
@@ -154,6 +190,84 @@ export async function activeGoal(
     spec: spec.data,
     createdAt: row.createdAt,
   };
+}
+
+/** A course in the learner's history, whatever state it is in. */
+export interface GoalRecord extends StoredGoal {
+  status: GoalStatus;
+}
+
+/**
+ * Every course this learner has, newest first.
+ *
+ * The pack comes off the **spec's domain**, exactly as `activeGoal` reads it and
+ * for the same reason: the spec is what the planner plans against, so reading
+ * the pack from anywhere else — the `packId` column, a join to `domain_pack` —
+ * would let a course be listed under one subject and planned as another. A row
+ * whose spec no longer parses is dropped rather than guessed at, which is the
+ * same call `activeGoal` makes.
+ */
+export async function goalsFor(db: Db, userId: string): Promise<GoalRecord[]> {
+  const rows = await db
+    .select({
+      id: learningGoal.id,
+      goalSpec: learningGoal.goalSpec,
+      status: learningGoal.status,
+      createdAt: learningGoal.createdAt,
+    })
+    .from(learningGoal)
+    .where(eq(learningGoal.userId, userId))
+    .orderBy(desc(learningGoal.createdAt));
+
+  return rows.flatMap((row) => {
+    const spec = GoalSpec.safeParse(row.goalSpec);
+    // A status the column holds but the product does not know is treated as a
+    // row we cannot describe, not as a default. Guessing "active" here would
+    // put a course back in front of a learner who had put it away.
+    if (!spec.success || !isGoalStatus(row.status)) return [];
+
+    return [
+      {
+        id: row.id,
+        packSlug: spec.data.domain,
+        spec: spec.data,
+        createdAt: row.createdAt,
+        status: row.status,
+      },
+    ];
+  });
+}
+
+/**
+ * Moves one course to a new status, keeping the one-active-goal invariant.
+ *
+ * Returns false when the goal is not this learner's — the caller then does
+ * nothing rather than reporting a change that never happened. Scoped by
+ * `userId` in the `where` as well, so a guessed id cannot move somebody else's
+ * course even if the check above it were ever removed.
+ */
+export async function setGoalStatus(
+  db: Db,
+  userId: string,
+  goalId: string,
+  status: GoalStatus,
+  now: Date = new Date(),
+): Promise<boolean> {
+  void now;
+
+  return db.transaction(async (tx) => {
+    // Resuming a course is also the act of putting the running one away. Done
+    // first so there is no instant at which two rows are active.
+    if (status === "active") await pauseOthers(tx, userId, goalId);
+
+    const moved = await tx
+      .update(learningGoal)
+      .set({ status })
+      .where(and(eq(learningGoal.id, goalId), eq(learningGoal.userId, userId)))
+      .returning({ id: learningGoal.id });
+
+    return moved.length > 0;
+  });
 }
 
 /** §16.1's `availableMinutes`. Falls back to the column default (§15). */

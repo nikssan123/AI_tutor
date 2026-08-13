@@ -2,6 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { findPack } from "@/lib/content";
+import { cookieName, encode } from "@/lib/check/session";
+import { EMPTY_INTAKE, type Intake } from "@/lib/goals/intake-store";
+import type { GoalStatus } from "@/lib/goals/lifecycle";
+import type { CourseSummary } from "@/components/course-list";
 import type { TodayView } from "@/lib/goals/today";
 import type { PlannedSession, SessionBlock } from "@/lib/engine";
 
@@ -19,8 +23,21 @@ const redirectMock = vi.fn((url: string) => {
 });
 const getSessionMock = vi.fn();
 const todayForMock = vi.fn();
+const loadIntakeMock = vi.fn();
+const coursesForMock = vi.fn();
 
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+/** Check cookies, by name, for the "your check comes with you" promise. */
+const jar = new Map<string, string>();
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = jar.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
+  }),
+}));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
@@ -30,6 +47,18 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/goals/today", () => ({
   todayFor: (...args: unknown[]) => todayForMock(...(args as [])),
+}));
+// Partial: only the read is stubbed. `EMPTY_INTAKE` is the real constant, so a
+// change to what "no conversation" means reaches these tests.
+vi.mock("@/lib/goals/intake-store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/goals/intake-store")>()),
+  loadIntake: (...args: unknown[]) => loadIntakeMock(...(args as [])),
+}));
+// Partial again: `pickUpAgain` is the real filter, so which statuses count as
+// "pick it up" is decided in one place and this file cannot disagree with it.
+vi.mock("@/lib/goals/courses", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
+  coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
 }));
 
 const { default: TodayPage } = await import("@/app/(app)/today/page");
@@ -96,7 +125,10 @@ function view(overrides: {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  jar.clear();
   getSessionMock.mockResolvedValue(SIGNED_IN);
+  loadIntakeMock.mockResolvedValue(EMPTY_INTAKE);
+  coursesForMock.mockResolvedValue([]);
 });
 
 afterEach(cleanup);
@@ -109,17 +141,175 @@ describe("before there is a goal", () => {
     );
   });
 
-  it("offers to set one instead of showing an empty dashboard", async () => {
-    todayForMock.mockResolvedValue(undefined);
-    render(await TodayPage({ searchParams: search() }));
-
-    expect(screen.getByText(/don't have a goal yet/i)).toBeDefined();
-    expect(screen.getByText("Set a goal")).toBeDefined();
-  });
-
   it("is noindexed in its own right as well as by the layout", async () => {
     const { metadata } = await import("@/app/(app)/today/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+});
+
+/**
+ * The screen that used to be one card and one button, repeated verbatim on
+ * three other destinations. What it owes the learner is something to do — so
+ * these assert on the offers being present, not on the wording around them.
+ */
+describe("with no course running", () => {
+  beforeEach(() => {
+    todayForMock.mockResolvedValue(undefined);
+  });
+
+  it("offers to start one, in the learner's own words", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("Pick something to get good at")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Tell us what you want" }).getAttribute("href"),
+    ).toBe("/start");
+  });
+
+  it("shows a sample of subjects and a way to see the rest", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    // Every subject on the sample offers both doors: start it, or check first.
+    expect(screen.getAllByRole("link", { name: "Take the check" }).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("link", { name: "See everything" }).getAttribute("href"),
+    ).toBe("/subjects");
+  });
+
+  it("never grows into a browse screen — the sample stays a sample", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    const shown = screen.getAllByRole("link", { name: /^Take the check$|^Check again$/ });
+    expect(shown.length).toBeLessThanOrEqual(4);
+  });
+
+  it("carries an anonymous check into the course it offers", async () => {
+    // One answered item in the first subject's cookie is enough to promise it.
+    jar.set(cookieName(pack.slug), encode({ s: 1, a: [{ i: "item-1", c: 1 }] }));
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("Your check comes with you")).toBeDefined();
+  });
+
+  it("does not claim the learner has no goal, which it cannot know", async () => {
+    render(await TodayPage({ searchParams: search() }));
+    expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
+  });
+});
+
+/**
+ * A course put aside is a better offer than the catalogue: already chosen,
+ * already backed by mastery, and the retrieval queue kept running while it was
+ * away. It gets its own band rather than competing for the primary card, so the
+ * learner does not have to choose between resuming and starting.
+ */
+describe("with a course put aside", () => {
+  beforeEach(() => {
+    todayForMock.mockResolvedValue(undefined);
+  });
+
+  const course = (status: GoalStatus): CourseSummary => ({
+    goalId: "g-old",
+    name: "Photography",
+    taxonomyParent: "creative",
+    status,
+  });
+
+  it("offers to pick a paused one back up", async () => {
+    coursesForMock.mockResolvedValue([course("paused")]);
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("Pick one back up")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
+  });
+
+  it("offers a stopped one too — stopping is not a door locked behind you", async () => {
+    coursesForMock.mockResolvedValue([course("abandoned")]);
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
+  });
+
+  /**
+   * A finished course has no action on it, so offering it as a way back in
+   * would be offering a row that does nothing when tapped.
+   */
+  it("does not offer a finished one", async () => {
+    coursesForMock.mockResolvedValue([course("achieved")]);
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText("Pick one back up")).toBeNull();
+  });
+
+  it("says the proof survives being put aside", async () => {
+    coursesForMock.mockResolvedValue([course("paused")]);
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText(/still yours/i)).toBeDefined();
+  });
+});
+
+/**
+ * §8 screen 3's conversation persists in `goal_intake`, and nothing anywhere
+ * told the learner it was still there. A conversation someone walked away from
+ * is a better offer than a fresh one, so it takes the primary slot.
+ */
+describe("with a conversation left unfinished", () => {
+  beforeEach(() => {
+    todayForMock.mockResolvedValue(undefined);
+  });
+
+  const partway = (overrides: Partial<Intake> = {}): Intake => ({
+    ...EMPTY_INTAKE,
+    messages: [
+      { r: "l", t: "I want to take better photos" },
+      { r: "a", t: "How much time have you got each week?" },
+    ],
+    captured: { subject: "Photography" } as Intake["captured"],
+    ...overrides,
+  });
+
+  it("offers to carry on, and says how far in they got", async () => {
+    loadIntakeMock.mockResolvedValue(partway());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("You were partway through")).toBeDefined();
+    // Specific enough not to collide with the subject of the same name in the
+    // sample below, which is a different offer about the same word.
+    expect(screen.getByText(/We were talking about Photography/)).toBeDefined();
+    expect(screen.getByText(/1 of 6 questions answered/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Carry on" }).getAttribute("href"),
+    ).toBe("/start");
+  });
+
+  it("does not name a subject the analyzer never settled on", async () => {
+    loadIntakeMock.mockResolvedValue(partway({ captured: undefined }));
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText(/working out what you wanted/i)).toBeDefined();
+  });
+
+  /**
+   * Answered everything and never pressed the button. "Carry on answering" and
+   * "we have everything, build it" are different offers, and the second is the
+   * better thing to have walked away from.
+   */
+  it("offers to build rather than to carry on once the analyzer has closed", async () => {
+    loadIntakeMock.mockResolvedValue(partway({ done: true }));
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("Your course is ready to build")).toBeDefined();
+    expect(screen.getByText(/just needs building/i)).toBeDefined();
+    expect(screen.getByRole("link", { name: "Build it" })).toBeDefined();
+  });
+
+  it("is not offered for a conversation that never had a turn in it", async () => {
+    loadIntakeMock.mockResolvedValue(EMPTY_INTAKE);
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText("You were partway through")).toBeNull();
+    expect(screen.getByText("Pick something to get good at")).toBeDefined();
   });
 });
 

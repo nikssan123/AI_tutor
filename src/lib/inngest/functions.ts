@@ -10,6 +10,7 @@ import { evaluateSubmission } from "@/lib/evaluation";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
 import { resolvePack } from "@/lib/content/resolve";
 import { masteryFor } from "@/lib/goals/store";
+import { markAchievedIfComplete } from "@/lib/goals/achievement";
 import { initialMastery } from "@/lib/engine/bkt";
 import {
   recordEvaluation,
@@ -233,6 +234,8 @@ export const evaluate = inngest.createFunction(
         existing.find((m) => m.skillId === skill.slug) ??
         initialMastery(skill.slug, skill.bktPriors);
 
+      const now = new Date();
+
       await recordEvaluation(db, {
         submissionId,
         userId: stored.userId,
@@ -244,8 +247,13 @@ export const evaluate = inngest.createFunction(
         result: outcome.result,
         model: MODELS.deep,
         promptVersion: String(GRADER_PROMPT.version),
-        now: new Date(),
+        now,
       });
+
+      // A marked hand-in is the only thing that can add a skill to the ledger's
+      // claims, so it is the only moment a course can become finished. §4.2
+      // law 1 is why there is no button for this anywhere in the product.
+      await markAchievedIfComplete(db, stored.userId, pack, now);
 
       return {
         status: outcome.result.humanReview ? "human_review" : "complete",

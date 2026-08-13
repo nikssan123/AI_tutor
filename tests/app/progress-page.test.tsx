@@ -4,6 +4,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { findPack } from "@/lib/content";
 import type { Digest } from "@/lib/mastery/digest";
 import type { DigestView } from "@/lib/mastery/view";
+import type { GoalStatus } from "@/lib/goals/lifecycle";
+import type { CourseSummary } from "@/components/course-list";
 
 /**
  * §8 screen 11 — the weekly digest.
@@ -19,6 +21,7 @@ const redirectMock = vi.fn((url: string) => {
 });
 const getSessionMock = vi.fn();
 const digestForMock = vi.fn();
+const coursesForMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -30,6 +33,10 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/mastery/view", () => ({
   digestFor: (...args: unknown[]) => digestForMock(...(args as [])),
+}));
+vi.mock("@/lib/goals/courses", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
+  coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
 }));
 
 const { default: ProgressPage } = await import("@/app/(app)/progress/page");
@@ -71,9 +78,81 @@ function view(overrides: Partial<Digest> = {}): DigestView {
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
+  coursesForMock.mockResolvedValue([]);
 });
 
 afterEach(cleanup);
+
+/**
+ * This is the one screen where a course is started, stopped or picked up, and
+ * that is deliberate: the same three buttons on three screens would drift, and
+ * two of the three are hard to walk back.
+ */
+describe("your courses", () => {
+  const course = (
+    status: GoalStatus,
+    goalId = "g1",
+  ): CourseSummary => ({
+    goalId,
+    name: "Photography",
+    taxonomyParent: "creative",
+    status,
+  });
+
+  it("offers to put the running course aside, or stop it", async () => {
+    digestForMock.mockResolvedValue(view());
+    coursesForMock.mockResolvedValue([course("active")]);
+    render(await ProgressPage());
+
+    expect(screen.getByRole("button", { name: "Put aside" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Stop it" })).toBeDefined();
+  });
+
+  /**
+   * The list has to render on both branches. A learner who paused everything
+   * has no digest, and if it lived only under one there would be no way back to
+   * a course they put away — which is the trap the whole lifecycle exists to
+   * avoid.
+   */
+  it("lists courses even when there is no week to report on", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    coursesForMock.mockResolvedValue([course("paused")]);
+    render(await ProgressPage());
+
+    expect(screen.getByText("What you have on")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
+  });
+
+  /**
+   * §4.2 law 1, one level up. A button marking a whole course complete is the
+   * same self-declaration §3 criticises roadmap.sh for, so there must not be
+   * one — on either branch of this screen.
+   */
+  it("never offers to mark a course finished", async () => {
+    digestForMock.mockResolvedValue(view());
+    coursesForMock.mockResolvedValue([course("active")]);
+    render(await ProgressPage());
+
+    expect(screen.queryByRole("button", { name: /finish|complete|done/i })).toBeNull();
+    expect(screen.getByText(/something you can press/i)).toBeDefined();
+  });
+
+  it("shows a finished course with nothing to press on it", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    coursesForMock.mockResolvedValue([course("achieved")]);
+    render(await ProgressPage());
+
+    expect(screen.getByText("Finished")).toBeDefined();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("draws no band at all for a learner with no courses", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    render(await ProgressPage());
+
+    expect(screen.queryByText("What you have on")).toBeNull();
+  });
+});
 
 describe("before there is a week to report on", () => {
   it("redirects an unauthenticated visitor to sign in", async () => {
@@ -81,12 +160,20 @@ describe("before there is a week to report on", () => {
     await expect(ProgressPage()).rejects.toThrow("REDIRECT:/sign-in");
   });
 
-  it("offers to set a goal rather than showing an empty digest", async () => {
+  it("says what this screen will hold rather than only what is missing", async () => {
     digestForMock.mockResolvedValue(undefined);
     render(await ProgressPage());
 
-    expect(screen.getByText(/don't have a goal yet/i)).toBeDefined();
-    expect(screen.getByText("Set a goal")).toBeDefined();
+    expect(screen.getByText(/hours you meant to/i)).toBeDefined();
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /** See the same test on `/mastery`: nothing here can tell the two apart. */
+  it("does not claim the learner has no goal, which it cannot know", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    render(await ProgressPage());
+
+    expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {

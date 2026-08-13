@@ -105,6 +105,18 @@ vi.mock("@/lib/content/resolve", () => ({
 vi.mock("@/lib/goals/store", () => ({
   masteryFor: async () => heldMastery,
 }));
+/**
+ * Whether the course is finished is `markAchievedIfComplete`'s question and is
+ * tested against a real database in tests/lib/goal-store.test.ts. What this file
+ * owes is that the handler asks it, and asks it *after* the evaluation is
+ * recorded — a marked hand-in is the only thing that can complete a course, so
+ * asking first would always get last week's answer.
+ */
+const markAchievedMock = vi.fn(async () => false);
+vi.mock("@/lib/goals/achievement", () => ({
+  markAchievedIfComplete: (...args: unknown[]) =>
+    markAchievedMock(...(args as [])),
+}));
 vi.mock("@/lib/evaluation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/evaluation")>()),
   evaluateSubmission: vi.fn(async () => evaluationOutcome),
@@ -376,6 +388,20 @@ describe("the registered evaluate function", () => {
   it("marks a submission and records it", async () => {
     const { result } = await run();
     expect(result).toMatchObject({ submissionId: "s1", status: "complete" });
+  });
+
+  it("asks whether that hand-in finished the course", async () => {
+    markAchievedMock.mockClear();
+    await run();
+    expect(markAchievedMock).toHaveBeenCalledTimes(1);
+  });
+
+  /** Nothing was marked, so nothing can have been proved by it. */
+  it("does not ask when there was nothing to mark", async () => {
+    markAchievedMock.mockClear();
+    storedSubmission = undefined;
+    await run();
+    expect(markAchievedMock).not.toHaveBeenCalled();
   });
 
   it("moves the mastery the learner already had, rather than starting fresh", async () => {

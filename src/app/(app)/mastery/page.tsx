@@ -119,8 +119,8 @@ export default async function MasteryPage({ searchParams }: Props) {
         />
         <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
           <EmptyState
-            message="You don't have a goal yet. Once you do, everything you prove along the way is recorded here."
-            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
+            message="No course running yet. This fills up with what you have proved — one line per skill, each linked to the work that proved it."
+            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
           />
         </Card>
       </AppFrame>

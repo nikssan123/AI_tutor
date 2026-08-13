@@ -99,12 +99,12 @@ export default async function CalendarPage({ searchParams }: Props) {
       <AppFrame width="narrow">
         <AppHeader
           title="Your calendar"
-          lead="When the work lands, what comes back to you, and what you have already done. Nothing to date until there is a goal."
+          lead="When the work lands, what comes back to you, and what you have already done. Nothing to date until a course is running."
         />
         <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
           <EmptyState
-            message="You don't have a goal yet. Once you do, this is where everything with a date on it turns up."
-            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
+            message="No course running, so nothing has a date on it yet. Once one is, everything owed and everything already done turns up here."
+            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
           />
         </Card>
       </AppFrame>

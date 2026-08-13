@@ -87,12 +87,25 @@ describe("before there is anything to show", () => {
     );
   });
 
-  it("offers to set a goal rather than showing an empty ledger", async () => {
+  it("says what this screen will hold rather than only what is missing", async () => {
     ledgerForMock.mockResolvedValue(undefined);
     render(await MasteryPage({ searchParams: search() }));
 
-    expect(screen.getByText(/don't have a goal yet/i)).toBeDefined();
-    expect(screen.getByText("Set a goal")).toBeDefined();
+    expect(screen.getByText(/linked to the work that proved it/i)).toBeDefined();
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /**
+   * `ledgerFor` returns nothing in two cases — no goal, and a goal whose pack
+   * has gone — and the copy used to assert the first one in both. A learner
+   * with a goal being told they never set one is a lie the screen can avoid by
+   * describing the state it is actually in.
+   */
+  it("does not claim the learner has no goal, which it cannot know", async () => {
+    ledgerForMock.mockResolvedValue(undefined);
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {

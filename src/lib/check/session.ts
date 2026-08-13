@@ -92,6 +92,27 @@ export function decode(raw: string | undefined): CheckCookie {
 }
 
 /**
+ * Which of these subjects the visitor has already answered a check in.
+ *
+ * Extracted because three screens now ask the same question — the goal form,
+ * the catalogue, and the no-goal `/today` — and each of them makes a promise
+ * about it ("your check comes with you"). Two of those computing "already
+ * answered" slightly differently would mean the promise appearing on one screen
+ * and not another for the same visitor, which is worse than not making it.
+ *
+ * The jar is passed as a read function rather than as `cookies()`, so this stays
+ * a pure function testable without a request.
+ */
+export function answeredTopics(
+  slugs: readonly string[],
+  read: (name: string) => string | undefined,
+): Set<string> {
+  return new Set(
+    slugs.filter((slug) => decode(read(cookieName(slug))).a.length > 0),
+  );
+}
+
+/**
  * A pack as the diagnostic engine wants it.
  *
  * Shared rather than inlined per caller: the check screen and goal intake both
