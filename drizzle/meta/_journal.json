@@ -57,6 +57,13 @@
       "when": 1786621175114,
       "tag": "0007_sour_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786628837351,
+      "tag": "0008_neat_tarantula",
+      "breakpoints": true
     }
   ]
 }

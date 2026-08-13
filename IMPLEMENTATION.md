@@ -1056,3 +1056,124 @@ The lesson's length budget. The 80KB marketing JS budget (untouched here — the
 tutor panel is referenced only by the session route's manifest, and the landing
 page's is unchanged). Every pack still `unreviewed`. And `apply` blocks say
 plainly that work cannot be handed in yet: submissions and grading are E8.
+
+---
+
+# Delivery record — pass 14: packs the catalogue does not have
+
+§24 E3's unmet acceptance criterion — "a goal with no matching pack triggers
+Generated-pack creation and still produces a usable graph" — plus the thing that
+had to exist first for any of it to be possible.
+
+## The blocker nothing could see from outside
+
+`allPacks()` reads YAML off disk and caches it for the process, and every
+consumer goes through it. A pack authored on demand has nowhere to live: the
+production filesystem is read-only, and a file written by one instance would not
+exist on the next. The tables have been there since pass 1 and `seedPack` has
+been filling all six of them; **nothing ever read them back**.
+
+`packs/read.ts` is that inverse. The contract it defends is that a pack read out
+of the database is the pack that was written into it — everything downstream
+takes a `DomainPack` and cannot tell which source it came from, so a divergence
+would show up as generated packs quietly behaving differently, far away from the
+cause. `tests/packs/read.test.ts` asserts the round trip against all three real
+packs rather than a fixture, because the shapes that break it (an item with no
+options, a null review timestamp, a project pointing at a rubric) only appear
+together in a real one.
+
+Two things were already right and needed nothing: `validatePack` deliberately
+downgrades thin item coverage to a warning for non-curated packs, and
+`isTopicIndexable` already refuses to mark a generated pack indexable. The
+honesty machinery existed; it had just never been exercised.
+
+Found on the way: `toRows` dropped `quality.status` entirely, so no round trip
+could have been faithful. It has a column now — §7.1's Generated → Standard
+promotion needs somewhere to record state anyway.
+
+`resolvePack` keeps §13.1's two rendering worlds apart. Marketing stays
+disk-backed, synchronous and static, because it is the SEO surface. Only the
+signed-in app consults the database, and disk wins a slug collision so promoting
+a generated pack to Curated is done by committing the YAML.
+
+## The generator
+
+Three calls, mirroring `curriculum/`'s shape: skill graph on the deep tier, item
+bank and rubrics on standard. The graph earns Opus because it is the one call
+the others cannot correct — the diagnostic, the planner and the architect all
+read it and none of them can tell it is wrong.
+
+The dividing line everywhere is that a model is asked what a subject's skills
+*are* and what good work looks like, and never for a slug, a probability, a tier
+or a set of numbers that has to sum to 1. Those are the outputs models are worst
+at and precisely what `validatePack` blocks on, so asking would guarantee a
+repair loop that arithmetic avoids. Priors are seeded from the curated packs'
+own hand-authored calibration rather than guessed.
+
+Two rules are enforced in code rather than requested. The graph is **acyclic by
+construction**: prerequisites may only name skills listed earlier, a forward
+reference is dropped, and an edge that can only point backwards cannot form a
+cycle. And a generated pack **may never claim §7.2 tier 1**, whatever its
+workspace — tier 1 licenses "Verified: this works" and is earned by executing
+the artefact, which a pack with no evaluator and no review cannot do.
+
+There is no canonical fallback, deliberately. Curriculum generation falls back to
+the pack's own path after two failures; a subject nobody curated has no such
+thing, so this fails and says so. A learner told "we could not build this well
+enough, here is what we do cover" is being treated honestly; one handed eleven
+skills and four questions is not.
+
+## What the live run found that no test would have
+
+The first real generation cost $1.38 across two attempts and produced nothing.
+Every model call succeeded, and 7 of roughly 80 items survived.
+
+The cause was this pass's own prompt. `buildItemsContext` wrote skills as
+`- ${name} (${level})`, and the item author copied exactly what it was shown —
+returning the skill as *"Build and run a Cargo project (foundational)"*, level
+included. Every item naming it was dropped as referencing a skill that does not
+exist. No amount of insisting on "exactly as given" fixes that, because the
+model is being obedient.
+
+Skills now carry a short opaque reference (`s0`, `s1`) which has nothing to tidy,
+and the context puts every other field on its own labelled line so nothing sits
+where it could be read as part of the name.
+
+It was invisible the first time because of a second defect: the failure path
+returned `dropped: []`, throwing away the log that was the entire explanation.
+"7 items" with no reason attached cost a whole second generation to diagnose.
+
+After the fix, one attempt: 14 skills, 16 dependencies, 54 items (52 production /
+2 multiple-choice), 3 graded projects, rubric weights summing to exactly 1, and
+tier 2 rather than 1 despite the `code` workspace.
+
+**$0.61 and 189 seconds per pack**, above the $0.30–0.60 this was planned at. It
+is a per-*subject* cost rather than per-learner — §7.1 packs are shared, which is
+also what stops on-demand authoring being a money hole — but the rubric author is
+now the long pole at 124 seconds of it.
+
+`scripts/pack-generate-probe.ts` and `scripts/item-batch-probe.ts` are kept. The
+second exists because one item batch is the cheapest way to answer the question
+that cost two full generations.
+
+## A test isolation bug this pass exposed
+
+`admin-console.test.ts` reads a global count of active goals, inserts two, and
+asserts the count rose by exactly one — while other files insert goals into the
+same database concurrently. It passed only because of the scheduling; adding a
+DB-heavy test file changed the timing and it began failing intermittently.
+
+The ten files that share Postgres now run in a vitest project with file
+parallelism off. Serialising those costs about six seconds; turning parallelism
+off everywhere cost twenty-five. No assertion was loosened to achieve it — the
+race was real and would have surfaced on someone else's machine eventually.
+
+1862 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Not in this pass
+
+The conversation at `/start` is still the form. E3's other half — the Goal
+Analyzer, the ≤6-turn cap, matching a subject to the catalogue before generating
+one — is next, along with the background job that runs generation off the request
+path, the Experimental badge everywhere a generated pack appears, and the rate
+limit that has to exist before any of this is reachable by the public.

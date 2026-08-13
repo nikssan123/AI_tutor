@@ -1,0 +1,1 @@
+ALTER TABLE "domain_pack" ADD COLUMN "quality_status" text DEFAULT 'draft' NOT NULL;

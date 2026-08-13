@@ -35,6 +35,10 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
+// These exercise the disk half of `resolvePack` with the real `findPack`. The
+// database half has nothing to find and no stub db to find it with, so a miss
+// on disk is a miss outright — which is what "not a real pack" means here.
+vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
 vi.mock("@/lib/goals/store", () => ({
   createGoal: (...args: unknown[]) => createGoalMock(...(args as [])),
 }));

@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
 import type { DomainPack } from "@/lib/packs/types";
 import { activeGoal, masteryFor, type StoredGoal } from "@/lib/goals/store";
@@ -69,7 +69,7 @@ export async function sessionView(
   // than rendering blocks against a path that no longer exists.
   if (!goal || goal.id !== session.goalId) return undefined;
 
-  const pack = findPack(goal.packSlug);
+  const pack = await resolvePack(db, goal.packSlug);
   if (!pack) return undefined;
 
   const graph = toEngineGraph(pack);

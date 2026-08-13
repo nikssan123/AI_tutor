@@ -6,7 +6,7 @@ import { getAuth } from "@/lib/auth";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { projectSkills } from "@/lib/goals/projection";
 import { currentCurriculum } from "@/lib/curriculum/store";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
 import { layoutGraph } from "@/lib/packs/layout";
 import { effectiveMastery } from "@/lib/engine/bkt";
@@ -85,7 +85,7 @@ export default async function PathPage({ params }: Props) {
   // guessing a UUID is not a feature.
   if (!goal || goal.id !== id) notFound();
 
-  const pack = findPack(goal.packSlug);
+  const pack = await resolvePack(db, goal.packSlug);
   if (!pack) notFound();
 
   const now = new Date().toISOString();

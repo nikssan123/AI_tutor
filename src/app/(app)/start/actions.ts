@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import { cookieName } from "@/lib/check/session";
 import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
@@ -20,8 +20,9 @@ export async function createGoalAction(formData: FormData): Promise<void> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
+  const db = getDb();
   const topic = String(formData.get("topic") ?? "");
-  const pack = findPack(topic);
+  const pack = await resolvePack(db, topic);
   if (!pack) redirect("/start?error=subject");
 
   const parsed = parseGoalForm(formData, pack);
@@ -40,7 +41,7 @@ export async function createGoalAction(formData: FormData): Promise<void> {
     now.toISOString(),
   );
 
-  await createGoal(getDb(), {
+  await createGoal(db, {
     userId: session.user.id,
     packSlug: pack.slug,
     spec: parsed.spec,

@@ -20,6 +20,7 @@ export interface PackRows {
     workspace: string;
     version: number;
     evaluatorConfig: Record<string, unknown>;
+    qualityStatus: string;
     qualityScore: number | null;
     reviewedBy: string | null;
     reviewedAt: Date | null;
@@ -95,6 +96,7 @@ export function toRows(pack: DomainPack): PackRows {
       workspace: pack.workspace,
       version: pack.version,
       evaluatorConfig: pack.evaluatorConfig,
+      qualityStatus: pack.quality.status,
       qualityScore: pack.quality.score,
       reviewedBy: pack.quality.reviewedBy,
       reviewedAt: pack.quality.reviewedAt

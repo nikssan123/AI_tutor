@@ -32,6 +32,16 @@ export const domainPack = pgTable(
     /** Which work surface to render — §7.3. Data, never code. */
     workspace: text("workspace").notNull(),
     version: integer("version").notNull().default(1),
+    /**
+     * §7.1's quality gate, as a column rather than a derived guess.
+     *
+     * Needed twice over: without it a pack read back out of the database is not
+     * the pack that was written (`quality.status` would be invented at read
+     * time), and the Generated → Standard promotion path has no state to move
+     * through. `draft` is the safe default — a pack that never declared a status
+     * has not been reviewed.
+     */
+    qualityStatus: text("quality_status").notNull().default("draft"),
     qualityScore: real("quality_score"),
     reviewedBy: text("reviewed_by"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),

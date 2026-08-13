@@ -42,6 +42,17 @@ export function supportsAdaptiveThinking(model: string): boolean {
 /** §14.9.3 — which tier each step in the harness runs on. */
 export const STEP_MODELS = {
   goalAnalyzer: "standard",
+  /**
+   * §7.1's Generated tier. Authoring a skill graph for a subject nobody has
+   * curated is the "pack authoring" this file's header already reserves the
+   * deep tier for: every later step — the diagnostic, the planner, the
+   * curriculum — reads the graph and cannot correct it, so it is the one place
+   * in pack generation where a weaker model is a false economy. The item bank
+   * and the rubrics are ordinary generation and run on standard.
+   */
+  packAuthor: "deep",
+  packItems: "standard",
+  packRubrics: "standard",
   diagnosticOpenItems: "standard",
   diagnosticSummary: "standard",
   skillGraphProjector: "standard",
@@ -75,6 +86,15 @@ export const STEP_MODELS = {
  */
 export const STEP_EFFORT = {
   goalAnalyzer: null,
+  /**
+   * Authoring a skill graph is reasoning about a whole subject at once — what
+   * belongs in it, what genuinely depends on what — and it is done once per
+   * pack and then read by everything. The item bank and the rubrics are
+   * ordinary writing against a graph that has already been decided.
+   */
+  packAuthor: "high",
+  packItems: null,
+  packRubrics: null,
   diagnosticOpenItems: null,
   diagnosticSummary: null,
   skillGraphProjector: null,

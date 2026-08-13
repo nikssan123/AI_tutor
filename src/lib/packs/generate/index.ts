@@ -1,0 +1,181 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import type { Db } from "@/db";
+import { logCall, shouldDegrade, type SPEND_CAP_CENTS } from "@/lib/ai/runlog";
+import type { DraftItem, PackGraphDraft } from "@/lib/contracts/pack";
+import type { DomainPack } from "../types";
+import type { ValidationReport } from "../validate";
+import { assemblePack, meetsQualityFloor } from "./assemble";
+import { skillRef } from "./derive";
+import { generatePackGraph } from "./graph";
+import { batchSkills, generateItems, type RefSkill } from "./items";
+import { generateRubrics } from "./rubrics";
+
+/**
+ * §7.1's Generated tier, end to end: author, assemble, validate, or fail
+ * honestly.
+ *
+ * The shape mirrors `curriculum/generate.ts` with one deliberate difference.
+ * Curriculum generation falls back to the pack's canonical path after two
+ * failures (§14.9.5), because a pack always has one. A subject nobody has
+ * curated has no canonical anything to fall back to — so this fails, and says
+ * so, rather than handing over a pack it does not believe in. A learner told
+ * "we could not build this well enough, here is what we do cover" is being
+ * treated honestly; a learner given eleven skills and four questions is not.
+ */
+
+export type PackSource = "generated" | "none";
+
+export interface PackOutcome {
+  /** Null whenever `source` is "none". */
+  pack: DomainPack | null;
+  report: ValidationReport | null;
+  source: PackSource;
+  /** Pieces removed during assembly, phrased for a human (§14.6 shows drops). */
+  dropped: string[];
+  /** Why it failed, when it did. Empty on success. */
+  reasons: string[];
+  attempts: number;
+}
+
+/** Two attempts, the same cap §14.6 puts on curriculum generation. */
+export const MAX_PACK_ATTEMPTS = 2;
+
+/**
+ * Skills paired with the reference later calls quote back, by position in the
+ * graph. Assigned once, before batching, so `s7` means the same skill in every
+ * call and in `assemblePack` — see `skillRef` for why names do not work.
+ */
+export function withRefs(graph: PackGraphDraft): RefSkill[] {
+  return graph.skills.map((skill, i) => ({ ref: skillRef(i), skill }));
+}
+
+export interface PackGenerateDeps {
+  client: Anthropic;
+  db: Db;
+  /** Null for system-initiated work; the run is still logged, nobody is billed. */
+  userId: string | null;
+  plan?: keyof typeof SPEND_CAP_CENTS;
+}
+
+export interface PackGenerateInput {
+  /** The slug the pack will live under. Checked as free by the caller. */
+  slug: string;
+  subject: string;
+  rawGoal: string | null;
+}
+
+/**
+ * The item bank, gathered a batch at a time.
+ *
+ * A batch that fails is skipped rather than aborting the pack: the bank is
+ * additive, and losing one area's questions is a thinner pack, which the
+ * quality floor will judge on the whole. Losing the run would waste the graph
+ * call, which is the expensive one.
+ */
+async function gatherItems(
+  deps: PackGenerateDeps,
+  graph: PackGraphDraft,
+  subject: string,
+  degraded: boolean,
+): Promise<DraftItem[]> {
+  const batches = batchSkills(
+    withRefs(graph).filter(({ skill }) => !skill.selfReportOnly),
+  );
+
+  const results = await Promise.all(
+    batches.map(async (skills) =>
+      logCall(
+        deps.db,
+        deps.userId,
+        await generateItems(deps.client, { subject, skills }, { degraded }),
+      ),
+    ),
+  );
+
+  return results.flatMap((r) => (r.status === "ok" ? r.value.items : []));
+}
+
+export async function generatePack(
+  deps: PackGenerateDeps,
+  input: PackGenerateInput,
+): Promise<PackOutcome> {
+  // §14.9.7 limit 1 — checked before the first call, not after the bill lands.
+  const degraded =
+    deps.userId !== null && deps.plan !== undefined
+      ? await shouldDegrade(deps.db, deps.userId, deps.plan)
+      : false;
+
+  let attempts = 0;
+  let reasons: string[] = [];
+  // Carried out of the loop rather than reset with it: when a pack fails the
+  // quality floor, *what was dropped* is the whole explanation, and throwing it
+  // away leaves "7 items" with no way to find out why.
+  let dropped: string[] = [];
+
+  while (attempts < MAX_PACK_ATTEMPTS) {
+    attempts += 1;
+
+    const graph = await logCall(
+      deps.db,
+      deps.userId,
+      await generatePackGraph(
+        deps.client,
+        { subject: input.subject, rawGoal: input.rawGoal },
+        { degraded },
+      ),
+    );
+
+    if (graph.status !== "ok") {
+      reasons = [`the skill graph could not be written (${graph.status})`];
+      continue;
+    }
+
+    // The bank and the rubrics do not depend on each other, and both depend
+    // only on the graph, so they are asked for together.
+    const [items, rubrics] = await Promise.all([
+      gatherItems(deps, graph.value, input.subject, degraded),
+      logCall(
+        deps.db,
+        deps.userId,
+        await generateRubrics(
+          deps.client,
+          { subject: input.subject, skills: withRefs(graph.value) },
+          { degraded },
+        ),
+      ),
+    ]);
+
+    if (rubrics.status !== "ok") {
+      reasons = [`the rubrics could not be written (${rubrics.status})`];
+      continue;
+    }
+
+    const assembled = assemblePack({
+      slug: input.slug,
+      graph: graph.value,
+      items,
+      rubrics: rubrics.value,
+    });
+    dropped = assembled.dropped;
+
+    // One gate: the validator's blocking issues and the generator's own floor.
+    // A repair step would have nothing to do — every repairable case is already
+    // handled in assembly — so a failure here is worth a fresh attempt.
+    const floor = meetsQualityFloor(assembled.pack, assembled.report);
+    if (!floor.passed) {
+      reasons = floor.reasons;
+      continue;
+    }
+
+    return {
+      pack: assembled.pack,
+      report: assembled.report,
+      source: "generated",
+      dropped: assembled.dropped,
+      reasons: [],
+      attempts,
+    };
+  }
+
+  return { pack: null, report: null, source: "none", dropped, reasons, attempts };
+}

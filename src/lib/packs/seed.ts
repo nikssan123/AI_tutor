@@ -53,6 +53,7 @@ export async function seedPack(
           workspace: rows.pack.workspace,
           version: rows.pack.version,
           evaluatorConfig: rows.pack.evaluatorConfig,
+          qualityStatus: rows.pack.qualityStatus,
           qualityScore: rows.pack.qualityScore,
           reviewedBy: rows.pack.reviewedBy,
           reviewedAt: rows.pack.reviewedAt,

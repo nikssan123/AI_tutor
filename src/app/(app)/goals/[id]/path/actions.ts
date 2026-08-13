@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { getAnthropic } from "@/lib/ai/client";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { projectSkills } from "@/lib/goals/projection";
@@ -30,7 +30,7 @@ export async function buildPathAction(goalId: string): Promise<void> {
   const goal = await activeGoal(db, session.user.id);
   if (!goal || goal.id !== goalId) redirect("/today");
 
-  const pack = findPack(goal.packSlug);
+  const pack = await resolvePack(db, goal.packSlug);
   if (!pack) redirect("/today");
 
   const now = new Date().toISOString();

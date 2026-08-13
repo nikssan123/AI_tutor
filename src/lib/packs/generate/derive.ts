@@ -1,0 +1,194 @@
+import type { DraftCriterion, DraftSkill } from "@/lib/contracts/pack";
+import type { EvalTier, PackSkill, Workspace } from "../types";
+
+type Priors = PackSkill["bktPriors"];
+
+/**
+ * Everything about a generated pack that is computed rather than asked for.
+ *
+ * The dividing line: a model is asked what a subject's skills *are* and what
+ * good work looks like; it is never asked for a slug, a probability, a tier, or
+ * a set of numbers that has to sum to 1. Those are the outputs models are worst
+ * at and the ones `validatePack` blocks on, so asking would guarantee a repair
+ * loop that arithmetic avoids entirely.
+ */
+
+/* ── Slugs ────────────────────────────────────────────────────────────────── */
+
+/**
+ * A pack-safe slug from a display name.
+ *
+ * Must satisfy the `slug` rule in `types.ts`: lowercase, hyphen-separated, no
+ * leading or trailing hyphen, 2–64 characters. Diacritics are folded rather
+ * than stripped so "Séparation" becomes "separation" and not "sparation".
+ */
+export function slugify(name: string): string {
+  const base = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/g, "");
+
+  /*
+   * A name of nothing but punctuation reduces to "", which fails the schema's
+   * 2-character minimum. It falls back to a fixed word rather than to a
+   * prefixed one: `skill-${base}` with an empty base is "skill-", and a
+   * trailing hyphen is the one thing the slug rule explicitly forbids.
+   * `uniqueSlugs` handles two such names colliding.
+   */
+  return base.length >= 2 ? base : "skill";
+}
+
+/**
+ * Slugs for a list of names, made unique by suffixing collisions.
+ *
+ * Two skills called "Joins" and "JOINs" both slugify to `joins`, and the pack
+ * validator rejects duplicate slugs — correctly, since the engine keys on them.
+ * Disambiguating here keeps that a naming quirk rather than a failed generation.
+ */
+export function uniqueSlugs(names: string[]): Map<string, string> {
+  const used = new Set<string>();
+  const bySource = new Map<string, string>();
+
+  for (const name of names) {
+    // A repeated *name* is the same skill mentioned twice; it maps to the slug
+    // already assigned rather than to a second one.
+    if (bySource.has(name)) continue;
+
+    const base = slugify(name);
+    let slug = base;
+    let n = 2;
+    while (used.has(slug)) {
+      slug = `${base.slice(0, 60)}-${n}`;
+      n += 1;
+    }
+
+    used.add(slug);
+    bySource.set(name, slug);
+  }
+
+  return bySource;
+}
+
+/**
+ * The reference a later call uses to point at a skill from the graph.
+ *
+ * Short, opaque, and impossible to tidy. Asking a model to echo a prose name
+ * back "exactly as given" does not work: told `- Build and run a Cargo project
+ * (foundational)`, the item author returns the skill as *"Build and run a Cargo
+ * project (foundational)"* — level included — and every item for that skill is
+ * dropped as naming a skill that does not exist. That cost two full generations
+ * before the drop log was read, and no amount of prompt insistence fixes it,
+ * because the model is copying exactly what it was shown.
+ *
+ * `s0`, `s1`, `s2` have nothing to tidy.
+ */
+export function skillRef(index: number): string {
+  return `s${index}`;
+}
+
+/**
+ * Resolves a name the model wrote later against the names it wrote earlier.
+ *
+ * The item and rubric calls are told to name skills "exactly as given", and
+ * they nearly do — but a graph skill called "Ownership, moves and \`Copy\`" comes
+ * back from the item author as "Ownership, moves and Copy", and an exact-match
+ * lookup drops every item for it. That is not a hallucinated skill, it is the
+ * same skill with the punctuation tidied, and treating the two as different
+ * cost a whole generation before the drop log was read.
+ *
+ * Matching on the slugified form folds exactly the differences that turn up in
+ * practice — punctuation, backticks, case, spacing — while still refusing a
+ * name that genuinely is not in the graph.
+ */
+export function nameResolver(
+  slugOf: Map<string, string>,
+  /** Reference → slug, when the caller handed the model references to quote. */
+  refs: Map<string, string> = new Map(),
+): (name: string) => string | undefined {
+  const loose = new Map<string, string>();
+  for (const [name, slug] of slugOf) {
+    // First writer wins, so a real collision cannot silently steal a mapping.
+    if (!loose.has(slugify(name))) loose.set(slugify(name), slug);
+  }
+
+  return (value) =>
+    refs.get(value.trim()) ?? slugOf.get(value) ?? loose.get(slugify(value));
+}
+
+/* ── BKT priors ───────────────────────────────────────────────────────────── */
+
+/**
+ * Priors per skill level, seeded from the curated packs' own calibration.
+ *
+ * §16 wants these "expert-seeded, refit from your own data once you have ~500
+ * observations per skill". These are the averages of the hand-authored values
+ * across the three curated packs, which makes a generated pack start from the
+ * same beliefs an author would have written rather than from a model's guess at
+ * a probability. The monotonicity is the point: a foundational skill is more
+ * likely to be already known and easier to guess than a specialist one.
+ */
+export const PRIORS_BY_LEVEL: Record<DraftSkill["level"], Priors> = {
+  foundational: { pInit: 0.22, pLearn: 0.2, pSlip: 0.11, pGuess: 0.15 },
+  core: { pInit: 0.15, pLearn: 0.18, pSlip: 0.12, pGuess: 0.11 },
+  advanced: { pInit: 0.08, pLearn: 0.16, pSlip: 0.13, pGuess: 0.07 },
+  specialist: { pInit: 0.05, pLearn: 0.13, pSlip: 0.15, pGuess: 0.04 },
+};
+
+/* ── Evaluation tiers ─────────────────────────────────────────────────────── */
+
+/**
+ * The strongest tier a *generated* pack is allowed to claim, by workspace.
+ *
+ * §7.2 tier 1 is "execute + assert against expected behaviour", and its licensed
+ * claim is *"Verified: this works."* A generated pack has no evaluator config,
+ * no test harness and no human review, so it cannot execute anything — which
+ * makes tier 1 a claim it is structurally incapable of honouring. Code caps it
+ * rather than trusting a prompt not to ask for it, because §4.2 law 3 (never
+ * claim more than the evidence supports) is exactly what the Generated tier is
+ * most likely to break.
+ *
+ * A curated pack in the same workspace may still be tier 1. The difference is
+ * that a person built and checked its evaluator.
+ */
+export const MAX_GENERATED_TIER: Record<Workspace, EvalTier> = {
+  code: 2,
+  "query-sheet": 2,
+  text: 2,
+  media: 3,
+  audio: 4,
+  conversation: 4,
+};
+
+/** §7.2 tier 5 — self-report only, and it can never raise mastery. */
+export const SELF_REPORT_TIER: EvalTier = 5;
+
+export function tierFor(workspace: Workspace, selfReportOnly: boolean): EvalTier {
+  return selfReportOnly ? SELF_REPORT_TIER : MAX_GENERATED_TIER[workspace];
+}
+
+/* ── Rubric weights ───────────────────────────────────────────────────────── */
+
+/**
+ * Criterion weights normalised to sum to exactly 1.
+ *
+ * `validatePack` blocks a rubric whose weights are off by more than 0.001, and
+ * a model asked for four numbers summing to 1 returns 0.3/0.3/0.2/0.25 often
+ * enough that it is not worth asking. It is asked for *relative* importance
+ * instead, which it is good at, and the division happens here.
+ *
+ * The final weight absorbs the rounding remainder so the sum is exact rather
+ * than 0.9999999999999999 — floating point, not the model, would fail the check.
+ */
+export function normaliseWeights(criteria: DraftCriterion[]): number[] {
+  const total = criteria.reduce((sum, c) => sum + c.weight, 0);
+
+  const weights = criteria.map((c) => Math.round((c.weight / total) * 1000) / 1000);
+  const drift = 1 - weights.reduce((sum, w) => sum + w, 0);
+  weights[weights.length - 1] = +(weights[weights.length - 1]! + drift).toFixed(6);
+
+  return weights;
+}

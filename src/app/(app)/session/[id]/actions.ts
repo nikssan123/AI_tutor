@@ -7,7 +7,7 @@ import { getAnthropic } from "@/lib/ai/client";
 import { requireUser } from "@/lib/account/session";
 import { todayFor } from "@/lib/goals/today";
 import { toEngineGraph } from "@/lib/packs/validate";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import { initialMastery } from "@/lib/engine/bkt";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { gradeCheck } from "@/lib/session/grade";
@@ -69,7 +69,7 @@ export async function answerAction(
   }
 
   const goal = await activeGoal(db, user.id);
-  const pack = goal ? findPack(goal.packSlug) : undefined;
+  const pack = goal ? await resolvePack(db, goal.packSlug) : undefined;
   if (!pack) redirect("/today");
 
   const graph = toEngineGraph(pack);

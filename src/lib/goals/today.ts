@@ -1,7 +1,7 @@
 import type { Db } from "@/db";
 import { plan } from "@/lib/engine";
 import { toEngineGraph } from "@/lib/packs/validate";
-import { findPack } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
 import type { DomainPack } from "@/lib/packs/types";
 import type { PlannedSession } from "@/lib/engine";
 import type { SkillProjection } from "@/lib/contracts/goal";
@@ -61,7 +61,7 @@ export async function todayFor(
   // A goal can outlive the pack it was created against — a pack removed from
   // disk is a deployment event, not a corrupt row — so this is a real branch,
   // and it degrades to the "no goal yet" screen rather than a crash.
-  const pack = findPack(goal.packSlug);
+  const pack = await resolvePack(db, goal.packSlug);
   if (!pack) return undefined;
 
   const nowIso = now.toISOString();

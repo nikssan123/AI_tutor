@@ -10,9 +10,14 @@ describe("§14.8 — model routing", () => {
     });
   });
 
-  it("routes the two expensive steps to the deep tier and nothing else", () => {
-    // §14.8: "never default everything to Opus". The crown jewel and the
-    // anti-mediocrity gate earn it; the other twelve steps do not.
+  it("routes only the steps that earn it to the deep tier", () => {
+    /*
+     * §14.8: "never default everything to Opus". The crown jewel and the
+     * anti-mediocrity gate earn it, and so does authoring a generated pack's
+     * skill graph — §7.1's Generated tier is written once and then read by the
+     * diagnostic, the planner and the curriculum, none of which can correct it.
+     * The item bank and the rubrics for the same pack stay on standard.
+     */
     const deep = Object.entries(STEP_MODELS)
       .filter(([, tier]) => tier === "deep")
       .map(([step]) => step)
@@ -20,8 +25,11 @@ describe("§14.8 — model routing", () => {
     expect(deep).toEqual([
       "consistencyPass",
       "curriculumValidator",
+      "packAuthor",
       "rubricGrader",
     ]);
+    expect(STEP_MODELS.packItems).toBe("standard");
+    expect(STEP_MODELS.packRubrics).toBe("standard");
   });
 
   it("keeps the cheap classification steps on the fast tier", () => {
