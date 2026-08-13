@@ -6,6 +6,7 @@ import {
   BUILD_TIMEOUT_MINUTES,
   MAX_CONCURRENT_BUILDS_PER_USER,
   activeBuildsFor,
+  buildInFlightFor,
   findBuild,
   finishBuild,
   startBuild,
@@ -172,6 +173,66 @@ live("pack builds and intake", () => {
       expect(
         await activeBuildsFor(db, IDS[0]!, later(BUILD_TIMEOUT_MINUTES + 1)),
       ).toBe(0);
+    });
+  });
+
+  /**
+   * The same rows, read as something to tell the learner rather than as a rate
+   * limit. Every screen outside `/start` needs this: a learner who walks away
+   * from the wait screen is still mid-course-creation, and `/today` used to
+   * offer them a "Build it" button that fails.
+   */
+  describe("buildInFlightFor", () => {
+    it("hands back the build they are waiting on, subject and all", async () => {
+      await startBuild(
+        db,
+        { slug: "rust-lang", subject: "Rust", userId: IDS[0]! },
+        NOW,
+      );
+
+      expect(await buildInFlightFor(db, IDS[0]!, later(1))).toMatchObject({
+        slug: "rust-lang",
+        subject: "Rust",
+        status: "building",
+      });
+    });
+
+    it("is nothing for a learner who asked for none", async () => {
+      await startBuild(
+        db,
+        { slug: "rust-lang", subject: "Rust", userId: IDS[0]! },
+        NOW,
+      );
+
+      expect(await buildInFlightFor(db, IDS[1]!, later(1))).toBeUndefined();
+    });
+
+    /**
+     * The two ways a build stops being something to report. Finished is the
+     * ordinary one; dead is the one that would otherwise leave a learner
+     * staring at "we're writing your course" forever.
+     */
+    it("is nothing once the build has finished", async () => {
+      await startBuild(
+        db,
+        { slug: "rust-lang", subject: "Rust", userId: IDS[0]! },
+        NOW,
+      );
+      await finishBuild(db, "rust-lang", { status: "ready" });
+
+      expect(await buildInFlightFor(db, IDS[0]!, later(1))).toBeUndefined();
+    });
+
+    it("is nothing once the build is old enough to be dead", async () => {
+      await startBuild(
+        db,
+        { slug: "rust-lang", subject: "Rust", userId: IDS[0]! },
+        NOW,
+      );
+
+      expect(
+        await buildInFlightFor(db, IDS[0]!, later(BUILD_TIMEOUT_MINUTES + 1)),
+      ).toBeUndefined();
     });
   });
 

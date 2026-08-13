@@ -5,16 +5,16 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { calendarFor } from "@/lib/calendar/view";
+import { standingFor } from "@/lib/goals/standing";
 import { deadlineVerdict } from "@/lib/calendar/checkpoints";
 import { CERTAINTIES } from "@/lib/calendar/month";
 import { relativeDay, shortDate, WEEKDAYS } from "@/lib/calendar/dates";
 import { formatDeadline } from "@/lib/goals/captured-display";
 import { CalendarIcon } from "@/components/icons";
+import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import {
-  ButtonLink,
   Card,
   cx,
-  EmptyState,
   Figure,
   Lead,
   Meta,
@@ -95,18 +95,22 @@ export default async function CalendarPage({ searchParams }: Props) {
   });
 
   if (!view) {
+    // Not a dead end and not a different learner from the one `/today` knows
+    // about: the same offer, in the same words, with this screen's own note on
+    // what it will hold once there is something to date.
+    const standing = await standingFor(getDb(), session.user.id);
+
     return (
       <AppFrame width="narrow">
         <AppHeader
           title="Your calendar"
           lead="When the work lands, what comes back to you, and what you have already done. Nothing to date until a course is running."
         />
-        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-          <EmptyState
-            message="No course running, so nothing has a date on it yet. Once one is, everything owed and everything already done turns up here."
-            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
-          />
-        </Card>
+        <NothingRunning
+          standing={standing}
+          note="Once a course is running, everything owed and everything already done turns up here."
+        />
+        <PickBackUp courses={standing.again} />
       </AppFrame>
     );
   }

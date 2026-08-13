@@ -6,6 +6,7 @@ import type { Digest } from "@/lib/mastery/digest";
 import type { DigestView } from "@/lib/mastery/view";
 import type { GoalStatus } from "@/lib/goals/lifecycle";
 import type { CourseSummary } from "@/components/course-list";
+import type { LearnerStanding } from "@/lib/goals/standing";
 
 /**
  * §8 screen 11 — the weekly digest.
@@ -22,6 +23,7 @@ const redirectMock = vi.fn((url: string) => {
 const getSessionMock = vi.fn();
 const digestForMock = vi.fn();
 const coursesForMock = vi.fn();
+const standingForMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -38,8 +40,19 @@ vi.mock("@/lib/goals/courses", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
   coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
 }));
+// What the learner has on when there is no week to report. A database read,
+// stubbed here and tested in tests/goals/standing.test.ts.
+vi.mock("@/lib/goals/standing", () => ({
+  standingFor: (...args: unknown[]) => standingForMock(...(args as [])),
+}));
 
 const { default: ProgressPage } = await import("@/app/(app)/progress/page");
+
+const NOTHING_ON: LearnerStanding = {
+  building: undefined,
+  resume: undefined,
+  again: [],
+};
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
 const pack = findPack("photography")!;
@@ -78,6 +91,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
   coursesForMock.mockResolvedValue([]);
+  standingForMock.mockResolvedValue(NOTHING_ON);
 });
 
 afterEach(cleanup);
@@ -165,6 +179,52 @@ describe("before there is a week to report on", () => {
 
     expect(screen.getByText(/hours you meant to/i)).toBeDefined();
     expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /**
+   * No week to report is not "nothing going on". A learner mid-way through
+   * having a subject written for them was told here to go and pick one.
+   */
+  it("reports the subject being written for them instead of offering a fresh start", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      ...NOTHING_ON,
+      building: {
+        slug: "kite-surfing",
+        subject: "Kite surfing",
+        status: "building" as const,
+        detail: null,
+        startedAt: new Date("2026-08-13T09:00:00.000Z"),
+      },
+    });
+    render(await ProgressPage());
+
+    expect(screen.getByText(/Nobody had written Kite surfing/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /See how it/ }).getAttribute("href"),
+    ).toBe("/start/building?subject=kite-surfing");
+    expect(screen.queryByText("Pick a subject")).toBeNull();
+  });
+
+  /**
+   * The band below already lists every course, this one included. Two lists of
+   * the same courses on one screen, with different buttons on each, is the
+   * drift `CourseList` exists to prevent.
+   */
+  it("does not repeat the courses band as a second list", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    const paused = {
+      goalId: "g-old",
+      name: "Photography",
+      taxonomyParent: "creative",
+      status: "paused" as const,
+    };
+    coursesForMock.mockResolvedValue([paused]);
+    standingForMock.mockResolvedValue({ ...NOTHING_ON, again: [paused] });
+    render(await ProgressPage());
+
+    expect(screen.queryByText("Pick one back up")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Pick it up" })).toHaveLength(1);
   });
 
   /** See the same test on `/mastery`: nothing here can tell the two apart. */

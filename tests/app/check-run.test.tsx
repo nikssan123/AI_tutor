@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { decode, encode, type CheckCookie } from "@/lib/check/session";
 import { gradingModeFor } from "@/lib/engine/diagnostic";
+import { EVAL_TIER_CLAIM } from "@/lib/claims";
+import { tierFor } from "@/lib/evaluation/tier";
 
 /**
  * §24 E4 — the Skill Check as a learner meets it.
@@ -83,6 +85,17 @@ describe("the intro", () => {
       screen.getByText(/marking your own work never counts as proof/),
     ).toBeDefined();
     expect(screen.getByRole("button", { name: /Start the check/ })).toBeDefined();
+  });
+
+  it("quotes the tier the evaluator can honour, not the pack's declared one", async () => {
+    // This page read `pack.evalTier` directly while every other surface went
+    // through `topicSummary`, so it went on promising tier 1's "we run your
+    // work" after the rest of the site had stopped. Found by curling the page,
+    // not by the suite — which is why the assertion is here now.
+    render(await page.default({ params: params() }));
+
+    expect(screen.getByText(EVAL_TIER_CLAIM[tierFor(pack.evalTier)]!.label)).toBeDefined();
+    expect(screen.queryByText(EVAL_TIER_CLAIM[1]!.label)).toBeNull();
   });
 
   it("404s for a subject that does not exist", async () => {

@@ -11,6 +11,8 @@ import {
   findProject,
   findSkill,
 } from "@/lib/content";
+import { EVAL_TIER_CLAIM } from "@/lib/claims";
+import { tierFor } from "@/lib/evaluation/tier";
 
 const notFoundMock = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
@@ -34,15 +36,13 @@ afterEach(() => {
 const params = <T,>(value: T) => Promise.resolve(value);
 
 /**
- * The per-tier promise, in the words a visitor reads. Kept in one place so the
- * copy and the assertions cannot drift apart — the wording is user-facing, but
- * *which* tier says what is a §7.2 correctness property.
+ * The claims, from the table the pages themselves read. Typed out here
+ * originally, which meant this file could assert a page said tier 1's sentence
+ * while believing that was fine — it listed the sentence as an expected value.
  */
-const CLAIM: Record<number, string> = {
-  1: "We run your work and check the answer is right",
-  2: "We mark it against a checklist you can read first",
-  3: "We check the technical side. Whether it's any good is your call",
-};
+const CLAIM: Record<number, string> = Object.fromEntries(
+  Object.entries(EVAL_TIER_CLAIM).map(([tier, claim]) => [tier, claim.label]),
+);
 
 describe("marketing layout", () => {
   it("wraps content in the site header and footer", () => {
@@ -308,9 +308,18 @@ describe("landing page (§8 screen 1)", () => {
    */
   it("states a per-subject evaluation claim, not one blanket claim (§7.2)", () => {
     render(<HomePage />);
-    for (const claim of Object.values(CLAIM)) {
-      expect(screen.getAllByText(claim).length, claim).toBeGreaterThan(0);
+
+    // Each subject says its own honest ceiling...
+    for (const t of allTopics()) {
+      expect(screen.getAllByText(CLAIM[t.evalTier]!).length, t.slug).toBeGreaterThan(0);
     }
+
+    // ...and they are not all the same sentence, which is the property the
+    // differentiator actually rests on. Asserted as "more than one distinct
+    // claim" rather than as a list of every tier that exists: the old form
+    // required tier 1's sentence to be on the page, and no page may say it.
+    const shown = new Set(allTopics().map((t) => CLAIM[t.evalTier]!));
+    expect(shown.size).toBeGreaterThan(1);
   });
 
   it("shows a non-technical subject first, so it cannot read as a dev tool", () => {
@@ -358,9 +367,16 @@ describe("/learn", () => {
   });
 
   it("states what each subject can verify, not just how deep it goes", async () => {
+    // Derived from the subjects on the page rather than from a list of every
+    // tier that exists: the hub shows the claims its packs actually make, and
+    // asserting the full table meant asserting tier 1's sentence appeared
+    // somewhere — which was the overclaim, written down as a requirement.
     render(await learn.default({ searchParams: params({}) }));
-    for (const claim of Object.values(CLAIM)) {
-      expect(screen.getAllByText(claim).length, claim).toBeGreaterThan(0);
+    for (const topic of allTopics()) {
+      expect(
+        screen.getAllByText(CLAIM[topic.evalTier]!).length,
+        topic.slug,
+      ).toBeGreaterThan(0);
     }
   });
 
@@ -491,12 +507,21 @@ describe("no page claims more than its evaluator can honour (§4.2 law 3)", () =
     },
   );
 
-  it("carries the grading tier from the pack, not the project", () => {
+  it("carries the grading tier from the pack, capped by what the pipeline does", () => {
+    // This assertion used to require the pack's *declared* tier, which is how
+    // the SQL briefs kept promising "we run your work" for four passes: the
+    // block caught a project overclaiming against its pack, and missed the pack
+    // overclaiming against the evaluator. Both directions now.
     for (const p of allProjects()) {
-      expect(p.evalTier, p.slug).toBe(
-        findPack(p.topicSlug)!.evalTier,
-      );
+      expect(p.evalTier, p.slug).toBe(tierFor(findPack(p.topicSlug)!.evalTier));
     }
+  });
+
+  it("states no tier-1 claim anywhere on the public site", () => {
+    // The end the reader actually sees. Tier 1 licenses "we run your work and
+    // check the answer is right", and nothing in this build runs anything.
+    for (const p of allProjects()) expect(p.evalTier).not.toBe(1);
+    for (const t of allTopics()) expect(t.evalTier).not.toBe(1);
   });
 });
 

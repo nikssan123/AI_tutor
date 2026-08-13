@@ -5,17 +5,14 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { todayFor } from "@/lib/goals/today";
-import { loadIntake } from "@/lib/goals/intake-store";
-import { resumableIntake } from "@/lib/goals/onboarding";
-import { coursesFor, pickUpAgain } from "@/lib/goals/courses";
+import { standingFor } from "@/lib/goals/standing";
 import { answeredTopics } from "@/lib/check/session";
 import { allTopics } from "@/lib/content";
 import { SubjectIcon } from "@/components/icons";
 import { SubjectList } from "@/components/subject-list";
-import { CourseList } from "@/components/course-list";
+import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import {
   Button,
-  ButtonLink,
   Card,
   EmptyState,
   Lead,
@@ -92,21 +89,22 @@ function blockDetail(block: SessionBlock, names: Map<string, string>): string {
  * exactly three things in §8.5.1's budget: what they already started, what they
  * could start, and how to find out where they stand first.
  *
+ * The first two of those now come from `NothingRunning` and `PickBackUp`, which
+ * the other three destinations render as well — the offer is the same learner's
+ * state wherever they read it. What stays here is the third: the sample of the
+ * catalogue, which belongs on the screen they open daily and nowhere else.
+ *
  * "Nothing running" rather than "no goal yet" is deliberate: `todayFor` also
  * returns nothing when a goal outlives the pack it was created against, and
  * telling that learner they never set a goal is false.
  */
 async function nothingRunningYet(userId: string) {
   const topics = allTopics();
-  const db = getDb();
-  const [intake, courses, jar] = await Promise.all([
-    loadIntake(db, userId),
-    coursesFor(db, userId),
+  const [standing, jar] = await Promise.all([
+    standingFor(getDb(), userId),
     cookies(),
   ]);
 
-  const resume = resumableIntake(intake);
-  const again = pickUpAgain(courses);
   const checked = answeredTopics(
     topics.map((t) => t.slug),
     (name) => jar.get(name)?.value,
@@ -119,61 +117,11 @@ async function nothingRunningYet(userId: string) {
         lead="One thing at a time, chosen for you — once there is a course to choose from."
       />
 
-      {/*
-       * The primary card, and the only filled button on the screen (§8.5.5). A
-       * conversation someone walked away from is a better offer than a fresh
-       * one, so when there is one it takes this slot rather than sitting below
-       * the invitation to start again.
-       */}
-      <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-        {resume ? (
-          <>
-            <Title>
-              {resume.ready
-                ? "Your course is ready to build"
-                : "You were partway through"}
-            </Title>
-            <Lead>
-              {resume.subject
-                ? `We were talking about ${resume.subject}.`
-                : "We were working out what you wanted."}{" "}
-              {resume.ready
-                ? "Nothing more to answer — it just needs building."
-                : `${resume.turns} of ${resume.ofTurns} questions answered.`}
-            </Lead>
-            <ButtonLink href="/start">
-              {resume.ready ? "Build it" : "Carry on"}
-            </ButtonLink>
-          </>
-        ) : (
-          <>
-            <Title>Pick something to get good at</Title>
-            <Lead>
-              Tell us in your own words and we&rsquo;ll work out what to do
-              first — and what to skip because you can already do it. If we
-              don&rsquo;t cover it yet, we&rsquo;ll build it.
-            </Lead>
-            <ButtonLink href="/start">Tell us what you want</ButtonLink>
-          </>
-        )}
-      </Card>
+      {/* `catalogue={false}`: the sample below is this screen's door to
+          `/subjects`, and two of them would be one thing counted twice. */}
+      <NothingRunning standing={standing} catalogue={false} />
 
-      {/*
-       * A course put aside beats anything on the catalogue: the learner has
-       * already chosen it, already has mastery behind it, and the queue kept
-       * running while it was away. Kept as its own band rather than competing
-       * with the primary card, so both offers survive.
-       */}
-      {again.length > 0 ? (
-        <section className="rise flex flex-col gap-6" style={stagger(2)}>
-          <SectionHead label="You have these already" title="Pick one back up" />
-          <CourseList courses={again} />
-          <Meta>
-            Everything you proved on these is still yours — picking one up puts
-            it back on your Today.
-          </Meta>
-        </section>
-      ) : null}
+      <PickBackUp courses={standing.again} />
 
       <section className="rise flex flex-col gap-6" style={stagger(3)}>
         <SectionHead

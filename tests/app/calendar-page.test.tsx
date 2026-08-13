@@ -7,6 +7,7 @@ import { buildEntries } from "@/lib/calendar/schedule";
 import type { CalendarEntry, Commitment } from "@/lib/calendar/schedule";
 import type { Checkpoint } from "@/lib/calendar/checkpoints";
 import type { CalendarView } from "@/lib/calendar/view";
+import type { LearnerStanding } from "@/lib/goals/standing";
 
 /**
  * The calendar screen.
@@ -23,6 +24,7 @@ const redirectMock = vi.fn((url: string) => {
 });
 const getSessionMock = vi.fn();
 const calendarForMock = vi.fn();
+const standingForMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -35,8 +37,19 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/calendar/view", () => ({
   calendarFor: (...args: unknown[]) => calendarForMock(...(args as [])),
 }));
+// What the learner has on when there is nothing to date. Stubbed for the same
+// reason `calendarFor` is: it is a database read, tested in tests/goals.
+vi.mock("@/lib/goals/standing", () => ({
+  standingFor: (...args: unknown[]) => standingForMock(...(args as [])),
+}));
 
 const { default: CalendarPage } = await import("@/app/(app)/calendar/page");
+
+const NOTHING_ON: LearnerStanding = {
+  building: undefined,
+  resume: undefined,
+  again: [],
+};
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
 const TODAY = "2026-08-14";
@@ -105,6 +118,7 @@ function view(
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
+  standingForMock.mockResolvedValue(NOTHING_ON);
 });
 
 afterEach(cleanup);
@@ -123,6 +137,66 @@ describe("before there is anything to date", () => {
 
     expect(screen.getByText(/everything owed and everything already done/i)).toBeDefined();
     expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /**
+   * The bug this shares a fix with: `/today` told the learner they were partway
+   * through creating a subject, and this screen — one tab along, same learner,
+   * same moment — told them they had nothing and should go and pick something.
+   */
+  it("carries the conversation they left, rather than offering a fresh start", async () => {
+    calendarForMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      ...NOTHING_ON,
+      resume: { subject: "Kite surfing", turns: 2, ofTurns: 6, ready: false },
+    });
+    render(await CalendarPage({ searchParams: search() }));
+
+    expect(screen.getByText("You were partway through")).toBeDefined();
+    expect(screen.getByText(/2 of 6 questions answered/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Carry on" }).getAttribute("href"),
+    ).toBe("/start");
+    expect(screen.queryByText("Pick something to get good at")).toBeNull();
+  });
+
+  it("sends them to the wait screen while a subject is being written", async () => {
+    calendarForMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      ...NOTHING_ON,
+      building: {
+        slug: "kite-surfing",
+        subject: "Kite surfing",
+        status: "building" as const,
+        detail: null,
+        startedAt: new Date("2026-08-13T09:00:00.000Z"),
+      },
+    });
+    render(await CalendarPage({ searchParams: search() }));
+
+    expect(screen.getByText(/writing your course now/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /See how it/ }).getAttribute("href"),
+    ).toBe("/start/building?subject=kite-surfing");
+  });
+
+  it("offers a course they put aside, which already has dates behind it", async () => {
+    calendarForMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      ...NOTHING_ON,
+      again: [
+        {
+          goalId: "g-old",
+          name: "Photography",
+          taxonomyParent: "creative",
+          status: "paused" as const,
+        },
+      ],
+    });
+    render(await CalendarPage({ searchParams: search() }));
+
+    expect(screen.getByText("Pick one back up")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
   });
 
   /** See the same test on `/mastery`: nothing here can tell the two apart. */

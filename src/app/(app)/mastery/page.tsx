@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { ledgerFor } from "@/lib/mastery/view";
+import { standingFor } from "@/lib/goals/standing";
 import { CLAIMED, type LedgerEntry } from "@/lib/mastery/ledger";
 import { STATUS_LABEL } from "@/lib/goals/lifecycle";
 import {
@@ -21,6 +22,7 @@ import {
   ToggleGroup,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
+import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import { ArrowIcon } from "@/components/icons";
 
 /**
@@ -130,18 +132,22 @@ export default async function MasteryPage({ searchParams }: Props) {
   const view = await ledgerFor(getDb(), session.user.id, new Date());
 
   if (!view) {
+    // Nothing proved and nothing running — which does not mean nothing
+    // started. The same standing `/today` reads, so a learner mid-way through
+    // creating a subject is not told here that they have nothing.
+    const standing = await standingFor(getDb(), session.user.id);
+
     return (
       <AppFrame width="narrow">
         <AppHeader
           title="What you can do"
           lead="The record of what you have proved. It fills up as work gets marked."
         />
-        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-          <EmptyState
-            message="No course running yet. This fills up with what you have proved — one line per skill, each linked to the work that proved it."
-            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
-          />
-        </Card>
+        <NothingRunning
+          standing={standing}
+          note="This fills up with what you have proved — one line per skill, each linked to the work that proved it."
+        />
+        <PickBackUp courses={standing.again} />
       </AppFrame>
     );
   }

@@ -1,4 +1,4 @@
-import { and, count, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt } from "drizzle-orm";
 import type { Db } from "@/db";
 import { packBuild } from "@/db/schema";
 
@@ -44,6 +44,18 @@ function statusOf(value: string): BuildStatus {
   return value === "ready" || value === "failed" ? value : "building";
 }
 
+type BuildRow = typeof packBuild.$inferSelect;
+
+function toBuild(row: BuildRow): PackBuild {
+  return {
+    slug: row.slug,
+    subject: row.subject,
+    status: statusOf(row.status),
+    detail: row.detail,
+    startedAt: row.startedAt,
+  };
+}
+
 export async function findBuild(
   db: Db,
   slug: string,
@@ -54,15 +66,21 @@ export async function findBuild(
     .where(eq(packBuild.slug, slug))
     .limit(1);
 
-  return row
-    ? {
-        slug: row.slug,
-        subject: row.subject,
-        status: statusOf(row.status),
-        detail: row.detail,
-        startedAt: row.startedAt,
-      }
-    : undefined;
+  return row ? toBuild(row) : undefined;
+}
+
+/**
+ * A learner's live builds — one predicate, so the count used for rate limiting
+ * and the row shown on screen cannot disagree about what "in flight" means.
+ */
+function inFlight(userId: string, now: Date) {
+  const cutoff = new Date(now.getTime() - BUILD_TIMEOUT_MINUTES * 60_000);
+
+  return and(
+    eq(packBuild.requestedBy, userId),
+    eq(packBuild.status, "building"),
+    gt(packBuild.startedAt, cutoff),
+  );
 }
 
 /** Builds this learner has in flight, ignoring ones that have clearly died. */
@@ -71,20 +89,42 @@ export async function activeBuildsFor(
   userId: string,
   now: Date = new Date(),
 ): Promise<number> {
-  const cutoff = new Date(now.getTime() - BUILD_TIMEOUT_MINUTES * 60_000);
-
   const [row] = await db
     .select({ n: count() })
     .from(packBuild)
-    .where(
-      and(
-        eq(packBuild.requestedBy, userId),
-        eq(packBuild.status, "building"),
-        gt(packBuild.startedAt, cutoff),
-      ),
-    );
+    .where(inFlight(userId, now));
 
   return Number(row!.n);
+}
+
+/**
+ * The build a learner has running, for screens that owe them a progress report.
+ *
+ * `activeBuildsFor` answers "may they start another"; this answers "what is
+ * happening to them right now", which is what every screen outside `/start`
+ * needs and none of them could ask. A learner who walks away from the wait
+ * screen is mid-course-creation, and until this existed the rest of the product
+ * had no way to say so — `/today` offered to build a course that was already
+ * being built, and the button it offered fails with "you already have a course
+ * being built".
+ *
+ * Newest first, though `MAX_CONCURRENT_BUILDS_PER_USER` means there is at most
+ * one: the ordering is what makes that cap a rate limit rather than an
+ * assumption this function rests on.
+ */
+export async function buildInFlightFor(
+  db: Db,
+  userId: string,
+  now: Date = new Date(),
+): Promise<PackBuild | undefined> {
+  const [row] = await db
+    .select()
+    .from(packBuild)
+    .where(inFlight(userId, now))
+    .orderBy(desc(packBuild.startedAt))
+    .limit(1);
+
+  return row ? toBuild(row) : undefined;
 }
 
 export type StartOutcome =

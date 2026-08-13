@@ -14,6 +14,7 @@ import {
   SKILL_CHECKS_ARE_NEVER_INDEXED,
   topicSummary,
 } from "@/lib/content";
+import { MAX_TIER_WITHOUT_EXECUTION } from "@/lib/evaluation/tier";
 import type { DomainPack } from "@/lib/packs/types";
 
 /**
@@ -130,6 +131,48 @@ describe("§12.1 — indexing is earned, never granted", () => {
   });
 });
 
+describe("the tier a public page is allowed to quote", () => {
+  /**
+   * The bug this exists for: the SQL pack declares `evalTier: 1`, the evaluator
+   * caps at 2 because nothing executes a learner's work, and every public
+   * surface read the declared number — so /learn, /projects, /check and the
+   * share cards all said "We run your work and check the answer is right."
+   * True nowhere. §4.2 law 3, on the pages the product is sold from.
+   */
+  it("never hands out tier 1, because nothing executes anything", () => {
+    expect(pack.evalTier).toBe(1);
+    expect(topicSummary(pack).evalTier).toBe(MAX_TIER_WITHOUT_EXECUTION);
+  });
+
+  it("caps the briefs and the skills too, not just the subject", () => {
+    for (const project of projectDetails(pack)) {
+      expect(project.evalTier, project.slug).toBeGreaterThanOrEqual(
+        MAX_TIER_WITHOUT_EXECUTION,
+      );
+    }
+    for (const skill of skillDetails(pack)) {
+      expect(skill.evalTier, skill.slug).toBeGreaterThanOrEqual(
+        MAX_TIER_WITHOUT_EXECUTION,
+      );
+    }
+  });
+
+  it("leaves a weaker declared tier exactly where it is", () => {
+    // The cap only ever moves a claim *down*. A tier-5 skill does not become
+    // tier 2 because we would like it to.
+    const weak = { ...pack, evalTier: 5 as const };
+    expect(topicSummary(weak).evalTier).toBe(5);
+  });
+
+  it("holds for every pack that ships, not only for SQL", () => {
+    for (const topic of allTopics()) {
+      expect(topic.evalTier, topic.slug).toBeGreaterThanOrEqual(
+        MAX_TIER_WITHOUT_EXECUTION,
+      );
+    }
+  });
+});
+
 describe("topicSummary", () => {
   const summary = topicSummary(pack);
 
@@ -145,9 +188,12 @@ describe("topicSummary", () => {
     expect(summary.areas[0]).toBe("foundations");
   });
 
-  it("carries the declared maturity and tier through unchanged", () => {
+  it("carries the declared maturity through unchanged", () => {
+    // Maturity is a fact about how the pack was written and passes through.
+    // The tier deliberately does not — see the tier describe above. This
+    // assertion used to require `evalTier === 1`, which is how the overclaim
+    // survived: the bug was not merely untested, it was pinned in place.
     expect(summary.maturity).toBe("curated");
-    expect(summary.evalTier).toBe(1);
   });
 });
 

@@ -1,6 +1,7 @@
 import { loadAllPacks } from "@/lib/packs/loader";
 import { buildIndex, prerequisitesOf } from "@/lib/engine/graph";
 import { toEngineGraph } from "@/lib/packs/validate";
+import { tierFor } from "@/lib/evaluation/tier";
 import type { DomainPack, PackProject, PackRubric, PackSkill } from "@/lib/packs/types";
 
 /**
@@ -14,6 +15,16 @@ import type { DomainPack, PackProject, PackRubric, PackSkill } from "@/lib/packs
  *
  * §12.1's structural defence in one line: a page is only `indexable` when the
  * thing it describes genuinely exists and works. Nothing here defaults to true.
+ *
+ * **Every `evalTier` below is the tier the product can honour, not the tier the
+ * pack declares.** They are not the same number: the SQL pack declares tier 1
+ * and nothing in this build executes a learner's work, so `tierFor` caps it at
+ * 2. This module is the boundary where that has to happen, because it is what
+ * every public surface reads — the subject page, the brief, the check, and the
+ * share cards. A page reaching past it to `pack.evalTier` is a page promising
+ * execution that will not happen (§4.2 law 3). The admin console deliberately
+ * still shows the declared tier: that is a fact about the pack, and it is the
+ * one screen whose job is to show what the pack claims for itself.
  */
 
 export interface TopicSummary {
@@ -58,6 +69,11 @@ export interface ProjectDetail extends PackProject {
    * evaluatorConfig, not of the project. Carried explicitly because a brief
    * that states a stronger claim than its evaluator can honour is precisely
    * the overclaiming §4.2 law 3 rules out.
+   *
+   * That was the intent from the start and the code did not keep it: it copied
+   * `pack.evalTier` through unchanged, so the SQL briefs promised tier 1's "we
+   * run your work" while the evaluator capped them at 2. It goes through
+   * `tierFor` now.
    */
   evalTier: number;
   rubricDetail: PackRubric;
@@ -107,7 +123,7 @@ export function topicSummary(pack: DomainPack): TopicSummary {
     name: pack.name,
     maturity: pack.maturity,
     taxonomyParent: pack.taxonomyParent,
-    evalTier: pack.evalTier,
+    evalTier: tierFor(pack.evalTier),
     skillCount: pack.skills.length,
     projectCount: pack.projects.length,
     totalHours: totalHours(pack),
@@ -136,7 +152,7 @@ export function skillDetails(pack: DomainPack): SkillDetail[] {
     canDoStatement: skill.canDoStatement,
     level: skill.level,
     area: skill.area,
-    evalTier: skill.evalTier,
+    evalTier: tierFor(skill.evalTier),
     estimatedHours: skill.estimatedHours,
     hardPrerequisites: prerequisitesOf(index, skill.slug, "hard").map(
       (e) => e.fromSkillId,
@@ -186,7 +202,7 @@ export function projectDetails(pack: DomainPack): ProjectDetail[] {
       ...project,
       topicSlug: pack.slug,
       topicName: pack.name,
-      evalTier: pack.evalTier,
+      evalTier: tierFor(pack.evalTier),
       rubricDetail,
       skills: project.targetSkills.flatMap((slug) => {
         const skill = byName.get(slug);

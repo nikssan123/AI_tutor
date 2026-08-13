@@ -151,7 +151,11 @@ export default async function CheckRunPage({ params }: Params) {
             <strong>marking your own work never counts as proof</strong>. For
             that, you hand in a project.
           </Meta>
-          <EvalTierNote tier={pack.evalTier} />
+          {/* The summary's tier, not the pack's: `topicSummary` caps it at
+              what the evaluator can honour, and this page reaching past it for
+              the declared number is the exact bug that had /check promising
+              tier 1's "we run your work" on a build with no sandbox. */}
+          <EvalTierNote tier={topicSummary(pack).evalTier} />
         </div>
         <form action={startCheck.bind(null, topic)}>
           <Button type="submit">Start the check</Button>

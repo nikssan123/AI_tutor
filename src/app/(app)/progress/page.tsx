@@ -6,11 +6,11 @@ import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { digestFor } from "@/lib/mastery/view";
 import { coursesFor } from "@/lib/goals/courses";
+import { standingFor } from "@/lib/goals/standing";
 import { CourseList } from "@/components/course-list";
+import { NothingRunning } from "@/components/nothing-running";
 import {
-  ButtonLink,
   Card,
-  EmptyState,
   Figure,
   Lead,
   Meta,
@@ -79,22 +79,28 @@ export default async function ProgressPage() {
     ) : null;
 
   if (!view) {
+    /*
+     * Named for what this screen will hold rather than for what is missing,
+     * and carrying whatever the learner has actually got on — the conversation
+     * they left, or the subject being written for them right now. "No course
+     * running" rather than "no goal yet" because `digestFor` also returns
+     * nothing when a goal outlives its subject.
+     *
+     * No `PickBackUp` here: the band below already lists every course, this
+     * one included, and is where they are managed rather than re-entered.
+     */
+    const standing = await standingFor(db, session.user.id);
+
     return (
       <AppFrame width="narrow">
         <AppHeader
           title="Your week"
           lead="Every seven days, an honest read on the pace you are actually keeping."
         />
-        {/* Named for what this screen will hold rather than for what is
-            missing, and pointed at the one door that now leads somewhere.
-            "No course running" rather than "no goal yet" because `digestFor`
-            also returns nothing when a goal outlives its subject. */}
-        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-          <EmptyState
-            message="No course running, so there is no week to read yet. Once one is, this is where the hours you kept get set against the hours you meant to."
-            action={<ButtonLink href="/subjects">Pick a subject</ButtonLink>}
-          />
-        </Card>
+        <NothingRunning
+          standing={standing}
+          note="Once a course is running, this is where the hours you kept get set against the hours you meant to."
+        />
         {yourCourses}
       </AppFrame>
     );

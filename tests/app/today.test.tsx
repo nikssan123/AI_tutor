@@ -25,6 +25,7 @@ const getSessionMock = vi.fn();
 const todayForMock = vi.fn();
 const loadIntakeMock = vi.fn();
 const coursesForMock = vi.fn();
+const buildInFlightForMock = vi.fn();
 
 /** Check cookies, by name, for the "your check comes with you" promise. */
 const jar = new Map<string, string>();
@@ -59,6 +60,13 @@ vi.mock("@/lib/goals/intake-store", async (importOriginal) => ({
 vi.mock("@/lib/goals/courses", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
   coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
+}));
+// The three reads above are what `standingFor` composes, so the real
+// composition runs here — only the queries are stubbed. Which of the three
+// offers wins is decided in `standing.ts`, and this file cannot disagree.
+vi.mock("@/lib/packs/build", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/packs/build")>()),
+  buildInFlightFor: (...args: unknown[]) => buildInFlightForMock(...(args as [])),
 }));
 
 const { default: TodayPage } = await import("@/app/(app)/today/page");
@@ -129,6 +137,7 @@ beforeEach(() => {
   getSessionMock.mockResolvedValue(SIGNED_IN);
   loadIntakeMock.mockResolvedValue(EMPTY_INTAKE);
   coursesForMock.mockResolvedValue([]);
+  buildInFlightForMock.mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -310,6 +319,51 @@ describe("with a conversation left unfinished", () => {
 
     expect(screen.queryByText("You were partway through")).toBeNull();
     expect(screen.getByText("Pick something to get good at")).toBeDefined();
+  });
+});
+
+/**
+ * §7.1's Generated tier takes about three minutes, and a learner who walks away
+ * from the wait screen is still mid-course-creation. The screen used to offer
+ * them "Build it" — a button that fails, because they already have a course
+ * being built.
+ */
+describe("with a subject being written for them", () => {
+  const building = {
+    slug: "kite-surfing",
+    subject: "Kite surfing",
+    status: "building" as const,
+    detail: null,
+    startedAt: new Date("2026-08-13T09:00:00.000Z"),
+  };
+
+  beforeEach(() => {
+    todayForMock.mockResolvedValue(undefined);
+    buildInFlightForMock.mockResolvedValue(building);
+    // The conversation that started the build is still on file, and is the
+    // offer this one has to beat.
+    loadIntakeMock.mockResolvedValue({
+      ...EMPTY_INTAKE,
+      messages: [{ r: "l", t: "kite surfing" }],
+      captured: { subject: "Kite surfing" } as Intake["captured"],
+      done: true,
+    });
+  });
+
+  it("says the course is being written, and sends them to the wait screen", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText(/writing your course now/)).toBeDefined();
+    expect(screen.getByText(/Nobody had written Kite surfing/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /See how it/ }).getAttribute("href"),
+    ).toBe("/start/building?subject=kite-surfing");
+  });
+
+  it("does not offer to build a course that is already being built", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByRole("link", { name: "Build it" })).toBeNull();
   });
 });
 

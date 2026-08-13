@@ -4,6 +4,7 @@ import { logCall, shouldDegrade, type SPEND_CAP_CENTS } from "@/lib/ai/runlog";
 import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
 import { gradeSubmission, type GradeInput } from "./grade";
+import { tierFor } from "./tier";
 import {
   confidenceFor,
   needsHumanReview,
@@ -84,21 +85,12 @@ export function normaliseArtefact(raw: string): {
 }
 
 /**
- * The tier an evaluation may claim, which is the skill's own tier capped by
- * what this pipeline can actually do.
- *
- * §7.2 tier 1 is "execute + assert against expected behaviour". Nothing here
- * executes anything, so a tier-1 skill graded by reading its code is being
- * assessed at tier 2 and says so. The cap disappears when the sandbox arrives;
- * until then this is the difference between a limit and a lie (§4.2 law 3).
+ * The tier an evaluation may claim. Defined in `./tier`, which has no
+ * dependencies, so that the pages quoting a tier to a visitor can apply the same
+ * cap without importing the grader — the reason they did not, and the reason
+ * they overclaimed for four passes.
  */
-export const MAX_TIER_WITHOUT_EXECUTION: EvalTier = 2;
-
-export function tierFor(skillTier: EvalTier): EvalTier {
-  return skillTier < MAX_TIER_WITHOUT_EXECUTION
-    ? MAX_TIER_WITHOUT_EXECUTION
-    : skillTier;
-}
+export { MAX_TIER_WITHOUT_EXECUTION, tierFor } from "./tier";
 
 /** How far apart two passes put the same criterion, in bands. */
 export function spreadBetween(

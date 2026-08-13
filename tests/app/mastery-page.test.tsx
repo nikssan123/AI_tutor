@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { findPack } from "@/lib/content";
 import type { LedgerEntry, Standing } from "@/lib/mastery/ledger";
 import type { ClaimGroup, LedgerView } from "@/lib/mastery/view";
+import type { LearnerStanding } from "@/lib/goals/standing";
 
 /**
  * §8 screen 10 — the mastery map.
@@ -20,6 +21,7 @@ const redirectMock = vi.fn((url: string) => {
 });
 const getSessionMock = vi.fn();
 const ledgerForMock = vi.fn();
+const standingForMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -32,8 +34,19 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/mastery/view", () => ({
   ledgerFor: (...args: unknown[]) => ledgerForMock(...(args as [])),
 }));
+// What the learner has on when there is nothing proved yet. A database read,
+// stubbed here and tested in tests/goals/standing.test.ts.
+vi.mock("@/lib/goals/standing", () => ({
+  standingFor: (...args: unknown[]) => standingForMock(...(args as [])),
+}));
 
 const { default: MasteryPage } = await import("@/app/(app)/mastery/page");
+
+const NOTHING_ON: LearnerStanding = {
+  building: undefined,
+  resume: undefined,
+  again: [],
+};
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
 const search = (params: { show?: string } = {}) => Promise.resolve(params);
@@ -89,6 +102,7 @@ function view(overrides: Partial<LedgerView> = {}): LedgerView {
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
+  standingForMock.mockResolvedValue(NOTHING_ON);
 });
 
 afterEach(cleanup);
@@ -107,6 +121,31 @@ describe("before there is anything to show", () => {
 
     expect(screen.getByText(/linked to the work that proved it/i)).toBeDefined();
     expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /**
+   * Nothing proved is not the same as nothing started, and this screen used to
+   * say the second when it only knew the first.
+   */
+  it("names what they have already started", async () => {
+    ledgerForMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      ...NOTHING_ON,
+      resume: { subject: "Kite surfing", turns: 6, ofTurns: 6, ready: true },
+      again: [
+        {
+          goalId: "g-old",
+          name: "Photography",
+          taxonomyParent: "creative",
+          status: "paused" as const,
+        },
+      ],
+    });
+    render(await MasteryPage({ searchParams: search() }));
+
+    expect(screen.getByText("Your course is ready to build")).toBeDefined();
+    expect(screen.getByRole("link", { name: "Build it" })).toBeDefined();
+    expect(screen.getByText("Pick one back up")).toBeDefined();
   });
 
   /**

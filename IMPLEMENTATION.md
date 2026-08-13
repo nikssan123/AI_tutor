@@ -1961,3 +1961,61 @@ Lighthouse and the GSC/Bing verification in E10's acceptance criteria need a
 deployed origin and have not been run.
 
 2685 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+
+# Delivery record — pass 23: one answer to "where am I", on all four screens
+
+`src/lib/goals/standing.ts`, `src/components/nothing-running.tsx`, and the four
+destinations that now share them. No model is called anywhere in this pass.
+
+## The contradiction
+
+`/today` would tell a learner they were partway through creating a subject — the
+`goal_intake` row read as an offer, built in pass 19. One tab along, `/calendar`,
+`/mastery` and `/progress` told the same learner, in the same moment, that they
+had nothing and should go and pick a subject.
+
+Pass 19 fixed the dead end on the screen it was diagnosed on and left the other
+three saying what they had always said. That is not a thinner answer; it is a
+different one, about the same state, and it is the version that makes the product
+look like it has forgotten what the learner did five minutes ago.
+
+## What was actually wrong, underneath
+
+Nothing was missing from the database. Three screens simply never asked. So the
+fix is one read — `standingFor` — and one component, for the same reason
+`CourseList` is one component: what a learner is in the middle of is a single
+fact, and four screens each deciding how to load and word it is exactly how they
+came to disagree.
+
+`LearnerStanding`, not `Standing`: the ledger already uses that word for where a
+single skill stands.
+
+## The state nobody could see at all
+
+`pack_build` has always known that a learner has a subject being authored right
+now, and `activeBuildsFor` only ever answered "may they start another". Nothing
+could ask "what is happening to them". A learner who walked away from the wait
+screen was offered **Build it** on `/today` — a button that fails, because
+`buildFromConversationAction` refuses a second concurrent build and redirects
+back with `error=busy`.
+
+So the offers are ranked, and a build in flight outranks the conversation that
+started it: *we're writing it now*, pointing at the wait screen, which is the
+only page that knows how far along it is.
+
+## Notes
+
+- `/today` passes `catalogue={false}`. It carries a sample of `/subjects` below
+  the card, and two doors to one place is the density §8.5.1 warns about.
+- `/progress` renders no `PickBackUp`. Its own band already lists every course,
+  finished ones included — that screen is where a course is managed, not
+  re-entered — and a second list with different buttons on it is the drift
+  `CourseList` exists to prevent.
+- `/mastery`'s what's-left tab keeps its own empty state. A learner between
+  courses is not looking at an empty page there; their claims are the content,
+  and pass 20 made a point of the ledger outliving the course.
+- The three notes ("once a course is running, this is where…") stay per screen.
+  The offer is the same everywhere; what the learner came to that screen for is
+  not.
+
+2711 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
