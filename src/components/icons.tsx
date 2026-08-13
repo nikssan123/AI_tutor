@@ -96,6 +96,25 @@ export function TodayIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * A month of squares, some of them marked: the shape of a plan over time.
+ *
+ * Deliberately not `TodayIcon` with a different name — that one marks a single
+ * day because it stands for the one thing to do now, and two destinations
+ * drawn the same way would make the rail say less than it did before.
+ */
+export function CalendarIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2" />
+      <path d="M4 10h16M8.5 3.5v3M15.5 3.5v3" />
+      <circle cx="8.5" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="16.5" r="1" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 /** A tick in a ring: something proved, and still standing. */
 export function MasteryIcon({ className }: IconProps) {
   return (

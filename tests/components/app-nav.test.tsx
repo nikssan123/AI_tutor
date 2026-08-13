@@ -61,7 +61,7 @@ describe("AppNav", () => {
 
     // §8.5.5 bans "tooltips that explain an icon" — which in practice means an
     // icon may never be the only label.
-    for (const label of ["Today", "Mastery", "Progress", "You"]) {
+    for (const label of ["Today", "Calendar", "Mastery", "Progress", "You"]) {
       expect(screen.getAllByRole("link", { name: label }).length).toBe(2);
     }
   });

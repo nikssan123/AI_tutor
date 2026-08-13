@@ -29,7 +29,11 @@ export const LEVELS: Record<string, string> = {
   advanced: "Experienced",
 };
 
-const MONTHS = [
+/**
+ * Exported because `/calendar` names months too, and two lists would eventually
+ * disagree about how we spell one of them in front of the same learner.
+ */
+export const MONTHS = [
   "January",
   "February",
   "March",

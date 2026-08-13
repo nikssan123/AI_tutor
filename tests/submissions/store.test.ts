@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { createClient } from "@/db";
 import {
   artifact,
@@ -176,7 +176,12 @@ live("submissions", () => {
       const [held] = await db
         .select()
         .from(learnerSkillMastery)
-        .where(eq(learnerSkillMastery.skillId, skillId(PACK, skill.slug)));
+        .where(
+          and(
+            eq(learnerSkillMastery.userId, IDS[0]!),
+            eq(learnerSkillMastery.skillId, skillId(PACK, skill.slug)),
+          ),
+        );
       expect(held!.mastery).toBeGreaterThan(0);
 
       expect((await submissionById(db, id, IDS[0]!))!.status).toBe("complete");
@@ -238,10 +243,19 @@ live("submissions", () => {
       // happen is the retention clock starting.
       expect(update!.evidenceTier).toBe(2);
 
+      // Scoped to this test's learner. Mastery is keyed on (user, skill), and
+      // a predicate on the skill alone reads whoever else's row happens to be
+      // in the shared database — a fixture for another screen was enough to
+      // fail this on a fact about a different person.
       const [held] = await db
         .select()
         .from(learnerSkillMastery)
-        .where(eq(learnerSkillMastery.skillId, skillId(PACK, skill.slug)));
+        .where(
+          and(
+            eq(learnerSkillMastery.userId, IDS[0]!),
+            eq(learnerSkillMastery.skillId, skillId(PACK, skill.slug)),
+          ),
+        );
       expect(held!.lastSuccessAt).toBeNull();
     });
 

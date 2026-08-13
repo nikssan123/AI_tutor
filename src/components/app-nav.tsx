@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AccountIcon,
+  CalendarIcon,
   MasteryIcon,
   ProgressIcon,
   TodayIcon,
@@ -35,8 +36,15 @@ import { cx } from "@/components/ui";
  * and which is where a rare, destructive-ish action belongs anyway.
  */
 
+/**
+ * Five, not §8.5.5's three. The count itself was never the rule — §8.5.2 bans
+ * "the exactly-four-item bottom tab bar" as an iOS tic, which is an argument
+ * against copying a number rather than for one. The rule that does bind is one
+ * flat level with a word on every destination, and this keeps it.
+ */
 const DESTINATIONS = [
   { href: "/today", label: "Today", Icon: TodayIcon },
+  { href: "/calendar", label: "Calendar", Icon: CalendarIcon },
   { href: "/mastery", label: "Mastery", Icon: MasteryIcon },
   { href: "/progress", label: "Progress", Icon: ProgressIcon },
   { href: "/account", label: "You", Icon: AccountIcon },

@@ -1673,3 +1673,166 @@ and that is a list with links. If the graph is wanted on this screen later it
 should carry evidence, not colour.
 
 2206 tests, 100% on all four metrics, `pnpm verify` clean.
+
+---
+
+# Delivery record — pass 21: putting a date on it
+
+`/calendar`, and `src/lib/calendar/` behind it. No model is called anywhere on
+this screen.
+
+## Why there was a hole here
+
+§2.4 ranks five answers to "why not just use ChatGPT". Four of them had a
+surface. The fourth — *it holds you accountable* — names **scheduled
+commitments, streaks, overdue work, spaced retrieval**, and every one of those
+was already being written to the database with nowhere to be read.
+
+`retrieval_queue_item.due_at` had been driving session composition since E7 and
+no learner had ever seen a due date. `learning_session.completed_at` was summed
+into one weekly figure on `/progress` and otherwise unread. The curriculum's
+modules were listed in order on the path screen with no dates on them. The
+learner's own deadline appeared as six characters in a facts row.
+
+`/today` deliberately refuses to show more than one thing, and `/progress` looks
+backwards over seven days. Nothing in the product answered **when**.
+
+## The rule the screen is built on
+
+> A date is only as good as what it rests on, and it says which.
+
+Three certainties, and every entry declares one:
+
+| | What it is | How it is drawn |
+|---|---|---|
+| `recorded` | a session that happened | filled, in the accent — the accent means *verified* |
+| `due` | a queued retrieval item; the deadline the learner set | filled, in `--attention` |
+| `projected` | the day a claim stops counting; the day a checkpoint lands | a hollow ring |
+
+A calendar is the easiest place in this product to start overclaiming, because
+the overclaim *is* the date. Drawing a projection like a fact would have been
+one CSS class away and nobody would have noticed for months.
+
+## The lapse date is stepped, not solved
+
+`/mastery` asks the decay curve forwards — *would this still clear the bar in a
+week* — and `ledger.ts` says why that is the only reachable question. A calendar
+has to answer *when*, which is the same curve inverted.
+
+Inverting it algebraically would put a second decay implementation in the
+product, which is the thing `slipping`'s comment exists to forbid. So
+`lapseDay` **steps day by day asking `effectiveMastery` itself**, and cannot
+drift from the model the planner scores on.
+
+That is affordable because the answer is close by construction: a claim survives
+at most `halfLife × log₂(mastery ÷ 0.85)` days, which at §16.2's 180-day cap and
+mastery of 1 is ≈42. The horizon is 60 and the loop cannot run away. A test
+asserts the two functions are inverses across four half-lives and four mastery
+levels, so if that bound ever moves the suite says so.
+
+Only *claims* get a lapse date — `ledger.canDo`, not mastery ≥ 0.85. A skill
+sitting above the bar on answered questions alone is `unproven`, and telling
+someone it "stops counting" would be mourning something they were never given.
+
+## The streak is weeks, and it cannot punish you
+
+§17 bans gamification beyond a streak, which means the one streak we keep has to
+be worth its exception. A daily streak would tell a learner on three hours a
+week that they failed on a Tuesday — a lie about their own plan. So it counts
+**rolling weeks in which the commitment they set was met**, and the week in
+progress counts once it has been met but is never counted against them. A streak
+that breaks on Monday morning because the week is young is a guilt mechanic, and
+§8 screen 6 spends an entire interaction ("Not today", no guilt) refusing to
+build those.
+
+It decides "kept" by rounding to a tenth of an hour and then comparing — the
+same order `digest.ts` does it in, so `/progress` and `/calendar` cannot disagree
+about whether last week counted.
+
+## Nothing here is a new source of truth
+
+The temptation on a screen that aggregates five tables is to compute its own
+version of everything. Each one is borrowed instead:
+
+- retrieval dates ← `dueRetrieval`, the same read the planner uses, item join and all
+- lapse dates ← `effectiveMastery`, through the ledger `/mastery` builds
+- remaining hours ← `remainingHoursFor`, which the path screen already quotes
+- the pace actually kept ← the rolling seven days `/progress` prices its second estimate at
+
+The one new read is `workedDays`, because "sessions per day" is not a question
+you can ask a total. It buckets with `AT TIME ZONE 'UTC'` rather than a bare
+`::date` cast, which reads the connection's timezone and would move a session
+onto a different square depending on how the server was configured.
+
+Days are UTC days throughout, keyed by the `YYYY-MM-DD` the planner already
+writes as `plannedFor`. A learner finishing at 11pm in Auckland lands one square
+right. Fixing it needs a timezone §15 does not store, and guessing at one
+server-side would move dates for everybody.
+
+## Two things the render found
+
+Both from `scripts/calendar-screen-fixture.ts`, which seeds one learner with a
+kept run, an overdue question, a claim on its way out and a path whose
+checkpoints straddle the deadline — the fixture pattern pass 20 established.
+
+1. **The deadline warning was reading the wrong pace.** It compared checkpoints
+   against the deadline at the *committed* pace only. On the fixture the plan
+   fitted comfortably and the pace did not — a checkpoint landed 18 days past
+   the date and the screen said nothing. Those are two different problems: a
+   plan that does not fit is the planner's to compress (§16.1 step 3), a pace
+   that does not keep up is the learner's to decide about. `deadlineVerdict`
+   now returns which, and the screen says the matching sentence. It stays silent
+   when neither is provable, because the checkpoint list is capped — silence has
+   to mean "nothing shown says otherwise", never "you are fine".
+
+2. **`<Meta className="text-ink">` does nothing**, twice. `Meta`'s own doc
+   comment says exactly this — two competing `text-ink-*` utilities resolve by
+   stylesheet order, which is why the `tone` prop exists — and the override
+   still got written, and still typechecked, and still passed every test. On
+   screen both checkpoint dates rendered at identical weight. Now `tone="muted"`.
+
+Neither was findable in a test. The first needs a fixture whose numbers happen
+to separate the two paces; the second is invisible to `getByText`.
+
+## Notes
+
+- Five nav destinations now, not §8.5.5's three. The count was never the rule —
+  §8.5.2 bans "the exactly-four-item bottom tab bar" as an iOS tic, which argues
+  against copying a number rather than for one. What binds is one flat level
+  with a word on every destination, and that holds. Checked at 400px.
+- A checkpoint appears in its own band, never also in "what's coming". The two
+  lists then mean different things: what the plan asks *of* you, and what you
+  are heading *towards*.
+- No percentage anywhere, asserted against the rendered output (§24 E9).
+- The month grid is not a `<table>`; §8.5.5 bans data tables. It is a grid of
+  `<li>`, and every marked square carries an `sr-only` sentence naming what is
+  on it — a grid of coloured dots is precisely where "colour as the sole carrier
+  of meaning" gets broken without anyone noticing.
+
+## Still open
+
+Unchanged from pass 20: §24 E8's last two acceptance criteria need the
+hand-graded corpus §23 lists as a Phase-0 MUST. It is human work.
+
+The calendar reads nothing it cannot already prove, which means it is honest and
+also that it is thin for a learner on day one — a fresh goal shows an empty month
+and one deadline. That is the correct failure, not a bug to pad.
+
+## Two tests that were reading someone else's rows
+
+Not this screen's code, but this screen's fixture found them, and both would
+have bitten whoever wrote the next one.
+
+`tests/submissions/store.test.ts` asserted on a mastery row selected by skill
+id alone. Mastery is keyed on **(user, skill)**, so it read whichever row came
+back first — and once a fixture existed for another screen on the same pack, it
+failed on a fact about a different person. Both queries are scoped to the test's
+own learner now.
+
+`scripts/calendar-screen-fixture.ts` seeds against `sql-data-analysis` rather
+than a pack chosen for the copy, because `tests/packs/seed.test.ts` deletes
+every other pack on the way out and a fixture goal holds a foreign key into one.
+That constraint is invisible from either file; it is written down in the fixture
+now.
+
+2527 tests, 100% on all four metrics, `pnpm verify` clean.

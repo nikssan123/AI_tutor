@@ -4,6 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import {
   AccountIcon,
   ArrowIcon,
+  CalendarIcon,
   CameraIcon,
   ChecklistIcon,
   DatabaseIcon,
@@ -32,6 +33,7 @@ const ALL = [
   ["CameraIcon", CameraIcon],
   ["DatabaseIcon", DatabaseIcon],
   ["TodayIcon", TodayIcon],
+  ["CalendarIcon", CalendarIcon],
   ["MasteryIcon", MasteryIcon],
   ["ProgressIcon", ProgressIcon],
   ["AccountIcon", AccountIcon],
@@ -72,6 +74,20 @@ describe("the icon set", () => {
     const cls = container.querySelector("svg")!.getAttribute("class")!;
     expect(cls).toContain("size-8");
     expect(cls).toContain("shrink-0");
+  });
+});
+
+describe("the navigation marks", () => {
+  /**
+   * Two destinations drawn the same way make the rail say less than it did
+   * before. Today marks one day because it stands for the one thing to do now;
+   * the calendar marks a month.
+   */
+  it("gives every destination a mark of its own", () => {
+    const drawn = [TodayIcon, CalendarIcon, MasteryIcon, ProgressIcon, AccountIcon].map(
+      (Icon) => render(<Icon />).container.innerHTML,
+    );
+    expect(new Set(drawn).size).toBe(drawn.length);
   });
 });
 

@@ -30,7 +30,8 @@ the one the whole thesis rests on** (§4.2 law 1, §14.5). E8's code is complete
 and the loop has been run end to end; what remains is the hand-graded corpus its
 acceptance criteria need. **E9 — the mastery ledger and the weekly digest — is
 in too**, which means the loop now closes: work is set, marked, and the verdict
-lands somewhere a learner can point at. **E10 is the next epic to build**, and
+lands somewhere a learner can point at. **`/calendar` (§8 screen 14) is in**, and
+with it the accountability half of §2.4. **E10 is the next epic to build**, and
 from here the remaining work is acquisition and money rather than product.
 
 `IMPLEMENTATION.md` is the per-pass record, including the things that only
@@ -511,6 +512,16 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
 
 ### 13. Settings — `/settings`
 Weekly hours, deadlines, notification cadence and channel, privacy defaults, data export (full JSON — a trust signal), billing, delete account.
+
+### 14. Calendar — `/calendar` — *not in the original list*
+- **Purpose:** the surface for §2.4's accountability answer. That row names four things — *scheduled commitments, streaks, overdue work, spaced retrieval* — and every one of them was already in the database with nowhere to appear. `/today` answers "what now" and refuses to show anything else; `/progress` reports the week that has gone. Nothing said **when**.
+- **UI:** four bands. The commitment (weeks in a row it was kept, against the learner's own weekly hours) · the month as squares · what's coming, overdue first · the checkpoints ahead, each dated at two paces.
+- **The rule the screen is built on:** *a date is only as good as what it rests on, and it says which.* Three certainties, drawn differently and named in the legend — **recorded** (a session that happened), **due** (a queued retrieval item, or the deadline the learner set), **projected** (the day a claim stops counting; the day a checkpoint lands). §4.2 law 3 forbids overclaiming, and on a calendar the temptation to overclaim is the dates themselves.
+- **The streak is measured in weeks, never days.** A daily streak tells someone on three hours a week that they failed on a Tuesday, which is a lie about their own plan. The week in progress counts once it has been met and is never counted against them — §8 screen 6 spends a whole interaction ("Not today, no guilt") refusing to build guilt mechanics, and a streak is where they come back.
+- **Data:** `LearningSession`, `RetrievalQueueItem`, `LearnerSkillMastery` + `Evaluation` (through the same ledger `/mastery` builds), `CurriculumModule`, `LearningGoal.deadline`.
+- **AI:** none, at any point. Every date is arithmetic over rows another part of the product wrote.
+- **Nothing here is a new source of truth.** The lapse dates ask `effectiveMastery` rather than solving the decay curve; the remaining hours come from the `remainingHoursFor` the path screen quotes; the pace actually kept is the same rolling seven days `/progress` prices its second estimate at. A fourth screen with its own opinion about any of those would eventually contradict the other three in front of the same learner.
+- **Days are UTC days**, keyed by the `YYYY-MM-DD` the planner already writes. Fixing the learner who works either side of UTC midnight needs a timezone §15 does not yet store.
 
 ---
 
@@ -1837,6 +1848,7 @@ before picking the next thing up.**
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
 | **E8** Submission + Evaluation | 🟡 **Built, not accepted** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; κ and band-stability criteria still unmet |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
+| **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
@@ -1856,6 +1868,12 @@ actually kept. Everything E1–E9 promised a learner is now reachable in a brows
 **E10 — the SEO infrastructure — is the next epic to build**, and the ones after
 it (E11 free tools, E12 content, E13 billing) are acquisition and money rather
 than product.
+
+**E9.5 gave the fourth answer in §2.4 a screen.** "It holds you accountable"
+names scheduled commitments, streaks, overdue work and spaced retrieval; all
+four were being written to the database and none of them were being shown. See
+§8 screen 14 for what the calendar shows and, more importantly, for the rule
+about which of its dates are facts and which are arithmetic.
 
 ## E7.5 — Generated packs (built between E7 and E8)
 
