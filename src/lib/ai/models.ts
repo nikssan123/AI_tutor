@@ -20,6 +20,25 @@ export const MODELS = {
 export type ModelTier = keyof typeof MODELS;
 export type ModelId = (typeof MODELS)[ModelTier];
 
+/**
+ * Whether a model accepts `thinking: {type: "adaptive"}` and
+ * `output_config.effort`.
+ *
+ * Haiku 4.5 accepts neither and returns a 400 for both — it predates them. This
+ * is not a preference to tune: a call to the fast tier that sends either
+ * parameter fails outright, which is how it was found (a live call, not a
+ * test double).
+ */
+export const SUPPORTS_ADAPTIVE_THINKING: Record<ModelId, boolean> = {
+  "claude-opus-5": true,
+  "claude-sonnet-5": true,
+  "claude-haiku-4-5": false,
+};
+
+export function supportsAdaptiveThinking(model: string): boolean {
+  return SUPPORTS_ADAPTIVE_THINKING[model as ModelId] ?? false;
+}
+
 /** §14.9.3 — which tier each step in the harness runs on. */
 export const STEP_MODELS = {
   goalAnalyzer: "standard",

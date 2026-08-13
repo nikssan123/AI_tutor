@@ -1,5 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { MODELS, STEP_MODELS, degrade, type ModelTier } from "./models";
+import {
+  MODELS,
+  STEP_MODELS,
+  degrade,
+  supportsAdaptiveThinking,
+  type ModelTier,
+} from "./models";
+import { costCentsFor, uncachedCostCentsFor } from "./pricing";
 
 /**
  * One structured call to a model, with the parts §14 refuses to leave to a
@@ -15,10 +22,18 @@ import { MODELS, STEP_MODELS, degrade, type ModelTier } from "./models";
  * therefore kept as two separate things that agree.
  */
 
+/** §14.9.6 — prompts are files in git, loaded by `(name, version)`. */
+export interface PromptRef {
+  readonly name: string;
+  readonly version: number;
+}
+
 /** §14.9.4 — the frozen prefix carries the breakpoint; volatile text follows it. */
 export interface StructuredCall<T> {
   /** §14.9.3 — which step this is, which decides the model tier. */
   step: keyof typeof STEP_MODELS;
+  /** Recorded on the `AgentRun` row, so a result traces back to a prompt. */
+  prompt: PromptRef;
   /**
    * Frozen system prompt. Cached, so it must not interpolate a timestamp, a
    * user id, or anything else that varies (§14.9.4's cache hygiene list).
@@ -50,10 +65,31 @@ export interface CallUsage {
   cacheCreationInputTokens: number;
 }
 
+/**
+ * Everything an `AgentRun` row needs (§14.8: "the exact version, model and
+ * cost"), attached to every outcome — including the ones that failed.
+ *
+ * A refusal and a schema failure both cost real money, and a cost log that only
+ * records successes under-reports exactly when something is going wrong, which
+ * is the moment it most needs to be accurate.
+ */
+export interface CallMeta {
+  model: string;
+  promptName: string;
+  promptVersion: number;
+  attempts: number;
+  usage: CallUsage;
+  /** Null when the model has no published rate — never silently zero. */
+  costCents: number | null;
+  /** What the same call would have cost with no prompt cache (§14.9.4). */
+  uncachedCostCents: number | null;
+  latencyMs: number;
+}
+
 export type CallResult<T> =
-  | { status: "ok"; value: T; model: string; attempts: number; usage: CallUsage }
-  | { status: "refused"; detail: string; model: string; usage: CallUsage }
-  | { status: "invalid"; detail: string; model: string; attempts: number; usage: CallUsage };
+  | ({ status: "ok"; value: T } & CallMeta)
+  | ({ status: "refused"; detail: string } & CallMeta)
+  | ({ status: "invalid"; detail: string } & CallMeta);
 
 const EMPTY_USAGE: CallUsage = {
   inputTokens: 0,
@@ -95,12 +131,27 @@ export const MAX_SCHEMA_ATTEMPTS = 2;
 export async function callStructured<T>(
   client: Anthropic,
   call: StructuredCall<T>,
+  clock: () => number = Date.now,
 ): Promise<CallResult<T>> {
   const model = modelFor(call.step, call.degraded);
+  const startedAt = clock();
   let usage = EMPTY_USAGE;
   let lastError = "";
+  let attempts = 0;
+
+  const meta = (): CallMeta => ({
+    model,
+    promptName: call.prompt.name,
+    promptVersion: call.prompt.version,
+    attempts,
+    usage,
+    costCents: costCentsFor(model, usage),
+    uncachedCostCents: uncachedCostCentsFor(model, usage),
+    latencyMs: clock() - startedAt,
+  });
 
   for (let attempt = 1; attempt <= MAX_SCHEMA_ATTEMPTS; attempt += 1) {
+    attempts = attempt;
     const messages: Anthropic.MessageParam[] = [
       { role: "user", content: call.user },
     ];
@@ -119,14 +170,26 @@ export async function callStructured<T>(
     const response = await client.messages.create({
       model,
       max_tokens: call.maxTokens ?? 16_000,
-      thinking: { type: "adaptive" },
-      output_config: { effort: call.effort ?? "high" },
+      // Only where the model has them. Haiku 4.5 400s on either parameter, so
+      // sending them unconditionally breaks every call to the fast tier.
+      ...(supportsAdaptiveThinking(model)
+        ? {
+            thinking: { type: "adaptive" as const },
+            output_config: { effort: call.effort ?? "high" },
+          }
+        : {}),
       system: [
         {
           type: "text",
           text: call.system,
           // §14.9.4 layer 1. Verified by assertion, not by hope — see the
           // cacheReadInputTokens field on the result.
+          //
+          // A breakpoint on a short prompt caches nothing and says nothing:
+          // the minimum cacheable prefix is model-dependent, and a system
+          // prompt below it silently returns zero on both cache counters. So
+          // zeroes here mean "prompt too short" at least as often as they mean
+          // "cache miss", and a caller reading them needs to know which.
           cache_control: { type: "ephemeral" },
         },
       ],
@@ -149,8 +212,7 @@ export async function callStructured<T>(
       return {
         status: "refused",
         detail: response.stop_details?.explanation ?? "The model declined.",
-        model,
-        usage,
+        ...meta(),
       };
     }
 
@@ -162,16 +224,10 @@ export async function callStructured<T>(
 
     const parsed = call.parse(block.input);
     if (parsed.ok) {
-      return { status: "ok", value: parsed.value, model, attempts: attempt, usage };
+      return { status: "ok", value: parsed.value, ...meta() };
     }
     lastError = parsed.error;
   }
 
-  return {
-    status: "invalid",
-    detail: lastError,
-    model,
-    attempts: MAX_SCHEMA_ATTEMPTS,
-    usage,
-  };
+  return { status: "invalid", detail: lastError, ...meta() };
 }

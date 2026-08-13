@@ -13,7 +13,7 @@ import {
   resetAnthropic,
   resolveApiKey,
 } from "@/lib/ai/client";
-import { MODELS } from "@/lib/ai/models";
+import { MODELS, supportsAdaptiveThinking } from "@/lib/ai/models";
 
 /**
  * The one place a model call is actually made.
@@ -71,6 +71,7 @@ const parseValue = (raw: unknown): ParseOutcome<number> => {
 
 const call = {
   step: "curriculumArchitect" as const,
+  prompt: { name: "test_prompt", version: 3 },
   system: "frozen system prompt",
   user: "volatile user content",
   tool: { name: "submit", description: "submit it", inputSchema: { type: "object" } },
@@ -114,6 +115,15 @@ describe("model routing (§14.9.3)", () => {
     expect(modelFor("curriculumArchitect")).toBe(MODELS.standard);
     expect(modelFor("curriculumValidator")).toBe(MODELS.deep);
     expect(modelFor("artifactIngestor")).toBe(MODELS.fast);
+  });
+
+  it("knows which models take adaptive thinking, and assumes not for the rest", () => {
+    expect(supportsAdaptiveThinking(MODELS.deep)).toBe(true);
+    expect(supportsAdaptiveThinking(MODELS.standard)).toBe(true);
+    expect(supportsAdaptiveThinking(MODELS.fast)).toBe(false);
+    // An unrecognised model gets the conservative answer: omitting the
+    // parameters costs a little quality, sending them costs the whole call.
+    expect(supportsAdaptiveThinking("some-future-model")).toBe(false);
   });
 
   it("degrades deep to standard rather than overspending (§14.9.7 limit 1)", () => {
@@ -272,6 +282,53 @@ describe("callStructured", () => {
     const second = create.mock.calls[1]![0];
     expect(second.output_config).toEqual({ effort: "low" });
     expect(second.max_tokens).toBe(2048);
+  });
+
+  it("returns the cost, latency and prompt version an AgentRun row needs", async () => {
+    const { client } = stub([
+      reply({
+        usage: usage({ input_tokens: 1_000_000, output_tokens: 0 }),
+      } as Partial<Anthropic.Message>),
+    ]);
+
+    // A fake clock, so latency is a fact rather than a race.
+    let tick = 1_000;
+    const result = await callStructured(client, call, () => (tick += 250));
+
+    expect(result.promptName).toBe("test_prompt");
+    expect(result.promptVersion).toBe(3);
+    expect(result.latencyMs).toBe(250);
+    // 1M Sonnet input tokens at $3/MTok.
+    expect(result.costCents).toBeCloseTo(300, 6);
+  });
+
+  it("costs a failed call too — a refusal is still billed", async () => {
+    const { client } = stub([
+      reply({
+        stop_reason: "refusal",
+        content: [],
+        usage: usage({ input_tokens: 1_000_000, output_tokens: 0 }),
+      } as Partial<Anthropic.Message>),
+    ]);
+
+    const result = await callStructured(client, call);
+    expect(result.status).toBe("refused");
+    expect(result.costCents).toBeCloseTo(300, 6);
+    expect(result.attempts).toBe(1);
+  });
+
+  it("omits thinking and effort on a model that rejects them", async () => {
+    // Found by a live call, not a double: Haiku 4.5 returns a 400 for either
+    // parameter, so sending them unconditionally breaks the whole fast tier.
+    const { client, create } = stub([reply()]);
+    await callStructured(client, { ...call, step: "artifactIngestor" });
+
+    const body = create.mock.calls[0]![0];
+    expect(body.model).toBe(MODELS.fast);
+    expect(body.thinking).toBeUndefined();
+    expect(body.output_config).toBeUndefined();
+    // The rest of the request is unchanged — it is the two params, not the call.
+    expect(body.tool_choice).toEqual({ type: "tool", name: "submit" });
   });
 
   it("routes a degraded call to the cheaper model", async () => {

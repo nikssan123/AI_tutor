@@ -7,6 +7,7 @@ import {
   real,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
@@ -154,5 +155,10 @@ export const spendLedger = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("spend_ledger_user_period_idx").on(t.userId, t.period)],
+  // Unique, not merely indexed: a learner has exactly one ledger row per
+  // period by definition, and accumulating spend is an upsert. Without the
+  // constraint two concurrent calls each insert a row and the cap silently
+  // reads half the real total — which is the one direction §14.9.7 cannot
+  // tolerate being wrong in.
+  (t) => [uniqueIndex("spend_ledger_user_period_idx").on(t.userId, t.period)],
 );

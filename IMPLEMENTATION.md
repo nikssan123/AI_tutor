@@ -634,3 +634,65 @@ emit, the fall-back-to-canonical-path after two failures (§14.9.5), persistence
 into `Curriculum`/`CurriculumModule`, and `/goals/[id]/path`. The pieces above
 are the ones the rest depends on, and they are the ones worth verifying against
 a real model first.
+
+---
+
+# Delivery record — pass 9: logging what the AI calls cost
+
+§14.8 requires every `AgentRun` row to record "the exact version, model and
+cost", and §14.9.7's spend cap reads a ledger that nothing was writing. The
+tables existed since pass 1; nothing filled them.
+
+## What is logged
+
+Every model call now writes an `agent_run` row — **including the ones that
+failed**. A refusal and a schema retry both cost real money, so a log that
+recorded only successes would under-report exactly when something is going
+wrong, which is when the number matters most.
+
+| Where | What |
+|---|---|
+| `agent_run` | prompt name + version, model, status, cost in cents, latency, error |
+| `spend_ledger` | per-user, per-month running total, accumulated in SQL |
+| `agent_run` analytics event | the above, plus the token split and the **uncached** cost |
+
+Cost is computed, not returned: the API gives token counts, and the price of a
+token depends which of four buckets it landed in. `pricing.ts` holds the rates
+next to the model they belong to, keyed by `ModelId` so adding a model without a
+price is a type error rather than a silently free model.
+
+Two decisions worth naming. An unpriced model logs `null`, never `0` — a zero
+would enter the ledger as "this call was free", which is a lie that accumulates.
+And the ledger's `(user, period)` index became **unique**: without it two
+concurrent calls each insert a row and the cap reads half the real total, which
+is the one direction §14.9.7 cannot tolerate being wrong in.
+
+Every call also reports what it *would* have cost with no prompt cache. §14.9.4
+calls caching "the single largest lever" and asks for the saving to be verified
+rather than assumed; shipping both numbers is what makes a silent cache miss
+visible instead of merely expensive.
+
+## Defect found by the probe, not by the tests
+
+**Haiku 4.5 rejects `thinking: {type: "adaptive"}` and `output_config.effort`
+with a 400.** `callStructured` sent both unconditionally, so every call routed
+to the fast tier — `artifactIngestor`, `coherenceCheck` — would have failed
+outright in production. E6 only ever used Sonnet and Opus, so nothing caught it
+until a live call to the fast tier was actually made.
+
+The parameters are now sent only where the model has them, and an unrecognised
+model gets the conservative answer: omitting them costs a little quality,
+sending them costs the whole call.
+
+## Also learned from the live run
+
+Cache counters came back zero on Haiku because the **minimum cacheable prefix is
+model-dependent** and the probe's system prompt sat under it. Zeroes on those
+counters therefore mean "prompt too short" at least as often as "cache miss".
+That is now written next to the breakpoint, because the two readings call for
+opposite responses.
+
+Verified end to end: two live Haiku calls logged two `agent_run` rows at
+0.186c and 0.183c, accumulating to a single ledger row of 0.369c for 2026-08.
+
+1180 tests, 100% coverage, `pnpm verify` clean.

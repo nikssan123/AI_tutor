@@ -191,6 +191,7 @@ export async function generateCurriculum(
 ): Promise<CallResult<CurriculumDraft>> {
   return callStructured(client, {
     step: "curriculumArchitect",
+    prompt: ARCHITECT_PROMPT,
     system: ARCHITECT_PROMPT.text,
     user: buildArchitectContext(input),
     tool: {
@@ -227,6 +228,7 @@ export function factualSpotChecker(client: Anthropic): SpotChecker {
 
     const result = await callStructured<{ issues: string[] }>(client, {
       step: "curriculumValidator",
+      prompt: SPOTCHECK_PROMPT,
       system: SPOTCHECK_PROMPT.text,
       user: `Curriculum rationale: ${input.draft.rationale}\n\n${modules}`,
       tool: {
