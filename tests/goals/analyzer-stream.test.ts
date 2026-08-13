@@ -210,6 +210,66 @@ describe("analyzerStream", () => {
     expect(result.detail).toMatch(/not valid JSON/);
   });
 
+  /**
+   * A cache-cold call reports no cache fields at all. Left undefined they
+   * would land in the ledger as `undefined` rather than as nothing having been
+   * read, and §14.8's cost arithmetic runs on those numbers.
+   */
+  it("bills a cache-cold call as zero, not as absent", async () => {
+    const cold = {
+      type: "message_start",
+      message: { usage: { input_tokens: 100 } },
+    };
+    const { client } = clientFor(cold, json(JSON.stringify(TURN)), finished());
+    const { result } = await drain(analyzerStream(client, input));
+
+    expect(result.usage.cacheReadInputTokens).toBe(0);
+    expect(result.usage.cacheCreationInputTokens).toBe(0);
+  });
+
+  /**
+   * The model may narrate around the tool call. Only the tool's JSON is the
+   * turn; prose deltas are not part of the object being assembled and must not
+   * reach the buffer, or the parse at the end fails on text nobody asked for.
+   */
+  it("ignores deltas that are not the tool call", async () => {
+    const prose = {
+      type: "content_block_delta",
+      delta: { type: "text_delta", text: "thinking out loud" },
+    };
+    const { client } = clientFor(
+      started,
+      prose,
+      json(JSON.stringify(TURN)),
+      finished(),
+    );
+    const { chunks, result } = await drain(analyzerStream(client, input));
+
+    expect(chunks.join("")).toBe(TURN.reply);
+    expect(chunks.join("")).not.toMatch(/thinking out loud/);
+    expect(result.status).toBe("ok");
+  });
+
+  /**
+   * A fragment that adds fields after `reply` has closed advances the buffer
+   * without advancing the sentence. Yielding "" for it would make the client
+   * append nothing, repeatedly.
+   */
+  it("stays quiet on a fragment that adds nothing to the reply", async () => {
+    const whole = JSON.stringify(TURN);
+    const end = whole.indexOf(TURN.reply) + TURN.reply.length + 1;
+    const { client } = clientFor(
+      started,
+      json(whole.slice(0, end)),
+      json(whole.slice(end)),
+      finished(),
+    );
+    const { chunks } = await drain(analyzerStream(client, input));
+
+    expect(chunks.join("")).toBe(TURN.reply);
+    expect(chunks.every((chunk) => chunk.length > 0)).toBe(true);
+  });
+
   it("reports a turn that parsed but does not satisfy the contract", async () => {
     const { client } = clientFor(
       started,

@@ -184,6 +184,44 @@ describe("Composer", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  /**
+   * The request left and came back refused — a finished conversation (409) or
+   * a signed-out session (401). Nothing was recorded, so it is handled exactly
+   * like the request that never left: give the answer back rather than leave
+   * it looking sent.
+   */
+  it("hands the answer back when the server refuses the turn", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("That conversation is finished.", { status: 409 })),
+    );
+    draw();
+    fireEvent.change(box(), { target: { value: "get a dev job" } });
+    submit();
+
+    await waitFor(() => expect(screen.getByText(/didn.t send/)).toBeDefined());
+    expect(box().value).toBe("get a dev job");
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A 200 with nothing to read. There is no stream to consume, so treating it
+   * as success would show an empty answer and then refresh over the top of it.
+   */
+  it("hands the answer back when a successful response has no body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200 })),
+    );
+    draw();
+    fireEvent.change(box(), { target: { value: "get a dev job" } });
+    submit();
+
+    await waitFor(() => expect(screen.getByText(/didn.t send/)).toBeDefined());
+    expect(box().value).toBe("get a dev job");
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("echoes a tapped chip, which is the answer that felt most broken", async () => {
     answers(`Noted.${OUTCOME_SEPARATOR}ok`);
     draw();
