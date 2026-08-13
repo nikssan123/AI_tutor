@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GridIcon, StepsIcon, SubjectIcon } from "@/components/icons";
 import {
+  CustomPathOffer,
   EvalTierNote,
   GoalSearch,
   JsonLdScript,
@@ -8,13 +9,7 @@ import {
   PageIntro,
   SectionHead,
 } from "@/components/marketing";
-import {
-  EmptyState,
-  LinkCard,
-  MaturityBadge,
-  Meta,
-  stagger,
-} from "@/components/ui";
+import { LinkCard, MaturityBadge, Meta, stagger } from "@/components/ui";
 import { allProjects, allTopics, search } from "@/lib/content";
 import { breadcrumbs } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
@@ -67,8 +62,11 @@ export default async function LearnIndexPage({
   const topics = allTopics();
   const projects = allProjects();
   const suggestions = [
-    ...topics.map((t) => t.name),
-    ...projects.map((p) => p.title),
+    ...topics.map((t) => ({ label: t.name, href: `/learn/${t.slug}` })),
+    ...projects.map((p) => ({
+      label: p.title,
+      href: `/projects/${p.slug}`,
+    })),
   ];
 
   const hits = q ? search(q) : [];
@@ -122,9 +120,7 @@ export default async function LearnIndexPage({
               </ul>
             </section>
           ) : (
-            <EmptyState
-              message={`Nothing matches “${q}” yet. Everything we cover so far is below.`}
-            />
+            <CustomPathOffer topic={q} />
           )
         ) : null}
 

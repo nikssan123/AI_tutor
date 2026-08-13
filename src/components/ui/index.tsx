@@ -113,6 +113,50 @@ export function Meta({
   );
 }
 
+/**
+ * One number, at display size, with the word that says what it is.
+ *
+ * A deliberate addition to §8.5.5's vocabulary, made for one reason: the
+ * product screens had no size above `title` anywhere below the page heading,
+ * so a week's worth of work and a form-field caption were set in the same
+ * type. The figure is what lets a screen have a *loudest thing*.
+ *
+ * The ban it must not reopen is "dense metric grids" — so: **one per scroll
+ * band, never a row of them**, and never a percentage (§4.2 law 3). It states
+ * a count the learner earned, not a share of a total they did not choose.
+ */
+export function Figure({
+  value,
+  unit,
+  caption,
+}: {
+  value: string | number;
+  /** "hours", "skills" — set beside the number, not inside it. */
+  unit?: string;
+  caption: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        <span
+          className={cx(
+            "text-[length:var(--text-display-size)] leading-[var(--text-display-line)]",
+            "font-[650] tracking-[var(--text-display-tracking)] text-ink tabular-nums",
+          )}
+        >
+          {value}
+        </span>
+        {unit ? (
+          <span className="text-[length:var(--text-lead-size)] text-ink-muted">
+            {unit}
+          </span>
+        ) : null}
+      </span>
+      <Meta>{caption}</Meta>
+    </div>
+  );
+}
+
 /* ── Surfaces ───────────────────────────────────────────────────────────── */
 
 export function Card({
@@ -224,16 +268,21 @@ export function Row({
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 
+type ButtonVariant = "primary" | "text";
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   /** §8.5.5 — one filled button per screen. Everything else is a text button. */
-  variant?: "primary" | "text";
+  variant?: ButtonVariant;
 };
 
-export function Button({
-  className,
-  variant = "primary",
-  ...props
-}: ButtonProps) {
+/**
+ * The shared look, so `Button` and `ButtonLink` cannot drift apart.
+ *
+ * `text-on-accent` rather than `text-white`: the filled button is the one
+ * place the accent is a *fill*, and white on dark's `#35C79A` measures 2.17:1.
+ * See the token's note in `theme.ts`.
+ */
+function buttonClass(variant: ButtonVariant, className?: string): string {
   const base = cx(
     "inline-flex items-center justify-center gap-2",
     "min-h-[var(--touch-min)] px-5",
@@ -246,12 +295,79 @@ export function Button({
   );
 
   const variants = {
-    primary: "bg-accent text-white hover:opacity-90",
+    primary: "bg-accent text-on-accent hover:opacity-90",
     // §8.5.5 — text button in the accent: no border, no fill, no outlined variant.
     text: "bg-transparent text-accent hover:bg-accent-weak w-auto px-3",
   } as const;
 
-  return <button className={cx(base, variants[variant], className)} {...props} />;
+  return cx(base, variants[variant], className);
+}
+
+export function Button({
+  className,
+  variant = "primary",
+  ...props
+}: ButtonProps) {
+  return <button className={buttonClass(variant, className)} {...props} />;
+}
+
+/**
+ * A navigation that looks like the primary action.
+ *
+ * Every screen that needed one had written `<Link><Button/></Link>`, which
+ * nests a button inside an anchor and then lets `Button`'s `w-full` stretch
+ * inside an inline parent — so the mobile full-width rule silently stopped
+ * working — or hand-rolled the whole class list, which is how two of them
+ * ended up carrying the dead `text-on-accent` before the token existed.
+ */
+export function ButtonLink({
+  variant = "primary",
+  className,
+  ...props
+}: React.ComponentProps<typeof Link> & { variant?: ButtonVariant }) {
+  return <Link className={buttonClass(variant, className)} {...props} />;
+}
+
+/**
+ * §8.5.5 — "Switching between 2–4 views: text labels in a pill track." Not
+ * tabs, and not a dropdown.
+ *
+ * Links rather than buttons, because every view this switches between is a
+ * real URL that survives a refresh and a shared link — which is also what
+ * keeps the control working with no client JavaScript.
+ */
+export function ToggleGroup({
+  label,
+  options,
+}: {
+  /** Names the group for assistive technology; never drawn. */
+  label: string;
+  options: ReadonlyArray<{ href: string; label: string; current: boolean }>;
+}) {
+  return (
+    <nav aria-label={label}>
+      <ul className="m-0 inline-flex list-none gap-1 rounded-[var(--radius-pill)] bg-surface p-1 shadow-[var(--shadow-raised)]">
+        {options.map((option) => (
+          <li key={option.href}>
+            <Link
+              href={option.href}
+              aria-current={option.current ? "page" : undefined}
+              className={cx(
+                "inline-flex min-h-9 items-center rounded-[var(--radius-pill)] px-4",
+                "text-[length:var(--text-label-size)] font-[550]",
+                "transition-[background-color,color] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+                option.current
+                  ? "bg-accent text-on-accent"
+                  : "text-ink-muted hover:text-ink",
+              )}
+            >
+              {option.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
 }
 
 /* ── Status and confidence ──────────────────────────────────────────────── */

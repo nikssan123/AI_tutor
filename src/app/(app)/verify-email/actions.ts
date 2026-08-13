@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth, OTP_LENGTH } from "@/lib/auth";
 import { explain } from "@/lib/account/errors";
+import { safeDestination, withDestination } from "@/lib/account/next-url";
 import { requireUser } from "@/lib/account/session";
 
 /**
@@ -15,18 +16,33 @@ import { requireUser } from "@/lib/account/session";
  * at an address that is not the one being confirmed.
  */
 
-function back(message: string): never {
-  redirect(`/verify-email?error=${encodeURIComponent(message)}`);
+function back(message: string, destination: string): never {
+  redirect(
+    withDestination(
+      `/verify-email?error=${encodeURIComponent(message)}`,
+      destination,
+    ),
+  );
+}
+
+/**
+ * Where they were headed before sign-up interrupted, carried on every hop of
+ * this screen — a wrong code and a resend both come back here, and dropping it
+ * on either one loses the subject just as thoroughly as never carrying it.
+ */
+function destinationOf(formData?: FormData): string {
+  return safeDestination(String(formData?.get("next") ?? ""));
 }
 
 export async function verifyCodeAction(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const destination = destinationOf(formData);
 
   // Spaces and hyphens survive a paste from a mail client; nothing else does.
   const code = String(formData.get("code") ?? "").replace(/[\s-]/g, "");
 
   if (code.length !== OTP_LENGTH) {
-    back(`The code is ${OTP_LENGTH} digits.`);
+    back(`The code is ${OTP_LENGTH} digits.`, destination);
   }
 
   try {
@@ -35,14 +51,15 @@ export async function verifyCodeAction(formData: FormData): Promise<void> {
       body: { email: user.email, otp: code },
     });
   } catch (error) {
-    back(explain(error, "We couldn't check that code."));
+    back(explain(error, "We couldn't check that code."), destination);
   }
 
-  redirect("/verify-email?confirmed=1");
+  redirect(withDestination("/verify-email?confirmed=1", destination));
 }
 
-export async function sendCodeAction(): Promise<void> {
+export async function sendCodeAction(formData?: FormData): Promise<void> {
   const user = await requireUser();
+  const destination = destinationOf(formData);
 
   try {
     await getAuth().api.sendVerificationOTP({
@@ -50,8 +67,8 @@ export async function sendCodeAction(): Promise<void> {
       body: { email: user.email, type: "email-verification" },
     });
   } catch (error) {
-    back(explain(error, "We couldn't send a new code."));
+    back(explain(error, "We couldn't send a new code."), destination);
   }
 
-  redirect("/verify-email?sent=1");
+  redirect(withDestination("/verify-email?sent=1", destination));
 }

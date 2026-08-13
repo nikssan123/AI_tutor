@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { goalSearchScript } from "@/lib/goal-search-script";
 import { themeInitScript } from "@/lib/theme-script";
 import "@/styles/globals.css";
 
@@ -32,6 +33,25 @@ export default function RootLayout({
          */}
         <script
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+
+        {/*
+         * The subject dropdown on `/` and `/learn`.
+         *
+         * Here rather than beside its own markup, and for a reason worth
+         * keeping: Next streams the page, so body content that arrives in a
+         * later chunk is *inserted* into the document rather than parsed into
+         * it — and an inserted `<script>` does not run. React re-creates it at
+         * hydration, so the control stayed dead until then and every press in
+         * between was dropped. In `<head>` it runs before the body exists,
+         * which is safe because it only delegates from `document` and touches
+         * nothing until the visitor does.
+         *
+         * It is inert on routes with no search box, which is every route under
+         * (app) — the cost there is the bytes, not any behaviour.
+         */}
+        <script
+          dangerouslySetInnerHTML={{ __html: goalSearchScript }}
         />
       </head>
       <body>{children}</body>

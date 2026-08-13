@@ -4,12 +4,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import {
   ArtifactMat,
   Button,
+  ButtonLink,
   Card,
   Confidence,
   confidenceLevel,
   cx,
   DisplayTitle,
   EmptyState,
+  Figure,
   HeroTitle,
   Lead,
   LinkCard,
@@ -21,6 +23,7 @@ import {
   stagger,
   Status,
   Title,
+  ToggleGroup,
 } from "@/components/ui";
 
 /**
@@ -341,5 +344,119 @@ describe("ArtifactMat — true colour in both themes (§8.5.4)", () => {
     expect(cls).toContain("artifact-mat");
     expect(cls).not.toContain("bg-surface");
     expect(cls).not.toContain("bg-ground");
+  });
+});
+
+describe("ButtonLink — the primary action that navigates", () => {
+  it("looks exactly like the filled button it stands in for", () => {
+    const { container } = render(<ButtonLink href="/today">Go</ButtonLink>);
+    const cls = container.querySelector("a")!.className;
+    expect(cls).toContain("bg-accent");
+    expect(cls).toContain("min-h-[var(--touch-min)]");
+    expect(cls).toContain("rounded-[var(--radius-control)]");
+  });
+
+  /**
+   * The bug it exists to end: every screen needing one had written
+   * `<Link><Button/></Link>`, which nests a button inside an anchor.
+   */
+  it("is one element, not a button wrapped in a link", () => {
+    const { container } = render(<ButtonLink href="/today">Go</ButtonLink>);
+    expect(container.querySelector("a button")).toBeNull();
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("offers the same text variant as the button", () => {
+    const { container } = render(
+      <ButtonLink href="/today" variant="text">
+        Not today
+      </ButtonLink>,
+    );
+    const cls = container.querySelector("a")!.className;
+    expect(cls).toContain("text-accent");
+    expect(cls).not.toContain("bg-accent ");
+  });
+});
+
+describe("filled controls carry the on-accent token, not white", () => {
+  /**
+   * White on dark's `#35C79A` measures 2.17:1 — the product's one filled
+   * button was its least readable control in half of its themes.
+   */
+  it.each([
+    ["Button", () => render(<Button>Go</Button>).container],
+    ["ButtonLink", () => render(<ButtonLink href="/x">Go</ButtonLink>).container],
+  ])("%s", (_name, mount) => {
+    const cls = mount().firstElementChild!.className;
+    expect(cls).toContain("text-on-accent");
+    expect(cls).not.toContain("text-white");
+  });
+});
+
+describe("Figure — one number, never a metric grid (§8.5.5)", () => {
+  it("sets the number at display size and the caption at meta", () => {
+    render(<Figure value={12} unit="things" caption="you can do so far." />);
+    expect(screen.getByText("12").className).toContain(
+      "var(--text-display-size)",
+    );
+    expect(screen.getByText("you can do so far.").className).toContain(
+      "var(--text-meta-size)",
+    );
+  });
+
+  it("keeps the unit beside the number rather than inside it", () => {
+    render(<Figure value={3} unit="hours" caption="logged." />);
+    // Two nodes: a figure that read "3 hours" as one string could not be set
+    // at two sizes.
+    expect(screen.getByText("3")).toBeDefined();
+    expect(screen.getByText("hours")).toBeDefined();
+  });
+
+  it("omits the unit when there is not one", () => {
+    const { container } = render(<Figure value={7} caption="marked." />);
+    expect(container.textContent).toBe("7marked.");
+  });
+
+  it("aligns digits so two figures do not jitter", () => {
+    render(<Figure value={11} caption="things." />);
+    expect(screen.getByText("11").className).toContain("tabular-nums");
+  });
+});
+
+describe("ToggleGroup — a pill track, not tabs (§8.5.5)", () => {
+  const options = [
+    { href: "/mastery", label: "What I can do", current: true },
+    { href: "/mastery?show=left", label: "What's left", current: false },
+  ];
+
+  it("marks the current view for assistive technology, not by colour alone", () => {
+    render(<ToggleGroup label="Which list" options={options} />);
+    expect(
+      screen.getByRole("link", { name: "What I can do" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("link", { name: "What's left" }).getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
+  it("fills the current pill and leaves the rest quiet", () => {
+    render(<ToggleGroup label="Which list" options={options} />);
+    expect(
+      screen.getByRole("link", { name: "What I can do" }).className,
+    ).toContain("bg-accent");
+    expect(screen.getByRole("link", { name: "What's left" }).className).toContain(
+      "text-ink-muted",
+    );
+  });
+
+  /**
+   * Links rather than buttons: every view it switches between is a real URL
+   * that survives a refresh, which is also what keeps it working with no
+   * client JavaScript.
+   */
+  it("navigates rather than scripting", () => {
+    render(<ToggleGroup label="Which list" options={options} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Which list" })).toBeDefined();
   });
 });

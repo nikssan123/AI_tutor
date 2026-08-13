@@ -77,6 +77,67 @@ export function GridIcon({ className }: IconProps) {
   );
 }
 
+/* ── Navigation icons ───────────────────────────────────────────────────── */
+
+/**
+ * The four authenticated destinations. Each is paired with its word in the
+ * rail and the bottom bar — §8.5.5 bans "tooltips that explain an icon", which
+ * in practice means an icon may never be the only label.
+ */
+
+/** A calendar with the day marked: the one thing to do now. */
+export function TodayIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2" />
+      <path d="M4 10h16M8.5 3.5v3M15.5 3.5v3" />
+      <circle cx="12" cy="14.5" r="1.5" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/** A tick in a ring: something proved, and still standing. */
+export function MasteryIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </Svg>
+  );
+}
+
+/** A rising line over an axis: the week's honest read. */
+export function ProgressIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4.5 19.5V5M4.5 19.5H19" />
+      <path d="m8 15.5 3.25-4 2.75 2.25L19 8" />
+    </Svg>
+  );
+}
+
+/** A person: everything you own about your own account. */
+export function AccountIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" />
+    </Svg>
+  );
+}
+
+/**
+ * The affordance on a card that goes somewhere. Paired with a word, and it
+ * travels 2px on hover rather than the card tinting (§8.5.9).
+ */
+export function ArrowIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </Svg>
+  );
+}
+
 /* ── Subject icons ──────────────────────────────────────────────────────── */
 
 /** Writing and communication. */

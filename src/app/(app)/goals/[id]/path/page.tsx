@@ -14,13 +14,13 @@ import { CURRICULUM_MASTERED_THRESHOLD } from "@/lib/curriculum/validate";
 import {
   Button,
   Card,
-  DisplayTitle,
   Lead,
   Meta,
+  stagger,
   Status,
-  Title,
   MaturityBadge,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { buildPathAction } from "./actions";
 
 /**
@@ -119,26 +119,29 @@ export default async function PathPage({ params }: Props) {
   };
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
-      <header className="flex flex-col gap-3">
-        <DisplayTitle>Your path through {pack.name}</DisplayTitle>
-        {/* §7.1 — see /today. The path is the screen people show other people. */}
-        {pack.maturity !== "curated" ? (
-          <span className="self-start">
-            <MaturityBadge maturity={pack.maturity} />
-          </span>
-        ) : null}
-        <Lead>
-          {projection.requiredSkillIds.length} skills to go ·{" "}
-          {projection.estimatedHours} hours at your current level ·{" "}
-          {goal.spec.weeklyHours}h a week
-          {goal.spec.deadline ? ` · by ${goal.spec.deadline}` : ""}
-        </Lead>
-      </header>
+    <AppFrame>
+      <AppHeader
+        title={`Your path through ${pack.name}`}
+        facts={
+          <>
+            <Meta>{projection.requiredSkillIds.length} skills to go</Meta>
+            <Meta>
+              {projection.estimatedHours} hours at your current level
+            </Meta>
+            <Meta>{goal.spec.weeklyHours}h a week</Meta>
+            {goal.spec.deadline ? <Meta>by {goal.spec.deadline}</Meta> : null}
+            {/* §7.1 — see /today. The path is the screen people show other
+                people. */}
+            {pack.maturity !== "curated" ? (
+              <MaturityBadge maturity={pack.maturity} />
+            ) : null}
+          </>
+        }
+      />
 
       {/* ── The DAG ────────────────────────────────────────────────────── */}
-      <section className="flex flex-col gap-4">
-        <Title>The whole subject</Title>
+      <section className="rise flex flex-col gap-6" style={stagger(1)}>
+        <SectionHead label="The graph" title="The whole subject" />
         <Meta>
           Laid out by depth, so every skill sits below what it needs first.
         </Meta>
@@ -194,7 +197,7 @@ export default async function PathPage({ params }: Props) {
               );
             })}
           </svg>
-          <div className="mt-4 flex flex-wrap gap-4">
+          <div className="mt-5 flex flex-wrap gap-x-5 gap-y-3 border-t border-hairline pt-4">
             {Object.values(STATE).map((s) => (
               <span key={s.label} className="flex items-center gap-2">
                 <span
@@ -212,32 +215,41 @@ export default async function PathPage({ params }: Props) {
       </section>
 
       {/* ── The modules ────────────────────────────────────────────────── */}
-      <section className="flex flex-col gap-4">
-        <Title>What you&rsquo;ll do, in order</Title>
+      <section className="rise flex flex-col gap-6" style={stagger(2)}>
+        <SectionHead label="In order" title="What you'll do" />
         {stored ? (
-          <ul className="flex list-none flex-col gap-0 p-0 m-0 overflow-hidden rounded-[var(--radius-card)] bg-surface">
-            {stored.modules.map((mod) => (
-              <li
-                key={mod.order}
-                className="flex items-baseline justify-between gap-4 border-b border-hairline px-5 py-4 last:border-b-0"
-              >
-                <span className="flex flex-col gap-1">
-                  <span className="font-[550]">{mod.title}</span>
-                  <Meta>
-                    {mod.targetSkillIds
-                      .map((s) => names.get(s) ?? s)
-                      .join(" · ")}
-                  </Meta>
-                </span>
-                <span className="flex shrink-0 items-center gap-3">
-                  {mod.outputArtifact === "project" ? (
-                    <Status tone="verified">Graded</Status>
-                  ) : null}
-                  <Meta>{mod.estimatedHours}h</Meta>
-                </span>
+          /* Numbered, because "in order" is the whole claim of this list and
+             a stack of equal rows does not say it. */
+          <ol className="m-0 flex list-none flex-col gap-3 p-0">
+            {stored.modules.map((mod, i) => (
+              <li key={mod.order}>
+                <Card className="flex flex-wrap items-baseline gap-x-5 gap-y-3 p-5">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-[length:var(--text-meta-size)] font-[650] text-accent tabular-nums"
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="text-[length:var(--text-lead-size)] font-[550] text-ink">
+                      {mod.title}
+                    </span>
+                    <Meta>
+                      {mod.targetSkillIds
+                        .map((s) => names.get(s) ?? s)
+                        .join(" · ")}
+                    </Meta>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-4">
+                    {mod.outputArtifact === "project" ? (
+                      <Status tone="verified">Graded</Status>
+                    ) : null}
+                    <Meta>{mod.estimatedHours}h</Meta>
+                  </span>
+                </Card>
               </li>
             ))}
-          </ul>
+          </ol>
         ) : (
           <Card className="flex flex-col items-start gap-4">
             <Meta>
@@ -253,15 +265,18 @@ export default async function PathPage({ params }: Props) {
 
       {/* ── What was skipped, and why ──────────────────────────────────── */}
       {projection.excludedSkillIds.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <Title>What we skipped</Title>
-          <Meta>
+        <section className="rise flex flex-col gap-6" style={stagger(3)}>
+          <SectionHead label="Not on it" title="What we skipped" />
+          <Lead>
             You don&rsquo;t have to take our word for it — each of these was
             skipped because you showed you could already do it.
-          </Meta>
-          <ul className="flex list-none flex-col gap-2 p-0 m-0">
+          </Lead>
+          <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-2">
             {projection.excludedSkillIds.map((skillId) => (
-              <li key={skillId}>
+              <li
+                key={skillId}
+                className="rounded-[var(--radius-control)] bg-surface px-4 py-3 shadow-[var(--shadow-raised)]"
+              >
                 <Meta>{projection.exclusionReasons[skillId]}</Meta>
               </li>
             ))}
@@ -271,11 +286,17 @@ export default async function PathPage({ params }: Props) {
 
       {/* ── What was checked (§14.6) ───────────────────────────────────── */}
       {stored?.report ? (
-        <section className="flex flex-col gap-3">
-          <Title>What we checked before showing you this</Title>
-          <ul className="flex list-none flex-col gap-2 p-0 m-0">
+        <section className="rise flex flex-col gap-6" style={stagger(4)}>
+          <SectionHead
+            label="Before you saw it"
+            title="What we checked before showing you this"
+          />
+          <ul className="m-0 flex list-none flex-col gap-0 overflow-hidden rounded-[var(--radius-card)] bg-surface p-0 shadow-[var(--shadow-raised)]">
             {stored.report.checks.map((c) => (
-              <li key={c.name} className="flex items-baseline gap-3">
+              <li
+                key={c.name}
+                className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-hairline px-5 py-4 last:border-b-0"
+              >
                 <Status tone={c.passed ? "verified" : "attention"}>
                   {c.passed ? "Pass" : "Flagged"}
                 </Status>
@@ -285,6 +306,6 @@ export default async function PathPage({ params }: Props) {
           </ul>
         </section>
       ) : null}
-    </main>
+    </AppFrame>
   );
 }

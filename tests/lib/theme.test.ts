@@ -100,6 +100,21 @@ describe("§8.5.4 — WCAG 2.2 AA contrast in both themes", () => {
     expect(contrast(palette.accent, palette.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
+  /**
+   * The filled button — the one place the accent is a *fill* rather than ink,
+   * and the pair with no safe literal. White clears 5.53:1 on light's
+   * `#00785C` and measures **2.17:1** on dark's `#35C79A`, so every call site
+   * writing `text-white` was correct in exactly one of the two themes.
+   */
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("%s: label text clears 4.5:1 on the accent fill", (_name, palette) => {
+    expect(contrast(palette.onAccent, palette.accent)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  });
+
   it.each([
     ["light", light],
     ["dark", dark],

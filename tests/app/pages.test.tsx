@@ -55,6 +55,20 @@ describe("root layout", () => {
     expect(html).toContain("suppressHydrationWarning");
   });
 
+  it("puts the goal search's driver in <head>, where it will actually run", async () => {
+    const { default: RootLayout } = await import("@/app/layout");
+    const { goalSearchScript } = await import("@/lib/goal-search-script");
+    const html = JSON.stringify(
+      RootLayout({ children: null }) as React.ReactElement,
+    );
+
+    // Rendered beside its own markup it never ran: Next streams the page, and
+    // body content arriving in a later chunk is inserted rather than parsed,
+    // so its <script> stays inert until React re-creates it at hydration. The
+    // dropdown was dead for that whole window.
+    expect(html).toContain(JSON.stringify(goalSearchScript).slice(1, 60));
+  });
+
   it("declares a metadataBase so canonicals and OG URLs resolve", async () => {
     const { metadata } = await import("@/app/layout");
     expect(metadata.metadataBase).toBeInstanceOf(URL);

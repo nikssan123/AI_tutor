@@ -1,20 +1,27 @@
 import type { Metadata } from "next";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
+  AccountIcon,
+  ArrowIcon,
   CameraIcon,
   ChecklistIcon,
   DatabaseIcon,
   GridIcon,
+  MasteryIcon,
   PenIcon,
+  ProgressIcon,
   StepsIcon,
+  TodayIcon,
 } from "@/components/icons";
 import {
   ArtifactMat,
   Button,
+  ButtonLink,
   Card,
   Confidence,
   DisplayTitle,
   EmptyState,
+  Figure,
   HeroTitle,
   Lead,
   LinkCard,
@@ -26,8 +33,10 @@ import {
   stagger,
   Status,
   Title,
+  ToggleGroup,
 } from "@/components/ui";
 import { RubricLadder, SectionHead } from "@/components/marketing";
+import { AppHeader, SectionHead as AppSectionHead } from "@/components/app-shell";
 import { featuredProject } from "@/lib/content";
 
 /**
@@ -115,6 +124,11 @@ export default function DesignPage() {
             ["Pen", <PenIcon key="p" />],
             ["Camera", <CameraIcon key="m" />],
             ["Database", <DatabaseIcon key="d" />],
+            ["Today", <TodayIcon key="t" />],
+            ["Mastery", <MasteryIcon key="y" />],
+            ["Progress", <ProgressIcon key="r" />],
+            ["Account", <AccountIcon key="a" />],
+            ["Arrow", <ArrowIcon key="w" />],
           ].map(([label, icon]) => (
             <span key={String(label)} className="flex flex-col items-center gap-2">
               <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
@@ -123,6 +137,52 @@ export default function DesignPage() {
               <Meta>{label}</Meta>
             </span>
           ))}
+        </Card>
+      </Section>
+
+      <Section
+        title="Product page composition"
+        note="§8.5.9's rules, as the product screens get them: one frame, a header that carries its facts on a rule, and a band opener with an accent eyebrow over a display-size title."
+      >
+        <Card className="flex flex-col gap-10">
+          <AppHeader
+            icon={<TodayIcon />}
+            title="Today"
+            lead="One thing at a time, chosen for you and explained."
+            facts={
+              <>
+                <Meta>Photography</Meta>
+                <Meta>35 min</Meta>
+                <Status tone="verified">On track</Status>
+              </>
+            }
+          />
+          <AppSectionHead label="The rest of it" title="Your path" />
+        </Card>
+      </Section>
+
+      <Section
+        title="Figure"
+        note="One number at display size with the word that says what it is. One per scroll band, never a row of them, and never a percentage — that is the metric grid §8.5.5 bans."
+      >
+        <Card className="flex flex-wrap gap-12">
+          <Figure value={12} unit="things" caption="you can do so far. 8 to go." />
+          <Figure value={3} unit="hours" caption="logged of the 5 you set aside." />
+        </Card>
+      </Section>
+
+      <Section
+        title="Toggle group"
+        note="Switching between 2–4 views: text labels in a pill track. Links, not buttons, so each view is a real URL that survives a refresh."
+      >
+        <Card className="flex flex-wrap gap-6">
+          <ToggleGroup
+            label="Which list"
+            options={[
+              { href: "#can-do", label: "What I can do", current: true },
+              { href: "#left", label: "What's left", current: false },
+            ]}
+          />
         </Card>
       </Section>
 
@@ -209,6 +269,9 @@ export default function DesignPage() {
           <Button>Start today&rsquo;s session</Button>
           <Button variant="text">Not today</Button>
           <Button disabled>Submitted</Button>
+          {/* Same contract, rendered as a link — for a primary action that
+              navigates rather than submits. */}
+          <ButtonLink href="#today">Back to today</ButtonLink>
         </Card>
       </Section>
 

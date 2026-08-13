@@ -4,6 +4,11 @@ import { OTP_LENGTH } from "@/lib/auth";
 import { messageForCode } from "@/lib/account/errors";
 import { currentUser } from "@/lib/account/session";
 import {
+  DEFAULT_DESTINATION,
+  safeDestination,
+  withDestination,
+} from "@/lib/account/next-url";
+import {
   Button,
   Card,
   DisplayTitle,
@@ -12,6 +17,7 @@ import {
   stagger,
   Status,
 } from "@/components/ui";
+import { AuthFrame } from "@/components/app-shell";
 import { sendCodeAction, verifyCodeAction } from "./actions";
 
 /**
@@ -35,17 +41,26 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ error?: string; sent?: string; confirmed?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    sent?: string;
+    confirmed?: string;
+    next?: string;
+  }>;
 };
 
 export default async function VerifyEmailPage({ searchParams }: Props) {
-  const { error, sent, confirmed } = await searchParams;
+  const { error, sent, confirmed, next } = await searchParams;
   const user = await currentUser();
+
+  // The end of the sign-up chain, and so the last place the subject someone
+  // came here to have built can still be lost.
+  const destination = safeDestination(next);
 
   /* ── The address is confirmed ──────────────────────────────────────────── */
   if (user?.emailVerified || (!user && !error)) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+      <AuthFrame>
         <div className="rise flex flex-col gap-3">
           <Status tone="verified">Confirmed</Status>
           <DisplayTitle>Email confirmed</DisplayTitle>
@@ -57,18 +72,28 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
         </div>
 
         <div className="rise" style={stagger(1)}>
-          <Link href={user ? "/today" : "/sign-in"}>
-            <Button>{user ? "Back to today" : "Sign in"}</Button>
+          <Link
+            href={
+              user ? destination : withDestination("/sign-in", destination)
+            }
+          >
+            <Button>
+              {user
+                ? destination === DEFAULT_DESTINATION
+                  ? "Back to today"
+                  : "Carry on"
+                : "Sign in"}
+            </Button>
           </Link>
         </div>
-      </main>
+      </AuthFrame>
     );
   }
 
   /* ── Signed out, and a link brought them here ──────────────────────────── */
   if (!user) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+      <AuthFrame>
         <div className="rise flex flex-col gap-3">
           <DisplayTitle>That link didn&rsquo;t work</DisplayTitle>
           <Lead>
@@ -82,18 +107,18 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
         <Card className="rise flex flex-col gap-4" style={stagger(1)}>
           <Meta>Sign in and we&rsquo;ll send you a fresh code.</Meta>
           <div>
-            <Link href="/sign-in">
+            <Link href={withDestination("/sign-in", destination)}>
               <Button>Sign in</Button>
             </Link>
           </div>
         </Card>
-      </main>
+      </AuthFrame>
     );
   }
 
   /* ── Signed in, not confirmed: the code form ───────────────────────────── */
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+    <AuthFrame>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Check your email</DisplayTitle>
         <Lead>
@@ -103,6 +128,8 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
 
       <Card className="rise" style={stagger(1)}>
         <form action={verifyCodeAction} className="flex flex-col gap-5">
+          <input type="hidden" name="next" value={destination} />
+
           {error ? (
             <span
               role="alert"
@@ -159,6 +186,7 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
             the first.
           </Meta>
           <form action={sendCodeAction}>
+            <input type="hidden" name="next" value={destination} />
             <Button variant="text" type="submit" className="px-0">
               Send a new code
             </Button>
@@ -174,6 +202,6 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
           Skip for now
         </Link>
       </div>
-    </main>
+    </AuthFrame>
   );
 }

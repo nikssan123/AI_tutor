@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { currentUser, type AccountUser } from "@/lib/account/session";
-import { signOutAction } from "./account/actions";
+import { currentUser } from "@/lib/account/session";
+import { AppNav } from "@/components/app-nav";
 
 /**
  * §13.1 — the authenticated segment.
@@ -24,75 +24,22 @@ export const metadata: Metadata = {
 /** Dynamic by construction — nothing under (app) is ever statically cached. */
 export const dynamic = "force-dynamic";
 
-/**
- * §8's authenticated journey, in the order a learner lives it: the thing to do
- * now, the record of what they have proved, and last week's read on it.
- *
- * §8.5.1's density rule governs content, not chrome — navigation is the part
- * that is meant to recede — but it is still the reason there are three
- * destinations here and not a menu.
- */
-const NAV = [
-  { href: "/today", label: "Today" },
-  { href: "/mastery", label: "Mastery" },
-  { href: "/progress", label: "Progress" },
-  { href: "/account", label: "Account" },
-];
-
-function AppNav({ user }: { user: AccountUser }) {
+function UnverifiedBanner() {
   return (
-    <header className="border-b border-hairline">
-      <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-4">
+    <div className="border-b border-hairline bg-accent-weak">
+      <p className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-2 gap-y-1 px-6 py-3 text-[length:var(--text-label-size)] text-ink-muted">
+        {/* One state, one action (§8.5.5). The banner's job is to say the
+            account is unconfirmed; /account is where the consequences and
+            the resend live, so the sentence does not carry them here. */}
+        <span>Your email address isn&rsquo;t confirmed.</span>
         <Link
-          href="/today"
-          className="text-[length:var(--text-label-size)] font-[650] text-ink"
+          href="/account"
+          className="font-[550] text-accent underline-offset-4 hover:underline"
         >
-          online_uni
+          Confirm it
         </Link>
-
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="text-[length:var(--text-label-size)] text-ink-muted transition-colors duration-[var(--dur-fast)] hover:text-ink"
-          >
-            {item.label}
-          </Link>
-        ))}
-
-        {/*
-         * A form, not a link: signing out is a state change, and a GET that
-         * ends a session is one prefetch away from ending it by accident.
-         * As a Server Action it also needs no client JavaScript — which is
-         * the whole reason there was no sign-out button here before.
-         */}
-        <form action={signOutAction} className="ml-auto">
-          <button
-            type="submit"
-            className="text-[length:var(--text-label-size)] text-ink-muted transition-colors duration-[var(--dur-fast)] hover:text-ink"
-          >
-            Sign out
-          </button>
-        </form>
-      </nav>
-
-      {user.emailVerified ? null : (
-        <div className="border-t border-hairline bg-accent-weak">
-          <p className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-2 gap-y-1 px-6 py-3 text-[length:var(--text-label-size)] text-ink-muted">
-            {/* One state, one action (§8.5.5). The banner's job is to say the
-                account is unconfirmed; /account is where the consequences and
-                the resend live, so the sentence does not carry them here. */}
-            <span>Your email address isn&rsquo;t confirmed.</span>
-            <Link
-              href="/account"
-              className="font-[550] text-accent underline-offset-4 hover:underline"
-            >
-              Confirm it
-            </Link>
-          </p>
-        </div>
-      )}
-    </header>
+      </p>
+    </div>
   );
 }
 
@@ -103,10 +50,20 @@ export default async function AppLayout({
 }) {
   const user = await currentUser();
 
+  // Signed out, or on a screen that has no session to navigate from — the page
+  // below still guards itself. Nothing to draw around it.
+  if (!user) return <div className="min-h-screen bg-ground text-ink">{children}</div>;
+
   return (
-    <div className="min-h-screen bg-ground text-ink">
-      {user ? <AppNav user={user} /> : null}
-      {children}
+    <div className="min-h-screen bg-ground text-ink lg:flex lg:items-start">
+      <AppNav />
+      {/* `min-w-0` so a wide child — the path graph's horizontal scroller —
+          shrinks inside the flex row instead of stretching it and pushing the
+          rail off the left of the viewport. */}
+      <div className="min-w-0 flex-1">
+        {user.emailVerified ? null : <UnverifiedBanner />}
+        {children}
+      </div>
     </div>
   );
 }

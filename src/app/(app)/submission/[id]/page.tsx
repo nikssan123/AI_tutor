@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
@@ -8,15 +7,19 @@ import { resolvePack } from "@/lib/content/resolve";
 import { evaluationFor, submissionById } from "@/lib/submissions/store";
 import { BAND_SCORE, type Band } from "@/lib/contracts/evaluation";
 import {
+  ButtonLink,
   Card,
   Confidence,
   confidenceLevel,
-  DisplayTitle,
+  cx,
   Lead,
   Meta,
+  Skeleton,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 
 /**
  * §8 screen 9 — the evaluation result.
@@ -70,130 +73,178 @@ export default async function SubmissionPage({ params }: Props) {
     const failed = stored.status === "failed";
 
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
+      <AppFrame width="narrow">
         {failed ? null : <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />}
 
-        <div className="rise flex flex-col gap-5">
-          <DisplayTitle>
-            {failed ? "We couldn’t mark this one" : "Marking your work"}
-          </DisplayTitle>
-          <Lead>
-            {failed
+        <AppHeader
+          eyebrow={failed ? "Not marked" : "Marking"}
+          title={failed ? "We couldn’t mark this one" : "Marking your work"}
+          lead={
+            failed
               ? "Nothing has been added to your record. You can hand it in again."
-              : "Two passes over what you handed in, against the rubric you read before you started. About a minute."}
-          </Lead>
-        </div>
+              : "Two passes over what you handed in, against the rubric you read before you started. About a minute."
+          }
+          action={
+            failed ? (
+              <ButtonLink href="/today" className="w-auto">
+                Back to today
+              </ButtonLink>
+            ) : null
+          }
+        />
 
-        {failed ? (
-          <Link
-            href="/today"
-            className="min-h-[var(--touch-min)] inline-flex w-fit items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent"
-          >
-            Back to today
-          </Link>
-        ) : (
-          <Meta tone="muted">This page checks again every few seconds.</Meta>
+        {failed ? null : (
+          <Card className="rise flex flex-col gap-4" style={stagger(1)}>
+            {/* §8.5.5 — a skeleton matching the final layout, never a spinner.
+                What lands here is one card per criterion, so that is what the
+                wait looks like. */}
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-5 w-64" />
+            <Meta tone="muted">This page checks again every few seconds.</Meta>
+          </Card>
         )}
-      </main>
+      </AppFrame>
     );
   }
 
   const percent = Math.round(evaluation.overall * 100);
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-4">
-        <DisplayTitle>{project?.title ?? "Your marked work"}</DisplayTitle>
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="text-[length:var(--text-display-size)] font-[650] text-ink">
+    <AppFrame>
+      <AppHeader
+        eyebrow="Marked work"
+        title={project?.title ?? "Your marked work"}
+      />
+
+      {/*
+       * The verdict, alone on the accent field. This is the screen the whole
+       * product is for and the grade used to sit in a row of loose spans under
+       * the title, at the same weight as the tier note beside it.
+       */}
+      <Card
+        className="rise flex flex-wrap items-end justify-between gap-x-8 gap-y-5 bg-accent-weak"
+        style={stagger(1)}
+      >
+        <div className="flex flex-col gap-1">
+          <span
+            className={cx(
+              "text-[length:var(--text-display-size)] leading-[var(--text-display-line)]",
+              "font-[650] tracking-[var(--text-display-tracking)] text-ink tabular-nums",
+            )}
+          >
             {percent}%
           </span>
-          {/*
-            §7.2 — "confidence propagates to the UI everywhere". The number is
-            never shown without what it is worth, because a tier-3 verdict at
-            0.8 is not the same claim as a tier-1 one.
-          */}
-          <Confidence level={confidenceLevel(evaluation.confidence)} />
           <Meta tone="muted">
-            Tier {evaluation.evalTier} evidence
+            against the rubric you could read before you started
           </Meta>
         </div>
 
-        {stored.status === "human_review" ? (
-          <Status tone="attention">
-            A person is checking this one before it counts. The two passes
-            disagreed, so we would rather be slow than wrong.
-          </Status>
-        ) : null}
+        {/*
+          §7.2 — "confidence propagates to the UI everywhere". The number is
+          never shown without what it is worth, because a tier-3 verdict at
+          0.8 is not the same claim as a tier-1 one.
+        */}
+        <div className="flex flex-col items-start gap-2">
+          <Confidence level={confidenceLevel(evaluation.confidence)} />
+          <Meta tone="muted">Tier {evaluation.evalTier} evidence</Meta>
+        </div>
+      </Card>
 
-        {stored.truncated ? (
-          <Status tone="attention">
-            Your work was longer than we can mark and was cut off, so this only
-            covers the first part of it.
-          </Status>
-        ) : null}
-      </header>
+      {stored.status === "human_review" ? (
+        <Status tone="attention">
+          A person is checking this one before it counts. The two passes
+          disagreed, so we would rather be slow than wrong.
+        </Status>
+      ) : null}
+
+      {stored.truncated ? (
+        <Status tone="attention">
+          Your work was longer than we can mark and was cut off, so this only
+          covers the first part of it.
+        </Status>
+      ) : null}
 
       {/* ── The criteria ─────────────────────────────────────────────────── */}
-      <ol className="flex list-none flex-col gap-4 p-0 m-0">
-        {evaluation.criteria.map((criterion) => (
-          <li key={criterion.criterionId}>
-            <Card className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <Title className="text-[length:var(--text-label-size)]">
-                  {criterion.name}
-                </Title>
-                <Status tone={BAND_TONE[criterion.band]}>
-                  {BAND_LABEL[criterion.band]}
-                </Status>
-              </div>
+      <section className="rise flex flex-col gap-6" style={stagger(2)}>
+        <SectionHead label="The marking" title="Criterion by criterion" />
 
-              {/*
-                The quote, first and set apart. Every score on this page is
-                anchored in the learner's own words — a criterion whose quote
-                could not be found in the work was thrown out before it got here.
-              */}
-              <blockquote className="border-l-2 border-accent bg-raised px-5 py-3 whitespace-pre-wrap font-mono text-[length:var(--text-meta-size)]">
-                {criterion.evidence}
-              </blockquote>
+        <ol className="flex list-none flex-col gap-4 p-0 m-0">
+          {evaluation.criteria.map((criterion, i) => (
+            <li key={criterion.criterionId}>
+              <Card
+                className="rise flex flex-col gap-4"
+                style={stagger(i + 3)}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <Title>{criterion.name}</Title>
+                  <Status tone={BAND_TONE[criterion.band]}>
+                    {BAND_LABEL[criterion.band]}
+                  </Status>
+                </div>
 
-              <Lead>{criterion.reasoning}</Lead>
-            </Card>
-          </li>
-        ))}
-      </ol>
+                {/*
+                  The quote, first and set apart. Every score on this page is
+                  anchored in the learner's own words — a criterion whose quote
+                  could not be found in the work was thrown out before it got
+                  here.
 
-      {evaluation.gaps.length > 0 ? (
-        <Card className="flex flex-col gap-3">
-          <Title className="text-[length:var(--text-label-size)]">
-            What to fix, in order
-          </Title>
-          <ol className="flex flex-col gap-2 pl-5">
-            {evaluation.gaps.map((gap) => (
-              <li key={gap}>{gap}</li>
-            ))}
-          </ol>
-        </Card>
+                  Set in the sans face: §8.5.5 bans monospace outside code
+                  artefacts, and this quotes whatever the learner handed in,
+                  which is as often a paragraph as a function.
+                */}
+                <blockquote className="m-0 border-l-2 border-accent bg-raised px-5 py-4 whitespace-pre-wrap text-[length:var(--text-label-size)] text-ink">
+                  {criterion.evidence}
+                </blockquote>
+
+                <Lead>{criterion.reasoning}</Lead>
+              </Card>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* ── What to do about it ──────────────────────────────────────────── */}
+      {evaluation.gaps.length > 0 || evaluation.nextActions.length > 0 ? (
+        <section className="rise flex flex-col gap-6" style={stagger(4)}>
+          <SectionHead label="From here" title="What to do about it" />
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {evaluation.gaps.length > 0 ? (
+              <Card className="flex h-full flex-col gap-4">
+                <Title>What to fix, in order</Title>
+                <ol className="m-0 flex flex-col gap-2 pl-5">
+                  {evaluation.gaps.map((gap) => (
+                    <li key={gap}>{gap}</li>
+                  ))}
+                </ol>
+              </Card>
+            ) : null}
+
+            {evaluation.nextActions.length > 0 ? (
+              <Card className="flex h-full flex-col gap-4">
+                <Title>Do next</Title>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  {evaluation.nextActions.map((action) => (
+                    <li key={action} className="flex items-start gap-2.5">
+                      <span
+                        aria-hidden="true"
+                        className="mt-2 inline-block size-1.5 shrink-0 rounded-full bg-accent"
+                      />
+                      {action}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
-      {evaluation.nextActions.length > 0 ? (
-        <Card className="flex flex-col gap-3">
-          <Title className="text-[length:var(--text-label-size)]">Do next</Title>
-          <ul className="flex list-none flex-col gap-2 p-0 m-0">
-            {evaluation.nextActions.map((action) => (
-              <li key={action}>{action}</li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
-
-      <Link
-        href="/today"
-        className="min-h-[var(--touch-min)] inline-flex w-fit items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent"
-      >
+      <ButtonLink href="/today" className="w-auto">
         Back to today
-      </Link>
-    </main>
+      </ButtonLink>
+    </AppFrame>
   );
 }
 

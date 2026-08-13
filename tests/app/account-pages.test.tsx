@@ -18,6 +18,9 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
   },
+  // The (app) header renders `AppNav`, which reads the current path to mark
+  // the section you are in.
+  usePathname: () => "/account",
 }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { listUserAccounts } }),
@@ -214,22 +217,63 @@ describe("/account — sessions", () => {
       screen.getByRole("button", { name: "Sign out everywhere" }),
     ).toBeDefined();
   });
-});
 
-describe("the (app) header", () => {
-  it("carries the sign-out that did not exist before", async () => {
-    render(await AppLayout({ children: <p>child</p> }));
+  it("is where signing out lives, now that the chrome cannot hold it", async () => {
+    render(await AccountPage({ searchParams: search({}) }));
     expect(screen.getByRole("button", { name: "Sign out" })).toBeDefined();
-    expect(screen.getByText("Account")).toBeDefined();
   });
 
   it("signs out through a form, never a link", async () => {
     // A GET that ends a session is one prefetch away from ending it by
     // accident.
-    const { container } = render(await AppLayout({ children: <p>child</p> }));
+    const { container } = render(
+      await AccountPage({ searchParams: search({}) }),
+    );
     const button = screen.getByRole("button", { name: "Sign out" });
     expect(button.closest("form")).not.toBeNull();
     expect(container.querySelector('a[href="/sign-out"]')).toBeNull();
+  });
+});
+
+describe("the (app) chrome", () => {
+  /**
+   * The rail and the bottom bar are one component drawn twice and hidden by
+   * breakpoint, so every destination is in the DOM twice. That is fine for a
+   * link — both copies point the same way — and it is exactly why sign-out is
+   * not in here: two submit buttons with one name is a different matter.
+   */
+  it("marks the destination you are on, and only that one", async () => {
+    render(await AppLayout({ children: <p>child</p> }));
+
+    const current = screen.getAllByRole("link", { name: "You" });
+    expect(current.length).toBeGreaterThan(0);
+    for (const link of current) {
+      expect(link.getAttribute("aria-current")).toBe("page");
+    }
+
+    for (const link of screen.getAllByRole("link", { name: "Today" })) {
+      expect(link.getAttribute("aria-current")).toBeNull();
+    }
+  });
+
+  it("reaches every destination §8 names", async () => {
+    render(await AppLayout({ children: <p>child</p> }));
+
+    for (const [label, href] of [
+      ["Today", "/today"],
+      ["Mastery", "/mastery"],
+      ["Progress", "/progress"],
+      ["You", "/account"],
+    ]) {
+      const links = screen.getAllByRole("link", { name: label });
+      expect(links.length).toBeGreaterThan(0);
+      expect(links[0]!.getAttribute("href")).toBe(href);
+    }
+  });
+
+  it("keeps sign-out out of the chrome, where it would render twice", async () => {
+    render(await AppLayout({ children: <p>child</p> }));
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
   });
 
   it("nudges an unconfirmed address, once, with a way to fix it", async () => {

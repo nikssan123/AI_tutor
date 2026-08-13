@@ -52,6 +52,27 @@ describe("SignInForm", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("lands them where they were headed when they were sent here", async () => {
+    // The visitor who asked us to build a subject arrives at this form with
+    // that subject in hand. Landing them on /today loses it, and the next
+    // screen asks what they want to learn all over again.
+    signInEmail.mockResolvedValue({ error: null });
+    render(<SignInForm destination="/start?topic=basket%20weaving" />);
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/start?topic=basket%20weaving"),
+    );
+  });
+
+  it("carries that destination on to sign-up, for someone with no account yet", () => {
+    render(<SignInForm destination="/start?topic=basket%20weaving" />);
+    expect(
+      screen.getByRole("link", { name: "Create an account" }).getAttribute("href"),
+    ).toBe("/sign-up?next=%2Fstart%3Ftopic%3Dbasket%2520weaving");
+  });
+
   it("sends someone creating an account to /sign-up, and signs nobody up itself", () => {
     // This form used to do both, told apart by which button submitted it. That
     // stopped working when sign-up grew a confirmation field that sign-in must

@@ -14,6 +14,7 @@ import {
   stagger,
   Status,
 } from "@/components/ui";
+import { AppFrame } from "@/components/app-shell";
 import { createGoalAction } from "../actions";
 
 /**
@@ -102,7 +103,7 @@ export default async function StartPage({ searchParams }: Props) {
   return (
     /* §8.5.9 — a task screen, so it keeps the narrow column. A goal form read
        across 1024px would be worse, not better. */
-    <main className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-16">
+    <AppFrame width="narrow">
       <div className="rise flex flex-col gap-5">
         <DisplayTitle>What do you want to get good at?</DisplayTitle>
         <Lead>
@@ -233,6 +234,6 @@ export default async function StartPage({ searchParams }: Props) {
           <Button type="submit">Build my plan</Button>
         </div>
       </form>
-    </main>
+    </AppFrame>
   );
 }

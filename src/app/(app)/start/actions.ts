@@ -8,14 +8,16 @@ import { getAnthropic } from "@/lib/ai/client";
 import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
 import { cookieName } from "@/lib/check/session";
-import {
-  isComplete,
-  runAnalyzer,
-  shouldFinishNext,
-  type Message,
-} from "@/lib/goals/analyzer";
+import { runAnalyzer } from "@/lib/goals/analyzer";
+import { INTAKE_AT_LATEST } from "@/lib/goals/anchors";
 import { catalogueFor, matchSubject, specFrom } from "@/lib/goals/match";
 import { clearIntake, loadIntake, saveIntake } from "@/lib/goals/intake-store";
+import {
+  askedWith,
+  contextFor,
+  MAX_REPLY,
+  recordTurn,
+} from "@/lib/goals/turn";
 import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
 import type { DomainPack } from "@/lib/packs/types";
@@ -32,9 +34,6 @@ import { EVENTS, inngest } from "@/lib/inngest/client";
  * Every transition is a POST that ends in a redirect, so a refresh re-renders
  * the conversation instead of re-sending the last answer.
  */
-
-/** Bounds what one person can type into one turn. */
-const MAX_REPLY = 500;
 
 async function requireUser(): Promise<string> {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -106,40 +105,20 @@ export async function replyAction(formData: FormData): Promise<void> {
   const intake = await loadIntake(db, userId);
   if (intake.done) redirect("/start");
 
-  const messages: Message[] = [...intake.messages, { r: "l", t: said }];
+  const messages = askedWith(intake, said);
 
   const result = await logCall(
     db,
     userId,
-    await runAnalyzer(getAnthropic(), {
-      messages,
-      catalogue: catalogueFor(),
-      today: new Date().toISOString().slice(0, 10),
-      // Told to close either because the last turn showed it has enough, or
-      // because this is the last turn it gets. Without this the conversation
-      // ends on an unanswered question.
-      finalTurn: shouldFinishNext(intake.clarity, messages),
-    }),
+    await runAnalyzer(getAnthropic(), contextFor(intake, messages)),
   );
 
-  if (result.status !== "ok") {
-    // A model that could not answer is not a reason to lose what they typed.
-    await saveIntake(db, userId, { ...intake, messages });
-    redirect("/start?error=analyzer");
-  }
+  const ok = await recordTurn(db, userId, intake, messages, result);
+  if (!ok) redirect("/start?error=analyzer");
 
-  const turn = result.value;
-  const withReply: Message[] = [...messages, { r: "a", t: turn.reply }];
-
-  await saveIntake(db, userId, {
-    messages: withReply,
-    captured: turn.captured,
-    chips: turn.chips,
-    clarity: turn.clarity,
-    done: isComplete(turn, withReply),
-  });
-
-  redirect("/start");
+  // To the new question rather than the top of the page — the pinned composer
+  // covers the tail of the conversation otherwise.
+  redirect(INTAKE_AT_LATEST);
 }
 
 /** Opens the conversation, so the first question comes from the analyzer. */
@@ -168,7 +147,7 @@ export async function openAction(): Promise<void> {
     done: false,
   });
 
-  redirect("/start");
+  redirect(INTAKE_AT_LATEST);
 }
 
 /** Throws the conversation away and starts again. */
@@ -176,6 +155,30 @@ export async function restartAction(): Promise<void> {
   const userId = await requireUser();
   await clearIntake(getDb(), userId);
   redirect("/start");
+}
+
+/**
+ * Puts an unfinished conversation aside and opens a new one on a subject they
+ * arrived holding.
+ *
+ * Someone who searches for a subject we do not cover, is told we will build it,
+ * and clicks through, is asking for that subject — but they may already have an
+ * abandoned conversation about something else, and `/start` would render that
+ * one and drop the subject on the floor. That is exactly what it did: arriving
+ * at `/start?topic=javascript` showed a half-finished conversation about
+ * Japanese, with no sign the topic had been read at all.
+ *
+ * Clearing is safe: an intake that produced a goal is already deleted, so
+ * anything still sitting here never became a plan. It is still not done without
+ * asking — the screen offers this and the old conversation side by side.
+ */
+export async function startFreshAction(formData: FormData): Promise<void> {
+  const userId = await requireUser();
+  await clearIntake(getDb(), userId);
+
+  // Straight into the conversation rather than back to a Start button: they
+  // have already said what they want, twice.
+  await replyAction(formData);
 }
 
 /**

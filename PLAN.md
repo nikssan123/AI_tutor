@@ -576,6 +576,7 @@ Also avoided, because it is the *current default aesthetic of AI-generated front
   /* One accent. It means "verified" — the product's whole thesis. */
   --accent:      #00785C;   /* jade */
   --accent-weak: #E6F4F0;   /* tinted fill for accent surfaces */
+  --on-accent:   #FFFFFF;   /* label text when the accent is the FILL */
   --attention:   #B26A00;   /* needs work / overdue — amber, used sparingly */
   --problem:     #B3261E;   /* failed / error — rose-red */
 
@@ -597,7 +598,7 @@ Also avoided, because it is the *current default aesthetic of AI-generated front
 --ground: #0E1013;  --surface: #16191D;  --raised: #1D2126;
 --ink: #F2F3F4;  --ink-muted: #A2A9B2;  --ink-faint: #6B727B;
 --hairline: #262A2F;
---accent: #35C79A;  --accent-weak: #12302A;
+--accent: #35C79A;  --accent-weak: #12302A;  --on-accent: #06231B;
 --attention: #E0A33C;  --problem: #F2726A;
 --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
 --shadow-lifted: 0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6);
@@ -703,6 +704,7 @@ Deliberately small — roughly 18 components carry the entire product. Named for
 | Desktop nav | Same 3 in a quiet left rail — icon + label, flat, no nesting | ❌ Expandable tree |
 | Status | A **dot plus a word** (`● Verified`) | ❌ Badges, ❌ count pills |
 | Confidence | A **three-segment meter plus a word** (`Likely capable`) — never a number | ❌ Percentages, ❌ star ratings |
+| The one number a screen is about | **Figure** — a display-size number with the word for what it is (`12 things · you can do so far. 8 to go.`). **One per scroll band** | ❌ A row of them — that is the metric grid banned below |
 | Loading | Skeleton matching the final layout exactly | ❌ Spinners |
 | Empty state | One sentence and one button | ❌ Illustration and a paragraph |
 
@@ -761,6 +763,34 @@ Added after the first full pass of marketing pages shipped. Every rule in §8.5.
 **One documented exception — task screens keep the narrow column.** The running skill check (`PageFrame narrow`), goal setup, sign-in and Today are things you *do*, not things you read: one question or one form on screen and nothing else. §8.5.1's "one idea per screen" beats a consistent width there, and a goal form read across 1024px would be worse, not better. Everything a visitor *reads* — the four marketing routes — uses the full frame.
 
 **The density rule still holds.** §8.5.7 already licenses the length ("Long is fine; *dense* is not"), and none of the above adds a thing to read: it adds shape to what is already there. Four scroll bands with one idea each is not five things at rest.
+
+## 8.5.10 The same rules, on the product screens
+
+Added after the authenticated surface was reviewed as "dull and simple". §8.5.9 was written when the *marketing* pages came out flat, and it was applied there and nowhere else — so the product screens still had every symptom it describes, plus two of their own.
+
+**What was actually wrong, measured rather than felt:**
+
+| Symptom | Evidence |
+|---|---|
+| No frame | Ten screens, each hand-rolling `<main>`: `max-w-2xl`/`3xl`/`4xl`/`5xl`/`md`, with `py-12` or `py-16` and four different gaps. §8.5.9 fixed exactly this for marketing and never crossed over |
+| No hierarchy | Section headings were written `Title className="text-[length:var(--text-label-size)]"` — **14px**, one pixel under body text. Below the page's `h1` nothing on any screen was larger than its prose |
+| Chrome that never said where you were | Four same-weight text links in a header. No icons, no active state, no rail, no bottom bar — none of §8.5.5's navigation row was built |
+| Collections as columns | Mastery rendered *n* cards in a single stack; Progress rendered four identically-sized cards in a row down the page |
+| No colour field | One `--accent-weak` panel existed across the whole authenticated product, on `/today` |
+
+**The rules, which are §8.5.9's with the product's own two added:**
+
+| Rule | Why |
+|---|---|
+| **One frame: `AppFrame`, `wide` or `narrow`.** No page picks its own | The exception in §8.5.9 was "narrow *for task screens*", not "choose per page" |
+| **Bands open with `SectionHead`** — accent eyebrow, display-size title | A heading demoted to 14px is not a heading. The eyebrow is a plain label, not marketing's numbered step: a learner reading their own record is not being walked through five stages |
+| **`AppHeader` carries the facts on a rule**, not as another paragraph | Every screen had the same true, useful numbers rendered as loose `Meta` lines. On a row under a hairline they read as instruments |
+| **One `Figure` per band, never a row** | The product had no size between `h1` and body. A screen needs a loudest thing; a *grid* of them is the density ban |
+| **Sign-out is not chrome** | A responsive shell draws two bars and hides one, so anything in both is in the DOM twice. Fine for a link, a defect for a submit button. It lives on `/account`, which is what "You" points at |
+
+**One token added: `--on-accent`.** Not composition — a bug the rework surfaced. `text-on-accent` was in use at six call sites and defined nowhere, so under `@theme { --color-*: initial }` it compiled to nothing; `Button` meanwhile hard-coded `text-white`, which measures **2.17:1** on dark's `#35C79A`. The product's one filled button was its least readable control in half of its themes. Pinned in `tests/lib/theme.test.ts` in both themes.
+
+**What did not change.** No new hue, no gradient, no illustration, no percentage, no data table, no second accent. Nothing on any screen says something it did not say before — §8.5.9's closing line holds here too: this adds shape to what was already there.
 
 ---
 

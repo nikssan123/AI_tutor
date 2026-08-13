@@ -66,11 +66,18 @@ describe("landing page (§8 screen 1)", () => {
 
   it("suggests only subjects the product actually teaches", () => {
     const { container } = render(<HomePage />);
-    const values = [...container.querySelectorAll("datalist option")].map((o) =>
-      o.getAttribute("value"),
-    );
-    expect(values).toContain("SQL & Data Analysis");
-    expect(values.length).toBeGreaterThan(1);
+    const options = [
+      ...container.querySelectorAll<HTMLElement>("#goal-listbox [role=option]"),
+    ];
+    // Every row but the last is a real pack, and its link is the subject's own
+    // page — the autocomplete cannot offer something we do not teach.
+    const subjects = options.filter((o) => !("goalCustom" in o.dataset));
+
+    expect(subjects.map((o) => o.textContent)).toContain("SQL & Data Analysis");
+    expect(subjects.length).toBeGreaterThan(1);
+    for (const option of subjects) {
+      expect(option.dataset.href).toMatch(/^\/learn\//);
+    }
   });
 
   it("walks through what happens, in order, one line per step", () => {
@@ -207,7 +214,11 @@ describe("landing page (§8 screen 1)", () => {
     render(<HomePage />);
     const names = allTopics().map((t) => t.name);
     expect(names[0]).toBe("Business Writing & Communication");
-    for (const name of names) expect(screen.getByText(name), name).toBeDefined();
+    // getAll, because a subject is both a card and a row in the search
+    // dropdown — the dropdown is hidden until the field is used.
+    for (const name of names) {
+      expect(screen.getAllByText(name).length, name).toBeGreaterThan(0);
+    }
   });
 
   it("sets an explicit canonical and an OG image-less social card", async () => {
@@ -229,10 +240,13 @@ describe("/learn", () => {
     // Every subject and every brief is reachable from the hub — it is the top
     // of the internal link graph (§13.3), so a missing card is a dead branch.
     for (const topic of allTopics()) {
-      expect(screen.getByText(topic.name), topic.slug).toBeDefined();
+      expect(screen.getAllByText(topic.name).length, topic.slug).toBeGreaterThan(0);
     }
     for (const project of allProjects()) {
-      expect(screen.getByText(project.title), project.slug).toBeDefined();
+      expect(
+        screen.getAllByText(project.title).length,
+        project.slug,
+      ).toBeGreaterThan(0);
     }
   });
 
@@ -251,11 +265,17 @@ describe("/learn", () => {
     expect(screen.getByText(/matches$/)).toBeDefined();
   });
 
-  it("says so honestly when nothing matches", async () => {
+  it("offers to build the subject when nothing matches", async () => {
+    // A search that finds nothing is the one moment a visitor has proved they
+    // want something we do not have. It used to answer with a shrug and a list
+    // of what we do have; §7.1's Generated tier is the real answer.
     render(
       await learn.default({ searchParams: params({ q: "basket weaving" }) }),
     );
-    expect(screen.getByText(/Nothing matches/)).toBeDefined();
+    expect(screen.getByText(/Nothing covers/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /build my path/i }).getAttribute("href"),
+    ).toBe("/start?topic=basket%20weaving");
   });
 
   it("is indexable unfiltered, and noindex,follow when searched (§13.3)", async () => {

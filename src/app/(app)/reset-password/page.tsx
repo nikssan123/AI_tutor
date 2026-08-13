@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth";
 import { messageForCode } from "@/lib/account/errors";
 import {
   Button,
+  ButtonLink,
   Card,
   DisplayTitle,
   Lead,
@@ -11,6 +11,7 @@ import {
   stagger,
   Status,
 } from "@/components/ui";
+import { AuthFrame } from "@/components/app-shell";
 import { resetPasswordAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -38,7 +39,7 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
   // is nothing to submit, so the page offers the only thing that can help.
   if (!token) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+      <AuthFrame>
         <div className="rise flex flex-col gap-3">
           <DisplayTitle>That link didn&rsquo;t work</DisplayTitle>
           <Lead>
@@ -47,16 +48,14 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
           </Lead>
         </div>
         <div className="rise" style={stagger(1)}>
-          <Link href="/forgot-password">
-            <Button>Send a new link</Button>
-          </Link>
+          <ButtonLink href="/forgot-password">Send a new link</ButtonLink>
         </div>
-      </main>
+      </AuthFrame>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+    <AuthFrame>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Set a new password</DisplayTitle>
         <Lead>
@@ -104,6 +103,6 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
           </div>
         </form>
       </Card>
-    </main>
+    </AuthFrame>
   );
 }

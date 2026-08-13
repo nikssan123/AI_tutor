@@ -43,6 +43,8 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
+  // The composer is a client component now; the page renders it.
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
@@ -92,12 +94,14 @@ const {
   openAction,
   replyAction,
   restartAction,
+  startFreshAction,
   adoptBuiltPackAction,
   requestBuildAction,
 } = await import("@/app/(app)/start/actions");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
-const search = (params: { error?: string } = {}) => Promise.resolve(params);
+const search = (params: { error?: string; topic?: string } = {}) =>
+  Promise.resolve(params);
 
 const captured = (over: Partial<CapturedGoal> = {}): CapturedGoal => ({
   subject: "Rust programming",
@@ -154,9 +158,107 @@ describe("the screen", () => {
     );
   });
 
+  it("carries the typed subject through sign-in and back", async () => {
+    // Without this the offer on /learn is a lie for anyone signed out: they
+    // are told we will build their subject, then asked what it is again.
+    getSessionMock.mockResolvedValue(null);
+    await expect(
+      StartPage({ searchParams: search({ topic: "basket weaving" }) }),
+    ).rejects.toThrow(
+      "REDIRECT:/sign-in?next=%2Fstart%3Ftopic%3Dbasket%2520weaving",
+    );
+  });
+
   it("offers to open the conversation before there is one", async () => {
-    render(await StartPage({ searchParams: search() }));
+    const { container } = render(await StartPage({ searchParams: search() }));
     expect(screen.getByRole("button", { name: "Start" })).toBeDefined();
+    // Nothing to seed from, so the analyzer asks the first question.
+    expect(container.querySelector("input[name=reply]")).toBeNull();
+  });
+
+  /*
+   * The way in from `/learn`, which offers to build a subject nothing covers.
+   * Making them type it again on arrival is the kind of small betrayal that
+   * ends an intake before it starts.
+   */
+  it("opens with what the visitor already typed, when they came with one", async () => {
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "  basket weaving  " }) }),
+    );
+
+    expect(screen.getByText(/basket weaving/)).toBeDefined();
+    // Sent as the learner's first message rather than held for later, so the
+    // analyzer's opening question responds to it.
+    const seeded = container.querySelector<HTMLInputElement>(
+      "input[name=reply]",
+    )!;
+    expect(seeded.type).toBe("hidden");
+    expect(seeded.value).toBe("basket weaving");
+  });
+
+  /*
+   * Arriving with a subject while an old conversation is still sitting there.
+   * The screen rendered the old one and said nothing about the topic, so
+   * `/start?topic=javascript` opened a half-finished conversation about
+   * Japanese — which reads as the product having invented both the subject and
+   * the answers underneath it.
+   */
+  it("offers the subject they arrived with, not the one they abandoned", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese before?" }],
+      captured: captured({ subject: "Japanese" }),
+    };
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "javascript" }) }),
+    );
+
+    expect(screen.getByText(/Start on “javascript”\?/)).toBeDefined();
+    expect(screen.getByText(/still have a conversation going about Japanese/))
+      .toBeDefined();
+
+    // One click starts the new one, carrying what they typed.
+    const seeded = container.querySelector<HTMLInputElement>(
+      "input[name=reply]",
+    )!;
+    expect(seeded.value).toBe("javascript");
+    // And the old one is not destroyed behind their back.
+    expect(
+      screen.getByRole("link", { name: /Carry on with Japanese/ }).getAttribute("href"),
+    ).toBe("/start");
+  });
+
+  it("says something useful when the old conversation has no subject yet", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "What do you want to learn?" }],
+      captured: captured({ subject: null }),
+    };
+    render(await StartPage({ searchParams: search({ topic: "javascript" }) }));
+
+    expect(screen.getByText(/conversation going about something else/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /Carry on where I was/ })).toBeDefined();
+  });
+
+  it("does not interrupt when they came back for the subject they were already on", async () => {
+    // The stored subject is the analyzer's wording and the topic is theirs;
+    // "JavaScript" and "javascript" are not two different subjects.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "How much time?" }],
+      captured: captured({ subject: "JavaScript" }),
+    };
+    render(await StartPage({ searchParams: search({ topic: "javascript" }) }));
+    expect(screen.queryByText(/Start on/)).toBeNull();
+  });
+
+  it("does not carry more than one turn's worth of typed topic", async () => {
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "x".repeat(900) }) }),
+    );
+    expect(
+      container.querySelector<HTMLInputElement>("input[name=reply]")!.value,
+    ).toHaveLength(500);
   });
 
   it("promises to build a subject we do not have", async () => {
@@ -177,10 +279,73 @@ describe("the screen", () => {
       done: false,
     };
 
-    render(await StartPage({ searchParams: search() }));
+    const { container } = render(await StartPage({ searchParams: search() }));
     expect(screen.getByText("What do you want to learn?")).toBeDefined();
     expect(screen.getByText("Rust")).toBeDefined();
     expect(screen.getByText(/1 of 6 questions/)).toBeDefined();
+
+    // Only the newest turn carries the anchor those redirects aim at.
+    const anchored = container.querySelectorAll("#latest");
+    expect(anchored).toHaveLength(1);
+    expect(anchored[0]!.textContent).toContain("Rust");
+  });
+
+  /*
+   * The composer is the one thing needed on every turn, and in normal flow it
+   * was the one thing that had scrolled off the bottom — each answer pushed it
+   * further down, so answering meant hunting for the box first.
+   */
+  it("pins the answer box to the bottom of the screen", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "How long?" }],
+      chips: ["1-2 hrs"],
+    };
+    const { container } = render(await StartPage({ searchParams: search() }));
+
+    // `#reply` rather than `[name=reply]`, which the chips' hidden fields also
+    // answer to — and they come first in the DOM.
+    const bar = container.querySelector("input#reply")!.closest("form")!
+      .parentElement!;
+    expect(bar.className).toContain("sticky");
+    expect(bar.className).toContain("bottom-0");
+    // The chips and the way out ride in the bar too: a sibling below a sticky
+    // element gets overlapped by it, which is how "Start over" would have
+    // become a half-covered link.
+    expect(bar.textContent).toContain("1-2 hrs");
+    expect(bar.textContent).toContain("Start over");
+  });
+
+  it("retires the hero once there is a conversation above it", async () => {
+    // The headline asks a question that, by turn two, has answers sitting
+    // above it — so it stops taking the room of a landing page.
+    render(await StartPage({ searchParams: search() }));
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain(
+      "text-display-size",
+    );
+
+    cleanup();
+    intake = { ...EMPTY_INTAKE, messages: [{ r: "a", t: "hi" }] };
+    render(await StartPage({ searchParams: search() }));
+
+    const heading = screen.getByRole("heading", { level: 1 });
+    // Still an h1 — the screen needs one — at a size that no longer competes.
+    expect(heading.textContent).toContain("What do you want to get good at?");
+    expect(heading.className).toContain("text-label-size");
+    expect(screen.queryByText(/Tell us in your own words/)).toBeNull();
+  });
+
+  it("stops offering the form once there are answers to lose", async () => {
+    // Two reasons. Offering the form four questions in offers to throw away
+    // the four answers — and anything after the composer extends the page past
+    // it, so the bar stopped feeling pinned exactly when you scrolled to it.
+    render(await StartPage({ searchParams: search() }));
+    expect(screen.getByRole("link", { name: /Do that instead/ })).toBeDefined();
+
+    cleanup();
+    intake = { ...EMPTY_INTAKE, messages: [{ r: "a", t: "hi" }] };
+    render(await StartPage({ searchParams: search() }));
+    expect(screen.queryByRole("link", { name: /Do that instead/ })).toBeNull();
   });
 
   it("renders chips as buttons, so one tap needs no JavaScript", async () => {
@@ -204,6 +369,47 @@ describe("the screen", () => {
     expect(screen.getByText("Never done it")).toBeDefined();
     // Deadline was never given, and the row says so rather than vanishing.
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  /*
+   * The panel's whole claim is that it is repeating what it heard. It was
+   * doing the opposite: answering "Complete beginner" with "Dabbled a bit",
+   * turning the chip "1-2 hrs" into "1.5 hrs/week", and printing "before a
+   * trip next summer" as the raw ISO string 2027-06-01.
+   */
+  it("quotes the learner rather than paraphrasing them back", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "l", t: "Complete beginner" }],
+      captured: captured({
+        statedLevel: "beginner",
+        levelSaid: "Complete beginner",
+        weeklyHours: 1.5,
+        weeklyHoursSaid: "1-2 hrs",
+        deadline: "2027-06-01",
+        deadlineSaid: "before a trip next summer",
+      }),
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    // Their words, in the panel — not our bucket for them.
+    expect(screen.getAllByText("Complete beginner").length).toBe(2);
+    expect(screen.getByText("1-2 hrs")).toBeDefined();
+    expect(screen.getByText("before a trip next summer")).toBeDefined();
+
+    expect(screen.queryByText("Dabbled a bit")).toBeNull();
+    expect(screen.queryByText("1.5 hrs/week")).toBeNull();
+    expect(screen.queryByText("2027-06-01")).toBeNull();
+  });
+
+  it("writes a date for a person when nobody gave one in words", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "hi" }],
+      captured: captured({ deadline: "2027-06-01" }),
+    };
+    render(await StartPage({ searchParams: search() }));
+    expect(screen.getByText("1 June 2027")).toBeDefined();
   });
 
   it("says when the subject is one we already cover", async () => {
@@ -261,6 +467,19 @@ describe("the conversation actions", () => {
   it("hands back an error rather than a blank screen when the model fails", async () => {
     runAnalyzerMock.mockResolvedValue({ status: "invalid", detail: "nope" });
     await expect(openAction()).rejects.toThrow("REDIRECT:/start?error=analyzer");
+  });
+
+  it("lands the learner on the new question, not the top of the page", async () => {
+    // The composer is pinned to the bottom of the screen, so it covers the
+    // tail of the conversation — without the anchor the page opens showing
+    // chips that answer a question you cannot read.
+    intake = { ...EMPTY_INTAKE, messages: [{ r: "a", t: "What do you want?" }] };
+    await expect(replyAction(form({ reply: "Rust" }))).rejects.toThrow(
+      "REDIRECT:/start#latest",
+    );
+
+    intake = { ...EMPTY_INTAKE };
+    await expect(openAction()).rejects.toThrow("REDIRECT:/start#latest");
   });
 
   it("records what the learner said and what came back", async () => {
@@ -334,6 +553,30 @@ describe("the conversation actions", () => {
   it("throws the conversation away on request", async () => {
     await expect(restartAction()).rejects.toThrow("REDIRECT:/start");
     expect(clearIntakeMock).toHaveBeenCalledOnce();
+  });
+
+  it("clears the old conversation before opening one on the new subject", async () => {
+    // Order is the whole point: seeding without clearing first appends
+    // "javascript" to the Japanese conversation, which is a worse answer than
+    // the bug it is fixing.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese?" }],
+      captured: captured({ subject: "Japanese" }),
+    };
+    clearIntakeMock.mockImplementation(async () => {
+      intake = { ...EMPTY_INTAKE };
+    });
+
+    await expect(
+      startFreshAction(form({ reply: "javascript" })),
+    ).rejects.toThrow("REDIRECT:/start#latest");
+
+    expect(clearIntakeMock).toHaveBeenCalledOnce();
+    // One learner message, and it is theirs — nothing carried over.
+    expect(runAnalyzerMock.mock.calls[0]![1]).toMatchObject({
+      messages: [{ r: "l", t: "javascript" }],
+    });
   });
 });
 

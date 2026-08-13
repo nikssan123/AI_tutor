@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
-import { cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import { Card, cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
 import type { RubricCriterion } from "@/lib/packs/types";
@@ -194,13 +195,25 @@ export function SiteFooter() {
   );
 }
 
+/** One row of the goal search's dropdown: something we already teach. */
+export interface GoalSuggestion {
+  label: string;
+  /** Where picking it goes — a subject page, or a project page. */
+  href: string;
+}
+
 /**
  * §8 screen 1 — "one input: *What do you want to get good at?*"
  *
- * A plain GET form with a datalist: real autocomplete against real content,
- * and not a single byte of JavaScript. The AI clarification step it will
- * eventually open into is E3; until then it searches what the product can
- * actually teach today, which is the honest version of the same affordance.
+ * A GET form that still works with JavaScript off — it submits to `/learn`,
+ * which answers the same question on the server, including the offer to build
+ * a subject we do not have.
+ *
+ * The dropdown that sits over it is driven by `goalSearchScript`, which the
+ * root layout puts in `<head>`. It is not rendered here on purpose: a script
+ * inside streamed body content is inserted rather than parsed, so it does not
+ * run until React re-creates it at hydration — and every press before that is
+ * lost, which is the exact failure this control exists to fix.
  */
 export function GoalSearch({
   suggestions,
@@ -208,7 +221,7 @@ export function GoalSearch({
   autoFocus = false,
   size = "default",
 }: {
-  suggestions: string[];
+  suggestions: GoalSuggestion[];
   defaultValue?: string;
   autoFocus?: boolean;
   /**
@@ -225,6 +238,7 @@ export function GoalSearch({
       action="/learn"
       method="get"
       role="search"
+      data-goal-search
       className={cx(
         "flex flex-col gap-3 sm:flex-row",
         hero && "w-full max-w-xl",
@@ -233,33 +247,99 @@ export function GoalSearch({
       <label htmlFor="goal-q" className="sr-only">
         What do you want to get good at?
       </label>
-      <input
-        id="goal-q"
-        name="q"
-        type="search"
-        list="goal-suggestions"
-        defaultValue={defaultValue}
-        autoFocus={autoFocus}
-        placeholder="What do you want to get good at?"
-        className={cx(
-          "flex-1 min-h-[var(--touch-min)] px-5",
-          "rounded-[var(--radius-control)] border border-hairline bg-surface text-ink",
-          "text-[length:var(--text-lead-size)] placeholder:text-ink-faint",
-          "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-          "focus:border-accent",
-          hero && "h-14 shadow-[var(--shadow-raised)]",
-        )}
-      />
-      <datalist id="goal-suggestions">
-        {suggestions.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
+
+      {/* The anchor for the panel, which is positioned against the field
+          rather than the row — the submit button sits beside it at ≥640px. */}
+      <div className="relative flex-1">
+        <input
+          id="goal-q"
+          name="q"
+          type="search"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="goal-listbox"
+          aria-autocomplete="list"
+          autoComplete="off"
+          defaultValue={defaultValue}
+          autoFocus={autoFocus}
+          placeholder="What do you want to get good at?"
+          className={cx(
+            "w-full min-h-[var(--touch-min)] px-5",
+            "rounded-[var(--radius-control)] border border-hairline bg-surface text-ink",
+            "text-[length:var(--text-lead-size)] placeholder:text-ink-faint",
+            "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+            "focus:border-accent",
+            hero && "h-14 shadow-[var(--shadow-raised)]",
+          )}
+        />
+
+        <ul
+          id="goal-listbox"
+          role="listbox"
+          aria-label="Subjects"
+          data-goal-list
+          hidden
+          className={cx(
+            "absolute inset-x-0 top-[calc(100%+0.5rem)] z-20 m-0 max-h-80 overflow-y-auto p-1.5",
+            "list-none rounded-[var(--radius-card)] border border-hairline",
+            "bg-surface shadow-[var(--shadow-raised)]",
+          )}
+        >
+          {suggestions.map((s, i) => (
+            <li
+              key={s.href}
+              id={`goal-opt-${i}`}
+              role="option"
+              aria-selected="false"
+              data-label={s.label.toLowerCase()}
+              data-href={s.href}
+              className={cx(
+                "flex min-h-[var(--touch-min)] cursor-pointer items-center rounded-[var(--radius-control)] px-3.5",
+                "text-[length:var(--text-label-size)] font-[550] text-ink",
+                "hover:bg-accent-weak aria-selected:bg-accent-weak",
+              )}
+            >
+              {s.label}
+            </li>
+          ))}
+
+          {/*
+           * The row the native control could not have. §7.1's Generated tier
+           * is the product's actual answer to a subject we do not cover, and a
+           * search box that only ever offers three things hides it.
+           */}
+          <li
+            id={`goal-opt-${suggestions.length}`}
+            role="option"
+            aria-selected="false"
+            data-goal-custom
+            data-href={CUSTOM_PATH_HREF}
+            hidden
+            className={cx(
+              "mt-1.5 flex cursor-pointer flex-col gap-1 rounded-[var(--radius-control)] px-3.5 py-3",
+              "border-t border-hairline",
+              "hover:bg-accent-weak aria-selected:bg-accent-weak",
+            )}
+          >
+            <span className="text-[length:var(--text-label-size)] font-[550] text-accent">
+              Build a path for &ldquo;
+              <span data-goal-custom-label />
+              &rdquo;
+            </span>
+            <span className="text-[length:var(--text-meta-size)] text-ink-muted">
+              We ask a few questions — what you want to be able to do, where
+              you&rsquo;re starting from, and how many hours a week you have —
+              then build it.
+            </span>
+          </li>
+        </ul>
+      </div>
+
       <button
         type="submit"
         className={cx(
           "min-h-[var(--touch-min)] px-6 rounded-[var(--radius-control)]",
-          "bg-accent text-white text-[length:var(--text-label-size)] font-[550]",
+          "bg-accent text-on-accent text-[length:var(--text-label-size)] font-[550]",
           "hover:opacity-90 transition-opacity duration-[var(--dur-fast)]",
           hero && "h-14 px-8",
         )}
@@ -267,6 +347,62 @@ export function GoalSearch({
         Show me
       </button>
     </form>
+  );
+}
+
+/**
+ * What `/learn` says instead of a shrug when a search finds nothing.
+ *
+ * "Nothing matches X yet. Everything we cover so far is below" was accurate and
+ * useless: the product's answer to a subject it does not have is to *build* it
+ * (§7.1's Generated tier), and the one screen where a visitor has just proved
+ * they want something we lack was the one screen that never said so.
+ *
+ * The questions are listed rather than promised vaguely, because the honest
+ * version of "we'll build it" includes the three minutes it costs.
+ */
+export function CustomPathOffer({ topic }: { topic: string }) {
+  const asks = [
+    "What you want to be able to do — not the subject, the thing you want to do with it",
+    "Where you're starting from, so the plan skips what you can already do",
+    "How many hours a week you actually have, and any deadline you're working to",
+  ];
+
+  return (
+    <Card className="flex flex-col items-start gap-5">
+      <Title>
+        Nothing covers &ldquo;{topic}&rdquo; yet. We&rsquo;ll build it.
+      </Title>
+      <Lead>
+        Tell us a bit more and we write the skills, work out what depends on
+        what, and put together the questions that find where you already are. It
+        takes about three minutes.
+      </Lead>
+
+      <ul className="flex list-none flex-col gap-2 p-0 m-0">
+        {asks.map((ask) => (
+          <li key={ask} className="flex items-start gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mt-2 inline-block size-1.5 shrink-0 rounded-full bg-accent"
+            />
+            <Meta>{ask}</Meta>
+          </li>
+        ))}
+      </ul>
+
+      <Meta tone="muted">
+        A subject we build for you is marked <strong>Experimental</strong> until
+        a person has reviewed it, so you always know which you are looking at.
+      </Meta>
+
+      <Link
+        href={customPathHref(topic)}
+        className="min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90"
+      >
+        Build my path
+      </Link>
+    </Card>
   );
 }
 

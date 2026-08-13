@@ -100,8 +100,12 @@ describe("time against the commitment", () => {
     digestForMock.mockResolvedValue(view());
     render(await ProgressPage());
 
+    // The hours are the screen's one figure — the number is set apart from
+    // the sentence that qualifies it, so they are asserted apart too.
+    expect(screen.getByText("2")).toBeDefined();
+    expect(screen.getByText("hours")).toBeDefined();
     expect(
-      screen.getByText(/2 hours of the 3 hours you set aside, across 4 sessions/),
+      screen.getByText("logged of the 3 hours you set aside, across 4 sessions."),
     ).toBeDefined();
     expect(screen.getByText("Short of what you planned")).toBeDefined();
   });
@@ -120,7 +124,11 @@ describe("time against the commitment", () => {
     digestForMock.mockResolvedValue(view({ hoursLogged: 1, sessions: 0 }));
     render(await ProgressPage());
 
-    expect(screen.getByText("1 hour of the 3 hours you set aside.")).toBeDefined();
+    expect(screen.getByText("1")).toBeDefined();
+    expect(screen.getByText("hour")).toBeDefined();
+    expect(
+      screen.getByText("logged of the 3 hours you set aside."),
+    ).toBeDefined();
   });
 });
 

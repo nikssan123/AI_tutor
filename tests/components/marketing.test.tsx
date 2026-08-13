@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import {
   Breadcrumbs,
   EvalTierNote,
+  CustomPathOffer,
   GoalSearch,
   JsonLdScript,
   PageFrame,
@@ -14,6 +15,8 @@ import {
   SiteHeader,
 } from "@/components/marketing";
 import { StepsIcon } from "@/components/icons";
+import { goalSearchScript } from "@/lib/goal-search-script";
+import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
 import type { RubricCriterion } from "@/lib/packs/types";
 
 afterEach(cleanup);
@@ -103,43 +106,33 @@ describe("SiteFooter", () => {
 });
 
 describe("GoalSearch", () => {
+  const subjects = [
+    { label: "SQL & Data Analysis", href: "/learn/sql-data-analysis" },
+    { label: "Join grain", href: "/projects/join-grain" },
+  ];
+
+  const field = () => screen.getByLabelText(/what do you want to get good at/i);
+
   it("is a labelled search that GETs to /learn", () => {
-    render(<GoalSearch suggestions={["SQL & Data Analysis"]} />);
+    render(<GoalSearch suggestions={subjects} />);
     const form = screen.getByRole("search");
     expect(form.getAttribute("action")).toBe("/learn");
     expect(form.getAttribute("method")).toBe("get");
   });
 
-  it("ships no JavaScript — autocomplete is a native datalist (§8.5.8)", () => {
-    const { container } = render(
-      <GoalSearch suggestions={["SQL & Data Analysis", "Join grain"]} />,
-    );
-    expect(container.querySelector("script")).toBeNull();
-    const options = [...container.querySelectorAll("datalist option")];
-    expect(options.map((o) => o.getAttribute("value"))).toEqual([
-      "SQL & Data Analysis",
-      "Join grain",
-    ]);
-  });
-
   it("names the field `q` so the results page can read it", () => {
     render(<GoalSearch suggestions={[]} />);
-    expect(screen.getByLabelText(/what do you want to get good at/i).getAttribute("name")).toBe("q");
+    expect(field().getAttribute("name")).toBe("q");
   });
 
   it("keeps the previous query in the box on a results page", () => {
     render(<GoalSearch suggestions={[]} defaultValue="join grain" />);
-    expect(
-      (screen.getByLabelText(/what do you want to get good at/i) as HTMLInputElement)
-        .value,
-    ).toBe("join grain");
+    expect((field() as HTMLInputElement).value).toBe("join grain");
   });
 
   it("can take focus on the landing page", () => {
     render(<GoalSearch suggestions={[]} autoFocus />);
-    expect(document.activeElement).toBe(
-      screen.getByLabelText(/what do you want to get good at/i),
-    );
+    expect(document.activeElement).toBe(field());
   });
 
   it("renders taller on the landing page than in a results header", () => {
@@ -152,6 +145,159 @@ describe("GoalSearch", () => {
 
     expect(hero.querySelector("input")!.className).toContain("h-14");
     expect(plain.querySelector("input")!.className).not.toContain("h-14");
+  });
+
+  /*
+   * The dropdown is the part that was broken: the markup was right and the
+   * control still did nothing a person could use. These hold the shape the
+   * inline script drives — if an attribute below moves, the script goes quiet
+   * and the field silently becomes a plain text box again.
+   */
+  it("is a combobox over a listbox that starts closed", () => {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+    const input = field();
+
+    expect(input.getAttribute("role")).toBe("combobox");
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(input.getAttribute("aria-controls")).toBe("goal-listbox");
+    // Otherwise the browser's own saved-values popup covers ours.
+    expect(input.getAttribute("autocomplete")).toBe("off");
+
+    // By id, because the datalist fallback is a listbox in the tree too.
+    const list = container.querySelector<HTMLElement>("#goal-listbox")!;
+    expect(list.getAttribute("role")).toBe("listbox");
+    expect(list.getAttribute("aria-label")).toBe("Subjects");
+    expect(list.hidden).toBe(true);
+  });
+
+  it("gives every suggestion the destination picking it goes to", () => {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+    const options = [
+      ...container.querySelectorAll<HTMLElement>("#goal-listbox [role=option]"),
+    ];
+
+    // Two subjects plus the build-it row, which is the last one.
+    expect(options).toHaveLength(3);
+    expect(options.slice(0, 2).map((o) => o.dataset.href)).toEqual([
+      "/learn/sql-data-analysis",
+      "/projects/join-grain",
+    ]);
+    // The script filters on this rather than lowercasing on every keystroke.
+    expect(options[0]!.dataset.label).toBe("sql & data analysis");
+    // aria-activedescendant needs a real id on each row.
+    expect(options.map((o) => o.id)).toEqual([
+      "goal-opt-0",
+      "goal-opt-1",
+      "goal-opt-2",
+    ]);
+  });
+
+  it("carries a build-it row that starts hidden and explains the questions", () => {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+    const custom = container.querySelector<HTMLElement>("[data-goal-custom]")!;
+
+    // Hidden until something is typed — with an empty box there is nothing to
+    // build yet, and the row would be offering to build "".
+    expect(custom.hidden).toBe(true);
+    expect(custom.dataset.href).toBe("/start");
+    expect(custom.textContent).toContain("what you want to be able to do");
+    expect(custom.textContent).toContain("how many hours a week you have");
+    // The script writes the typed text in here.
+    expect(container.querySelector("[data-goal-custom-label]")).not.toBeNull();
+  });
+
+  it("carries no datalist, so nothing is mutated before hydration", () => {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+
+    // A datalist meant the script had to strip the input's `list` before the
+    // native popup could open — a write to a React-rendered attribute *before*
+    // hydration, which React reports as a mismatch and refuses to patch. The
+    // fallback it bought was a typeahead over three names; the real fallback
+    // for a visitor with no JavaScript is submitting the form to /learn.
+    expect(container.querySelector("datalist")).toBeNull();
+    expect(field().getAttribute("list")).toBeNull();
+  });
+
+  it("still submits to /learn with no JavaScript at all", () => {
+    render(<GoalSearch suggestions={subjects} />);
+    // The dropdown is an enhancement. The control underneath it is a GET form,
+    // and /learn answers the same question on the server — including the offer
+    // to build a subject we do not have.
+    const form = screen.getByRole("search");
+    expect(form.getAttribute("action")).toBe("/learn");
+    expect(screen.getByRole("button", { name: /show me/i }).getAttribute("type")).toBe(
+      "submit",
+    );
+  });
+
+  it("renders no script of its own — the driver lives in <head>", () => {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+    // Next streams the page, so body content arriving in a later chunk is
+    // inserted rather than parsed — and an inserted <script> does not run.
+    // React re-creates it at hydration, so a script here leaves the control
+    // dead until then and drops every press in between.
+    expect(container.querySelector("script")).toBeNull();
+  });
+});
+
+describe("goalSearchScript", () => {
+  it("is inline vanilla, not a client component (§8.5.8)", () => {
+    // §8.5.8's rule is about component-library JS. This is the same bargain
+    // ThemeToggleStatic makes: a few KB inline, no framework. The ceiling is a
+    // tripwire against this quietly growing into one, not a §13.3 budget —
+    // the whole marketing first-load allowance is 80KB.
+    expect(goalSearchScript.length).toBeLessThan(4000);
+    expect(goalSearchScript).toContain("data-goal-search");
+  });
+
+  it("delegates from document rather than binding to the field", () => {
+    // A listener bound to a node found at parse time is lost the moment React
+    // hydrates over that node. The first version bound to the input directly
+    // and the field was dead on the page while passing every test.
+    expect(goalSearchScript).not.toMatch(/input\.addEventListener/);
+    expect(goalSearchScript).toContain("D.addEventListener");
+  });
+
+  it("opens on the press, not on the click", () => {
+    // React can replace the subtree mid-press, and a press that starts on the
+    // old node and ends on the new one fires no click at all.
+    expect(goalSearchScript).toContain('D.addEventListener("pointerdown"');
+  });
+
+  it("guards against binding twice when React re-inserts it", () => {
+    expect(goalSearchScript).toContain("goalSearchBound");
+  });
+
+  it("builds the build-it row's link from the one shared helper", () => {
+    // Not a second hand-written "/start?topic=" that can drift from the one
+    // /learn and /start agree on.
+    expect(goalSearchScript).toContain(JSON.stringify(CUSTOM_PATH_HREF));
+  });
+});
+
+describe("CustomPathOffer", () => {
+  it("offers to build the subject, and says what it will ask", () => {
+    render(<CustomPathOffer topic="basket weaving" />);
+
+    expect(screen.getByRole("heading").textContent).toContain("basket weaving");
+    // The three things §8 screen 3 actually asks. A vague "we'll ask a few
+    // questions" is the version that makes people bounce.
+    expect(screen.getByText(/what you want to be able to do/i)).toBeDefined();
+    expect(screen.getByText(/where you're starting from/i)).toBeDefined();
+    expect(screen.getByText(/how many hours a week/i)).toBeDefined();
+  });
+
+  it("links to the intake with the subject already in hand", () => {
+    render(<CustomPathOffer topic="basket weaving" />);
+    expect(
+      screen.getByRole("link", { name: /build my path/i }).getAttribute("href"),
+    ).toBe("/start?topic=basket%20weaving");
+  });
+
+  it("says a built subject is Experimental before it is offered (§7.1)", () => {
+    // The offer is the one place overclaiming would be easiest and worst.
+    render(<CustomPathOffer topic="basket weaving" />);
+    expect(screen.getByText("Experimental")).toBeDefined();
   });
 });
 

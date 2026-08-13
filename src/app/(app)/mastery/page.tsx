@@ -7,19 +7,20 @@ import { getAuth } from "@/lib/auth";
 import { ledgerFor } from "@/lib/mastery/view";
 import { CLAIMED, type LedgerEntry } from "@/lib/mastery/ledger";
 import {
-  Button,
+  ButtonLink,
   Card,
   Confidence,
   confidenceLevel,
-  cx,
-  DisplayTitle,
   EmptyState,
-  Lead,
+  Figure,
   Meta,
   stagger,
   Status,
   Title,
+  ToggleGroup,
 } from "@/components/ui";
+import { AppFrame, AppHeader } from "@/components/app-shell";
+import { ArrowIcon } from "@/components/icons";
 
 /**
  * §8 screen 10 — the mastery map, and "the reason to stay subscribed".
@@ -48,41 +49,53 @@ const SLIPPING: LedgerEntry["standing"][] = ["fading", "faded"];
 
 function Entry({ entry, index }: { entry: LedgerEntry; index: number }) {
   return (
-    <li>
-      <Card className="rise flex flex-col gap-3" style={stagger(index)}>
+    <li className="flex">
+      {/* `h-full` so a card in a grid row matches its tallest sibling rather
+          than leaving a ragged bottom edge (§8.5.9). */}
+      <Card
+        className="rise flex h-full w-full flex-col items-start gap-3"
+        style={stagger(index)}
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <Title className="text-[length:var(--text-label-size)]">
+          {/* The skill's own name is the label on the claim, not a heading —
+              the statement below it is what the learner reads. */}
+          <Meta tone="muted" className="font-[650] uppercase tracking-[0.1em]">
             {entry.name}
-          </Title>
+          </Meta>
           {SLIPPING.includes(entry.standing) ? (
             <Status tone="attention">Slipping</Status>
           ) : null}
         </div>
 
         {/* §14.4's can-do statement, in the pack's own words. This is the
-            capability claim, so it is the largest thing on the row. */}
-        <Lead className="text-ink">{entry.statement}</Lead>
+            capability claim, so it is the largest thing on the card. */}
+        <Title className="text-[length:var(--text-lead-size)] leading-[var(--text-lead-line)]">
+          {entry.statement}
+        </Title>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {/* §7.2 — "confidence propagates to the UI everywhere". Shown only
-              where a claim is being made: a faded skill keeps its evidence but
-              stops carrying a verdict, because the verdict is what expired. */}
-          {CLAIMED.includes(entry.standing) ? (
-            <Confidence level={confidenceLevel(entry.confidence)} />
-          ) : null}
-          <Meta tone="muted">{entry.note}</Meta>
+        <div className="mt-auto flex flex-col gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {/* §7.2 — "confidence propagates to the UI everywhere". Shown only
+                where a claim is being made: a faded skill keeps its evidence
+                but stops carrying a verdict, because the verdict expired. */}
+            {CLAIMED.includes(entry.standing) ? (
+              <Confidence level={confidenceLevel(entry.confidence)} />
+            ) : null}
+            <Meta tone="muted">{entry.note}</Meta>
+          </div>
+
+          {/* The link §24 E9 requires. A claim whose evidence you cannot open
+              is the kind of claim every competitor already makes. */}
+          {entry.submissionId === null ? null : (
+            <Link
+              href={`/submission/${entry.submissionId}`}
+              className="inline-flex w-fit items-center gap-1.5 font-[550] text-accent underline-offset-4 hover:underline"
+            >
+              See the work
+              <ArrowIcon className="size-4" />
+            </Link>
+          )}
         </div>
-
-        {/* The link §24 E9 requires. A claim whose evidence you cannot open is
-            the kind of claim every competitor already makes. */}
-        {entry.submissionId === null ? null : (
-          <Link
-            href={`/submission/${entry.submissionId}`}
-            className="w-fit font-[550] text-accent underline-offset-4 hover:underline"
-          >
-            See the work
-          </Link>
-        )}
       </Card>
     </li>
   );
@@ -99,77 +112,87 @@ export default async function MasteryPage({ searchParams }: Props) {
 
   if (!view) {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-        <DisplayTitle>What you can do</DisplayTitle>
-        <Card>
-          <EmptyState message="You don't have a goal yet. Once you do, everything you prove along the way is recorded here." />
+      <AppFrame width="narrow">
+        <AppHeader
+          title="What you can do"
+          lead="The record of what you have proved. It fills up as work gets marked."
+        />
+        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
+          <EmptyState
+            message="You don't have a goal yet. Once you do, everything you prove along the way is recorded here."
+            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
+          />
         </Card>
-        <div>
-          <Link href="/start">
-            <Button>Set a goal</Button>
-          </Link>
-        </div>
-      </main>
+      </AppFrame>
     );
   }
 
   const { pack, ledger } = view;
   const showing = show === "left" ? "left" : "can-do";
   const entries = showing === "left" ? ledger.whatsLeft : ledger.canDo;
+  const proved = ledger.canDo.length;
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12">
-      <header className="rise flex flex-col gap-3">
-        <DisplayTitle>What you can do</DisplayTitle>
-        <Lead>
-          {/* §4.2 law 1, said out loud. The learner should know the rule the
-              screen is applying before they wonder why something is missing. */}
-          Everything on this list is backed by work you handed in and we marked.
-          Answering questions moves you along {pack.name}; it doesn&rsquo;t get
-          you onto this list.
-        </Lead>
-      </header>
+    <AppFrame>
+      <AppHeader
+        title="What you can do"
+        lead={
+          /* §4.2 law 1, said out loud. The learner should know the rule the
+             screen is applying before they wonder why something is missing. */
+          `Everything on this list is backed by work you handed in and we marked. Answering questions moves you along ${pack.name}; it doesn't get you onto this list.`
+        }
+      />
 
-      <nav className="rise flex gap-6 border-b border-hairline">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            aria-current={showing === tab.key ? "page" : undefined}
-            className={cx(
-              "-mb-px border-b-2 pb-3 text-[length:var(--text-label-size)]",
-              showing === tab.key
-                ? "border-accent font-[550] text-ink"
-                : "border-transparent text-ink-muted hover:text-ink",
-            )}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      {/*
+       * §8.5.7 specifies this sentence exactly — "You can now do 12 things. 8
+       * to go." — and it had never been built. It is the one line that turns a
+       * list of rows into a claim about the person reading it, so it gets the
+       * only display-size number on the screen (§8.5.5's figure), with the
+       * view switch on the same line rather than as a second band.
+       */}
+      <div
+        className="rise flex flex-wrap items-end justify-between gap-x-8 gap-y-6"
+        style={stagger(1)}
+      >
+        <Figure
+          value={proved}
+          unit={proved === 1 ? "thing" : "things"}
+          caption={
+            ledger.whatsLeft.length > 0
+              ? `you can do so far. ${ledger.whatsLeft.length} to go.`
+              : "you can do. Nothing left on this path."
+          }
+        />
+
+        <ToggleGroup
+          label="Which list"
+          options={TABS.map((tab) => ({
+            href: tab.href,
+            label: tab.label,
+            current: showing === tab.key,
+          }))}
+        />
+      </div>
 
       {entries.length > 0 ? (
-        <ul className="flex list-none flex-col gap-4 p-0 m-0">
+        /* §8.5.9 — "a 26-item column is a scroll; a grid is a map." */
+        <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 md:grid-cols-2">
           {entries.map((entry, i) => (
             <Entry key={entry.skillSlug} entry={entry} index={i} />
           ))}
         </ul>
       ) : (
-        <Card>
+        <Card className="rise">
           <EmptyState
             message={
               showing === "left"
                 ? "Nothing left on this path — every skill in it is yours."
                 : "Nothing here yet. Hand in the work at the end of a session and what it proves lands here."
             }
-            action={
-              <Link href="/today">
-                <Button>Go to today</Button>
-              </Link>
-            }
+            action={<ButtonLink href="/today">Go to today</ButtonLink>}
           />
         </Card>
       )}
-    </main>
+    </AppFrame>
   );
 }

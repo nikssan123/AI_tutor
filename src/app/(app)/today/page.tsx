@@ -8,8 +8,8 @@ import { todayFor } from "@/lib/goals/today";
 import { SubjectIcon } from "@/components/icons";
 import {
   Button,
+  ButtonLink,
   Card,
-  DisplayTitle,
   EmptyState,
   Lead,
   Meta,
@@ -18,6 +18,7 @@ import {
   Title,
   MaturityBadge,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
 
@@ -79,56 +80,61 @@ export default async function TodayPage({ searchParams }: Props) {
 
   if (!view) {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-        <DisplayTitle>Today</DisplayTitle>
-        <Card>
-          <EmptyState message="You don't have a goal yet. Once you do, this is where the one thing worth doing today will be." />
+      <AppFrame width="narrow">
+        <AppHeader
+          title="Today"
+          lead="One thing at a time, chosen for you. Nothing here until there is a goal to choose from."
+        />
+        <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
+          <EmptyState
+            message="You don't have a goal yet. Once you do, this is where the one thing worth doing today will be."
+            action={<ButtonLink href="/start">Set a goal</ButtonLink>}
+          />
         </Card>
-        <div>
-          <Link href="/start">
-            <Button>Set a goal</Button>
-          </Link>
-        </div>
-        <Meta>Signed in as {session.user.email}</Meta>
-      </main>
+      </AppFrame>
     );
   }
 
   const { pack, projection, session: planned, skillNames, openSessionId } = view;
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-      <div className="rise flex items-center gap-4">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
-          <SubjectIcon taxonomyParent={pack.taxonomyParent} />
-        </span>
-        <DisplayTitle>Today</DisplayTitle>
-      </div>
-
-      <Card className="rise p-0 overflow-hidden" style={stagger(1)}>
-        <div className="flex flex-col gap-5 p-7">
-          <div className="flex items-baseline justify-between gap-4">
-            <Title>{pack.name}</Title>
+    <AppFrame>
+      <AppHeader
+        icon={<SubjectIcon taxonomyParent={pack.taxonomyParent} />}
+        title="Today"
+        facts={
+          <>
+            <Meta>{pack.name}</Meta>
             <Meta>{planned.totalMinutes} min</Meta>
-          </div>
+            {/*
+              §7.1 — depth is declared, not faked, and this is where it has to
+              be declared: a learner who never saw the wait screen would
+              otherwise have nothing telling them their course was written on
+              request and has not been read by a person. Only shown when there
+              is something to say, so a curated pack does not carry a badge on
+              every visit.
+            */}
+            {pack.maturity !== "curated" ? (
+              <MaturityBadge maturity={pack.maturity} />
+            ) : null}
+          </>
+        }
+      />
 
-          {/*
-            §7.1 — depth is declared, not faked, and this is where it has to be
-            declared: a learner who never saw the wait screen would otherwise
-            have nothing telling them their course was written on request and
-            has not been read by a person. Only shown when there is something to
-            say, so a curated pack does not carry a badge on every visit.
-          */}
-          {pack.maturity !== "curated" ? (
-            <MaturityBadge maturity={pack.maturity} />
-          ) : null}
-
+      {/*
+       * The session card is the one thing on this screen, so it is the only
+       * thing at full width and the only thing carrying the accent field. The
+       * bands under it are the context you read *after* deciding to start.
+       */}
+      <Card className="rise p-0 overflow-hidden" style={stagger(1)}>
+        <div className="flex flex-col gap-6 p-7">
           {/* The planner's own `reason`, template-filled from the components
               that actually decided the choice (§16.1). It is the single most
-              important sentence on the screen, so it gets the accent field
-              rather than sitting in the same grey as everything else. */}
-          <div className="rounded-[var(--radius-control)] bg-accent-weak px-5 py-4">
-            <Lead className="text-ink">{planned.reason}</Lead>
+              important sentence on the screen, so it gets the accent field and
+              the largest type in the card rather than sitting in the same grey
+              as everything else. */}
+          <div className="rounded-[var(--radius-card)] bg-accent-weak px-6 py-5">
+            <Title className="text-ink">{planned.reason}</Title>
           </div>
 
           {planned.backingOff ? (
@@ -142,23 +148,24 @@ export default async function TodayPage({ searchParams }: Props) {
               {planned.blocks.map((block, i) => (
                 <li
                   key={`${block.type}-${i}`}
-                  className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-3 last:border-b-0"
+                  className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-3.5 last:border-b-0"
                   style={stagger(i + 2)}
                 >
-                  <span className="flex items-center gap-3">
+                  <span className="flex min-w-0 items-center gap-3">
                     <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
                       {BLOCK_LABEL[block.type]}
                     </span>
-                    <span>{blockDetail(block, skillNames)}</span>
+                    <span className="min-w-0">
+                      {blockDetail(block, skillNames)}
+                    </span>
                   </span>
-                  <Meta>{block.estMinutes} min</Meta>
+                  <Meta className="shrink-0">{block.estMinutes} min</Meta>
                 </li>
               ))}
             </ul>
           ) : (
             <EmptyState message="Nothing is unlocked right now — every skill on your path is either done or waiting on a prerequisite." />
           )}
-
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
@@ -190,28 +197,32 @@ export default async function TodayPage({ searchParams }: Props) {
         </Card>
       ) : null}
 
-      <div className="rise flex flex-col gap-3" style={stagger(4)}>
-        <Title>Your path</Title>
-        <Meta>
+      <section className="rise flex flex-col gap-6" style={stagger(4)}>
+        <SectionHead label="The rest of it" title="Your path" />
+
+        <Lead>
           {projection.requiredSkillIds.length} skills to go ·{" "}
           {projection.estimatedHours} hours at your current level
           {projection.optionalSkillIds.length > 0
             ? ` · ${projection.optionalSkillIds.length} optional`
             : ""}
-        </Meta>
+        </Lead>
 
+        {/* §8 screen 5's honesty half, on the screen people actually open
+            daily: what we took off the path, and why. */}
         {projection.excludedSkillIds.length > 0 ? (
-          <ul className="flex list-none flex-col gap-2 p-0 m-0">
+          <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-2">
             {projection.excludedSkillIds.map((id) => (
-              <li key={id}>
+              <li
+                key={id}
+                className="rounded-[var(--radius-control)] bg-surface px-4 py-3 shadow-[var(--shadow-raised)]"
+              >
                 <Meta>{projection.exclusionReasons[id]}</Meta>
               </li>
             ))}
           </ul>
         ) : null}
-      </div>
-
-      <Meta>Signed in as {session.user.email}</Meta>
-    </main>
+      </section>
+    </AppFrame>
   );
 }

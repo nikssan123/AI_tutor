@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { DEFAULT_DESTINATION, withDestination } from "@/lib/account/next-url";
 import { Button, Card } from "@/components/ui";
 
 /**
@@ -34,7 +35,17 @@ export function humanError(error: { message?: string; code?: string }): string {
  * from the page as a Server Action form, so the Google path keeps working even
  * where this component's own JavaScript does not.
  */
-export function SignInForm({ google }: { google?: React.ReactNode }) {
+export function SignInForm({
+  google,
+  /**
+   * Where to land once they are in. Already sanitised by the page — this
+   * component never sees a raw `?next=`.
+   */
+  destination = DEFAULT_DESTINATION,
+}: {
+  google?: React.ReactNode;
+  destination?: string;
+}) {
   const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -76,7 +87,7 @@ export function SignInForm({ google }: { google?: React.ReactNode }) {
       setError(humanError(result.error));
       return;
     }
-    router.push("/today");
+    router.push(destination);
     router.refresh();
   }
 
@@ -129,8 +140,11 @@ export function SignInForm({ google }: { google?: React.ReactNode }) {
           with its own fields rather than reusing these two. */}
       <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
         {google}
+        {/* Carries the destination across, because the visitor who most often
+            has nowhere to sign in to is the one who arrived with a subject
+            they wanted built. */}
         <Link
-          href="/sign-up"
+          href={withDestination("/sign-up", destination)}
           className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
         >
           Create an account

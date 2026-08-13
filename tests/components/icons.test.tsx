@@ -2,13 +2,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import {
+  AccountIcon,
+  ArrowIcon,
   CameraIcon,
   ChecklistIcon,
   DatabaseIcon,
   GridIcon,
+  MasteryIcon,
   PenIcon,
+  ProgressIcon,
   StepsIcon,
   SubjectIcon,
+  TodayIcon,
 } from "@/components/icons";
 
 /**
@@ -26,6 +31,11 @@ const ALL = [
   ["PenIcon", PenIcon],
   ["CameraIcon", CameraIcon],
   ["DatabaseIcon", DatabaseIcon],
+  ["TodayIcon", TodayIcon],
+  ["MasteryIcon", MasteryIcon],
+  ["ProgressIcon", ProgressIcon],
+  ["AccountIcon", AccountIcon],
+  ["ArrowIcon", ArrowIcon],
 ] as const;
 
 describe("the icon set", () => {

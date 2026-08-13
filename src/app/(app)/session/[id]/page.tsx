@@ -11,7 +11,9 @@ import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
 import type { BlockResponse } from "@/lib/contracts/session";
 import {
   Button,
+  ButtonLink,
   Card,
+  cx,
   DisplayTitle,
   Lead,
   Meta,
@@ -20,6 +22,7 @@ import {
   Title,
   stagger,
 } from "@/components/ui";
+import { AppFrame } from "@/components/app-shell";
 import { submitWorkAction } from "@/app/(app)/submission/actions";
 import { TutorPanel } from "./tutor-panel";
 import { LessonBody } from "./lesson-body";
@@ -67,8 +70,10 @@ export default async function SessionPage({ params, searchParams }: Props) {
   const position = Math.min(session.blockIndex + 1, session.blocks.length);
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-      <div className="rise flex flex-col gap-2">
+    /* §8.5.9's documented exception — a session is a thing you *do*, so it
+       keeps the narrow column and one block on screen at a time. */
+    <AppFrame width="narrow">
+      <header className="rise flex flex-col gap-4">
         <Meta>
           {view.pack.name} ·{" "}
           {view.finished
@@ -79,21 +84,17 @@ export default async function SessionPage({ params, searchParams }: Props) {
           {view.finished ? "That's the session" : (skill?.name ?? "Today's session")}
         </DisplayTitle>
         <BlockRail blocks={session.blocks} at={session.blockIndex} />
-      </div>
+      </header>
 
       {view.finished || !block ? (
-        <Card className="rise flex flex-col gap-5" style={stagger(1)}>
+        <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>
           <Lead>
             {session.completedAt
               ? "This one is already finished."
               : "You've worked through every block. Finishing writes it to your record."}
           </Lead>
           {session.completedAt ? (
-            <div>
-              <Link href="/today">
-                <Button>Back to today</Button>
-              </Link>
-            </div>
+            <ButtonLink href="/today">Back to today</ButtonLink>
           ) : (
             <form action={finishAction.bind(null, session.id)}>
               <Button type="submit">Finish session</Button>
@@ -101,30 +102,35 @@ export default async function SessionPage({ params, searchParams }: Props) {
           )}
         </Card>
       ) : (
-        <Card className="rise flex flex-col gap-6" style={stagger(1)}>
-          <div className="flex items-baseline justify-between gap-4">
+        <Card className="rise flex flex-col gap-6 p-0" style={stagger(1)}>
+          {/* The block's identity, on its own strip. It used to be two spans
+              floating above the content with nothing separating them from it,
+              so a block read as a card that happened to start with a pill. */}
+          <div className="flex items-center justify-between gap-4 border-b border-hairline px-7 py-4">
             <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
               {BLOCK_LABEL[block.type]}
             </span>
             <Meta>{block.estMinutes} min</Meta>
           </div>
 
-          <BlockBody
-            block={block}
-            skill={skill}
-            mastery={view.mastery}
-            response={view.response}
-            sessionId={session.id}
-            index={session.blockIndex}
-            packSlug={view.goal.packSlug}
-            userId={user.id}
-            now={now}
-            error={error}
-          />
+          <div className="px-7 pb-7">
+            <BlockBody
+              block={block}
+              skill={skill}
+              mastery={view.mastery}
+              response={view.response}
+              sessionId={session.id}
+              index={session.blockIndex}
+              packSlug={view.goal.packSlug}
+              userId={user.id}
+              now={now}
+              error={error}
+            />
+          </div>
         </Card>
       )}
 
-      <section className="rise flex flex-col gap-3" style={stagger(2)}>
+      <section className="rise flex flex-col gap-4" style={stagger(2)}>
         <Title>Tutor</Title>
         {hasApiKey() ? (
           <Suspense fallback={<Skeleton className="h-20" />}>
@@ -141,11 +147,17 @@ export default async function SessionPage({ params, searchParams }: Props) {
         </Link>{" "}
         — your place is saved.
       </Meta>
-    </main>
+    </AppFrame>
   );
 }
 
-/** Visible block progress (§8 screen 7), as one mark per block. */
+/**
+ * Visible block progress (§8 screen 7), as one mark per block.
+ *
+ * The marks share the width rather than each taking a fixed 40px, so the rail
+ * reads as one bar the session moves along instead of as a row of dashes that
+ * happens to get longer on a longer session.
+ */
 function BlockRail({
   blocks,
   at,
@@ -154,13 +166,15 @@ function BlockRail({
   at: number;
 }) {
   return (
-    <ul className="flex list-none flex-wrap gap-1.5 p-0 m-0" aria-hidden="true">
+    <ul className="flex list-none gap-1.5 p-0 m-0" aria-hidden="true">
       {blocks.map((block, i) => (
         <li
           key={`${block.type}-${i}`}
-          className={`h-1.5 w-10 rounded-[var(--radius-pill)] ${
-            i < at ? "bg-accent" : i === at ? "bg-accent-weak" : "bg-hairline"
-          }`}
+          className={cx(
+            "h-1.5 min-w-6 flex-1 rounded-[var(--radius-pill)]",
+            "transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
+            i < at ? "bg-accent" : i === at ? "bg-accent-weak" : "bg-hairline",
+          )}
         />
       ))}
     </ul>

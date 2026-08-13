@@ -286,6 +286,32 @@ describe("the result screen", () => {
 
     expect(screen.queryByText("What to fix, in order")).toBeNull();
     expect(screen.queryByText("Do next")).toBeNull();
+    // The band that holds them goes too, rather than leaving a heading over
+    // nothing.
+    expect(screen.queryByText("What to do about it")).toBeNull();
+  });
+
+  /**
+   * The two cards share a band and a grid row, so each has to stand on its own
+   * — an evaluation that found gaps but had nothing to suggest next is a
+   * normal outcome, not an empty half of a layout.
+   */
+  it("keeps the band for gaps alone", async () => {
+    evaluationMock.mockResolvedValue(evaluated({ nextActions: [] }));
+    render(await SubmissionPage({ params: params() }));
+
+    expect(screen.getByText("What to do about it")).toBeDefined();
+    expect(screen.getByText("What to fix, in order")).toBeDefined();
+    expect(screen.queryByText("Do next")).toBeNull();
+  });
+
+  it("keeps the band for next actions alone", async () => {
+    evaluationMock.mockResolvedValue(evaluated({ gaps: [] }));
+    render(await SubmissionPage({ params: params() }));
+
+    expect(screen.getByText("What to do about it")).toBeDefined();
+    expect(screen.getByText("Do next")).toBeDefined();
+    expect(screen.queryByText("What to fix, in order")).toBeNull();
   });
 
   it("falls back to a plain title when the brief has gone", async () => {

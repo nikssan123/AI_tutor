@@ -134,13 +134,67 @@ export function modelFor(
  */
 export const MAX_SCHEMA_ATTEMPTS = 2;
 
+/**
+ * The request body for one structured call, built once.
+ *
+ * Exported because the goal analyzer also runs this exact call *streamed* — a
+ * person is watching it type, and a Server Action cannot start a response
+ * before it has one. Two call sites building their own params is how the
+ * cache breakpoint, the thinking config or the forced tool choice ends up on
+ * one path and not the other, which is a difference nothing would catch.
+ */
+export function structuredRequest<T>(
+  call: StructuredCall<T>,
+  messages: Anthropic.MessageParam[],
+): Anthropic.MessageCreateParamsNonStreaming {
+  const model = modelFor(call.step, call.degraded);
+  const effort = call.effort === undefined ? STEP_EFFORT[call.step] : call.effort;
+
+  return {
+    model,
+    max_tokens: call.maxTokens ?? 16_000,
+    // Only where the model has them *and* where §14.9.3 asked for them.
+    // Haiku 4.5 400s on either parameter, and a step the plan marked "none"
+    // pays for thinking it was never supposed to do.
+    ...(supportsAdaptiveThinking(model) && effort !== null
+      ? {
+          thinking: { type: "adaptive" as const },
+          output_config: { effort },
+        }
+      : {}),
+    system: [
+      {
+        type: "text",
+        text: call.system,
+        // §14.9.4 layer 1. Verified by assertion, not by hope — see the
+        // cacheReadInputTokens field on the result.
+        //
+        // A breakpoint on a short prompt caches nothing and says nothing:
+        // the minimum cacheable prefix is model-dependent, and a system
+        // prompt below it silently returns zero on both cache counters. So
+        // zeroes here mean "prompt too short" at least as often as they mean
+        // "cache miss", and a caller reading them needs to know which.
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [
+      {
+        name: call.tool.name,
+        description: call.tool.description,
+        input_schema: call.tool.inputSchema as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: "tool", name: call.tool.name },
+    messages,
+  };
+}
+
 export async function callStructured<T>(
   client: Anthropic,
   call: StructuredCall<T>,
   clock: () => number = Date.now,
 ): Promise<CallResult<T>> {
   const model = modelFor(call.step, call.degraded);
-  const effort = call.effort === undefined ? STEP_EFFORT[call.step] : call.effort;
   const startedAt = clock();
   let usage = EMPTY_USAGE;
   let lastError = "";
@@ -174,43 +228,9 @@ export async function callStructured<T>(
       );
     }
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: call.maxTokens ?? 16_000,
-      // Only where the model has them *and* where §14.9.3 asked for them.
-      // Haiku 4.5 400s on either parameter, and a step the plan marked "none"
-      // pays for thinking it was never supposed to do.
-      ...(supportsAdaptiveThinking(model) && effort !== null
-        ? {
-            thinking: { type: "adaptive" as const },
-            output_config: { effort },
-          }
-        : {}),
-      system: [
-        {
-          type: "text",
-          text: call.system,
-          // §14.9.4 layer 1. Verified by assertion, not by hope — see the
-          // cacheReadInputTokens field on the result.
-          //
-          // A breakpoint on a short prompt caches nothing and says nothing:
-          // the minimum cacheable prefix is model-dependent, and a system
-          // prompt below it silently returns zero on both cache counters. So
-          // zeroes here mean "prompt too short" at least as often as they mean
-          // "cache miss", and a caller reading them needs to know which.
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      tools: [
-        {
-          name: call.tool.name,
-          description: call.tool.description,
-          input_schema: call.tool.inputSchema as Anthropic.Tool.InputSchema,
-        },
-      ],
-      tool_choice: { type: "tool", name: call.tool.name },
-      messages,
-    });
+    const response = await client.messages.create(
+      structuredRequest(call, messages),
+    );
 
     usage = addUsage(usage, response.usage);
 

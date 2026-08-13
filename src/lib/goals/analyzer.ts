@@ -1,6 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { callStructured, type CallResult } from "@/lib/ai/call";
+import {
+  callStructured,
+  type CallResult,
+  type StructuredCall,
+} from "@/lib/ai/call";
 import {
   MAX_WEEKLY_HOURS,
   MIN_WEEKLY_HOURS,
@@ -53,6 +57,25 @@ export const CapturedGoal = z.object({
   motivation: z.string().max(500).nullable(),
   constraints: z.array(z.string().max(200)).max(20),
   existingAssets: z.array(z.string().max(200)).max(20),
+
+  /*
+   * What the learner actually said, for the three fields where our normalised
+   * answer can contradict theirs.
+   *
+   * The planner needs `statedLevel`, `weeklyHours` and `deadline` as an enum, a
+   * number and a date. The screen needs none of that — and showing it produced
+   * a panel that answered "Complete beginner" with "Dabbled a bit", turned the
+   * chip "1-2 hrs" into "1.5 hrs/week", and rendered "before a trip next
+   * summer" as `2027-06-01`. One row wrong and two inventing precision, on the
+   * one card whose entire claim is that it is repeating what it heard.
+   *
+   * So the buckets stay, and stay internal, and the panel quotes instead.
+   * `nullish` rather than optional-with-default because conversations saved
+   * before this existed still have to load.
+   */
+  levelSaid: z.string().max(60).nullish(),
+  weeklyHoursSaid: z.string().max(60).nullish(),
+  deadlineSaid: z.string().max(60).nullish(),
 });
 export type CapturedGoal = z.infer<typeof CapturedGoal>;
 
@@ -93,6 +116,7 @@ Rules that matter:
 - "I don't know" and "skip" are always fine. Take the answer and move on; do not press.
 - Believe what they tell you about their time. If someone says two hours a week, build for two hours a week — do not talk them up to ten.
 - Keep it short. One or two sentences.
+- The \`*Said\` fields are quotes, not summaries. Copy their level, their time and their deadline back word for word. The screen shows those words next to what they typed, so anything you smooth over there reads as us mishearing them.
 
 You are also told which subjects we already support in depth. If what they want is one of those, put its slug in \`matchedPack\`. If it is not, leave \`matchedPack\` null and put the subject in \`subject\` — we can build it, and it is not your job to talk them into something else.
 
@@ -134,6 +158,21 @@ export const ANALYZER_TOOL_SCHEMA = {
           type: ["string", "null"],
           description: "ISO date (YYYY-MM-DD), or null.",
         },
+        levelSaid: {
+          type: ["string", "null"],
+          description:
+            "The learner's own words for their level, copied verbatim from what they typed or tapped — e.g. 'Complete beginner'. Never your paraphrase. Null if they have not said.",
+        },
+        weeklyHoursSaid: {
+          type: ["string", "null"],
+          description:
+            "Their own words for how much time they have, verbatim — e.g. '1-2 hrs', 'a couple of evenings'. Never a number you worked out. Null if they have not said.",
+        },
+        deadlineSaid: {
+          type: ["string", "null"],
+          description:
+            "Their own words for when they need it by, verbatim — e.g. 'before a trip next summer'. Never the date you resolved it to. Null if they have not said.",
+        },
         motivation: { type: ["string", "null"] },
         constraints: { type: "array", items: { type: "string" } },
         existingAssets: { type: "array", items: { type: "string" } },
@@ -148,6 +187,9 @@ export const ANALYZER_TOOL_SCHEMA = {
         "motivation",
         "constraints",
         "existingAssets",
+        "levelSaid",
+        "weeklyHoursSaid",
+        "deadlineSaid",
       ],
       additionalProperties: false,
     },
@@ -262,12 +304,19 @@ export function buildAnalyzerContext(input: AnalyzerInput): string {
     .join("\n");
 }
 
-export async function runAnalyzer(
-  client: Anthropic,
+/**
+ * The call itself, separated from making it.
+ *
+ * `analyzer-stream.ts` runs this same call with `stream: true` so the reply can
+ * be read as it is typed. Both paths therefore ask for one thing described in
+ * one place — a streamed turn that quietly used a different prompt, tool or
+ * model tier from the blocking one would be a difference nothing tests.
+ */
+export function analyzerCall(
   input: AnalyzerInput,
   options: { degraded?: boolean } = {},
-): Promise<CallResult<AnalyzerTurn>> {
-  return callStructured(client, {
+): StructuredCall<AnalyzerTurn> {
+  return {
     step: "goalAnalyzer",
     prompt: ANALYZER_PROMPT,
     system: ANALYZER_PROMPT.text,
@@ -289,7 +338,15 @@ export async function runAnalyzer(
           };
     },
     degraded: options.degraded ?? false,
-  });
+  };
+}
+
+export async function runAnalyzer(
+  client: Anthropic,
+  input: AnalyzerInput,
+  options: { degraded?: boolean } = {},
+): Promise<CallResult<AnalyzerTurn>> {
+  return callStructured(client, analyzerCall(input, options));
 }
 
 /**

@@ -9,12 +9,12 @@ import { loadIntake } from "@/lib/goals/intake-store";
 import {
   Button,
   Card,
-  DisplayTitle,
-  Lead,
   Meta,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
+import { AppFrame, AppHeader } from "@/components/app-shell";
 import { adoptBuiltPackAction, requestBuildAction } from "../actions";
 
 /**
@@ -54,31 +54,32 @@ export default async function BuildingPage({ searchParams }: Props) {
 
   if (pack) {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-        <div className="rise flex flex-col gap-5">
-          <DisplayTitle>{pack.name} is ready</DisplayTitle>
-          <Lead>
-            {pack.skills.length} skills, built for you just now. It has not been
-            reviewed by a person yet, so tell us when something looks wrong.
-          </Lead>
-        </div>
-        <Status tone="attention">Experimental — help us improve it</Status>
-        <form action={adoptBuiltPackAction}>
-          <input type="hidden" name="slug" value={pack.slug} />
-          <Button type="submit">See my plan</Button>
-        </form>
-      </main>
+      <AppFrame width="narrow">
+        <AppHeader
+          eyebrow="Built for you"
+          title={`${pack.name} is ready`}
+          lead={`${pack.skills.length} skills, built for you just now. It has not been reviewed by a person yet, so tell us when something looks wrong.`}
+          facts={<Status tone="attention">Experimental — help us improve it</Status>}
+          action={
+            <form action={adoptBuiltPackAction}>
+              <input type="hidden" name="slug" value={pack.slug} />
+              <Button type="submit">See my plan</Button>
+            </form>
+          }
+        />
+      </AppFrame>
     );
   }
 
   if (build?.status === "failed") {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
-        <div className="rise flex flex-col gap-5">
-          <DisplayTitle>We couldn&rsquo;t build this one</DisplayTitle>
-          {/* §4.2 law 3 — say what actually happened rather than "try again". */}
-          <Lead>{build.detail ?? "Something went wrong while building it."}</Lead>
-        </div>
+      <AppFrame width="narrow">
+        {/* §4.2 law 3 — say what actually happened rather than "try again". */}
+        <AppHeader
+          eyebrow="Stopped"
+          title="We couldn’t build this one"
+          lead={build.detail ?? "Something went wrong while building it."}
+        />
         <Meta>
           Rather than hand you a thin course, we stopped. You can try again, or
           pick a subject we already cover in depth.
@@ -103,28 +104,23 @@ export default async function BuildingPage({ searchParams }: Props) {
             </button>
           </form>
         </div>
-      </main>
+      </AppFrame>
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
+    <AppFrame width="narrow">
       {/* No script: the page asks the browser to come back. */}
       <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />
 
-      <div className="rise flex flex-col gap-5">
-        <DisplayTitle>Building your course</DisplayTitle>
-        <Lead>
-          Nobody has written {intake.captured?.subject ?? "this subject"} for us
-          yet, so we&rsquo;re writing it now — the skills, what depends on what,
-          and the questions that work out where you already are.
-        </Lead>
-      </div>
+      <AppHeader
+        eyebrow="Writing it now"
+        title="Building your course"
+        lead={`Nobody has written ${intake.captured?.subject ?? "this subject"} for us yet, so we’re writing it now — the skills, what depends on what, and the questions that work out where you already are.`}
+      />
 
-      <Card className="flex flex-col gap-3">
-        <Title className="text-[length:var(--text-label-size)]">
-          This takes about three minutes
-        </Title>
+      <Card className="rise flex flex-col gap-3" style={stagger(1)}>
+        <Title>This takes about three minutes</Title>
         <Meta>
           You can leave this page. It keeps building, and it will be here when
           you come back.
@@ -134,6 +130,6 @@ export default async function BuildingPage({ searchParams }: Props) {
       <Meta tone="muted">
         This page checks again every {REFRESH_SECONDS} seconds.
       </Meta>
-    </main>
+    </AppFrame>
   );
 }

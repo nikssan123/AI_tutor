@@ -21,6 +21,18 @@ export interface Palette {
   hairline: string;
   accent: string;
   accentWeak: string;
+  /**
+   * What text sits in when the accent is the *fill* rather than the ink —
+   * the filled button, the primary link-as-button.
+   *
+   * A token rather than a literal because the correct answer inverts between
+   * themes and getting it wrong is invisible to the author. Light's `#00785C`
+   * needs white (5.53:1); dark's `#35C79A` is a bright mint and white on it
+   * measures 2.17:1 — a fail bad enough to make the product's one filled
+   * button its least readable control. Every call site had been writing
+   * `text-white`, which is right in exactly one of the two themes.
+   */
+  onAccent: string;
   attention: string;
   problem: string;
   shadowRaised: string;
@@ -51,6 +63,8 @@ export const light: Palette = {
   hairline: "#E8E9EB",
   accent: "#00785C",
   accentWeak: "#E6F4F0",
+  // 5.53:1 on --accent.
+  onAccent: "#FFFFFF",
   attention: "#B26A00",
   problem: "#B3261E",
   shadowRaised:
@@ -77,6 +91,8 @@ export const dark: Palette = {
   hairline: "#262A2F",
   accent: "#35C79A",
   accentWeak: "#12302A",
+  // Dark ink on the mint, not white: 8.9:1 rather than white's 2.17:1.
+  onAccent: "#06231B",
   attention: "#E0A33C",
   problem: "#F2726A",
   shadowRaised: "0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35)",
@@ -94,6 +110,7 @@ export const CSS_VAR: Record<keyof Palette, string> = {
   hairline: "--hairline",
   accent: "--accent",
   accentWeak: "--accent-weak",
+  onAccent: "--on-accent",
   attention: "--attention",
   problem: "--problem",
   shadowRaised: "--shadow-raised",

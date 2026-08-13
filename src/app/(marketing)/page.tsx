@@ -101,8 +101,12 @@ export default function HomePage() {
   const featured = featuredProject();
 
   // Suggestions come from real pack content, so the autocomplete can never
-  // promise a subject the product does not actually teach.
-  const suggestions = topics.map((t) => t.name);
+  // promise a subject the product does not actually teach. Picking one goes
+  // straight to the subject rather than to a search that finds it again.
+  const suggestions = topics.map((t) => ({
+    label: t.name,
+    href: `/learn/${t.slug}`,
+  }));
 
   // The brief's opening paragraph is the hook; the rest is on the brief page.
   const hook = featured.brief.split("\n")[0]!;

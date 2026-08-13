@@ -10,19 +10,19 @@ import {
 import {
   Button,
   Card,
-  DisplayTitle,
-  Lead,
   Meta,
   stagger,
   Status,
   Title,
 } from "@/components/ui";
+import { AppFrame, AppHeader } from "@/components/app-shell";
 import {
   changeEmailAction,
   changePasswordAction,
   linkGoogleAction,
   resendVerificationAction,
   setPasswordAction,
+  signOutAction,
   signOutEverywhereAction,
   unlinkGoogleAction,
   updateProfileAction,
@@ -71,11 +71,10 @@ export default async function AccountPage({ searchParams }: Props) {
   const zones = Intl.supportedValuesOf("timeZone");
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-16">
-      <div className="rise flex flex-col gap-3">
-        <DisplayTitle>Account</DisplayTitle>
-        <Lead>Your details, and how you sign in.</Lead>
-      </div>
+    <AppFrame width="narrow">
+      {/* No facts row: every card below carries its own state, and a header
+          that repeated "Confirmed" would be saying it twice on one screen. */}
+      <AppHeader title="Account" lead="Your details, and how you sign in." />
 
       {/* The outcome of whatever was just submitted. One line, at the top,
           where the eye already is after a form post. */}
@@ -343,17 +342,33 @@ export default async function AccountPage({ searchParams }: Props) {
 
       {/* ── Sessions ─────────────────────────────────────────────────────── */}
       <Card className="rise flex flex-col gap-4" style={stagger(5)}>
-        <Title>Signed-in devices</Title>
+        <Title>Signing out</Title>
         <Meta>
           If you think someone else has your password, sign everything out and
           then change it.
         </Meta>
-        <form action={signOutEverywhereAction}>
-          <Button variant="text" type="submit">
-            Sign out everywhere
-          </Button>
-        </form>
+        {/*
+         * Forms, not links: signing out is a state change, and a GET that ends
+         * a session is one prefetch away from ending it by accident.
+         *
+         * This is the only sign-out in the product. It used to sit in the app
+         * header, which the responsive shell would now render twice — once in
+         * the mobile bar and once in the desktop rail — so it moved to the
+         * screen the "You" destination already points at.
+         */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 border-t border-hairline pt-4">
+          <form action={signOutAction}>
+            <Button variant="text" type="submit">
+              Sign out
+            </Button>
+          </form>
+          <form action={signOutEverywhereAction}>
+            <Button variant="text" type="submit">
+              Sign out everywhere
+            </Button>
+          </form>
+        </div>
       </Card>
-    </main>
+    </AppFrame>
   );
 }

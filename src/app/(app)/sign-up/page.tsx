@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { googleEnabled, MIN_PASSWORD_LENGTH } from "@/lib/auth";
+import { safeDestination, withDestination } from "@/lib/account/next-url";
 import { signInWithGoogleAction } from "../sign-in/actions";
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   Meta,
   stagger,
 } from "@/components/ui";
+import { AuthFrame } from "@/components/app-shell";
 import { signUpAction } from "./actions";
 
 /**
@@ -26,7 +28,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ error?: string; email?: string }> };
+type Props = {
+  searchParams: Promise<{ error?: string; email?: string; next?: string }>;
+};
 
 const input =
   "min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink focus:border-accent transition-colors duration-[var(--dur-fast)]";
@@ -34,10 +38,11 @@ const input =
 const label = "text-[length:var(--text-label-size)] font-[550]";
 
 export default async function SignUpPage({ searchParams }: Props) {
-  const { error, email } = await searchParams;
+  const { error, email, next } = await searchParams;
+  const destination = safeDestination(next);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+    <AuthFrame>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Create an account</DisplayTitle>
         <Lead>
@@ -48,6 +53,11 @@ export default async function SignUpPage({ searchParams }: Props) {
 
       <Card className="rise" style={stagger(1)}>
         <form action={signUpAction} className="flex flex-col gap-5">
+          {/* Rides along to the confirmation screen, which is where this path
+              actually ends — a new account that lands on /today has still lost
+              the subject the person came here to have built. */}
+          <input type="hidden" name="next" value={destination} />
+
           {error ? (
             <span
               role="alert"
@@ -103,6 +113,7 @@ export default async function SignUpPage({ searchParams }: Props) {
         <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
           {googleEnabled() ? (
             <form action={signInWithGoogleAction}>
+              <input type="hidden" name="next" value={destination} />
               {/* Google verifies the address itself, so this path skips the
                   code entirely — there is nothing left for us to confirm. */}
               <Button variant="text" type="submit" className="px-0">
@@ -112,13 +123,13 @@ export default async function SignUpPage({ searchParams }: Props) {
           ) : null}
 
           <Link
-            href="/sign-in"
+            href={withDestination("/sign-in", destination)}
             className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
           >
             Already have an account? Sign in
           </Link>
         </div>
       </Card>
-    </main>
+    </AuthFrame>
   );
 }

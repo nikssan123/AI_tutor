@@ -76,8 +76,12 @@ function landed(error: unknown) {
     path: path!,
     message: params.get("error") ?? undefined,
     email: params.get("email") ?? undefined,
+    next: params.get("next") ?? undefined,
   };
 }
+
+/** What `/learn` sends someone here holding, once they take up the offer. */
+const TOPIC = "/start?topic=basket%20weaving";
 
 const good = {
   email: "New@Example.com",
@@ -147,6 +151,34 @@ describe("/sign-up", () => {
     const { container } = render(await SignUpPage({ searchParams: search({}) }));
     expect(container.querySelector('a[href="/sign-in"]')).not.toBeNull();
   });
+
+  it("hands the destination to the form, the Google button and the sign-in link", async () => {
+    googleEnabledMock.mockReturnValue(true);
+    const { container } = render(
+      await SignUpPage({ searchParams: search({ next: TOPIC }) }),
+    );
+
+    // Both forms, because Google skips the code screen entirely and email
+    // does not — the destination has to survive whichever they pick.
+    const carried = [...container.querySelectorAll<HTMLInputElement>(
+      'input[name="next"]',
+    )];
+    expect(carried).toHaveLength(2);
+    for (const field of carried) expect(field.value).toBe(TOPIC);
+
+    expect(
+      container.querySelector('a[href^="/sign-in?next="]'),
+    ).not.toBeNull();
+  });
+
+  it("refuses to render an off-site destination into its own form", async () => {
+    const { container } = render(
+      await SignUpPage({ searchParams: search({ next: "//evil.example" }) }),
+    );
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="next"]')!.value,
+    ).toBe("/today");
+  });
 });
 
 describe("signUpAction", () => {
@@ -165,6 +197,39 @@ describe("signUpAction", () => {
         callbackURL: "/verify-email",
       },
     });
+  });
+
+  /*
+   * A new account is the arrival that most needs the subject kept: someone who
+   * already has a login was probably not sent here by the offer on /learn.
+   * The chain is sign-up → confirm the address → back to the subject, and it
+   * is only worth anything if every hop carries it.
+   */
+  it("carries the destination on to the confirmation screen", async () => {
+    const error = await signUpAction(form({ ...good, next: TOPIC })).catch(
+      (e) => e,
+    );
+
+    expect(landed(error).path).toBe("/verify-email");
+    expect(landed(error).next).toBe(TOPIC);
+  });
+
+  it("keeps it across a rejected form, so a typo does not cost the subject", async () => {
+    const error = await signUpAction(
+      form({ ...good, confirmation: "correct-house", next: TOPIC }),
+    ).catch((e) => e);
+
+    expect(landed(error).path).toBe("/sign-up");
+    expect(landed(error).next).toBe(TOPIC);
+  });
+
+  it("drops an off-site destination instead of passing it along", async () => {
+    const error = await signUpAction(
+      form({ ...good, next: "https://evil.example" }),
+    ).catch((e) => e);
+
+    expect(landed(error).path).toBe("/verify-email");
+    expect(landed(error).next).toBeUndefined();
   });
 
   it("refuses two passwords that differ, before asking the server", async () => {
@@ -257,6 +322,39 @@ describe("/verify-email — the code form", () => {
     expect(container.querySelector('a[href="/today"]')).not.toBeNull();
   });
 
+  it("sends them on to what they came for once the address is confirmed", async () => {
+    // The end of the chain. "Back to today" here is where the subject someone
+    // signed up to have built would finally have been dropped.
+    currentUserMock.mockResolvedValue({ ...UNVERIFIED, emailVerified: true });
+    const { container } = render(
+      await VerifyEmailPage({ searchParams: search({ next: TOPIC }) }),
+    );
+
+    expect(container.querySelector(`a[href="${TOPIC}"]`)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Carry on" })).toBeDefined();
+  });
+
+  it("carries the destination on the code form and the resend", async () => {
+    const { container } = render(
+      await VerifyEmailPage({ searchParams: search({ next: TOPIC }) }),
+    );
+    const carried = [
+      ...container.querySelectorAll<HTMLInputElement>('input[name="next"]'),
+    ];
+    expect(carried).toHaveLength(2);
+    for (const field of carried) expect(field.value).toBe(TOPIC);
+  });
+
+  it("points a signed-out arrival at sign-in, destination intact", async () => {
+    currentUserMock.mockResolvedValue(null);
+    const { container } = render(
+      await VerifyEmailPage({
+        searchParams: search({ error: "INVALID_TOKEN", next: TOPIC }),
+      }),
+    );
+    expect(container.querySelector('a[href^="/sign-in?next="]')).not.toBeNull();
+  });
+
   it("switches to the confirmed state once the address is verified", async () => {
     currentUserMock.mockResolvedValue({ ...UNVERIFIED, emailVerified: true });
     render(await VerifyEmailPage({ searchParams: search({}) }));
@@ -342,6 +440,18 @@ describe("verifyCodeAction", () => {
     );
     expect(verifyEmailOTP).not.toHaveBeenCalled();
   });
+
+  it("keeps the destination on the way out, and on a wrong code", async () => {
+    const done = await verifyCodeAction(
+      form({ code: "123456", next: TOPIC }),
+    ).catch((e) => e);
+    expect(landed(done).next).toBe(TOPIC);
+
+    const wrong = await verifyCodeAction(
+      form({ code: "123", next: TOPIC }),
+    ).catch((e) => e);
+    expect(landed(wrong).next).toBe(TOPIC);
+  });
 });
 
 describe("sendCodeAction", () => {
@@ -360,5 +470,13 @@ describe("sendCodeAction", () => {
     sendVerificationOTP.mockRejectedValue(new Error("resend is down"));
     const error = await sendCodeAction().catch((e) => e);
     expect(landed(error).message).toMatch(/couldn't send a new code/i);
+  });
+
+  it("keeps the destination across asking for another code", async () => {
+    // Waiting on a second code is the longest anyone sits on this screen, and
+    // it is the hop most easily forgotten.
+    const error = await sendCodeAction(form({ next: TOPIC })).catch((e) => e);
+    expect(landed(error).path).toBe("/verify-email");
+    expect(landed(error).next).toBe(TOPIC);
   });
 });

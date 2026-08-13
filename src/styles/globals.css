@@ -26,6 +26,7 @@
   --color-hairline: var(--hairline);
   --color-accent: var(--accent);
   --color-accent-weak: var(--accent-weak);
+  --color-on-accent: var(--on-accent);
   --color-attention: var(--attention);
   --color-problem: var(--problem);
 
@@ -145,5 +146,19 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rise {
     --rise-shift: 0px;
+  }
+}
+
+/*
+ * Anchors glide rather than teleport.
+ *
+ * The goal intake redirects to the newest turn after every answer, and a hard
+ * jump there reads as the page having been replaced — you lose your place in a
+ * conversation you were in the middle of. Guarded rather than unconditional:
+ * §8.5.6's whole position on motion is that it can be turned off.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }

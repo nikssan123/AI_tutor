@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth, MIN_PASSWORD_LENGTH, VERIFY_CALLBACK } from "@/lib/auth";
 import { explain } from "@/lib/account/errors";
+import { safeDestination, withDestination } from "@/lib/account/next-url";
 
 /**
  * Creating the account, as a Server Action.
@@ -22,9 +23,12 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * whole form — which is how a two-password form becomes worse than a one-
  * password form rather than safer than one.
  */
-function back(message: string, email: string): never {
+function back(message: string, email: string, destination: string): never {
   redirect(
-    `/sign-up?error=${encodeURIComponent(message)}&email=${encodeURIComponent(email)}`,
+    withDestination(
+      `/sign-up?error=${encodeURIComponent(message)}&email=${encodeURIComponent(email)}`,
+      destination,
+    ),
   );
 }
 
@@ -34,18 +38,23 @@ export async function signUpAction(formData: FormData): Promise<void> {
     .toLowerCase();
   const password = String(formData.get("password") ?? "");
   const confirmation = String(formData.get("confirmation") ?? "");
+  const destination = safeDestination(String(formData.get("next") ?? ""));
 
   if (!EMAIL.test(email)) {
-    back("That doesn't look like an email address.", email);
+    back("That doesn't look like an email address.", email, destination);
   }
 
   if (password.length < MIN_PASSWORD_LENGTH) {
-    back(`A password needs at least ${MIN_PASSWORD_LENGTH} characters.`, email);
+    back(
+      `A password needs at least ${MIN_PASSWORD_LENGTH} characters.`,
+      email,
+      destination,
+    );
   }
 
   // Checked before the request, so a typo costs nothing and reveals nothing.
   if (password !== confirmation) {
-    back("Those two passwords don't match.", email);
+    back("Those two passwords don't match.", email, destination);
   }
 
   try {
@@ -62,7 +71,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
       },
     });
   } catch (error) {
-    back(explain(error, "We couldn't create that account."), email);
+    back(explain(error, "We couldn't create that account."), email, destination);
   }
 
   /*
@@ -73,5 +82,5 @@ export async function signUpAction(formData: FormData): Promise<void> {
    * hook a moment ago, and the only screen where it is useful is this one.
    * Someone who skips it is not blocked; the header keeps asking.
    */
-  redirect(VERIFY_CALLBACK);
+  redirect(withDestination(VERIFY_CALLBACK, destination));
 }

@@ -9,6 +9,7 @@ import {
   stagger,
   Status,
 } from "@/components/ui";
+import { AuthFrame } from "@/components/app-shell";
 import { requestResetAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
   const { sent, error } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+    <AuthFrame>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Forgot your password</DisplayTitle>
         <Lead>
@@ -83,6 +84,6 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
           Back to sign in
         </Link>
       </div>
-    </main>
+    </AuthFrame>
   );
 }
