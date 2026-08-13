@@ -55,8 +55,14 @@
   font-weight: 400 600;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F,
-    U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+  /* The Latin subset the shipped file actually contains, copied from the
+     subsetter rather than written by hand. A range that claims a codepoint the
+     file lacks costs a wasted download; one that omits a codepoint the file has
+     is worse — the browser renders those glyphs in the fallback face, which is
+     how a page ends up with combining accents in Arial and nothing else. */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {

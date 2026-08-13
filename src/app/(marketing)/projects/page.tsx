@@ -9,16 +9,16 @@ import {
 import { LinkCard, Meta, stagger } from "@/components/ui";
 import { allProjects } from "@/lib/content";
 import { breadcrumbs } from "@/lib/seo/jsonld";
-import { canonical } from "@/lib/site";
+import { marketingMetadata } from "@/lib/seo/metadata";
 
 export const revalidate = 86_400;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
   title: "Graded projects, and the checklists behind them",
   description:
     "Real project briefs, each with the full checklist it will be marked against. You read the checklist first, then you do the work.",
-  alternates: { canonical: canonical("/projects") },
-};
+  path: "/projects",
+});
 
 export default function ProjectsIndexPage() {
   const projects = allProjects();

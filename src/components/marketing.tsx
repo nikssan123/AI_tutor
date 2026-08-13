@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
 import { Card, cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import { evalTierClaim } from "@/lib/claims";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
@@ -548,13 +549,6 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
  * time. Same promise, said the way a person would say it.
  */
 export function EvalTierNote({ tier }: { tier: number }) {
-  const copy: Record<number, { tone: Parameters<typeof Status>[0]["tone"]; text: string }> = {
-    1: { tone: "verified", text: "We run your work and check the answer is right" },
-    2: { tone: "verified", text: "We mark it against a checklist you can read first" },
-    3: { tone: "attention", text: "We check the technical side. Whether it's any good is your call" },
-    4: { tone: "attention", text: "We score the parts that can be measured" },
-    5: { tone: "neutral", text: "You log this one yourself. It doesn't count as proof" },
-  };
-  const entry = copy[tier] ?? copy[5]!;
-  return <Status tone={entry.tone}>{entry.text}</Status>;
+  const entry = evalTierClaim(tier);
+  return <Status tone={entry.tone}>{entry.label}</Status>;
 }

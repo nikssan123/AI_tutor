@@ -32,7 +32,7 @@ import {
   MIN_ITEMS_PER_SKILL,
 } from "@/lib/contracts/pack";
 import { organisation, website } from "@/lib/seo/jsonld";
-import { canonical } from "@/lib/site";
+import { marketingMetadata } from "@/lib/seo/metadata";
 
 /**
  * §8 screen 1 — the landing page.
@@ -94,22 +94,19 @@ import { canonical } from "@/lib/site";
  */
 export const revalidate = 86_400;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
   title: "Learn anything — and prove you actually learned it",
   // §13.3's metadata rule — title ≤60 characters, description 140–160, so
   // neither is cut mid-promise in a result. Both halves of the offer have to
   // survive the truncation, which is what decides the wording here.
   description:
     "Ask for any subject. If nobody has written it, we write it in about three minutes — then your work is marked against a checklist you read first.",
-  alternates: { canonical: canonical("/") },
-  openGraph: {
-    title: "Learn anything — and prove you actually learned it",
+  path: "/",
+  social: {
     description:
       "There is no catalogue. Ask for a subject nobody has written and we write it — the skills, the questions, and the checklist your work is marked against.",
-    url: canonical("/"),
-    type: "website",
   },
-};
+});
 
 /** One line each. If a step needs two, the step is wrong. */
 const STEPS = [

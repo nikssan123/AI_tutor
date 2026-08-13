@@ -4,6 +4,7 @@ import {
   course,
   howTo,
   organisation,
+  quiz,
   serialise,
   website,
 } from "@/lib/seo/jsonld";
@@ -115,6 +116,36 @@ describe("howTo", () => {
 
   it("describes the project with its real brief", () => {
     expect(build().description).toBe(project.brief);
+  });
+});
+
+describe("quiz", () => {
+  const summary = topicSummary(findPack("sql-data-analysis")!);
+  const build = () => quiz(summary, 9, 10) as Record<string, string>;
+
+  it("is a Quiz at the check's own canonical url", () => {
+    expect(build()["@type"]).toBe("Quiz");
+    expect(build().url).toBe("https://example.com/check/sql-data-analysis");
+  });
+
+  it("states the duration the page states, in ISO 8601", () => {
+    expect(build().timeRequired).toBe("PT10M");
+  });
+
+  it("says nothing whatsoever about the questions themselves", () => {
+    // §13.3's rule: never mark up content that isn't visibly on the page. The
+    // intro screen a crawler is served shows no question, so `hasPart` here
+    // would be publishing the item bank in structured data.
+    const ld = build() as Record<string, unknown>;
+    expect(ld.hasPart).toBeUndefined();
+    expect(Object.keys(ld)).not.toContain("question");
+  });
+
+  it("carries only the three facts the intro screen shows", () => {
+    const ld = build();
+    expect(ld.description).toContain("9 questions");
+    expect(ld.description).toContain("10 minutes");
+    expect(ld.description).toContain("no account");
   });
 });
 

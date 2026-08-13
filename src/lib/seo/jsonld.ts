@@ -1,4 +1,5 @@
 import { canonical, siteUrl } from "@/lib/site";
+import { subjectInProse } from "@/lib/subject-name";
 import type { ProjectDetail, SkillDetail, TopicSummary } from "@/lib/content";
 
 /**
@@ -97,6 +98,40 @@ export function howTo(project: ProjectDetail): JsonLd {
       position: i + 1,
       text: criterion,
     })),
+  };
+}
+
+/**
+ * §13.3 — `Quiz`/`LearningResource` on `/check`.
+ *
+ * Deliberately says nothing about the questions. The rule at the top of this
+ * file is that markup never describes content the page does not show, and the
+ * intro screen a crawler is served shows none of them — it shows how many there
+ * are, how long it takes, and that it needs no account. Those three are exactly
+ * what is marked up, which is also all a person searching for "<subject> skill
+ * test" is trying to find out.
+ */
+export function quiz(
+  topic: TopicSummary,
+  questionCount: number,
+  minutes: number,
+): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Quiz",
+    name: `${topic.name} — skill check`,
+    // The count goes in the description rather than in a property: `Quiz` has
+    // no `numberOfQuestions`, and the only place the questions themselves
+    // belong is `hasPart`, which would mean publishing the item bank.
+    description: `About ${questionCount} questions, ${minutes} minutes, no account. An adaptive check across ${topic.skillCount} skills in ${subjectInProse(topic.name)} — the questions change based on your answers.`,
+    url: canonical(`/check/${topic.slug}`),
+    about: { "@type": "Thing", name: topic.name },
+    educationalUse: "assessment",
+    learningResourceType: "assessment",
+    timeRequired: `PT${minutes}M`,
+    // "no account" is on the page, in those words.
+    isAccessibleForFree: true,
+    provider: { "@type": "Organization", name: ORGANISATION_NAME },
   };
 }
 

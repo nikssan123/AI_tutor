@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { EvalTierNote, PageFrame, SectionHead } from "@/components/marketing";
+import {
+  EvalTierNote,
+  JsonLdScript,
+  PageFrame,
+  SectionHead,
+} from "@/components/marketing";
 import { ChecklistIcon, SubjectIcon } from "@/components/icons";
 import {
   Button,
@@ -13,13 +18,17 @@ import {
   Status,
   Title,
 } from "@/components/ui";
-import { CHECKS_ARE_NEVER_INDEXED, findPack } from "@/lib/content";
+import { findPack, isTopicIndexable, topicSummary } from "@/lib/content";
 import {
+  CHECK_MINUTES,
   DEFAULT_BUDGET,
   isComplete,
   selectNextItem,
   summarise,
 } from "@/lib/engine/diagnostic";
+import { breadcrumbs, quiz, type JsonLd } from "@/lib/seo/jsonld";
+import { marketingMetadata } from "@/lib/seo/metadata";
+import { subjectInProse } from "@/lib/subject-name";
 import {
   cookieName,
   decode,
@@ -29,7 +38,6 @@ import {
   toDiagnostic,
 } from "@/lib/check/session";
 import { startCheck, submitAnswer, submitSelfMark } from "./actions";
-import { canonical } from "@/lib/site";
 
 /**
  * §24 E4 — the Skill Check, running.
@@ -39,8 +47,16 @@ import { canonical } from "@/lib/site";
  * so the whole thing works with JavaScript disabled and adds nothing to the
  * marketing bundle (§8.5.8, §13.3).
  *
- * Never indexed. §12.1 — a page earns indexing by being useful to a stranger
- * arriving from search, and a half-finished assessment is not that.
+ * Indexable on the same gate as the subject page it belongs to. §12.1's bar is
+ * usefulness to a stranger arriving from search, and this page clears it: the
+ * check runs, it takes ten minutes, and it needs no account. See
+ * `SKILL_CHECKS_ARE_NEVER_INDEXED` for why the per-skill page below it does not.
+ *
+ * `force-dynamic` and indexable is not a contradiction — the page is rendered on
+ * the server either way, and a crawler arrives with no cookie and so is served
+ * the intro, which is the state worth ranking. What it costs is the ISR cache,
+ * and the page cannot have one: it renders four different screens at one URL off
+ * a cookie, and a cached first question would be someone else's.
  */
 export const dynamic = "force-dynamic";
 
@@ -51,12 +67,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const pack = findPack(topic);
   if (!pack) return {};
 
-  return {
+  return marketingMetadata({
     title: `${pack.name} — skill check`,
-    description: `A ten-minute check across ${pack.skills.length} skills in ${pack.name.toLowerCase()}. The questions change based on your answers.`,
-    alternates: { canonical: canonical(`/check/${topic}`) },
-    robots: CHECKS_ARE_NEVER_INDEXED,
-  };
+    description: `A ten-minute check across ${pack.skills.length} skills in ${subjectInProse(pack.name)}. The questions change based on your answers.`,
+    path: `/check/${topic}`,
+    indexable: isTopicIndexable(pack),
+  });
 }
 
 function toEngine(topic: string) {
@@ -96,10 +112,15 @@ export default async function CheckRunPage({ params }: Params) {
    * not a document. One question at a time, nothing else on screen — a wide
    * column here would be actively worse (§8.5.1, one idea per screen).
    */
-  const shell = (children: React.ReactNode) => (
-    <PageFrame crumbs={crumbs} narrow className="gap-10">
-      {children}
-    </PageFrame>
+  const shell = (children: React.ReactNode, blocks: JsonLd[] = []) => (
+    <>
+      {/* §13.3 — BreadcrumbList everywhere, paired with the visible trail
+          PageFrame draws. This page had the trail and not the markup. */}
+      <JsonLdScript blocks={[breadcrumbs(crumbs), ...blocks]} />
+      <PageFrame crumbs={crumbs} narrow className="gap-10">
+        {children}
+      </PageFrame>
+    </>
   );
 
   /* ── Intro ───────────────────────────────────────────────────────────── */
@@ -114,9 +135,9 @@ export default async function CheckRunPage({ params }: Params) {
           <DisplayTitle>{pack.name} — skill check</DisplayTitle>
         </div>
         <Lead className="rise" style={stagger(1)}>
-          About {DEFAULT_BUDGET} questions, ten minutes, no account. The
-          questions change based on your answers, so it covers as much of the
-          subject as it can.
+          About {DEFAULT_BUDGET} questions, {CHECK_MINUTES} minutes, no account.
+          The questions change based on your answers, so it covers as much of
+          the subject as it can.
         </Lead>
         <div
           className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]"
@@ -136,6 +157,9 @@ export default async function CheckRunPage({ params }: Params) {
           <Button type="submit">Start the check</Button>
         </form>
       </>,
+      // Only on the intro. It is the state a crawler is served, and it is the
+      // only state where the three facts the markup states are on the screen.
+      [quiz(topicSummary(pack), DEFAULT_BUDGET, CHECK_MINUTES)],
     );
   }
 

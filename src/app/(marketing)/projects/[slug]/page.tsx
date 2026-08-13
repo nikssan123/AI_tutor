@@ -13,7 +13,7 @@ import {
 import { LinkCard, Meta, stagger } from "@/components/ui";
 import { allProjects, findProject } from "@/lib/content";
 import { breadcrumbs, howTo } from "@/lib/seo/jsonld";
-import { canonical } from "@/lib/site";
+import { marketingMetadata } from "@/lib/seo/metadata";
 
 /**
  * §10 B — a graded project brief with its public rubric.
@@ -45,12 +45,12 @@ export async function generateMetadata({
   const project = findProject(slug);
   if (!project) return {};
 
-  return {
+  return marketingMetadata({
     title: project.title,
     description: `A ${project.topicName} project marked against ${project.rubricDetail.criteria.length} published criteria. Read the checklist before you start — about ${project.estimatedMinutes} minutes of work.`,
-    alternates: { canonical: canonical(`/projects/${project.slug}`) },
-    robots: project.indexable ? undefined : { index: false, follow: true },
-  };
+    path: `/projects/${project.slug}`,
+    indexable: project.indexable,
+  });
 }
 
 export default async function ProjectPage({

@@ -90,10 +90,30 @@ describe("sitemap.xml", () => {
     expect(packPages()).toEqual([]);
   });
 
-  it("never lists a /check page — the tool behind it does not exist", async () => {
+  it("never lists a per-skill check — that tool still does not exist", async () => {
+    // The subject check runs (E4) and is listed with its subject. A check for
+    // one skill on its own does not, and that page says so itself, so it is the
+    // one /check URL that stays out.
     selectMock.mockResolvedValue([]);
-    const { default: sitemap } = await import("@/app/sitemap");
-    expect((await sitemap()).some((e) => e.url.includes("/check/"))).toBe(false);
+    const { packPages } = await import("@/app/sitemap");
+    for (const entry of packPages()) {
+      expect(entry.url).not.toMatch(/\/check\/[^/]+\/.+/);
+    }
+  });
+
+  it("lists a subject's check beside the subject, on the same gate", async () => {
+    // Both come from `topic.indexable`, so an unreviewed pack's check is no
+    // more submittable than its curriculum — which is why this asserts the
+    // pairing rather than a literal URL.
+    const { allTopics } = await import("@/lib/content");
+    const { packPages } = await import("@/app/sitemap");
+    const urls = packPages().map((e) => e.url);
+
+    for (const topic of allTopics()) {
+      const listed = urls.includes(`https://example.com/learn/${topic.slug}`);
+      expect(urls.includes(`https://example.com/check/${topic.slug}`)).toBe(listed);
+      expect(listed, topic.slug).toBe(topic.indexable);
+    }
   });
 
   it("carries an accurate lastModified from the database", async () => {

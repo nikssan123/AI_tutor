@@ -9,6 +9,7 @@ import {
 import { decode, replay, toDiagnostic } from "@/lib/check/session";
 import type { DomainPack } from "@/lib/packs/types";
 import type { MasteryState } from "@/lib/engine";
+import { subjectInProse } from "@/lib/subject-name";
 
 /**
  * §24 E3 — goal intake, deterministically.
@@ -37,7 +38,7 @@ function rawGoalFor(form: FormData, pack: DomainPack): string {
   const typed = String(form.get("rawGoal") ?? "").trim();
   return typed.length > 0
     ? typed.slice(0, 500)
-    : `Get good at ${pack.name.toLowerCase()}`;
+    : `Get good at ${subjectInProse(pack.name)}`;
 }
 
 export type GoalFormResult =

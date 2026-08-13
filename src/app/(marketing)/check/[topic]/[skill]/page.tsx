@@ -12,22 +12,26 @@ import {
 import { LinkCard, Meta, stagger } from "@/components/ui";
 import {
   allPacks,
-  CHECKS_ARE_NEVER_INDEXED,
   findSkill,
   skillDetails,
+  SKILL_CHECKS_ARE_NEVER_INDEXED,
 } from "@/lib/content";
 import { breadcrumbs } from "@/lib/seo/jsonld";
-import { canonical } from "@/lib/site";
+import { marketingMetadata } from "@/lib/seo/metadata";
 
 /**
  * §10 A — the interactive Skill Check.
  *
- * **Deliberately `noindex` in this build.** §2.6 identified the skill-assessment
- * SERP as "the crack in the wall", but the thing that would earn the ranking is
- * the working adaptive assessment, and that is E4/E11. Publishing the shell now
- * would be precisely the thin-content pattern §12 exists to prevent — so the
- * page is served, honest about its state, and kept out of the index until the
- * tool behind it is real.
+ * **Deliberately `noindex`**, and still the only check page that is. §2.6
+ * identified the skill-assessment SERP as "the crack in the wall", but the thing
+ * that would earn the ranking is a working assessment, and the one this page
+ * offers — a check for a single skill on its own — is the one E4 did not build.
+ * The page says so in as many words in its own second card. Publishing it would
+ * be precisely the thin-content pattern §12 exists to prevent, so it is served,
+ * honest about its state, and kept out of the index until the tool is real.
+ *
+ * `/check/{topic}` went the other way when E4 landed; the two reasons are in
+ * `SKILL_CHECKS_ARE_NEVER_INDEXED`.
  */
 export const revalidate = 86_400;
 
@@ -46,12 +50,12 @@ export async function generateMetadata({
   const found = findSkill(topic, skill);
   if (!found) return {};
 
-  return {
+  return marketingMetadata({
     title: `${found.skill.name} — skill check`,
     description: found.skill.canDoStatement,
-    alternates: { canonical: canonical(`/check/${topic}/${skill}`) },
-    robots: CHECKS_ARE_NEVER_INDEXED,
-  };
+    path: `/check/${topic}/${skill}`,
+    indexable: SKILL_CHECKS_ARE_NEVER_INDEXED,
+  });
 }
 
 /** The three graph relations, rendered identically because they are the same

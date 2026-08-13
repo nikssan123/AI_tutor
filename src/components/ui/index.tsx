@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
+import { MATURITY_CLAIM, type Maturity } from "@/lib/claims";
 
 /**
  * §8.5.5 — the component vocabulary.
@@ -456,20 +457,8 @@ export function confidenceLevel(value: number): ConfidenceLevel {
  * §7.1 — the maturity badge shown to the learner. Honest scope is a feature, so
  * a Generated pack says "Experimental" rather than hiding behind silence.
  */
-export function MaturityBadge({
-  maturity,
-}: {
-  maturity: "curated" | "standard" | "generated";
-}) {
-  const copy = {
-    curated: { tone: "verified" as const, label: "Written and checked by hand" },
-    standard: { tone: "neutral" as const, label: "Covers the subject well" },
-    generated: {
-      tone: "attention" as const,
-      label: "Experimental — help us improve it",
-    },
-  }[maturity];
-
+export function MaturityBadge({ maturity }: { maturity: Maturity }) {
+  const copy = MATURITY_CLAIM[maturity];
   return <Status tone={copy.tone}>{copy.label}</Status>;
 }
 

@@ -61,9 +61,13 @@ afterEach(() => {
 });
 
 describe("a reviewed pack (§12.1 gate open)", () => {
-  it("is submitted for indexing, topic page and projects alike", () => {
+  it("is submitted for indexing — topic, its check, and projects alike", () => {
+    // The check joined this list when E4 shipped the assessment behind it. It
+    // is gated on the same review the curriculum is, because an unreviewed
+    // pack's questions are exactly as unreviewed as its skill graph.
     expect(packPages().map((e) => e.url)).toEqual([
       "https://example.com/learn/valid-minimal",
+      "https://example.com/check/valid-minimal",
       "https://example.com/projects/minimal-project",
     ]);
   });
@@ -90,6 +94,23 @@ describe("a reviewed pack (§12.1 gate open)", () => {
   it("stops explaining why it is not indexed, because now it is", async () => {
     render(await topic.default({ params: params({ topic: "valid-minimal" }) }));
     expect(screen.queryByText(/not been through human review/)).toBeNull();
+  });
+
+  it("opens the gate on the subject's check, which now runs", async () => {
+    const run = await import("@/app/(marketing)/check/[topic]/page");
+    const meta = await run.generateMetadata({
+      params: params({ topic: "valid-minimal" }),
+    });
+    expect(meta.robots).toBeUndefined();
+  });
+
+  it("keeps the per-skill check out even so — that tool is still unbuilt", async () => {
+    // The one place the two check pages part company, and the reason the
+    // single constant covering both had to be split.
+    const meta = await check.generateMetadata({
+      params: params({ topic: "valid-minimal", skill: "alpha" }),
+    });
+    expect(meta.robots).toEqual({ index: false, follow: true });
   });
 
   it("drops the noindex directive from the project brief", async () => {

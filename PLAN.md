@@ -1045,7 +1045,7 @@ Lowercase, hyphenated, no trailing slash, no dates, no IDs. Slugs immutable once
 | Item | Implementation |
 |---|---|
 | **Rendering** | `generateStaticParams` + ISR (`revalidate: 86400`) for all marketing routes. Never client-render indexable content. |
-| **Metadata** | `generateMetadata` per route from the `SeoPage` record. Title ≤60ch, description 140–160ch, both stored in DB and human-edited. |
+| **Metadata** | `generateMetadata` per route from the `SeoPage` record. Title ≤60ch, description 140–160ch, both stored in DB and human-edited. One builder — `marketingMetadata` — emits the canonical, robots, `openGraph` and `twitter` blocks together, because assembling them per route drifted exactly as you would expect: canonical everywhere (it is on this checklist), `openGraph` on the landing page alone, `twitter` nowhere. |
 | **Canonical** | `alternates.canonical` set explicitly on every page. Never rely on defaults. |
 | **Robots** | `app/robots.ts`: allow marketing, `Disallow: /api/`, `/today`, `/session`, `/goals`, `/settings`, `/submission`. Sitemap reference. |
 | **Sitemaps** | `sitemap.ts` emits a sitemap index + child sitemaps per page type, <10k URLs each. **Only `indexable: true` pages included** — this is the single most important crawl-budget control. Accurate `lastModified` from DB. |
@@ -1059,7 +1059,7 @@ Lowercase, hyphenated, no trailing slash, no dates, no IDs. Slugs immutable once
 | **Images** | `next/image`, AVIF+WebP, explicit width/height (CLS), lazy below fold, `priority` on the LCP image, descriptive alt from DB. |
 | **Core Web Vitals** | LCP <2.0s (static + preloaded font + optimised hero), INP <200ms (assessment islands hydrate independently; no blocking JS), CLS <0.05 (reserved space for every dynamic element). Marketing routes ship <80KB JS. |
 | **Mobile** | Mobile-first CSS; 44px tap targets; the skill check must be genuinely pleasant on a phone (it's the conversion surface). |
-| **OG / Twitter** | Dynamic `opengraph-image.tsx` per type. Proof Pages get a generated card showing goal + skills + hours — designed for sharing. |
+| **OG / Twitter** | Dynamic `opengraph-image.tsx` per type. Proof Pages get a generated card showing goal + skills + hours — designed for sharing. **Built** (`src/lib/seo/og.ts`, `og-card.tsx`): three types — brand, subject, project. The subject card carries §7.1's maturity badge and the project card §7.2's tier claim, both from the same table the page reads, because a share card is the one artefact that travels away from the page and nobody scrolls a feed with the rubric open. Fonts are shipped twice, `woff2` for the browser and static `ttf` for satori, which reads neither `@font-face` nor woff2 and renders a variable font at its default instance only. |
 | **Monitoring** | GSC + Bing WMT from day one. Weekly: coverage, CWV, query-level CTR. Alert on any indexed→excluded transition. |
 
 ---
@@ -1907,7 +1907,7 @@ before picking the next thing up.**
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
-| **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
+| **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD **and the share cards**. Internal-link renderer and the quality-score job remain, and both are E12's to earn |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
@@ -1926,6 +1926,30 @@ actually kept. Everything E1–E9 promised a learner is now reachable in a brows
 **E10 — the SEO infrastructure — is the next epic to build**, and the ones after
 it (E11 free tools, E12 content, E13 billing) are acquisition and money rather
 than product.
+
+**E10's share surface is in, and so is the free tool it had hidden.** §13.3's
+last unbuilt row was the dynamic `opengraph-image` per type; there are now three
+(brand, subject, project) and the marketing pages carry the `openGraph` and
+`twitter` blocks that make them resolve. Two things came out of building it that
+were not on the list:
+
+- **The webfont was never shipped.** `globals.css` had referenced
+  `/fonts/instrument-sans-variable.woff2` since §8.5.3 and there was no `public/`
+  directory in the repository, so every page in every environment had been
+  rendering in the metric-matched fallback. It was invisible precisely because
+  the fallback is good — that is what `size-adjust` is for. Satori needs the
+  same typeface as `ttf` and cannot read `@font-face`, which is the only reason
+  anyone went looking.
+- **`/check/{topic}` had been kept out of the index by a comment that stopped
+  being true when E4 shipped.** One constant covered both check pages; the
+  subject check now runs and clears §12.1's bar, and the per-skill page still
+  says "Not ready yet" on its own face. They are gated separately now, and only
+  the first is in the sitemap. §2.6 calls that SERP "the crack in the wall" and
+  the product had been declining to compete for it for two passes after it could.
+
+What remains on E10 is the internal-link renderer and the quality-score job.
+Both operate on authored `SeoPage` rows, and there are none — they are E12's
+work, not a gap to fill speculatively against content nobody has written.
 
 **E9.6 fixed the state nobody had designed.** Every screen in E1–E9.5 was built
 for a learner with a course running. The learner without one — which is every

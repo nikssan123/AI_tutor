@@ -68,6 +68,17 @@ export interface DiagnosticState {
 export const DEFAULT_BUDGET = 9;
 
 /**
+ * The same figure as a duration, for the copy and for the `Quiz` markup.
+ *
+ * A constant because it is now said in two places that are validated by
+ * different things — a sentence a person reads, and a `timeRequired` Google
+ * reads — and §13.3's rule is that the markup must not claim anything the page
+ * does not. Two literals would satisfy that rule on the day they were written
+ * and nobody would check again.
+ */
+export const CHECK_MINUTES = 10;
+
+/**
  * A closed item is checked, so it is Tier 1 evidence — but a single
  * multiple-choice answer is recognition, not production, so it moves the belief
  * at partial confidence rather than fully. The guessing correction itself lives

@@ -1836,3 +1836,128 @@ That constraint is invisible from either file; it is written down in the fixture
 now.
 
 2527 tests, 100% on all four metrics, `pnpm verify` clean.
+
+---
+
+# Delivery record — pass 22: the link nobody could share, and the tool nobody could find
+
+E10's share surface (`src/lib/seo/og*`, three `opengraph-image` routes), plus the
+two things building it turned up. No model is called anywhere in this pass.
+
+## What was actually missing
+
+§13.3's OG row asks for "dynamic `opengraph-image.tsx` per type" and there were
+none. Worse, `openGraph` metadata existed on the landing page and nowhere else,
+and `twitter` existed nowhere at all — so five of the six marketing page types
+pasted into Slack, X or LinkedIn as a bare URL with no title, no description and
+no card. The `/projects/{slug}` brief is the strongest page the product has
+(§4.2 law 2 — the rubric is public before the work is done) and it was the least
+shareable thing on the site.
+
+## The rule the cards are built on
+
+> A card cannot say a kinder thing than the page it links to.
+
+A share card is the one artefact that travels away from the page, and it is read
+by people who will not click through to check. That is precisely where a claim
+gets quietly upgraded, and "Experimental — help us improve it" is the least
+shareable true thing we could put on one.
+
+So the subject card carries §7.1's maturity badge and the project card carries
+§7.2's tier claim — and both read them from `src/lib/claims.ts`, a table the
+on-page `MaturityBadge` and `EvalTierNote` now read too. Previously those strings
+were typed into two component bodies. A third copy on the card would have been
+free to drift, in the one place a reviewer never looks.
+
+`projectCard` deliberately shows the *tier*, not the maturity: the question a
+person asks about a brief is what "marked" is going to mean, and at tier 5 the
+honest answer — printed on the card — is that it will not count as proof.
+
+## Two things that were wrong before this pass started
+
+**The webfont has never shipped.** `globals.css` has referenced
+`/fonts/instrument-sans-variable.woff2` since §8.5.3 and the repository has no
+`public/` directory. Every page, in every environment, has been rendering in the
+metric-matched fallback — invisible precisely because `size-adjust` does its job.
+It surfaced only because satori cannot read `@font-face` and needed the file
+directly. The site now ships the latin woff2 (30KB, preloaded — it is referenced
+from a stylesheet, so without the preload it cannot be discovered until that
+stylesheet has parsed) and static `ttf` instances for satori, which supports
+neither woff2 nor variable instancing and would otherwise have rendered the whole
+card at weight 400.
+
+**`/check/{topic}` was noindex because of a comment that expired.** One constant
+covered both check pages, with one reason: the diagnostic engine did not exist.
+E4 built it in pass 6 and the reason stopped being true — of the subject check
+only. The per-skill page still says "Not ready yet" in its own second card,
+because a check for one skill on its own is the thing E4 did not build. They are
+gated separately now: the subject check on `isTopicIndexable`, the same review
+gate its curriculum sits behind, and it is in the sitemap and carries `Quiz`
+markup. The per-skill page stays out. §2.6 calls the skill-assessment SERP "the
+crack in the wall", and the product had been declining to compete for it for two
+passes after it could.
+
+## Three things only the render found
+
+Passes 19–21 established that the fixture is where the bugs are. Here it was the
+PNG itself, fetched from the dev server and looked at.
+
+1. **The brand card said `online_uni` twice** — once as its eyebrow, once as the
+   wordmark. Nothing in the element tree distinguished the two strings, so no
+   test could have caught it; on screen it read as a rendering fault. `eyebrow`
+   is nullable now and the brand card has none.
+2. **Every card had ~150px of dead space across its middle.** A `flex: 1` on the
+   top block pinned the facts to the floor, where they read as a footer to a card
+   that had already ended. One centred block instead.
+3. **Both dynamic image routes built as `ƒ (Dynamic)`** — found in `next build`
+   output, not in the browser. An image route does not inherit its page
+   segment's `generateStaticParams`, so satori was re-rendering the PNG on every
+   unfurl by every network, for an image that changes when the pack does. Both
+   prerender now.
+
+## A copy defect the structured data exposed
+
+Three bits of copy lowercased a pack name to drop it mid-sentence, which is right
+for "Photography" and mangles "SQL & Data Analysis" into "sql & data analysis" —
+in a search result, in `Quiz` markup, and in the goal title a learner is given
+when they do not write their own. Removing the lowercasing broke the other two
+("Get good at Photography" is a title pasted into a sentence), which the suite
+caught immediately.
+
+`subjectInProse` decides per word rather than per name: an all-capital word of
+two letters or more is an acronym and survives, everything else comes down. The
+three real packs give "photography", "business writing & communication" and
+"SQL & data analysis".
+
+## Notes
+
+- Three card types, not five. `/learn` and `/projects` are hubs and get the brand
+  card, which is the right thing to say about them.
+- Nothing under `(app)` inherits a card. Those routes are `noindex` and private,
+  and a card for a page the recipient cannot open is worse than no card.
+- The `Quiz` block says nothing about the questions. §13.3's rule is that markup
+  never describes content the page does not show, and the intro screen a crawler
+  is served shows none of them — `hasPart` here would mean publishing the item
+  bank as structured data.
+- The card is always the light palette. A share card has no viewer to ask, and a
+  dark variant would be a second brand nobody chose.
+- Palette values are imported from `theme.ts` rather than typed as literals.
+  Satori has no CSS variables, and this is the only place in the product where a
+  colour is written as a hex — a card in last season's accent is exactly the
+  drift §8.5.4 exists to prevent.
+
+## Still open
+
+Unchanged: §24 E8's last two acceptance criteria need the hand-graded corpus §23
+lists as a Phase-0 MUST. It is human work.
+
+E10's remaining two outputs — the internal-link renderer and the quality-score
+job — both operate on authored `SeoPage` rows, and there are none. They are E12's
+work. Building either now would mean building a renderer for content nobody has
+written, which is the same mistake as publishing a page for a tool that does not
+exist.
+
+Lighthouse and the GSC/Bing verification in E10's acceptance criteria need a
+deployed origin and have not been run.
+
+2685 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.

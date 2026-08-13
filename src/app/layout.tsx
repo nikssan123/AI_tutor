@@ -26,6 +26,25 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/*
+         * §13.3's LCP budget names the preloaded font, and without this line the
+         * font is not preloaded: it is referenced from `globals.css`, so the
+         * browser cannot discover it until the stylesheet has downloaded and
+         * parsed. That is one full round-trip after the HTML, which lands right
+         * on the text the LCP element is made of.
+         *
+         * `crossOrigin` is required even same-origin — fonts are fetched in CORS
+         * mode, and a preload without it is fetched a second time rather than
+         * reused, which is slower than not preloading at all.
+         */}
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/instrument-sans-variable.woff2"
+          crossOrigin="anonymous"
+        />
+
+        {/*
          * §8.5.4 — blocking, inline, before any stylesheet. Every marketing page
          * is statically generated, so the server cannot know the visitor's
          * theme; without this there is a flash of the wrong one on every cold

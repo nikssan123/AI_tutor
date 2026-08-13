@@ -14,6 +14,7 @@ import { LinkCard, MaturityBadge, Meta, stagger } from "@/components/ui";
 import { allProjects, allTopics, search } from "@/lib/content";
 import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
 import { breadcrumbs } from "@/lib/seo/jsonld";
+import { marketingMetadata } from "@/lib/seo/metadata";
 import { canonical } from "@/lib/site";
 
 /**
@@ -47,12 +48,12 @@ export async function generateMetadata({
     };
   }
 
-  return {
+  return marketingMetadata({
     title: "What you can learn — and prove",
     description:
       "Every subject here was written and checked by hand, with real questions and marked projects behind it. Ask for one that isn’t — we write it in three minutes.",
-    alternates: { canonical: canonical("/learn") },
-  };
+    path: "/learn",
+  });
 }
 
 export default async function LearnIndexPage({

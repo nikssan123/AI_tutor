@@ -231,21 +231,27 @@ export function findProject(slug: string): ProjectDetail | undefined {
 }
 
 /**
- * §10 A — the interactive Skill Check pages.
+ * §10 A — the Skill Check pages, of which there are two and they no longer
+ * share an answer.
  *
- * They are **never indexable in this build**. §12.1's structural defence is that
- * a page earns indexing by being useful, and the check's usefulness is the
- * interactive assessment — which is E4/E11 and needs the diagnostic engine
- * wired up. Publishing the shell first is exactly the thin-content pattern the
- * plan exists to avoid.
+ * Both used to be blanket-noindex under one constant, for one reason: the
+ * diagnostic engine did not exist, and §12.1 forbids asking Google to rank a
+ * page that promises a tool the product does not have. E4 shipped the engine
+ * and the reason stopped being true — of `/check/{topic}` only.
+ *
+ * - `/check/{topic}` **runs**. A stranger arriving from search gets a working
+ *   ten-minute assessment with no account, which is precisely §12.1's bar, so
+ *   it is now gated on the same review the subject page is gated on:
+ *   `isTopicIndexable`. An unreviewed pack's check is no more submittable than
+ *   its curriculum.
+ * - `/check/{topic}/{skill}` still says "Not ready yet" on the page itself,
+ *   because you cannot check one skill on its own. The original reason survives
+ *   here intact, so this one stays out of the index until that is built.
+ *
+ * The constant kept the two in step for as long as they were in step, and then
+ * kept them in step for two passes after they were not.
  */
-/**
- * Checks are never indexed: the adaptive diagnostic behind them does not run
- * yet, and §12.1 forbids asking Google to rank a page that promises a tool the
- * product does not have. When the check ships, derive `robots` from the pack
- * the way /learn/[topic] does and delete this note.
- */
-export const CHECKS_ARE_NEVER_INDEXED = { index: false, follow: true } as const;
+export const SKILL_CHECKS_ARE_NEVER_INDEXED = false;
 
 export interface SearchHit {
   kind: "topic" | "skill" | "project";

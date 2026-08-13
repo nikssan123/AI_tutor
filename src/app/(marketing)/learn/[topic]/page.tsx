@@ -23,7 +23,8 @@ import {
   topicSummary,
 } from "@/lib/content";
 import { breadcrumbs, course } from "@/lib/seo/jsonld";
-import { canonical } from "@/lib/site";
+import { marketingMetadata } from "@/lib/seo/metadata";
+import { subjectInProse } from "@/lib/subject-name";
 
 /** §13.3 — generateStaticParams + ISR for every marketing route. */
 export const revalidate = 86_400;
@@ -43,14 +44,14 @@ export async function generateMetadata({
 
   const summary = topicSummary(pack);
 
-  return {
+  return marketingMetadata({
     // §13.3 — title ≤60 characters, description 140–160.
     title: `${pack.name}: ${summary.skillCount} skills, graded`,
-    description: `A ${summary.skillCount}-skill path for ${pack.name.toLowerCase()}, with ${summary.projectCount} marked projects and the checklist behind each one. Roughly ${summary.totalHours} hours of real work.`,
-    alternates: { canonical: canonical(`/learn/${pack.slug}`) },
+    description: `A ${summary.skillCount}-skill path for ${subjectInProse(pack.name)}, with ${summary.projectCount} marked projects and the checklist behind each one. Roughly ${summary.totalHours} hours of real work.`,
+    path: `/learn/${pack.slug}`,
     // §12.1 — a page earns indexing; it is never granted by default.
-    robots: summary.indexable ? undefined : { index: false, follow: true },
-  };
+    indexable: summary.indexable,
+  });
 }
 
 export default async function TopicPage({
