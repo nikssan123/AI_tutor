@@ -355,3 +355,27 @@ describe("I have less time", () => {
     expect(screen.getByText("I have less time")).toBeDefined();
   });
 });
+
+describe("what the pack is", () => {
+  it("says nothing extra about a pack a person wrote and checked", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+    expect(screen.queryByText(/Experimental/)).toBeNull();
+  });
+
+  it("tells a learner when their course was built on request", async () => {
+    /*
+     * §7.1 — depth is declared, not faked. Someone who never saw the wait
+     * screen would otherwise have nothing on the screen they live on telling
+     * them their course has not been read by a person.
+     */
+    const generated = view();
+    todayForMock.mockResolvedValue({
+      ...generated,
+      pack: { ...generated.pack, maturity: "generated" },
+    });
+
+    render(await TodayPage({ searchParams: search() }));
+    expect(screen.getByText(/Experimental/)).toBeDefined();
+  });
+});

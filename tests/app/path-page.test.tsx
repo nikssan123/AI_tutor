@@ -21,6 +21,7 @@ const notFoundMock = vi.fn(() => {
 });
 const getSessionMock = vi.fn();
 const activeGoalMock = vi.fn();
+const packFromDbMock = vi.fn(async () => undefined as unknown);
 const masteryForMock = vi.fn(async (): Promise<MasteryState[]> => []);
 const currentCurriculumMock = vi.fn(async (): Promise<StoredCurriculum | undefined> => undefined);
 
@@ -36,7 +37,9 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
 // These exercise the disk half of `resolvePack` with the real `findPack`. The
 // database half has nothing to find and no stub db to find it with, so a miss
 // on disk is a miss outright — which is what "not a real pack" means here.
-vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
+vi.mock("@/lib/packs/read", () => ({
+  packFromDb: (...a: unknown[]) => packFromDbMock(...(a as [])),
+}));
 vi.mock("@/lib/goals/store", () => ({
   activeGoal: (...a: unknown[]) => activeGoalMock(...(a as [])),
   masteryFor: (...a: unknown[]) => masteryForMock(...(a as [])),
@@ -88,6 +91,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue({ user: { id: "u1", email: "a@b.co" } });
   activeGoalMock.mockResolvedValue(goal);
+  packFromDbMock.mockResolvedValue(undefined);
   masteryForMock.mockResolvedValue([]);
   currentCurriculumMock.mockResolvedValue(undefined);
 });
@@ -285,5 +289,22 @@ describe("§24 E9's rule", () => {
     const { container } = render(await PathPage({ params: params() }));
     // Measuring progress and measuring consumption are different things.
     expect(container.textContent).not.toMatch(/\d\s?%|percent/i);
+  });
+});
+
+describe("what the pack is", () => {
+  it("says nothing extra about a pack a person wrote and checked", async () => {
+    render(await PathPage({ params: params() }));
+    expect(screen.queryByText(/Experimental/)).toBeNull();
+  });
+
+  it("tells a learner when their path was built on request", async () => {
+    // §7.1 — the path is the screen people show other people, so it is the
+    // last place a generated pack should be able to pass as a curated one.
+    activeGoalMock.mockResolvedValue({ ...goal, packSlug: "rust-programming" });
+    packFromDbMock.mockResolvedValue({ ...pack, slug: "rust-programming", maturity: "generated" });
+
+    render(await PathPage({ params: params() }));
+    expect(screen.getByText(/Experimental/)).toBeDefined();
   });
 });

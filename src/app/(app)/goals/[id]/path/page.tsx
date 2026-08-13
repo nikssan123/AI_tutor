@@ -19,6 +19,7 @@ import {
   Meta,
   Status,
   Title,
+  MaturityBadge,
 } from "@/components/ui";
 import { buildPathAction } from "./actions";
 
@@ -121,6 +122,12 @@ export default async function PathPage({ params }: Props) {
     <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
       <header className="flex flex-col gap-3">
         <DisplayTitle>Your path through {pack.name}</DisplayTitle>
+        {/* §7.1 — see /today. The path is the screen people show other people. */}
+        {pack.maturity !== "curated" ? (
+          <span className="self-start">
+            <MaturityBadge maturity={pack.maturity} />
+          </span>
+        ) : null}
         <Lead>
           {projection.requiredSkillIds.length} skills to go ·{" "}
           {projection.estimatedHours} hours at your current level ·{" "}

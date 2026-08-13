@@ -8,6 +8,7 @@ const DATABASE_TESTS = [
   "tests/curriculum/store.test.ts",
   "tests/db/connection.test.ts",
   "tests/lib/admin-console.test.ts",
+  "tests/lib/admin-generated.test.ts",
   "tests/lib/auth.test.ts",
   "tests/lib/goal-store.test.ts",
   "tests/packs/build.test.ts",

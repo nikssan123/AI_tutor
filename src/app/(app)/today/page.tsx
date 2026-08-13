@@ -16,6 +16,7 @@ import {
   stagger,
   Status,
   Title,
+  MaturityBadge,
 } from "@/components/ui";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
@@ -110,6 +111,17 @@ export default async function TodayPage({ searchParams }: Props) {
             <Title>{pack.name}</Title>
             <Meta>{planned.totalMinutes} min</Meta>
           </div>
+
+          {/*
+            §7.1 — depth is declared, not faked, and this is where it has to be
+            declared: a learner who never saw the wait screen would otherwise
+            have nothing telling them their course was written on request and
+            has not been read by a person. Only shown when there is something to
+            say, so a curated pack does not carry a badge on every visit.
+          */}
+          {pack.maturity !== "curated" ? (
+            <MaturityBadge maturity={pack.maturity} />
+          ) : null}
 
           {/* The planner's own `reason`, template-filled from the components
               that actually decided the choice (§16.1). It is the single most

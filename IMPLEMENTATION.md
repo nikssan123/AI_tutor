@@ -1256,3 +1256,72 @@ Experimental badge appears on the wait screen and the landing page but not yet o
 `/today` or the path screen. And the whole flow has been driven by hand in a
 browser rather than end to end with Inngest running, so the build event has been
 verified as sent and the handler as correct, but not the two together.
+
+---
+
+# Delivery record — pass 16: reviewing what the machine wrote
+
+Three things pass 15 left open, and the one that mattered most was the one that
+had never been run.
+
+## The badge, where a learner actually is
+
+`MaturityBadge` has existed since pass 3 and appeared on the marketing pages, the
+admin screens and the wait screen — everywhere except the two places a learner
+spends their time. Someone who closed the tab during a build and came back to
+`/today` had nothing telling them their course was written on request and has not
+been read by a person. It is on `/today` and the path screen now, and only when
+there is something to say: a curated pack does not carry a badge on every visit.
+
+## The review queue
+
+`/admin/packs` reads the curated packs off disk, which is right for them — they
+are files in git and their review happens in a diff. A Generated pack has no diff,
+so until now nobody could see one at all.
+
+The queue is also §7.1's promotion gate — "promoted to Standard after 5 users +
+quality gate" — and both halves are enforced in `promotePack`, not by the page
+that renders the button. The numbers can move between a reviewer loading the
+queue and clicking, and "Standard" is a claim the product then makes to learners.
+The reviewer's own name goes on `reviewedBy`, because that field is a claim about
+a person having read it.
+
+Discarding is the other half of a review queue, and it refuses to remove a pack
+somebody has a goal against. That refusal is not a check in application code — it
+is `learning_goal.pack_id` having no cascade, which the teardown in the tests had
+to learn to respect like anything else would.
+
+## End to end, finally
+
+Pass 15 verified the build event as sent and the handler as correct, and said
+plainly that it had not watched the two work together. It has now: Inngest dev
+server, real event, real generation.
+
+`building` → `ready` in **200 seconds**. Home espresso, from nothing: 14 skills,
+57 items, 5 rubrics, 5 projects. Workspace `media`, and therefore **tier 3** — you
+can photograph a shot and be told something true about the technique, and the
+taste is yours. That is §7.2's tier 3 exactly, and it is the cap in `derive.ts`
+doing its job rather than a coincidence.
+
+It then appeared in the review queue, validating, with the honest blocker
+attached: *0 of 5 learners — not enough use to judge it yet*.
+
+## One failure I could not reproduce
+
+A `pnpm verify` run failed four tests while the Next dev server and the Inngest
+dev server were both live against the same database. Three subsequent runs, and
+one with the servers stopped, all pass at 100%. It is recorded rather than
+explained away: the likely cause is those two processes writing to the shared
+development database mid-run, which is the same class of problem pass 14's
+vitest project split addressed, and the honest state is that it was seen once and
+has not been seen since.
+
+2012 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Still open
+
+The Generated tier's cost. A pack is $0.61 and three minutes, and nothing yet
+charges anybody for one — §14.9.7's per-user cap is consulted before generating
+but a free account can still ask for a pack a day. Whether that is a rate limit,
+a plan gate, or a price is a product decision rather than a bug, and it is the
+next thing that has to be decided before this is reachable by the public.
