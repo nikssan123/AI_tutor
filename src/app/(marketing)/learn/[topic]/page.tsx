@@ -46,7 +46,7 @@ export async function generateMetadata({
   return {
     // §13.3 — title ≤60 characters, description 140–160.
     title: `${pack.name}: ${summary.skillCount} skills, graded`,
-    description: `A validated ${summary.skillCount}-skill path for ${pack.name.toLowerCase()}, with ${summary.projectCount} graded projects and published rubrics. Roughly ${summary.totalHours} hours of real work.`,
+    description: `A ${summary.skillCount}-skill path for ${pack.name.toLowerCase()}, with ${summary.projectCount} marked projects and the checklist behind each one. Roughly ${summary.totalHours} hours of real work.`,
     alternates: { canonical: canonical(`/learn/${pack.slug}`) },
     // §12.1 — a page earns indexing; it is never granted by default.
     robots: summary.indexable ? undefined : { index: false, follow: true },
@@ -89,7 +89,7 @@ export default async function TopicPage({
         <PageIntro
           icon={<SubjectIcon taxonomyParent={pack.taxonomyParent} />}
           title={pack.name}
-          lead={`${summary.skillCount} skills across ${areas.length} areas, ordered by what depends on what. ${summary.projectCount} of them end in work that gets graded against a published rubric.`}
+          lead={`${summary.skillCount} skills across ${areas.length} areas, in the order you need to learn them. ${summary.projectCount} of them end in work you hand in and we mark.`}
           facts={
             <>
               <MaturityBadge maturity={summary.maturity} />
@@ -135,8 +135,8 @@ export default async function TopicPage({
             icon={<GridIcon />}
           />
           <Meta>
-            Each line is a capability statement — the thing your work has to
-            demonstrate before the skill counts as mastered.
+            Each line says what you have to be able to do before the skill
+            counts as learned.
           </Meta>
 
           {areas.map((area) => (
@@ -175,12 +175,12 @@ export default async function TopicPage({
           <SectionHead
             step="02"
             label="The graded work"
-            title="Where the proof actually comes from"
+            title="Where the proof comes from"
             icon={<ChecklistIcon />}
           />
           <Meta>
-            The rubric is published before you start. That makes the verdict
-            trustworthy and any disagreement productive.
+            You can read the marking checklist before you start, so you always
+            know what you are aiming at.
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 lg:grid-cols-2">
             {projects.map((project, i) => (
@@ -202,8 +202,8 @@ export default async function TopicPage({
 
         {!summary.indexable ? (
           <Meta>
-            This pack has not been through human review yet, so it is served but
-            not submitted for search indexing.
+            Nobody has reviewed this subject by hand yet, so we keep it out of
+            search results.
           </Meta>
         ) : null}
       </PageFrame>

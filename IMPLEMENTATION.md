@@ -773,3 +773,145 @@ All nine checks run and are reported; a curriculum with a missing prerequisite,
 duplicate modules, or 400 hours against a 20-hour budget is caught, and the
 first two are repaired; the path page renders the DAG and shows what was
 skipped and why.
+
+---
+
+# Delivery record — pass 11: the rest of authentication
+
+E1 shipped Better Auth with email and password, and the audit that opened this
+pass found the loop half-closed: **there was no sign-out anywhere in the
+codebase**, no password reset, no email verification, no way to change an
+address, and no profile screen. Someone who signed up could get in and could not
+get out, and a forgotten password was the end of the account.
+
+This closes all of it, plus Google.
+
+## The email layer, because five of the six features are emails
+
+`src/lib/email` is wired the way observability is (§14.8): the interface exists
+from the first commit and the absence of a key degrades to something *visible*.
+
+With no `RESEND_API_KEY`, `LogTransport` prints the whole message to the server
+console — body, link and all. That is the entire point. A local environment
+where sign-up sends nothing and says nothing is one where nobody exercises
+verification until production does it for them. With a key, `ResendTransport`
+POSTs to Resend over plain `fetch`; §18.1 also names React Email, which is a
+build-time JSX renderer, and these are three messages with one button each.
+
+`deliver()` never throws. Every caller is an auth flow, and in all of them a
+lost email beats a 500: a sign-up that fails because Resend is having an
+afternoon leaves someone with no account and no explanation, while a lost
+verification mail leaves them signed in with a resend button.
+
+Templates are pure functions with escaped interpolation. Not theatre — the
+change-email mail is deliberately sent to an address that may no longer belong
+to the account holder, so an unescaped display name is markup injected into a
+stranger's inbox.
+
+## What each flow actually does
+
+| Flow | Decision worth defending |
+|---|---|
+| **Verification** | Sent on sign-up, **not required** to sign in. §8 is "show value first"; an inbox round-trip between signup and the plan is where people leave. The header says what is at stake instead, in words: an unconfirmed address cannot be sent a reset. |
+| **Reset** | One hour, single use, and `revokeSessionsOnPasswordReset: true`. Better Auth defaults that off, which leaves the thief signed in on their own machine while the owner congratulates themselves on a new password. |
+| **Change email** | The approval link goes to the address being **left behind**. That is the whole security property: a stolen session can ask to move an account, and only the address the real owner still reads can approve it. |
+| **Google** | Registered only when both halves of the credential exist — a blank client id fails at Google's redirect with an opaque error page, which is worse than not offering it. `requireLocalEmailVerified` is pinned `true`: without it, anyone can register `victim@gmail.com`, never verify, and wait for the real owner to arrive via Google, at which point the accounts link and the attacker's password still works. |
+| **Sign-out** | A form and a Server Action, never a link. A GET that ends a session is one prefetch away from ending it by accident. |
+
+## Server Actions, not the client SDK
+
+`/account` posts every form to a Server Action and reads the outcome back out of
+the query string, so the screen ships **no JavaScript** — including on the day a
+bundle fails to load, which is exactly the day someone needs to change a
+password. It also unlocks something the client SDK cannot reach:
+`auth.api.setPassword` is a `serverOnly` endpoint, and it is the only way to
+give a Google-only account a password. Without it, "disconnect Google" is
+refused forever and the account is permanently tied to one provider.
+
+`nextCookies()` is what lets those actions set cookies, and it has to stay last
+in the plugin list.
+
+## A DAL, which is what the audit was really pointing at
+
+`src/lib/account/session.ts` — `requireUser()`, memoized with `cache`, per Next's
+own guidance (`01-app/02-guides/authentication.md`). Three pages had been
+repeating the same four lines of `getSession`-then-`redirect`; the repetition was
+never the problem, the problem is that a fourth page can forget them and nothing
+fails. It returns a DTO rather than `session.user`, so whatever Better Auth adds
+to that object next is not silently serialised into a page.
+
+The header lives in `(app)/layout.tsx` and is **chrome, not a boundary** — the
+same distinction `admin/layout.tsx` already documents.
+
+## One deployment bug fixed on the way past
+
+`auth-client.ts` read `NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"`. Only
+`NEXT_PUBLIC_*` variables are inlined into the browser bundle, so forgetting that
+one in production shipped a sign-in form that posted credentials to the
+visitor's own machine. It now passes no `baseURL` at all: Better Auth's client
+falls back to a relative `/api/auth`, which is right on every origin and has no
+variable to forget.
+
+## Not in this pass
+
+Account deletion, a signed-in-devices list (Better Auth's `list-sessions`
+requires a session under a day old, so it needs a re-auth step first), and a
+"your password was changed" notification.
+
+1550 tests. Every file added or touched here is at 100% on all four metrics.
+
+---
+
+# Delivery record — pass 12: plain language everywhere
+
+A copy-only pass across both public surfaces — the four marketing routes and the
+auth/account flow this repo had just finished. Not a redesign: no component, no
+layout and no route changed shape.
+
+## What was actually wrong
+
+One habit, repeated everywhere: sentences built as aphorisms. A claim, an
+em-dash, then an inversion that qualified it — "It cannot prove you can do the
+work — only the work can do that", "Passing this moves these skills in your
+mastery ledger", "Auth needs to exist here, not to be a feature". Each one asks
+the reader to hold two clauses to receive one fact.
+
+§8.5.1 has forbidden this from the beginning: *"Clarity over cleverness — plain
+language everywhere."* It had only ever been enforced against layout. The
+landing page had been through four cuts for **form** and none for **words**.
+
+Three specific classes of defect, beyond the register:
+
+- **Notes-to-self shipped as copy.** `/sign-in` opened with a design rationale
+  ("nothing about signing in should be interesting") shown to someone trying to
+  log in.
+- **A spec reference leaked to visitors.** `/projects/[slug]` printed the string
+  "§4.2 law 2" into the page.
+- **Jargon that only means something in here.** "validated skill graph", "item
+  bank", "mastery ledger", "capability statement", "pack", "machine-marked".
+  User-facing "rubric" became "checklist" throughout; the `rubricDetail` data
+  field keeps its name, because it is not copy.
+
+## The headline
+
+"Anyone can teach you. Almost no one checks whether you learned it." stated the
+problem and left the reader to infer the offer. It is now "Learn anything. Then
+prove you actually learned it." — both halves of the promise, in the order a
+visitor would think them.
+
+## One stale claim fixed on the way past
+
+`/check/[topic]/[skill]` told visitors the assessment "needs the diagnostic
+engine, which is the next piece of work". Written before E4 and left behind by
+it: the engine exists and `/check/[topic]` runs on it. What is genuinely missing
+is a check for a single skill on its own, so that is what the page now says.
+§4.2 law 5 is only worth anything if the declared limit is the real one.
+
+## Still mixed
+
+"Graded" and "marked" both survive for the same act — "graded projects" in page
+titles and search descriptions, "marked" in body copy. Choosing one is a
+terminology decision that churns every SEO title, so it was left rather than
+made silently.
+
+1554 tests, 100% on all four metrics.

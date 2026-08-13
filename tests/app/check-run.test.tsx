@@ -76,10 +76,12 @@ describe("the intro", () => {
       screen.getByText(
         (t) =>
           t.includes(`${closed} of the ${pack.items.length} questions`) &&
-          t.includes("marked by machine"),
+          t.includes("marked automatically"),
       ),
     ).toBeDefined();
-    expect(screen.getByText(/self-marking never counts as proof/)).toBeDefined();
+    expect(
+      screen.getByText(/marking your own work never counts as proof/),
+    ).toBeDefined();
     expect(screen.getByRole("button", { name: /Start the check/ })).toBeDefined();
   });
 
@@ -104,7 +106,7 @@ describe("answering", () => {
     seed({ s: 1, a: [] });
     const { container } = render(await page.default({ params: params() }));
 
-    expect(screen.getByText(/marked by machine/)).toBeDefined();
+    expect(screen.getByText(/marked automatically/)).toBeDefined();
     expect(container.querySelectorAll('input[type="radio"]').length).toBeGreaterThan(1);
     expect(container.querySelector('input[name="item"]')).toBeDefined();
   });
@@ -210,7 +212,7 @@ describe("self-marking — the honest part", () => {
 
   it("says outright that the self-mark will not move the record", async () => {
     render(await page.default({ params: params() }));
-    expect(screen.getByText(/does not move your record/)).toBeDefined();
+    expect(screen.getByText(/Either way, this does not count/)).toBeDefined();
   });
 
   it("shows a placeholder when the answer was left blank", async () => {
@@ -269,7 +271,7 @@ describe("the result", () => {
   it("counts self-marked answers separately and says they do not count", async () => {
     seed(nineClosed());
     render(await page.default({ params: params() }));
-    expect(screen.getByText(/deliberately does not count/)).toBeDefined();
+    expect(screen.getByText(/does not count either way/)).toBeDefined();
   });
 
   /**
@@ -287,7 +289,7 @@ describe("the result", () => {
     render(await page.default({ params: params() }));
 
     expect(
-      screen.getByText(/Nothing here could be machine-marked/),
+      screen.getByText(/None of these could be marked automatically/),
     ).toBeDefined();
     expect(screen.queryByText("Likely known")).toBeNull();
   });

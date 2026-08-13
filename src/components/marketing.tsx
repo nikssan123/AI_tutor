@@ -178,16 +178,14 @@ export function SiteFooter() {
     <footer className="mt-24 border-t border-hairline">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex max-w-md flex-col gap-3">
-          {/* The headline already makes the "nobody checks" point, so the
-              footer carries the second half of the promise instead of
+          {/* The headline already makes the "prove you learned it" point, so
+              the footer carries the second half of the promise instead of
               restating the first. */}
           <Meta>
-            Every marking checklist on this site is the one your work is
-            actually graded against, and you can read it before you start.
+            Every checklist on this site is the one your work is really marked
+            against, and you can read it before you start.
           </Meta>
-          <Meta>
-            Nothing counts as proof unless something you made was looked at.
-          </Meta>
+          <Meta>Nothing counts as proof until your work has been marked.</Meta>
         </div>
         {/* §8.5.4 — a small control in the footer, never floating chrome. */}
         <ThemeToggleStatic />
@@ -389,7 +387,7 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
                 </span>
                 {rung.key === "competent" ? (
                   <span className="text-[length:var(--text-meta-size)] text-ink-muted">
-                    — the bar you have to clear
+                    — this is the pass mark
                   </span>
                 ) : null}
               </span>
@@ -416,10 +414,10 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
 export function EvalTierNote({ tier }: { tier: number }) {
   const copy: Record<number, { tone: Parameters<typeof Status>[0]["tone"]; text: string }> = {
     1: { tone: "verified", text: "We run your work and check the answer is right" },
-    2: { tone: "verified", text: "We grade it against a checklist you can read first" },
-    3: { tone: "attention", text: "We check the technical side — whether it's any good is your call" },
+    2: { tone: "verified", text: "We mark it against a checklist you can read first" },
+    3: { tone: "attention", text: "We check the technical side. Whether it's any good is your call" },
     4: { tone: "attention", text: "We score the parts that can be measured" },
-    5: { tone: "neutral", text: "You log this one yourself; it doesn't count as proof" },
+    5: { tone: "neutral", text: "You log this one yourself. It doesn't count as proof" },
   };
   const entry = copy[tier] ?? copy[5]!;
   return <Status tone={entry.tone}>{entry.text}</Status>;

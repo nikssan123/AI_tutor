@@ -335,7 +335,7 @@ export function MaturityBadge({
 }) {
   const copy = {
     curated: { tone: "verified" as const, label: "Written and checked by hand" },
-    standard: { tone: "neutral" as const, label: "Solid coverage" },
+    standard: { tone: "neutral" as const, label: "Covers the subject well" },
     generated: {
       tone: "attention" as const,
       label: "Experimental — help us improve it",

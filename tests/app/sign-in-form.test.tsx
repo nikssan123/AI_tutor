@@ -18,7 +18,9 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
-const { SignInForm } = await import("@/app/(app)/sign-in/sign-in-form");
+const { SignInForm, humanError } = await import(
+  "@/app/(app)/sign-in/sign-in-form"
+);
 
 afterEach(() => {
   cleanup();
@@ -31,6 +33,9 @@ function fill(email = "a@b.co", password = "hunter2hunter2") {
     target: { value: password },
   });
 }
+
+/** The form element itself — submitted directly to model the Enter key. */
+const formEl = () => screen.getByLabelText("Email").closest("form")!;
 
 describe("SignInForm", () => {
   it("signs in and lands the learner on /today", async () => {
@@ -59,6 +64,9 @@ describe("SignInForm", () => {
       email: "new@user.co",
       password: "correct-horse-battery",
       name: "new@user.co",
+      // Without this the confirmation link lands on the marketing page, which
+      // is a strange place to arrive from "confirm your address".
+      callbackURL: "/verify-email",
     });
   });
 
@@ -146,5 +154,99 @@ describe("SignInForm", () => {
     expect(screen.getByLabelText("Password").getAttribute("autocomplete")).toBe(
       "current-password",
     );
+  });
+});
+
+/**
+ * The four defects that made this screen fail in the browser while every test
+ * above kept passing. Each one was invisible to a suite that only ever clicked
+ * buttons with `fireEvent` on an already-hydrated component.
+ */
+describe("submitting the way people actually do", () => {
+  it("submits on Enter, which a stack of buttons in a div never did", async () => {
+    // No <form> meant the most ordinary way to submit a two-field login — type
+    // password, press Enter — did nothing whatsoever.
+    signInEmail.mockResolvedValue({ error: null });
+    render(<SignInForm />);
+    fill();
+    fireEvent.submit(formEl());
+
+    await waitFor(() => expect(signInEmail).toHaveBeenCalled());
+    // Enter carries no submitter, so it must mean "sign in", not "create one".
+    expect(signUpEmail).not.toHaveBeenCalled();
+  });
+
+  it("marks both fields required so an empty submit never reaches the server", () => {
+    // The server answers an empty body with a Zod dump. The fix is to not send
+    // one: the browser blocks the submit and points at the offending field.
+    render(<SignInForm />);
+    expect((screen.getByLabelText("Email") as HTMLInputElement).required).toBe(
+      true,
+    );
+    expect(
+      (screen.getByLabelText("Password") as HTMLInputElement).required,
+    ).toBe(true);
+  });
+
+  it("reads the values off the DOM, so pre-hydration typing is not lost", async () => {
+    // Someone who types before React attaches has their text in the input but
+    // in no `useState`. Controlled inputs dropped it and posted empty strings —
+    // which is exactly what produced the error on screen.
+    signInEmail.mockResolvedValue({ error: null });
+    render(<SignInForm />);
+
+    const email = screen.getByLabelText("Email") as HTMLInputElement;
+    const password = screen.getByLabelText("Password") as HTMLInputElement;
+    // Set the DOM directly, firing no React event at all.
+    email.value = "typed-early@example.com";
+    password.value = "before-hydration";
+
+    fireEvent.submit(formEl());
+
+    await waitFor(() =>
+      expect(signInEmail).toHaveBeenCalledWith({
+        email: "typed-early@example.com",
+        password: "before-hydration",
+      }),
+    );
+  });
+
+  it("announces the error to a screen reader", () => {
+    render(<SignInForm />);
+    fill();
+    signInEmail.mockResolvedValue({ error: { message: "Nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    return waitFor(() => expect(screen.getByRole("alert")).toBeDefined());
+  });
+});
+
+describe("humanError", () => {
+  it("replaces the Zod dump a learner should never see", () => {
+    expect(
+      humanError({
+        code: "VALIDATION_ERROR",
+        message:
+          "[body.email] Invalid email address; [body.password] Too small: expected string to have >=1 characters",
+      }),
+    ).toBe("Enter an email address and a password.");
+  });
+
+  it("catches the same dump when it arrives without the code", () => {
+    expect(humanError({ message: "[body.email] Invalid email address" })).toBe(
+      "Enter an email address and a password.",
+    );
+  });
+
+  it.each([
+    ["Invalid email or password"],
+    ["Password too short"],
+    ["User already exists"],
+  ])("passes %s through — the server already wrote it for a person", (message) => {
+    expect(humanError({ message })).toBe(message);
+  });
+
+  it("falls back when the server says nothing at all", () => {
+    expect(humanError({})).toBe("That didn't work.");
   });
 });

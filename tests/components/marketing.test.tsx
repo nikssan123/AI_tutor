@@ -279,7 +279,7 @@ describe("RubricLadder", () => {
     // Four rungs with no marked line leaves the reader guessing which one they
     // have to reach — which is the question the whole section exists to answer.
     render(<RubricLadder criterion={criterion} />);
-    expect(screen.getByText(/the bar you have to clear/)).toBeDefined();
+    expect(screen.getByText(/this is the pass mark/)).toBeDefined();
   });
 
   it("colours the two passing rungs with the accent and the rest faint", () => {
@@ -296,10 +296,10 @@ describe("RubricLadder", () => {
 describe("EvalTierNote — §7.2's declared limits", () => {
   it.each([
     [1, "We run your work and check the answer is right"],
-    [2, "We grade it against a checklist you can read first"],
-    [3, "We check the technical side — whether it's any good is your call"],
+    [2, "We mark it against a checklist you can read first"],
+    [3, "We check the technical side. Whether it's any good is your call"],
     [4, "We score the parts that can be measured"],
-    [5, "You log this one yourself; it doesn't count as proof"],
+    [5, "You log this one yourself. It doesn't count as proof"],
   ])("states the claim tier %i is allowed to make", (tier, text) => {
     render(<EvalTierNote tier={tier} />);
     expect(screen.getByText(text)).toBeDefined();
@@ -309,6 +309,6 @@ describe("EvalTierNote — §7.2's declared limits", () => {
     // Overclaiming is the failure mode §4.2 law 3 rules out, so an unexpected
     // tier must degrade downward, never upward.
     render(<EvalTierNote tier={99} />);
-    expect(screen.getByText("You log this one yourself; it doesn't count as proof")).toBeDefined();
+    expect(screen.getByText("You log this one yourself. It doesn't count as proof")).toBeDefined();
   });
 });

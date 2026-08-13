@@ -7,6 +7,7 @@ import {
   featuredProject,
   findPack,
   findProject,
+  findSkill,
 } from "@/lib/content";
 
 const notFoundMock = vi.fn(() => {
@@ -37,8 +38,8 @@ const params = <T,>(value: T) => Promise.resolve(value);
  */
 const CLAIM: Record<number, string> = {
   1: "We run your work and check the answer is right",
-  2: "We grade it against a checklist you can read first",
-  3: "We check the technical side — whether it's any good is your call",
+  2: "We mark it against a checklist you can read first",
+  3: "We check the technical side. Whether it's any good is your call",
 };
 
 describe("marketing layout", () => {
@@ -53,9 +54,11 @@ describe("landing page (§8 screen 1)", () => {
   it("leads with a plain statement of the problem and one input", () => {
     render(<HomePage />);
     // Not "Prove it" — the old headline was a slogan, and a visitor could not
-    // tell from it what the product does.
+    // tell from it what the product does. Nor a riddle: the headline before
+    // this one ("Anyone can teach you. Almost no one checks whether you
+    // learned it.") made the reader work out the offer for themselves.
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
-      "Almost no one checks whether you learned it",
+      "Then prove you actually learned it",
     );
     // "One input. Nothing else." — exactly one search field on the page.
     expect(screen.getAllByRole("search")).toHaveLength(1);
@@ -73,10 +76,10 @@ describe("landing page (§8 screen 1)", () => {
   it("walks through what happens, in order, one line per step", () => {
     render(<HomePage />);
     for (const phrase of [
-      /Name the goal/,
+      /Say what you want to learn/,
       /Take a ten-minute check/,
-      /Get a plan for your gaps/,
-      /Do one real piece of work/,
+      /Get a plan/,
+      /Do a real piece of work/,
       /Get it marked/,
     ]) {
       expect(screen.getByText(phrase), String(phrase)).toBeDefined();
@@ -145,7 +148,7 @@ describe("landing page (§8 screen 1)", () => {
     for (const band of Object.values(heaviest.bands)) {
       expect(screen.getByText(band), band).toBeDefined();
     }
-    expect(screen.getByText(/the bar you have to clear/)).toBeDefined();
+    expect(screen.getByText(/this is the pass mark/)).toBeDefined();
   });
 
   it("shows what finishing the task means, from the brief itself", () => {
@@ -304,7 +307,7 @@ describe("/learn/[topic]", () => {
 
   it("tells the reader why it is not indexed rather than hiding it", async () => {
     render(await topic.default({ params: p }));
-    expect(screen.getByText(/not been through human review/)).toBeDefined();
+    expect(screen.getByText(/Nobody has reviewed this subject/)).toBeDefined();
   });
 
   it("404s and returns empty metadata for an unknown topic", async () => {
@@ -403,7 +406,7 @@ describe("/projects/[slug] — §4.2 law 2", () => {
 
   it("lists the acceptance criteria as 'done means'", async () => {
     render(await project.default({ params: p }));
-    expect(screen.getByText(/01 · Done means/)).toBeDefined();
+    expect(screen.getByText(/01 · What counts as done/)).toBeDefined();
     expect(
       screen.getByText("The plan is included, before and after."),
     ).toBeDefined();
@@ -421,7 +424,7 @@ describe("/projects/[slug] — §4.2 law 2", () => {
    */
   it("renders its rubric with the same ladder the landing page uses", async () => {
     render(await project.default({ params: p }));
-    expect(screen.getAllByText(/the bar you have to clear/).length).toBe(
+    expect(screen.getAllByText(/this is the pass mark/).length).toBe(
       findProject("slow-query-rescue")!.rubricDetail.criteria.length,
     );
   });
@@ -456,17 +459,29 @@ describe("/check/[topic]/[skill]", () => {
     expect(screen.getByText("What counts as knowing this")).toBeDefined();
   });
 
-  it("is honest that the assessment is not wired up yet", async () => {
+  it("is honest that a single-skill check does not exist yet", async () => {
     // §4.2 law 5 — declared limits are a feature. A disabled button pretending
     // to be a product is the overclaiming the positioning rejects.
+    //
+    // The limit itself moved when E4 landed: the diagnostic engine this page
+    // once said it was waiting for now exists and runs `/check/[topic]`. What
+    // is still missing is a check for one skill on its own, so that is what the
+    // page has to be honest about.
     render(await check.default({ params: p }));
-    expect(screen.getByText(/not yet wired up/)).toBeDefined();
-    expect(screen.getByText(/kept out of search until the check runs/)).toBeDefined();
+    expect(screen.getByText(/cannot check this skill on its own yet/)).toBeDefined();
+    expect(
+      screen.getByText(/stays out of search results until you can check this skill/),
+    ).toBeDefined();
   });
 
   it("cites the real item count behind the skill", async () => {
     render(await check.default({ params: p }));
-    expect(screen.getByText(/question(s)? written and validated/)).toBeDefined();
+    const skill = findSkill("sql-data-analysis", "join-grain")!.skill;
+    expect(
+      screen.getByText(
+        new RegExp(`${skill.itemCount} questions? for this skill so far`),
+      ),
+    ).toBeDefined();
   });
 
   it("shows prerequisites, soft prerequisites and what it unlocks", async () => {

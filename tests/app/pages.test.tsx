@@ -23,8 +23,18 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
+const currentUserMock = vi.fn();
+
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
+  googleEnabled: () => false,
+  MIN_PASSWORD_LENGTH: 8,
+  VERIFY_CALLBACK: "/verify-email",
+}));
+
+vi.mock("@/lib/account/session", () => ({
+  currentUser: () => currentUserMock(),
+  requireUser: () => currentUserMock(),
 }));
 
 afterEach(() => {
@@ -66,9 +76,19 @@ describe("(app) layout — §13.1's structural noindex", () => {
   });
 
   it("renders its children", async () => {
+    currentUserMock.mockResolvedValue(null);
     const { default: AppLayout } = await import("@/app/(app)/layout");
-    render(<AppLayout>{<p>child</p>}</AppLayout>);
+    render(await AppLayout({ children: <p>child</p> }));
     expect(screen.getByText("child")).toBeDefined();
+  });
+
+  it("draws no header for a signed-out visitor", async () => {
+    // /sign-in and /reset-password live in this segment too, and a "Sign out"
+    // button above a sign-in form would be nonsense.
+    currentUserMock.mockResolvedValue(null);
+    const { default: AppLayout } = await import("@/app/(app)/layout");
+    render(await AppLayout({ children: <p>child</p> }));
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
   });
 });
 
@@ -103,7 +123,7 @@ describe("/design — the drift guard (§8.5.8)", () => {
       "--shadow-raised",
       "--shadow-lifted",
       "Prove you learned it.",
-      "— the bar you have to clear",
+      "— this is the pass mark",
     ]) {
       // getAllByText: "Demonstrated" legitimately appears twice — once as the
       // confidence label and once inside the row list demonstrating it.
@@ -134,7 +154,14 @@ describe("/sign-in", () => {
 
   it("renders the form", async () => {
     const { default: SignInPage } = await import("@/app/(app)/sign-in/page");
-    render(<SignInPage />);
+    render(await SignInPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Sign in");
   });
 });
+
+/*
+ * The rest of the auth screens — /account, /forgot-password, /reset-password,
+ * /verify-email, and what the (app) header does once someone is signed in —
+ * have their own suite in tests/app/account-pages.test.tsx, for the same reason
+ * /today does: they need the session and Better Auth's API stubbed per case.
+ */

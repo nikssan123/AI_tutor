@@ -135,7 +135,7 @@ describe("content shapes the real packs never produce", () => {
         params: params({ topic: "valid-minimal", skill: "beta" }),
       }),
     );
-    expect(screen.getByText(/1 question written and validated/)).toBeDefined();
+    expect(screen.getByText(/1 question for this skill so far/)).toBeDefined();
   });
 
   it("omits the unlocks section for a leaf skill", async () => {

@@ -138,8 +138,8 @@ export default async function CheckPage({
             </p>
             {/* §8.5.4 — --ink-faint is under the 4.5:1 bar on the accent field. */}
             <Meta tone="muted">
-              That sentence is the bar. Mastery only moves when your work
-              demonstrates it — reading about it does not count.
+              That sentence is the bar. It only counts once your work shows you
+              can do it. Reading about it does not.
             </Meta>
           </div>
 
@@ -147,6 +147,12 @@ export default async function CheckPage({
             Honest about state rather than a fake "coming soon" CTA. §4.2 law 5:
             declared limits are a feature, and a disabled button pretending to
             be a product is the overclaiming the whole positioning rejects.
+
+            The claim here used to be that the check "needs the diagnostic
+            engine, which is the next piece of work" — written before E4 landed
+            and left behind by it. The engine exists and `/check/[topic]` runs
+            on it; what is still missing is a check you can take for one skill
+            on its own.
           */}
           <div
             className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)]"
@@ -156,19 +162,17 @@ export default async function CheckPage({
               Not ready yet
             </span>
             <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
-              The check itself
+              A check for this one skill
             </span>
             <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
-              The adaptive assessment for this skill is built but not yet wired
-              up — it needs the diagnostic engine, which is the next piece of
-              work. The item bank behind it already exists: {detail.itemCount}{" "}
-              question{detail.itemCount === 1 ? "" : "s"} written and validated
-              for this skill.
+              You cannot check this skill on its own yet. The ten-minute check
+              for {pack.name} covers it along with the rest. We have written{" "}
+              {detail.itemCount} question{detail.itemCount === 1 ? "" : "s"} for
+              this skill so far.
             </p>
             <Meta className="mt-auto">
-              This page is served but kept out of search until the check runs. A
-              page that promises a tool it does not have is the thing we are
-              trying not to build.
+              This page stays out of search results until you can check this
+              skill on its own.
             </Meta>
           </div>
         </div>
@@ -205,7 +209,7 @@ export default async function CheckPage({
           <section className="flex flex-col gap-8">
             <SectionHead
               step="02"
-              label="Softer ground"
+              label="Also helpful"
               title="Helpful, but not required"
               icon={<GridIcon />}
             />
@@ -221,7 +225,7 @@ export default async function CheckPage({
           <section className="flex flex-col gap-8">
             <SectionHead
               step="03"
-              label="Downstream"
+              label="What comes next"
               title="What it unlocks"
               icon={<ChecklistIcon />}
             />

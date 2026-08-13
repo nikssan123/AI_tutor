@@ -53,7 +53,7 @@ export async function generateMetadata({
   return {
     title: "What you can learn — and prove",
     description:
-      "Every subject with a validated skill graph, a real item bank and graded projects behind it. Depth is declared, never implied.",
+      "Every subject here has a full list of skills, real questions and marked projects behind it. We tell you how deep each one goes.",
     alternates: { canonical: canonical("/learn") },
   };
 }
@@ -92,7 +92,7 @@ export default async function LearnIndexPage({
       >
         <PageIntro
           title={q ? `Results for “${q}”` : "What you can learn — and prove"}
-          lead="A subject appears here only once it has a validated skill graph, a real item bank and at least one graded project behind it."
+          lead="A subject appears here only once it has a full list of skills, real questions written for it, and at least one project we can mark."
           action={<GoalSearch suggestions={suggestions} defaultValue={q ?? ""} />}
         />
 
@@ -123,7 +123,7 @@ export default async function LearnIndexPage({
             </section>
           ) : (
             <EmptyState
-              message={`Nothing matches “${q}” yet. The subjects below are what has a real skill graph behind it today.`}
+              message={`Nothing matches “${q}” yet. Everything we cover so far is below.`}
             />
           )
         ) : null}
@@ -132,7 +132,7 @@ export default async function LearnIndexPage({
           <SectionHead
             step={q ? "02" : "01"}
             label="Subjects"
-            title="Everything with a skill graph behind it"
+            title="Every subject we cover"
             icon={<GridIcon />}
           />
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
@@ -171,8 +171,8 @@ export default async function LearnIndexPage({
             icon={<StepsIcon />}
           />
           <Meta>
-            Each one publishes the rubric it will be marked against, before you
-            start.
+            Each one comes with the checklist it will be marked against, so you
+            can read it before you start.
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project, i) => (

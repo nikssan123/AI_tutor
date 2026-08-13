@@ -14,9 +14,9 @@ import { canonical } from "@/lib/site";
 export const revalidate = 86_400;
 
 export const metadata: Metadata = {
-  title: "Graded projects with published rubrics",
+  title: "Graded projects, and the checklists behind them",
   description:
-    "Real project briefs, each with the full rubric it will be marked against — published before you start. Read the criteria, then do the work.",
+    "Real project briefs, each with the full checklist it will be marked against. You read the checklist first, then you do the work.",
   alternates: { canonical: canonical("/projects") },
 };
 
@@ -34,14 +34,14 @@ export default function ProjectsIndexPage() {
         <PageIntro
           icon={<ChecklistIcon />}
           title="Graded projects"
-          lead="Each brief publishes the rubric it will be marked against, before you start. That is what makes the verdict trustworthy — and what makes disagreeing with it productive."
+          lead="Each brief comes with the checklist it will be marked against. You read it before you start, so you always know what you are aiming at."
           facts={
             <>
               <Meta>{projects.length} briefs</Meta>
               <Meta>
                 {new Set(projects.map((p) => p.topicName)).size} subjects
               </Meta>
-              <Meta>Every rubric public</Meta>
+              <Meta>Every checklist public</Meta>
             </>
           }
         />
@@ -50,7 +50,7 @@ export default function ProjectsIndexPage() {
           <SectionHead
             step="01"
             label="The briefs"
-            title="Pick something you would actually have to do"
+            title="Pick something you would really have to do"
             icon={<ChecklistIcon />}
           />
 

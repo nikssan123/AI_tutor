@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
   return {
     title: `${pack.name} — skill check`,
-    description: `A ten-minute adaptive check across ${pack.skills.length} skills in ${pack.name.toLowerCase()}.`,
+    description: `A ten-minute check across ${pack.skills.length} skills in ${pack.name.toLowerCase()}. The questions change based on your answers.`,
     alternates: { canonical: canonical(`/check/${topic}`) },
     robots: CHECKS_ARE_NEVER_INDEXED,
   };
@@ -114,8 +114,9 @@ export default async function CheckRunPage({ params }: Params) {
           <DisplayTitle>{pack.name} — skill check</DisplayTitle>
         </div>
         <Lead className="rise" style={stagger(1)}>
-          About {DEFAULT_BUDGET} questions, ten minutes, no account. It adapts as
-          you answer and covers as much of the subject as it can.
+          About {DEFAULT_BUDGET} questions, ten minutes, no account. The
+          questions change based on your answers, so it covers as much of the
+          subject as it can.
         </Lead>
         <div
           className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]"
@@ -124,10 +125,10 @@ export default async function CheckRunPage({ params }: Params) {
           <Title>What it can and cannot tell you</Title>
           <Meta>
             {closed} of the {items.length} questions in this subject can be
-            marked by machine. Those move your record. The rest you mark
-            yourself against a published answer — useful practice, but{" "}
-            <strong>self-marking never counts as proof</strong>. To actually
-            prove a skill you hand in a graded project.
+            marked automatically, and those count. You mark the rest yourself
+            against a model answer. That is useful practice, but{" "}
+            <strong>marking your own work never counts as proof</strong>. For
+            that, you hand in a project.
           </Meta>
           <EvalTierNote tier={pack.evalTier} />
         </div>
@@ -147,8 +148,8 @@ export default async function CheckRunPage({ params }: Params) {
         <DisplayTitle>Your result</DisplayTitle>
         <Lead>
           {summary.assessedCount === 0
-            ? "Nothing here could be machine-marked, so none of this counts towards your record yet."
-            : `${summary.assessedCount} of ${skills.length} skills were machine-marked. The rest are still unknown.`}
+            ? "None of these could be marked automatically, so nothing here counts yet."
+            : `We marked ${summary.assessedCount} of ${skills.length} skills automatically. The rest are still unknown.`}
         </Lead>
 
         <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-raised)] overflow-hidden">
@@ -175,8 +176,8 @@ export default async function CheckRunPage({ params }: Params) {
           <Meta>
             You marked {summary.selfMarkedCount} answer
             {summary.selfMarkedCount === 1 ? "" : "s"} yourself. That is good
-            practice, and it deliberately does not count — marking your own work
-            is not proof, whichever way you marked it.
+            practice, but it does not count either way — marking your own work
+            is never proof.
           </Meta>
         ) : null}
 
@@ -191,8 +192,8 @@ export default async function CheckRunPage({ params }: Params) {
           icon={<ChecklistIcon />}
         />
         <Lead>
-          A check narrows things down. It cannot prove you can do the work —
-          only the work can do that.
+          A check narrows things down. It cannot prove you can do the work.
+          Only doing the work can.
         </Lead>
         <div className="flex flex-wrap gap-4">
           <Link href={`/learn/${topic}`} className="text-accent font-[550]">
@@ -253,9 +254,7 @@ export default async function CheckRunPage({ params }: Params) {
           </Button>
         </form>
 
-        <Meta>
-          Whichever you pick, this does not move your record. It is practice.
-        </Meta>
+        <Meta>Either way, this does not count. It is practice.</Meta>
       </>,
     );
   }
@@ -268,7 +267,7 @@ export default async function CheckRunPage({ params }: Params) {
     <>
       <Meta>
         Question {state.asked.length + 1} of {DEFAULT_BUDGET}
-        {closed ? " · marked by machine" : " · you will mark this one yourself"}
+        {closed ? " · marked automatically" : " · you will mark this one yourself"}
       </Meta>
       <Title>{item.prompt}</Title>
 

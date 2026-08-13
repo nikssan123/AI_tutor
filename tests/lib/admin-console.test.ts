@@ -297,7 +297,12 @@ live("against a real database", () => {
       const spend = await spendSnapshot(db);
       expect(Number.isFinite(spend.todayCents)).toBe(true);
       expect(spend.todayCents).toBeGreaterThanOrEqual(0);
-      expect(spend.monthCents).toBeGreaterThanOrEqual(spend.todayCents);
+      expect(spend.monthCents).toBeGreaterThanOrEqual(0);
+      // Deliberately *not* asserting monthCents >= todayCents. The two totals
+      // are separate queries over a database other test files are inserting
+      // into and deleting from as this runs, so the pair is not a consistent
+      // snapshot and the invariant is only true of one. The windowed tests
+      // above own that arithmetic; this one exists to cover the default `now`.
 
       const health = await runHealth(db);
       expect(Array.isArray(health.counts)).toBe(true);

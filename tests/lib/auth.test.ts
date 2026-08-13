@@ -1,24 +1,52 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAuth, getAuth, resetAuth } from "@/lib/auth";
+import {
+  authBaseUrl,
+  createAuth,
+  getAuth,
+  googleEnabled,
+  RESET_TTL_SECONDS,
+  resetAuth,
+  VERIFICATION_TTL_SECONDS,
+} from "@/lib/auth";
+import { MemoryTransport, setTransport } from "@/lib/email";
 
 /**
  * Thin-adapter tests. They cannot prove Better Auth works — that is the
- * library's job — but they do pin the two things that are *our* decisions and
- * would be silent if wrong: which extra columns the session carries, and that
- * importing this module never opens a database connection.
+ * library's job — but they do pin the things that are *our* decisions and would
+ * be silent if wrong: which extra columns the session carries, which of the
+ * email flows are armed, what each of them actually puts in someone's inbox,
+ * and that importing this module never opens a database connection.
  */
 
 const ORIGINAL = process.env.DATABASE_URL;
+const transport = new MemoryTransport();
+
+/** A stand-in for the `User` Better Auth hands the send callbacks. */
+const user = {
+  id: "u1",
+  email: "learner@example.com",
+  name: "Learner",
+  emailVerified: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+} as Parameters<
+  NonNullable<
+    NonNullable<ReturnType<typeof createAuth>["options"]["emailAndPassword"]>["sendResetPassword"]
+  >
+>[0]["user"];
 
 beforeEach(() => {
   process.env.DATABASE_URL ??= "postgres://user:pass@localhost:1/none";
   process.env.BETTER_AUTH_SECRET ??= "test-secret-value-at-least-32-chars-long";
+  transport.clear();
+  setTransport(transport);
   resetAuth();
 });
 
 afterEach(() => {
   if (ORIGINAL === undefined) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = ORIGINAL;
+  setTransport(undefined);
   resetAuth();
   vi.restoreAllMocks();
 });
@@ -31,17 +59,41 @@ describe("createAuth", () => {
   });
 
   it("enables email and password sign-in", () => {
-    // §17.2 needs auth to exist, not to be a feature; social providers are
-    // configuration when they arrive.
     expect(createAuth().options.emailAndPassword?.enabled).toBe(true);
   });
 
-  it("does not gate accounts behind an email we cannot yet send", () => {
-    // Verification arrives with the email work in E13. Requiring it now would
-    // make every new account unusable.
+  it("sends verification without standing in the way of the first session", () => {
+    // §8 is "show value first": the screen after signup is the plan, and an
+    // inbox round-trip in the middle of that is where people leave. So mail
+    // goes out, and nothing blocks on it.
+    const options = createAuth().options;
+    expect(options.emailAndPassword?.requireEmailVerification).toBe(false);
+    expect(options.emailVerification?.sendOnSignUp).toBe(true);
+  });
+
+  it("signs the learner in on the device where they clicked the link", () => {
+    expect(createAuth().options.emailVerification?.autoSignInAfterVerification).toBe(
+      true,
+    );
+  });
+
+  it("gives a reset link one hour and a verification link a day", () => {
+    // A reset link *is* the account while it is valid, and it sits in a mailbox
+    // someone else may later read.
+    const options = createAuth().options;
+    expect(options.emailAndPassword?.resetPasswordTokenExpiresIn).toBe(
+      RESET_TTL_SECONDS,
+    );
+    expect(options.emailVerification?.expiresIn).toBe(VERIFICATION_TTL_SECONDS);
+    expect(RESET_TTL_SECONDS).toBeLessThan(VERIFICATION_TTL_SECONDS);
+  });
+
+  it("ends every other session when a password is reset", () => {
+    // Better Auth defaults this off, which leaves the thief signed in on their
+    // own machine while the owner congratulates themselves on a new password.
     expect(
-      createAuth().options.emailAndPassword?.requireEmailVerification,
-    ).toBe(false);
+      createAuth().options.emailAndPassword?.revokeSessionsOnPasswordReset,
+    ).toBe(true);
   });
 
   it("carries the §15 User columns as additional fields", () => {
@@ -50,6 +102,7 @@ describe("createAuth", () => {
       "handle",
       "locale",
       "plan",
+      "role",
       "stripeCustomerId",
       "timezone",
     ]);
@@ -62,10 +115,162 @@ describe("createAuth", () => {
     expect(fields.plan?.defaultValue).toBe("free");
   });
 
+  it("refuses client input on the fields that grant access or cost money", () => {
+    // Without `input: false`, sign-up with {"role":"admin"} promotes the caller.
+    const fields = createAuth().options.user?.additionalFields ?? {};
+    expect(fields.role?.input).toBe(false);
+    expect(fields.plan?.input).toBe(false);
+    expect(fields.stripeCustomerId?.input).toBe(false);
+    // handle declares no `input`, so it stays writable by its owner.
+    expect("input" in (fields.handle ?? {})).toBe(false);
+  });
+
   it("sets a 30-day session with daily refresh", () => {
     const session = createAuth().options.session;
     expect(session?.expiresIn).toBe(60 * 60 * 24 * 30);
     expect(session?.updateAge).toBe(60 * 60 * 24);
+  });
+
+  it("keeps nextCookies last so server actions can set the session cookie", () => {
+    // Sign-out and every form on /account run as Server Actions; without this
+    // plugin `auth.api.*` cannot touch cookies and sign-out silently no-ops.
+    const plugins = createAuth().options.plugins ?? [];
+    expect(plugins.at(-1)?.id).toBe("next-cookies");
+  });
+});
+
+describe("account linking", () => {
+  it("trusts Google's verified address, but not an unverified local one", () => {
+    // Without requireLocalEmailVerified, anyone can register victim@gmail.com
+    // with a password, never verify it, and wait for the real owner to sign in
+    // with Google — at which point the accounts link and the attacker's
+    // password still works.
+    const linking = createAuth().options.account?.accountLinking;
+    expect(linking?.enabled).toBe(true);
+    expect(linking?.trustedProviders).toEqual(["google"]);
+    expect(linking?.requireLocalEmailVerified).toBe(true);
+  });
+});
+
+describe("google", () => {
+  it("is off until both halves of the credential are present", () => {
+    expect(googleEnabled({})).toBe(false);
+    expect(googleEnabled({ GOOGLE_CLIENT_ID: "id" })).toBe(false);
+    expect(googleEnabled({ GOOGLE_CLIENT_SECRET: "secret" })).toBe(false);
+    expect(
+      googleEnabled({ GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "s" }),
+    ).toBe(true);
+  });
+
+  it("registers no provider at all when unconfigured", () => {
+    // A provider with a blank client id fails at Google's redirect with an
+    // opaque error page — worse than a sign-in screen that doesn't offer it.
+    expect(createAuth({}).options.socialProviders).toEqual({});
+  });
+
+  it("registers Google with the account picker when configured", () => {
+    const providers = createAuth({
+      GOOGLE_CLIENT_ID: "id",
+      GOOGLE_CLIENT_SECRET: "secret",
+    }).options.socialProviders;
+
+    expect(providers?.google?.clientId).toBe("id");
+    expect(providers?.google?.clientSecret).toBe("secret");
+    // Someone who picked the wrong Google account has no way back if Google
+    // silently reuses its own session.
+    expect(providers?.google?.prompt).toBe("select_account");
+  });
+});
+
+describe("authBaseUrl", () => {
+  it("prefers BETTER_AUTH_URL, without a trailing slash", () => {
+    expect(authBaseUrl({ BETTER_AUTH_URL: "https://auth.test/" })).toBe(
+      "https://auth.test",
+    );
+  });
+
+  it("falls through to the canonical site origin", () => {
+    // These strings end up in emails that cannot be edited after sending, so
+    // there is exactly one place the origin comes from.
+    expect(authBaseUrl({ NEXT_PUBLIC_SITE_URL: "https://online.uni" })).toBe(
+      "https://online.uni",
+    );
+    expect(authBaseUrl({})).toBe("http://localhost:3000");
+  });
+
+  it("is what the instance builds its links against", () => {
+    expect(createAuth({ BETTER_AUTH_URL: "https://auth.test" }).options.baseURL).toBe(
+      "https://auth.test",
+    );
+  });
+});
+
+describe("what actually lands in the inbox", () => {
+  const options = () => createAuth().options;
+
+  it("sends the reset link to the address that asked for it", async () => {
+    await options().emailAndPassword!.sendResetPassword!({
+      user,
+      url: "https://x.test/reset?token=t",
+      token: "t",
+    });
+
+    const [sent] = transport.sent;
+    expect(sent?.to).toBe("learner@example.com");
+    expect(sent?.subject).toMatch(/reset your password/i);
+    expect(sent?.text).toContain("https://x.test/reset?token=t");
+    expect(sent?.text).toContain("1 hour");
+  });
+
+  it("sends the verification link with the day-long expiry it was given", async () => {
+    await options().emailVerification!.sendVerificationEmail!({
+      user,
+      url: "https://x.test/verify?token=t",
+      token: "t",
+    });
+
+    const [sent] = transport.sent;
+    expect(sent?.subject).toMatch(/confirm your email/i);
+    expect(sent?.text).toContain("24 hours");
+  });
+
+  it("mails the change-email approval to the old address, naming the new one", async () => {
+    // The address being left behind is the one that gets to approve the move.
+    // That is what stops a stolen session relocating the account quietly.
+    await options().user!.changeEmail!.sendChangeEmailConfirmation!({
+      user,
+      newEmail: "new@example.com",
+      url: "https://x.test/verify?token=t",
+      token: "t",
+    });
+
+    const [sent] = transport.sent;
+    expect(sent?.to).toBe("learner@example.com");
+    expect(sent?.text).toContain("new@example.com");
+  });
+
+  it("does not fail the auth flow when the mail cannot be sent", async () => {
+    // A sign-up that 500s because the mail provider is down leaves someone with
+    // no account and no explanation.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    setTransport({
+      name: "broken",
+      send: () => Promise.reject(new Error("down")),
+    });
+
+    await expect(
+      options().emailVerification!.sendVerificationEmail!({
+        user,
+        url: "https://x.test/v",
+        token: "t",
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("changing an email address", () => {
+  it("is enabled", () => {
+    expect(createAuth().options.user?.changeEmail?.enabled).toBe(true);
   });
 });
 

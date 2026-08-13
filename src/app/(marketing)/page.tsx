@@ -46,6 +46,14 @@ import { canonical } from "@/lib/site";
  * §8.5.7 is the licence for the length: "Long is fine; *dense* is not." One
  * idea per scroll band, four bands, nothing stacked.
  *
+ * Fifth cut, and it touches only words. The form was right and the sentences
+ * were not: the headline was a riddle ("Anyone can teach you. Almost no one
+ * checks whether you learned it."), and half the step bodies inverted or
+ * qualified themselves rather than saying the thing. §8.5.1 asks for "plain
+ * language everywhere", which is a rule about copy that had only ever been
+ * enforced against layout. Every string below is now a plain sentence in the
+ * order a reader would think it.
+ *
  * §13.1 — statically rendered, revalidated daily.
  */
 export const revalidate = 86_400;
@@ -53,12 +61,12 @@ export const revalidate = 86_400;
 export const metadata: Metadata = {
   title: "Learn something properly — and prove you did",
   description:
-    "Say what you want to get good at. A ten-minute check finds what you already know, you get a plan for the gaps, and the real work you hand in gets marked against a checklist you can read up front.",
+    "Tell us what you want to get good at. A ten-minute check finds what you know. Then you get a plan, and real work marked against a checklist you read first.",
   alternates: { canonical: canonical("/") },
   openGraph: {
     title: "Learn something properly — and prove you did",
     description:
-      "Most courses cannot tell you whether you learned anything. This one marks the work you actually produce, against a checklist you see before you start.",
+      "Most courses can't tell you whether you learned anything. Here you hand in real work, and it's marked against a checklist you see before you start.",
     url: canonical("/"),
     type: "website",
   },
@@ -67,24 +75,24 @@ export const metadata: Metadata = {
 /** One line each. If a step needs two, the step is wrong. */
 const STEPS = [
   {
-    name: "Name the goal",
-    body: "In your own words. You do not pick from a catalogue.",
+    name: "Say what you want to learn",
+    body: "In your own words. There is no catalogue to pick from.",
   },
   {
     name: "Take a ten-minute check",
-    body: "It gets harder or easier as you answer, so it finds your level fast.",
+    body: "The questions get harder or easier as you answer, so it finds your level fast.",
   },
   {
-    name: "Get a plan for your gaps",
-    body: "Whatever you can already do is skipped, and it says what it skipped.",
+    name: "Get a plan",
+    body: "It skips what you can already do, and tells you what it skipped.",
   },
   {
-    name: "Do one real piece of work",
-    body: "Not a quiz. You hand in the thing you actually made.",
+    name: "Do a real piece of work",
+    body: "Not a quiz. You hand in something you made.",
   },
   {
     name: "Get it marked",
-    body: "Every point quotes your own work back at you.",
+    body: "Every score quotes the part of your work it is based on.",
   },
 ];
 
@@ -114,12 +122,12 @@ export default function HomePage() {
           {/* ~22ch resolves against the h1's own font size, so the headline
               breaks to three lines at desktop and wraps naturally on a phone. */}
           <HeroTitle className="rise max-w-[22ch]">
-            Anyone can teach you. Almost no one checks whether you learned it.
+            Learn anything. Then prove you actually learned it.
           </HeroTitle>
 
           <Lead className="rise" style={stagger(1)}>
-            Say what you want to get good at. We find your gaps, set you real
-            work, and mark it against a checklist you can read up front.
+            Tell us what you want to get good at. We find your gaps, set you
+            real work, and mark it against a checklist you can read first.
           </Lead>
 
           <div className="rise flex flex-col gap-3" style={stagger(2)}>
@@ -176,7 +184,7 @@ export default function HomePage() {
             <SectionHead
               step="02"
               label="What marking looks like"
-              title="A real task, and the checklist behind it"
+              title="A real task, and how it is marked"
               icon={<ChecklistIcon />}
               onField
             />
@@ -194,7 +202,7 @@ export default function HomePage() {
 
                 <div className="flex flex-col gap-2 border-t border-hairline pt-5">
                   <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
-                    Done means
+                    What counts as done
                   </span>
                   <ul className="flex list-none flex-col gap-2 p-0 m-0">
                     {featured.acceptanceCriteria.map((line) => (
@@ -223,7 +231,7 @@ export default function HomePage() {
 
                 <div className="flex flex-col gap-3 border-t border-hairline pt-5">
                   <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
-                    Marked the same way
+                    The other things it is marked on
                   </span>
                   <ul className="flex list-none flex-col gap-2.5 p-0 m-0">
                     {rest.map((criterion) => (
@@ -290,8 +298,8 @@ export default function HomePage() {
           </ul>
 
           <Meta>
-            Three so far. A subject appears only once it has been written and
-            checked by hand.
+            Three so far. We add a subject only after a person has written and
+            checked it.
           </Meta>
 
           <Breadcrumbs crumbs={[{ name: "Home", path: "/" }]} />

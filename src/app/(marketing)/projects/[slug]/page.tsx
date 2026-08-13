@@ -47,7 +47,7 @@ export async function generateMetadata({
 
   return {
     title: project.title,
-    description: `A graded ${project.topicName} project marked against ${project.rubricDetail.criteria.length} published criteria. Read the rubric before you start — about ${project.estimatedMinutes} minutes of work.`,
+    description: `A ${project.topicName} project marked against ${project.rubricDetail.criteria.length} published criteria. Read the checklist before you start — about ${project.estimatedMinutes} minutes of work.`,
     alternates: { canonical: canonical(`/projects/${project.slug}`) },
     robots: project.indexable ? undefined : { index: false, follow: true },
   };
@@ -96,7 +96,7 @@ export default async function ProjectPage({
         <section className="flex flex-col gap-8">
           <SectionHead
             step="01"
-            label="Done means"
+            label="What counts as done"
             title="What you have to hand in"
             icon={<StepsIcon />}
           />
@@ -133,16 +133,16 @@ export default async function ProjectPage({
         <section className="-mx-6 flex flex-col gap-10 bg-accent-weak px-6 py-16 sm:rounded-[var(--radius-card)] sm:px-10">
           <SectionHead
             step="02"
-            label="How it will be graded"
-            title="The actual rubric, published before you start"
+            label="How it will be marked"
+            title="The checklist, published before you start"
             icon={<ChecklistIcon />}
             onField
           />
 
           <Meta tone="muted" className="max-w-[var(--measure)]">
-            Your submission is scored against each criterion, and every score has
-            to quote your work back at you as evidence. §4.2 law 2 — you read
-            this first, so you can disagree with the verdict on specifics.
+            We score your work against each line below, and every score has to
+            quote the part of your work it is based on. You read all of it
+            first, so you can argue with any score on the specifics.
           </Meta>
 
           <ul className="grid list-none grid-cols-1 gap-5 p-0 m-0 lg:grid-cols-2">
@@ -163,12 +163,12 @@ export default async function ProjectPage({
           <SectionHead
             step="03"
             label="What this proves"
-            title="The skills a pass would move"
+            title="The skills a pass would prove"
             icon={<GridIcon />}
           />
           <Meta>
-            Passing this moves these skills in your mastery ledger — with this
-            submission attached as the evidence.
+            Pass, and these skills count as proven, with this piece of work
+            attached as the evidence.
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
             {project.skills.map((skill, i) => (
