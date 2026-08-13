@@ -1325,3 +1325,93 @@ charges anybody for one — §14.9.7's per-user cap is consulted before generati
 but a free account can still ask for a pack a day. Whether that is a rate limit,
 a plan gate, or a price is a product decision rather than a bug, and it is the
 next thing that has to be decided before this is reachable by the public.
+
+---
+
+# Delivery record — pass 17: marking the work
+
+E8, the epic §24 calls the differentiator and §14.5 calls "the most important
+component". This pass builds the marking pipeline; handing work in through the
+UI is the next one.
+
+## The rule the whole thing is built around
+
+§14.5: **every criterion score must quote the artefact.** The plan implements
+this as a Sonnet verifier pass — "does each score cite real evidence?" It is a
+string match instead, and that is a strengthening rather than a shortcut. Asking
+a second model whether the first model's quotes are real introduces exactly the
+failure it exists to catch, and §15's schema had already said as much:
+`verifierPassed` is documented there as "the deterministic string-match check
+that every quote appears verbatim in the artefact".
+
+Matching is whitespace- and case-insensitive, because a model reflows what it
+quotes. That accepts a line break becoming a space and nothing else — a
+fabrication differs by more than whitespace, which is why normalising does not
+weaken the check.
+
+Three things get a criterion thrown out, and all three mean the grader has told
+us about a document other than the one submitted: a criterion the rubric does
+not contain, a criterion scored twice, and a quote that is not in the work.
+
+## What the numbers mean
+
+- **Score** is weighted by the rubric's own weights and renormalised over the
+  criteria that survived verification. A criterion the verifier threw out is one
+  we know *nothing* about, and scoring it zero would fail a learner for the
+  grader's mistake. The doubt goes into confidence instead.
+- **Confidence** starts at the floor of §7.2's range for the tier and earns its
+  way up through a clean verifier pass, coverage, and two passes agreeing.
+  Nothing can push it past the tier's ceiling, which is the point: no amount of
+  internal agreement turns a photograph into an executed test.
+- **`correct`**, for the mastery model, is whether the work reached the
+  competent band — the line the rubric itself draws, and the learner read those
+  descriptors before starting.
+
+## Two things this build will not claim
+
+**Tier 1 is capped to tier 2.** §7.2 tier 1 is "execute + assert against
+expected behaviour" and licenses the words *"Verified: this works."* Nothing here
+executes anything. A sandbox is a security problem rather than a feature, and
+running submitted code next to the database is not a shortcut anybody gets to
+take — so `tierFor` refuses to hand out tier 1 and the screen will say 2. The cap
+disappears when the sandbox does.
+
+**An evaluation with no surviving evidence produces no score.** 0 out of 0 reads
+to a learner as "your work scored zero" rather than "we could not mark this",
+which is §4.2 law 3 in its most damaging form — a claim about them rather than
+about our failure.
+
+## Found by grading real work
+
+Two submissions against the SQL pack's own published rubric: a genuine attempt
+and some confident nonsense.
+
+The confident nonsense scored 0% with every band `absent`, and every quote
+anchored in text that was really there — it refused to credit *"I understand
+joins and grain very well"* as evidence of anything.
+
+The genuine attempt scored 42%, and the marker was right and the fixture was
+wrong: the brief asked for monthly revenue by acquisition channel and the
+submission produced weekly revenue by segment. The grader marked "Answers the
+question asked" as `absent` and quoted the SELECT clause to prove it. That is the
+behaviour the product is selling, found by accident.
+
+The two passes landed 2 bands apart on that one, which flagged it for human
+review — correctly, since a piece of work that is good SQL answering the wrong
+question is exactly the case a single pass gets wrong.
+
+**A hole the tests found, not the probe:** confidence had partial credit for
+"invalidated nothing", which an empty draft earns by making no claims at all. A
+grader that returned nothing was scoring as a clean run. The credit now requires
+something to have actually been upheld.
+
+2044 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Next
+
+Handing work in. The pipeline has no caller yet: `apply` blocks still say
+submissions are not built, `/submission/{id}` does not exist, and nothing writes
+`Submission`, `Artifact`, `Evaluation` or `MasteryUpdate` rows — the tables have
+been waiting since pass 1. After that, §24 E8's remaining acceptance criteria:
+the Phase-0 hand-graded set for Cohen's κ, and two runs landing within one band
+≥85% of the time. Both need a corpus that does not exist yet.
