@@ -154,20 +154,28 @@ export async function setPasswordAction(formData: FormData): Promise<void> {
   accountOk("Password set. You can now sign in with your email address too.");
 }
 
+/**
+ * Sends a fresh confirmation **code** and goes to the screen that takes it.
+ *
+ * A code rather than the link this used to send, so there is one way to confirm
+ * an address rather than two that behave differently. The redirect matters as
+ * much as the send: someone who asks for a code should land where they can type
+ * it, not back on a settings page with a green line at the top.
+ */
 export async function resendVerificationAction(): Promise<void> {
   const user = await requireUser();
   if (user.emailVerified) accountError("That address is already confirmed.");
 
   try {
-    await getAuth().api.sendVerificationEmail({
+    await getAuth().api.sendVerificationOTP({
       headers: await headers(),
-      body: { email: user.email, callbackURL: VERIFY_CALLBACK },
+      body: { email: user.email, type: "email-verification" },
     });
   } catch (error) {
     accountError(explain(error, "We couldn't send that email."));
   }
 
-  accountOk(`Sent. Check ${user.email}.`);
+  redirect(`${VERIFY_CALLBACK}?sent=1`);
 }
 
 export async function linkGoogleAction(): Promise<void> {

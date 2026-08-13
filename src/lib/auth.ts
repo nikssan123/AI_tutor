@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { nextCookies } from "better-auth/next-js";
 import { getDb, schema } from "@/db";
 import type { EnvLike } from "@/lib/env-types";
@@ -9,6 +10,7 @@ import {
   changeEmailMessage,
   deliver,
   resetPasswordMessage,
+  verifyCodeMessage,
   verifyEmailMessage,
 } from "@/lib/email";
 
@@ -32,6 +34,19 @@ import {
  */
 export const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
 export const RESET_TTL_SECONDS = 60 * 60;
+
+/**
+ * The sign-up confirmation code: six digits, ten minutes, three attempts.
+ *
+ * Ten rather than Better Auth's five-minute default, because the person is
+ * switching to another device to read it and five minutes is not long enough to
+ * find a phone, unlock it and wait for a push. Three attempts because a
+ * six-digit code has a million values and unlimited guesses turn that into a
+ * number a script can walk.
+ */
+export const OTP_LENGTH = 6;
+export const OTP_TTL_SECONDS = 60 * 10;
+export const OTP_ATTEMPTS = 3;
 
 /*
  * Re-exported, not redefined: the sign-in form is a Client Component and cannot
@@ -62,6 +77,27 @@ export function authBaseUrl(env: EnvLike = process.env): string {
  */
 export function googleEnabled(env: EnvLike = process.env): boolean {
   return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+}
+
+/**
+ * The sign-up confirmation code, on its way out.
+ *
+ * A named export rather than an inline callback because the plugin keeps its
+ * configuration to itself — `auth.options.plugins` exposes the built plugin,
+ * not the options it was built from — so this is the only handle a test can get
+ * on what actually lands in someone's inbox.
+ */
+export function sendSignUpCode(data: {
+  email: string;
+  otp: string;
+}): Promise<void> {
+  return deliver(
+    verifyCodeMessage({
+      to: data.email,
+      code: data.otp,
+      expiresIn: OTP_TTL_SECONDS,
+    }),
+  ).then(() => undefined);
 }
 
 function socialProviders(env: EnvLike) {
@@ -137,11 +173,18 @@ export function createAuth(env: EnvLike = process.env) {
           }),
         ).then(() => undefined),
       /**
-       * Explicitly `true`: left undefined it follows `requireEmailVerification`,
-       * which is `false` here — so the default would send nothing at all and the
-       * whole flow would exist without ever being triggered.
+       * `false`, and that is not the same as "no verification on sign-up".
+       *
+       * Sign-up is confirmed with a **code**, sent by the `emailOTP` plugin's
+       * own post-sign-up hook (see `plugins` below). Leaving this `true` as
+       * well would send a link *and* a code for the same address — two emails,
+       * two mechanisms, and a reader who has to work out which one we meant.
+       *
+       * The link above is still built and sent: `changeEmail` uses it to
+       * confirm a new address, which is a different act from confirming the one
+       * you just signed up with.
        */
-      sendOnSignUp: true,
+      sendOnSignUp: false,
       // Clicking the link in the mail client signs you in there. Someone who
       // verifies on their phone should land in the product, not on a login form.
       autoSignInAfterVerification: true,
@@ -232,13 +275,38 @@ export function createAuth(env: EnvLike = process.env) {
       updateAge: 60 * 60 * 24,
     },
 
-    /**
-     * Lets `auth.api.*` set and clear cookies when it is called from a Server
-     * Action — which is what makes sign-out, and every form on `/account`,
-     * work without shipping the client SDK to those routes. Must stay last:
-     * the plugin wraps whatever ran before it.
-     */
-    plugins: [nextCookies()],
+    plugins: [
+      /**
+       * Sign-up is confirmed with a code typed back into the page, not a link
+       * clicked in a mail client.
+       *
+       * The code never leaves the flow the person is already in, which is the
+       * practical argument: link verification hands the session to whichever
+       * browser the mail app happens to open, and that is frequently not the
+       * one holding the half-finished sign-up. The security argument is that a
+       * mail with no link in it cannot be re-pointed at somewhere else and
+       * still look like ours.
+       *
+       * `storeOTP: "hashed"` because a code is a credential for as long as it
+       * lives; a database dump should not hand out live ones.
+       */
+      emailOTP({
+        otpLength: OTP_LENGTH,
+        expiresIn: OTP_TTL_SECONDS,
+        allowedAttempts: OTP_ATTEMPTS,
+        storeOTP: "hashed",
+        sendVerificationOnSignUp: true,
+        sendVerificationOTP: sendSignUpCode,
+      }),
+
+      /**
+       * Lets `auth.api.*` set and clear cookies when it is called from a Server
+       * Action — which is what makes sign-up, sign-out, and every form on
+       * `/account` work without shipping the client SDK to those routes. Must
+       * stay last: the plugin wraps whatever ran before it.
+       */
+      nextCookies(),
+    ],
   });
 }
 

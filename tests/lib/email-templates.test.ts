@@ -4,6 +4,7 @@ import {
   escapeHtml,
   humanDuration,
   resetPasswordMessage,
+  verifyCodeMessage,
   verifyEmailMessage,
 } from "@/lib/email/templates";
 
@@ -136,6 +137,54 @@ describe("changeEmailMessage", () => {
       expiresIn: 3600,
     });
     expect(message.text).toMatch(/change your password/i);
+  });
+});
+
+describe("verifyCodeMessage", () => {
+  const message = verifyCodeMessage({
+    to: "a@b.co",
+    code: "123456",
+    expiresIn: 600,
+  });
+
+  it("carries the code in both bodies", () => {
+    expect(message.text).toContain("123456");
+    expect(message.html).toContain("123456");
+  });
+
+  it("keeps the code out of the subject line", () => {
+    // A subject is visible on a lock screen and in a notification. A code that
+    // can be read without unlocking the phone is a code the person behind you
+    // can use.
+    expect(message.subject).not.toContain("123456");
+    expect(message.subject).toMatch(/confirmation code/i);
+  });
+
+  it("has no link in it at all", () => {
+    // Which is half the point of a code: a mail with no URL cannot be
+    // re-pointed somewhere else and still look like ours.
+    expect(message.html).not.toContain("<a ");
+    expect(message.text).not.toMatch(/https?:\/\//);
+  });
+
+  it("says how long it lasts and that it is single-use", () => {
+    expect(message.text).toContain("10 minutes");
+    expect(message.text).toMatch(/only once/i);
+  });
+
+  it("tells someone who didn't ask that the code is what protects them", () => {
+    expect(message.text).toMatch(/nobody can do anything/i);
+  });
+
+  it("escapes the code before putting it in the HTML", () => {
+    // The generator only emits digits, so this is belt-and-braces — but it is
+    // the kind of belt that stops a custom generateOTP becoming an injection.
+    const injected = verifyCodeMessage({
+      to: "a@b.co",
+      code: "<script>",
+      expiresIn: 600,
+    });
+    expect(injected.html).not.toContain("<script>");
   });
 });
 

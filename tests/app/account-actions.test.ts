@@ -24,7 +24,7 @@ const api = {
   changeEmail: vi.fn(),
   changePassword: vi.fn(),
   setPassword: vi.fn(),
-  sendVerificationEmail: vi.fn(),
+  sendVerificationOTP: vi.fn(),
   linkSocialAccount: vi.fn(),
   unlinkAccount: vi.fn(),
   requestPasswordReset: vi.fn(),
@@ -315,27 +315,29 @@ describe("setPasswordAction", () => {
 });
 
 describe("resendVerificationAction", () => {
-  it("sends the confirmation to the address on the account", async () => {
+  it("sends a code and lands on the screen that takes it", async () => {
+    // Not back on /account with a green line — someone who asked for a code
+    // should arrive where they can type it.
     requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
 
-    const error = await actions.resendVerificationAction().catch((e) => e);
-
-    expect(api.sendVerificationEmail).toHaveBeenCalledWith({
+    await expect(actions.resendVerificationAction()).rejects.toThrow(
+      "REDIRECT:/verify-email?sent=1",
+    );
+    expect(api.sendVerificationOTP).toHaveBeenCalledWith({
       headers: expect.anything(),
-      body: { email: "learner@example.com", callbackURL: "/verify-email" },
+      body: { email: "learner@example.com", type: "email-verification" },
     });
-    expect(landed(error).ok).toContain("learner@example.com");
   });
 
   it("declines to send one to an address already confirmed", async () => {
     const error = await actions.resendVerificationAction().catch((e) => e);
     expect(landed(error).message).toMatch(/already confirmed/i);
-    expect(api.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(api.sendVerificationOTP).not.toHaveBeenCalled();
   });
 
   it("reports a send failure", async () => {
     requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
-    api.sendVerificationEmail.mockRejectedValue(new Error("smtp"));
+    api.sendVerificationOTP.mockRejectedValue(new Error("smtp"));
 
     const error = await actions.resendVerificationAction().catch((e) => e);
     expect(landed(error).message).toMatch(/couldn't send/i);

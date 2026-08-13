@@ -4,8 +4,12 @@ import {
   createAuth,
   getAuth,
   googleEnabled,
+  OTP_ATTEMPTS,
+  OTP_LENGTH,
+  OTP_TTL_SECONDS,
   RESET_TTL_SECONDS,
   resetAuth,
+  sendSignUpCode,
   VERIFICATION_TTL_SECONDS,
 } from "@/lib/auth";
 import { MemoryTransport, setTransport } from "@/lib/email";
@@ -66,9 +70,19 @@ describe("createAuth", () => {
     // §8 is "show value first": the screen after signup is the plan, and an
     // inbox round-trip in the middle of that is where people leave. So mail
     // goes out, and nothing blocks on it.
+    expect(
+      createAuth().options.emailAndPassword?.requireEmailVerification,
+    ).toBe(false);
+  });
+
+  it("confirms sign-up with a code, and does not also send a link", () => {
+    // The OTP plugin's own post-sign-up hook sends the code. Leaving
+    // `sendOnSignUp` true as well would send two emails for one address.
     const options = createAuth().options;
-    expect(options.emailAndPassword?.requireEmailVerification).toBe(false);
-    expect(options.emailVerification?.sendOnSignUp).toBe(true);
+    expect(options.emailVerification?.sendOnSignUp).toBe(false);
+
+    const otp = options.plugins?.find((plugin) => plugin.id === "email-otp");
+    expect(otp).toBeDefined();
   });
 
   it("signs the learner in on the device where they clicked the link", () => {
@@ -129,6 +143,15 @@ describe("createAuth", () => {
     const session = createAuth().options.session;
     expect(session?.expiresIn).toBe(60 * 60 * 24 * 30);
     expect(session?.updateAge).toBe(60 * 60 * 24);
+  });
+
+  it("gives the sign-up code six digits, ten minutes and three tries", () => {
+    // Ten minutes rather than Better Auth's five: the person is switching to
+    // another device to read it. Three tries because a six-digit code has a
+    // million values and unlimited guesses turn that into a walkable number.
+    expect(OTP_LENGTH).toBe(6);
+    expect(OTP_TTL_SECONDS).toBe(600);
+    expect(OTP_ATTEMPTS).toBe(3);
   });
 
   it("keeps nextCookies last so server actions can set the session cookie", () => {
@@ -232,6 +255,17 @@ describe("what actually lands in the inbox", () => {
     const [sent] = transport.sent;
     expect(sent?.subject).toMatch(/confirm your email/i);
     expect(sent?.text).toContain("24 hours");
+  });
+
+  it("sends the sign-up code with no link in it", async () => {
+    await sendSignUpCode({ email: "learner@example.com", otp: "123456" });
+
+    const [sent] = transport.sent;
+    expect(sent?.to).toBe("learner@example.com");
+    expect(sent?.text).toContain("123456");
+    // The code never leaves the flow the person is already in, and a mail with
+    // no URL cannot be re-pointed somewhere else and still look like ours.
+    expect(sent?.text).not.toMatch(/https?:\/\//);
   });
 
   it("mails the change-email approval to the old address, naming the new one", async () => {

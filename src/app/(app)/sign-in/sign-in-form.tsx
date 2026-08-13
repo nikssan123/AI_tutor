@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { VERIFY_CALLBACK } from "@/lib/auth-shared";
 import { Button, Card } from "@/components/ui";
 
 /**
@@ -24,9 +23,12 @@ export function humanError(error: { message?: string; code?: string }): string {
 }
 
 /**
- * Deliberately one form for both sign-in and sign-up. §8 screen 3 defers signup
- * until *after* the diagnostic result — "show value first" — so this screen is
- * a utility, not a conversion surface, and does not deserve two of anything.
+ * Signing in, and only that. Creating an account is `/sign-up`.
+ *
+ * This form used to do both, told apart by which button submitted it. That
+ * worked while both actions needed the same two fields — and stopped working
+ * the moment sign-up needed a confirmation field, which sign-in must not have.
+ * A shared form would have to grow a field that is wrong half the time.
  *
  * `google` is a slot rather than a button this component renders: it arrives
  * from the page as a Server Action form, so the Google path keeps working even
@@ -53,31 +55,12 @@ export function SignInForm({ google }: { google?: React.ReactNode }) {
     const email = String(data.get("email"));
     const password = String(data.get("password"));
 
-    // Which button was pressed. Enter in a text field submits with no submitter
-    // at all, and the sensible default for that is signing in.
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const mode: "in" | "up" =
-      submitter instanceof HTMLButtonElement && submitter.value === "up"
-        ? "up"
-        : "in";
-
     setPending(true);
     setError(null);
 
     let result;
     try {
-      result =
-        mode === "in"
-          ? await authClient.signIn.email({ email, password })
-          : await authClient.signUp.email({
-              email,
-              password,
-              name: email,
-              // Where the confirmation link lands. Without it Better Auth sends
-              // people to "/", which is the marketing page — a strange place to
-              // arrive from an email that said "confirm your address".
-              callbackURL: VERIFY_CALLBACK,
-            });
+      result = await authClient.signIn.email({ email, password });
     } catch {
       // A rejected promise (offline, DNS failure, 500) would otherwise leave
       // `pending` true forever: the button stays disabled and the learner is
@@ -134,27 +117,24 @@ export function SignInForm({ google }: { google?: React.ReactNode }) {
           </span>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {/* `value` is how the handler tells the two apart; Enter with no
-              submitter falls through to signing in. */}
-          <Button type="submit" name="mode" value="in" disabled={pending}>
+        <div>
+          <Button type="submit" disabled={pending}>
             Sign in
-          </Button>
-          <Button
-            type="submit"
-            name="mode"
-            value="up"
-            variant="text"
-            disabled={pending}
-          >
-            Create an account
           </Button>
         </div>
       </form>
 
-      {/* Below the form and outside it — neither of these submits it. */}
+      {/* Below the form and outside it — none of these submits it. Creating an
+          account is a link now, not a second submit button: it goes to a screen
+          with its own fields rather than reusing these two. */}
       <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
         {google}
+        <Link
+          href="/sign-up"
+          className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
+        >
+          Create an account
+        </Link>
         <Link
           href="/forgot-password"
           className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"

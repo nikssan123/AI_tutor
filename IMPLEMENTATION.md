@@ -915,3 +915,41 @@ terminology decision that churns every SEO title, so it was left rather than
 made silently.
 
 1554 tests, 100% on all four metrics.
+
+## Sign-up moved to its own screen, confirmed by code
+
+`/sign-up` is now a screen, not a second button on the sign-in form. One form
+doing two things was fine while both needed the same two fields; the moment
+sign-up needed a confirmation field that sign-in must not have, the shared form
+had to either grow a field that is wrong half the time or hide one
+conditionally. Two screens is cheaper, and each gets an address people can be
+sent to.
+
+**Confirmation is a six-digit code, not a link.** The practical argument is that
+a link hands the session to whichever browser the mail app opens, which is
+frequently not the one holding the half-finished sign-up; the code never leaves
+the flow the person is already in. The security argument is that a mail with no
+URL in it cannot be re-pointed somewhere else and still look like ours — so
+`verifyCodeMessage` contains no anchor at all, and the code is deliberately kept
+out of the subject line, where a lock screen would show it.
+
+Six digits, ten minutes, three attempts, stored hashed. Ten rather than Better
+Auth's five-minute default because the reader is switching devices; three
+attempts because a six-digit code has a million values and unlimited guesses
+turn that into a number a script can walk.
+
+`emailVerification.sendOnSignUp` had to go to `false` at the same time: the OTP
+plugin's post-sign-up hook sends the code, and leaving the core flag on would
+have sent a link *as well* — two emails and two mechanisms for one address. The
+link path is still built, because `changeEmail` uses it to confirm a new
+address, which is a different act from confirming the one you just signed up
+with. `/account`'s resend now sends a code and lands on the screen that takes
+it, so there is one way to confirm an address rather than two.
+
+Verified live against the dev server and database, not only in tests: sign-up
+returned an unverified user, the plugin stored a hashed code with a ten-minute
+TTL, a wrong code came back `INVALID_OTP` and incremented the attempt counter,
+and the right one flipped `email_verified` and issued a fresh session. (The
+code was recovered from its hash locally to complete the round trip — which is
+also the reminder that hashing is not what makes a six-digit code safe; the
+three-attempt limit is.)

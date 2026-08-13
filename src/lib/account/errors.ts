@@ -24,6 +24,13 @@ const KNOWN: Record<string, string> = {
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "That address is already in use.",
   INVALID_TOKEN: "That link is not valid. Ask for a new one.",
   TOKEN_EXPIRED: "That link has expired. Ask for a new one.",
+
+  // The confirmation code. Better Auth's own wording — "Invalid OTP", "Too many
+  // attempts" — names a mechanism the reader never asked about and does not say
+  // what to do next.
+  INVALID_OTP: "That code isn't right. Check it and try again.",
+  OTP_EXPIRED: "That code has expired. Ask for a new one.",
+  TOO_MANY_ATTEMPTS: "Too many tries with that code. Ask for a new one.",
 };
 
 /** Postgres' unique-violation SQLSTATE, which is how a taken handle arrives. */

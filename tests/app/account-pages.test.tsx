@@ -37,9 +37,6 @@ const { default: ForgotPasswordPage } = await import(
 const { default: ResetPasswordPage } = await import(
   "@/app/(app)/reset-password/page"
 );
-const { default: VerifyEmailPage } = await import(
-  "@/app/(app)/verify-email/page"
-);
 const { default: AppLayout } = await import("@/app/(app)/layout");
 
 const USER = {
@@ -123,7 +120,7 @@ describe("/account — email", () => {
     render(await AccountPage({ searchParams: search({}) }));
 
     expect(screen.getByText("Confirmed")).toBeDefined();
-    expect(screen.queryByText(/send the confirmation email again/i)).toBeNull();
+    expect(screen.queryByText(/send me a confirmation code/i)).toBeNull();
   });
 
   it("says what an unconfirmed address actually costs", async () => {
@@ -134,7 +131,7 @@ describe("/account — email", () => {
 
     expect(screen.getByText("Not confirmed")).toBeDefined();
     expect(screen.getByText(/cannot send you a password reset/i)).toBeDefined();
-    expect(screen.getByText(/send the confirmation email again/i)).toBeDefined();
+    expect(screen.getByText(/send me a confirmation code/i)).toBeDefined();
   });
 
   it("tells a verified account which inbox the approval goes to", async () => {
@@ -313,40 +310,8 @@ describe("/reset-password", () => {
   });
 });
 
-describe("/verify-email", () => {
-  it("treats an empty query as success, because that is what it is", async () => {
-    render(await VerifyEmailPage({ searchParams: search({}) }));
-
-    expect(screen.getByText("Confirmed")).toBeDefined();
-    expect(screen.getByText(/learner@example.com is confirmed/i)).toBeDefined();
-    expect(screen.getByText("Back to today")).toBeDefined();
-  });
-
-  it("still reads sensibly when the link opened in a signed-out browser", async () => {
-    // The mail client picks the browser, and it is often not the one holding
-    // the session.
-    currentUserMock.mockResolvedValue(null);
-    render(await VerifyEmailPage({ searchParams: search({}) }));
-
-    expect(screen.getByText(/your address is confirmed/i)).toBeDefined();
-    expect(screen.getByText("Sign in")).toBeDefined();
-  });
-
-  it("explains an expired link and where to get another", async () => {
-    render(await VerifyEmailPage({ searchParams: search({ error: "TOKEN_EXPIRED" }) }));
-
-    expect(screen.getByText(/that link has expired/i)).toBeDefined();
-    expect(screen.getByText("Go to your account")).toBeDefined();
-  });
-
-  it("sends a signed-out reader to sign in rather than to an account they can't see", async () => {
-    currentUserMock.mockResolvedValue(null);
-    render(await VerifyEmailPage({ searchParams: search({ error: "INVALID_TOKEN" }) }));
-    expect(screen.getByText("Sign in")).toBeDefined();
-  });
-
-  it("falls back for a code it has never heard of", async () => {
-    render(await VerifyEmailPage({ searchParams: search({ error: "WAT" }) }));
-    expect(screen.getByText(/couldn't confirm that address/i)).toBeDefined();
-  });
-});
+/*
+ * /verify-email moved to tests/app/sign-up.test.tsx, which owns the whole
+ * sign-up-then-confirm flow: the page now has four states rather than two, and
+ * three of them belong to sign-up rather than to account management.
+ */

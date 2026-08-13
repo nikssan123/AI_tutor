@@ -52,22 +52,19 @@ describe("SignInForm", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("creates an account from the same form", () => {
-    // §8 screen 3 defers signup until after the diagnostic — this screen is a
-    // utility, not a conversion surface, so it does not deserve two of anything.
-    signUpEmail.mockResolvedValue({ error: null });
-    render(<SignInForm />);
-    fill("new@user.co", "correct-horse-battery");
-    fireEvent.click(screen.getByRole("button", { name: "Create an account" }));
+  it("sends someone creating an account to /sign-up, and signs nobody up itself", () => {
+    // This form used to do both, told apart by which button submitted it. That
+    // stopped working when sign-up grew a confirmation field that sign-in must
+    // not have.
+    const { container } = render(<SignInForm />);
 
-    expect(signUpEmail).toHaveBeenCalledWith({
-      email: "new@user.co",
-      password: "correct-horse-battery",
-      name: "new@user.co",
-      // Without this the confirmation link lands on the marketing page, which
-      // is a strange place to arrive from "confirm your address".
-      callbackURL: "/verify-email",
-    });
+    expect(
+      screen.queryByRole("button", { name: "Create an account" }),
+    ).toBeNull();
+    expect(
+      container.querySelector('a[href="/sign-up"]')?.textContent,
+    ).toBe("Create an account");
+    expect(signUpEmail).not.toHaveBeenCalled();
   });
 
   it("surfaces the server's message on failure and stays put", async () => {
@@ -117,16 +114,6 @@ describe("SignInForm", () => {
     signInEmail.mockResolvedValueOnce({ error: null });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(screen.queryByText("Nope")).toBeNull());
-  });
-
-  it("surfaces a sign-up failure too, not just a sign-in one", async () => {
-    signUpEmail.mockResolvedValue({ error: { message: "Email already in use" } });
-    render(<SignInForm />);
-    fill();
-    fireEvent.click(screen.getByRole("button", { name: "Create an account" }));
-
-    expect(await screen.findByText("Email already in use")).toBeDefined();
-    expect(push).not.toHaveBeenCalled();
   });
 
   it("recovers from a network failure instead of hanging disabled", async () => {

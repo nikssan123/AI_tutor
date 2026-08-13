@@ -134,6 +134,79 @@ function compose(
 }
 
 /**
+ * A code, not a link.
+ *
+ * Sign-up asks for the code on the page the person is already looking at, which
+ * means the mail has nothing to click — and that is worth having deliberately:
+ * a message with no link in it cannot be turned into a phishing template by
+ * swapping the URL, and it works when the mail client opens in the wrong
+ * browser, which is where link verification quietly loses people.
+ *
+ * Letter-spaced and large, because the whole job of this email is to be read
+ * off one screen and typed into another.
+ */
+function composeCode(
+  to: string,
+  subject: string,
+  content: { heading: string; body: string[]; code: string; footer: string },
+): EmailMessage {
+  const text = [
+    content.heading,
+    "",
+    ...content.body,
+    "",
+    `Your code: ${content.code}`,
+    "",
+    content.footer,
+    BRAND,
+  ].join("\n");
+
+  const paragraphs = content.body
+    .map(
+      (line) =>
+        `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#111827">${escapeHtml(line)}</p>`,
+    )
+    .join("");
+
+  const html = [
+    `<div style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">`,
+    `<div style="max-width:520px;margin:0 auto;padding:32px;background:#ffffff;border-radius:12px">`,
+    `<h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:650;color:#111827">${escapeHtml(content.heading)}</h1>`,
+    paragraphs,
+    `<p style="margin:24px 0;padding:16px 20px;background:#f5f5f5;border-radius:8px;font-size:32px;line-height:1.2;font-weight:650;letter-spacing:8px;text-align:center;color:#111827">${escapeHtml(content.code)}</p>`,
+    `<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;line-height:1.6;color:#6b7280">${escapeHtml(content.footer)}<br>${BRAND}</p>`,
+    `</div></div>`,
+  ].join("");
+
+  return { to, subject, text, html };
+}
+
+/**
+ * The code that confirms an address at sign-up, and whenever someone asks for
+ * another one from `/account`.
+ *
+ * The code is in the body but **not** the subject line: a subject is visible on
+ * a lock screen and in a notification, and a six-digit code that can be read
+ * without unlocking the phone is a code anyone standing behind you can use.
+ */
+export function verifyCodeMessage(input: {
+  to: string;
+  code: string;
+  expiresIn: number;
+}): EmailMessage {
+  return composeCode(input.to, `Your confirmation code · ${BRAND}`, {
+    heading: "Confirm your email",
+    body: [
+      "Type this code into the page you left open to confirm this address.",
+      `It works for ${humanDuration(input.expiresIn)}, and only once.`,
+    ],
+    code: input.code,
+    footer:
+      "Didn't ask for this? Ignore it. Nobody can do anything with your address without this code.",
+  });
+}
+
+/**
  * Sent on sign-up, on request from `/account`, and — when the account holder
  * has never verified — to the *new* address of an email change. Better Auth
  * calls one function for all three, so the copy has to be true in all three;

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { OTP_LENGTH } from "@/lib/auth";
 import { messageForCode } from "@/lib/account/errors";
 import { currentUser } from "@/lib/account/session";
 import {
@@ -11,32 +12,61 @@ import {
   stagger,
   Status,
 } from "@/components/ui";
+import { sendCodeAction, verifyCodeAction } from "./actions";
 
 /**
- * Where a confirmation link lands.
+ * Confirming an email address — and the one screen that has to serve two
+ * different arrivals.
  *
- * Better Auth's `/api/auth/verify-email` does the work and then redirects here:
- * with `?error=CODE` if the token was bad, and with nothing at all if it
- * worked. So "no query string" is the success case, which is worth stating
- * because it looks like an oversight and is not.
+ * **From sign-up**, with a session and an unconfirmed address: the code form.
+ * That is the ordinary path, and the reason a code beats a link — the person is
+ * already here, on the device they signed up on, so there is nothing to hand
+ * between browsers.
  *
- * Deliberately readable signed out. The link is usually opened in whichever
- * browser the mail client hands it to, which is often not the one holding the
- * session — `autoSignInAfterVerification` means it will be by the time this
- * renders, but the page must still make sense if a cookie failed to stick.
+ * **From a link**, which `changeEmail` still uses to confirm a new address:
+ * Better Auth's `/api/auth/verify-email` does the work and redirects here with
+ * `?error=CODE` on failure and nothing at all on success. "No query string" is
+ * therefore a success case, which is worth saying because it reads like an
+ * oversight and is not.
  */
 export const metadata: Metadata = {
-  title: "Email confirmed",
+  title: "Confirm your email",
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ error?: string }> };
+type Props = {
+  searchParams: Promise<{ error?: string; sent?: string; confirmed?: string }>;
+};
 
 export default async function VerifyEmailPage({ searchParams }: Props) {
-  const { error } = await searchParams;
+  const { error, sent, confirmed } = await searchParams;
   const user = await currentUser();
 
-  if (error) {
+  /* ── The address is confirmed ──────────────────────────────────────────── */
+  if (user?.emailVerified || (!user && !error)) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+        <div className="rise flex flex-col gap-3">
+          <Status tone="verified">Confirmed</Status>
+          <DisplayTitle>Email confirmed</DisplayTitle>
+          <Lead>
+            {user
+              ? `${user.email} is confirmed, so we can help you back in if you ever lose your password.`
+              : "Your address is confirmed, so we can help you back in if you ever lose your password."}
+          </Lead>
+        </div>
+
+        <div className="rise" style={stagger(1)}>
+          <Link href={user ? "/today" : "/sign-in"}>
+            <Button>{user ? "Back to today" : "Sign in"}</Button>
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  /* ── Signed out, and a link brought them here ──────────────────────────── */
+  if (!user) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
         <div className="rise flex flex-col gap-3">
@@ -50,13 +80,10 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
         </div>
 
         <Card className="rise flex flex-col gap-4" style={stagger(1)}>
-          <Meta>
-            Confirmation links last 24 hours. You can send yourself a fresh one
-            from your account.
-          </Meta>
+          <Meta>Sign in and we&rsquo;ll send you a fresh code.</Meta>
           <div>
-            <Link href={user ? "/account" : "/sign-in"}>
-              <Button>{user ? "Go to your account" : "Sign in"}</Button>
+            <Link href="/sign-in">
+              <Button>Sign in</Button>
             </Link>
           </div>
         </Card>
@@ -64,21 +91,87 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
     );
   }
 
+  /* ── Signed in, not confirmed: the code form ───────────────────────────── */
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
       <div className="rise flex flex-col gap-3">
-        <Status tone="verified">Confirmed</Status>
-        <DisplayTitle>Email confirmed</DisplayTitle>
+        <DisplayTitle>Check your email</DisplayTitle>
         <Lead>
-          {user
-            ? `${user.email} is confirmed, so we can help you back in if you ever lose your password.`
-            : "Your address is confirmed, so we can help you back in if you ever lose your password."}
+          We sent a {OTP_LENGTH}-digit code to {user.email}. Type it in below.
         </Lead>
       </div>
 
-      <div className="rise" style={stagger(1)}>
-        <Link href={user ? "/today" : "/sign-in"}>
-          <Button>{user ? "Back to today" : "Sign in"}</Button>
+      <Card className="rise" style={stagger(1)}>
+        <form action={verifyCodeAction} className="flex flex-col gap-5">
+          {error ? (
+            <span
+              role="alert"
+              className="text-[length:var(--text-label-size)] text-problem"
+            >
+              {messageForCode(error, error)}
+            </span>
+          ) : null}
+
+          {sent && !error ? <Status tone="verified">New code sent.</Status> : null}
+          {confirmed && !error ? (
+            /* Only reachable if the address went back to unconfirmed between
+               the redirect and this render — worth handling rather than
+               showing a bare form with no explanation. */
+            <Status tone="attention">
+              That code was used. Ask for another one.
+            </Status>
+          ) : null}
+
+          <label className="flex flex-col gap-2">
+            <span className="text-[length:var(--text-label-size)] font-[550]">
+              Confirmation code
+            </span>
+            <input
+              name="code"
+              /*
+               * `inputMode` and `autocomplete` do the real work here: on a phone
+               * they raise the number pad and let the OS offer the code straight
+               * from the message, which is the difference between typing six
+               * digits and tapping once. `type="text"` rather than `number`,
+               * because a number input strips leading zeros — and a code
+               * beginning 0 is one in ten.
+               */
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={OTP_LENGTH}
+              placeholder="000000"
+              required
+              autoFocus
+              className="min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-center text-[length:var(--text-title-size)] tracking-[0.4em] text-ink focus:border-accent transition-colors duration-[var(--dur-fast)]"
+            />
+          </label>
+
+          <div>
+            <Button type="submit">Confirm</Button>
+          </div>
+        </form>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
+          <Meta>
+            Nothing arrived? Check spam — or ask for another one, which replaces
+            the first.
+          </Meta>
+          <form action={sendCodeAction}>
+            <Button variant="text" type="submit" className="px-0">
+              Send a new code
+            </Button>
+          </form>
+        </div>
+      </Card>
+
+      <div className="rise" style={stagger(2)}>
+        <Link
+          href="/today"
+          className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
+        >
+          Skip for now
         </Link>
       </div>
     </main>

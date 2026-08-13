@@ -190,7 +190,7 @@ export default async function AccountPage({ searchParams }: Props) {
         {user.emailVerified ? null : (
           <form action={resendVerificationAction}>
             <Button variant="text" type="submit">
-              Send the confirmation email again
+              Send me a confirmation code
             </Button>
           </form>
         )}
