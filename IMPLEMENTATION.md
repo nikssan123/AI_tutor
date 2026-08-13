@@ -1571,3 +1571,105 @@ Neither the `failed` nor the `human_review` path has been watched live. Both are
 branch-tested, and forcing either against the real API costs money to see a
 screen that is already covered — but "tested" is not "watched", which is the
 lesson of this pass.
+
+---
+
+# Delivery record — pass 20: the ledger, and what it refuses to claim
+
+E9. `/mastery` and `/progress`, which is where a marked hand-in finally lands
+somewhere a learner can point at. No model is called on either screen.
+
+## The rule that decided the design
+
+§24 E9 accepts on one sentence: *every capability statement links to the
+artefact that proves it*. Read as a check on the output it is trivial. Read as a
+constraint on the input it decides the whole screen — because a skill with no
+marked hand-in has no link to give, and therefore cannot be claimed, however
+high its mastery has climbed on answered questions.
+
+So a learner can be **skipped past a skill on the path screen and still not be
+claiming it on the mastery screen**. `projectSkills` excludes on any evidence,
+because its question is *what should we spend your time on*. The ledger claims
+only on artefacts, because its question is *what can you prove*. Both are true
+at once, and the row says which it is:
+
+> You've answered questions on this, but nothing you've handed in shows it yet.
+
+That sentence is the product in one line. Every competitor in §3 would have
+shown a full bar there.
+
+## A state that could not happen
+
+The first version warned that a claim was "fading" when a quarter of it had
+decayed. That branch is unreachable, and the arithmetic says so: a claim needs
+`mastery × (1 − decay) ≥ 0.85`, and with mastery capped at 1 that leaves decay
+no room above 0.15. A test would have found it; thinking about the inequality
+found it first.
+
+The reachable question is the forward one — **would this still count in a week**
+— asked by running `effectiveMastery` at `now + 7 days` rather than by solving
+the decay curve. One decay implementation in the product, and the warning
+arrives while the thing can still be saved rather than after it is lost.
+
+Decay is therefore visible twice: as `fading` on a claim about to lapse, and as
+`faded` on one that has, which puts its skill back on the path and says so.
+
+## Two screens, one fact
+
+`/progress` offers to show *which* skills are slipping. It counts them off the
+ledger rather than recomputing from mastery states, because a second decay rule
+living in the digest would eventually promise three and link to a list of two.
+`retentionHealth` takes a `Ledger`, not a `MasteryState[]`, for exactly that
+reason.
+
+The same discipline moved `confidenceLevel` out of the submission page and into
+`components/ui`: two cut-offs for "Demonstrated" in front of one learner is a
+bug waiting for a quiet edit.
+
+## What the weekly digest does not have
+
+§8 screen 11 pencilled in a Reflection Agent and an accept/reject control for
+plan changes. Neither was built, and neither should be:
+
+- Every number on the screen is a fact about the learner's own week. A model
+  asked to narrate facts can only add the risk of saying something the rows do
+  not support.
+- There are no plan changes to accept because there is no stale plan — §16.1
+  runs on every page load. What replaced the control is the **recalibration**:
+  34.7 hours left is 12 weeks at the 3 a week you planned, and 22 at the 1.6 you
+  actually did.
+
+The window is a rolling seven days. A calendar week shows an empty digest every
+Monday morning.
+
+## Watched, not just asserted
+
+Pass 19's lesson, applied before shipping rather than after. Neither screen
+calls a model, so `scripts/mastery-screens-fixture.ts` drives both for nothing:
+it puts one learner in front of all five standings — shown, fading, faded,
+unproven, untouched — with a completed session and hand-ins inside and outside
+the window, and mints the same signed cookie the loop fixture does.
+
+Both pages returned 200 and read correctly, and the render found one thing 2206
+tests did not:
+
+> Shown 0 days ago — without a refresher it stops counting within a week.
+
+Which is what the arithmetic says and not what anyone would write. It is
+reachable the moment someone hands work in on the day they read the page. Now
+"today". The render also caught `/progress` heading a card "What's left" while
+`/mastery` uses that name for a list of skills — one label, two meanings, now
+"What's ahead".
+
+## Still open
+
+Unchanged from pass 19: §24 E8's last two acceptance criteria need a hand-graded
+corpus that does not exist, and §23's Phase 0 lists building it as a MUST that
+was never done. It is human work.
+
+`/mastery` has no skill graph on it. The DAG lives on the path screen, where the
+question is the shape of the subject; here the question is what can be proved,
+and that is a list with links. If the graph is wanted on this screen later it
+should carry evidence, not colour.
+
+2206 tests, 100% on all four metrics, `pnpm verify` clean.

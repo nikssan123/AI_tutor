@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Confidence,
+  confidenceLevel,
   cx,
   DisplayTitle,
   EmptyState,
@@ -206,6 +207,17 @@ describe("Confidence — a meter and a word, never a number (§8.5.5)", () => {
   it("labels the meter for screen readers", () => {
     render(<Confidence level="high" />);
     expect(screen.getByRole("img", { name: "Demonstrated" })).toBeDefined();
+  });
+
+  it("maps §7.2's ranges onto what the UI may claim", () => {
+    // One mapping for the whole product: the evaluation screen and the mastery
+    // ledger both turn a stored confidence into a claim, and two cut-offs for
+    // "Demonstrated" would disagree in front of the same learner.
+    expect(confidenceLevel(0.9)).toBe("high");
+    expect(confidenceLevel(0.8)).toBe("high");
+    expect(confidenceLevel(0.65)).toBe("medium");
+    expect(confidenceLevel(0.5)).toBe("medium");
+    expect(confidenceLevel(0.2)).toBe("low");
   });
 });
 

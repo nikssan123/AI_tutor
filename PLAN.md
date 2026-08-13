@@ -28,7 +28,10 @@ conversation, the diagnostic, the curriculum, the session and tutor, and
 on-demand pack generation are all in, and so is **E8 — submission and evaluation,
 the one the whole thesis rests on** (§4.2 law 1, §14.5). E8's code is complete
 and the loop has been run end to end; what remains is the hand-graded corpus its
-acceptance criteria need. **E9 is the next epic to build.**
+acceptance criteria need. **E9 — the mastery ledger and the weekly digest — is
+in too**, which means the loop now closes: work is set, marked, and the verdict
+lands somewhere a learner can point at. **E10 is the next epic to build**, and
+from here the remaining work is acquisition and money rather than product.
 
 `IMPLEMENTATION.md` is the per-pass record, including the things that only
 showed up against the real API. Read the "Still open" section at the end of the
@@ -461,11 +464,43 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
 - **UI:** skill graph coloured by mastery with confidence shading. Toggle: **"What I can do"** (evidence-backed capability statements, each linking to the artefact that proves it) vs **"What's left"**. Explicit decay indicator on skills not practised recently. Never a % complete.
 - **Data:** `LearnerSkillMastery`, `Evaluation`, `Artifact`.
 - **AI:** none at read time — capability statements are generated on mastery-threshold crossing and cached.
+- **Built.** Three things this description got wrong:
+  - **There are no generated capability statements, and no cache for them.**
+    The pack already carries one per skill (`canDoStatement`, §14.4), written
+    and reviewed when the pack was. Generating a second version would be paying
+    a model to paraphrase a sentence a person already approved.
+  - **The claim list is stricter than the path screen.** "Every capability
+    statement links to the artefact that proves it" means a skill with no
+    marked hand-in cannot appear on it, however high its mastery. So a learner
+    can be *skipped past* a skill on `/goals/{id}/path` and still not be
+    *claiming* it here. That is the difference between what we will spend your
+    time on and what you can prove, and each row says which it is.
+  - **The decay warning had to be asked forwards.** "You have lost a quarter of
+    this" cannot fire on a claim at all — clearing 0.85 with mastery capped at
+    1 leaves decay no room above 0.15. The reachable question is *would this
+    still count in a week*, which is also the one worth answering.
+- **No graph on this screen.** The DAG lives on the path (§8 screen 5), where
+  the question is "what is the shape of this subject". Here the question is
+  "what can I prove", and that is a list with links, not a picture.
 
 ### 11. Progress & reflection — `/progress`
 - **Purpose:** weekly re-motivation and honest recalibration.
 - **UI:** weekly digest — hours vs. commitment, skills moved, artefacts produced, retention health, revised completion estimate. Plan-change proposals with reasons and an accept/reject control.
 - **AI:** Reflection Agent (weekly batch, Sonnet 5 via Batch API at 50% cost).
+- **Built, without the Reflection Agent.** Every number on the screen is a fact
+  about the learner's own week, read off the same rows `/mastery` reads. There
+  is nothing for a model to add to that, and a model asked to narrate facts adds
+  only the risk of saying something the rows do not support — the exact surface
+  §2.3's "honest scope" argument exists to avoid.
+- **There are no plan-change proposals to accept, because there is no stale
+  plan.** §16.1 runs on every page load, so the plan already reflects the week
+  it would be proposing changes about. What the screen carries instead is the
+  **recalibration**: the same remaining work priced at the pace actually kept,
+  beside the pace that was intended. That is the number nobody in §3's table
+  will show a learner.
+- **The window is a rolling seven days**, not a calendar week — the commitment
+  is expressed per week either way, and a calendar week shows an empty digest
+  every Monday morning.
 
 ### 12. Proof Page (public/shareable) — `/p/{handle}/{slug}`
 - **Purpose:** the growth loop, and the artefact people actually want.
@@ -1771,7 +1806,7 @@ before picking the next thing up.**
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
 | **E8** Submission + Evaluation | 🟡 **Built, not accepted** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; κ and band-stability criteria still unmet |
-| **E9** Mastery map + progress | ⬜ Not started | — |
+| **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, JSON-LD, `/learn`, `/projects` exist |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
@@ -1785,7 +1820,12 @@ need the Phase-0 corpus in §23, which lists "grade 5 real submissions by hand" 
 a MUST that was never done. **That corpus is the next piece of work on E8, and it
 is human work rather than code.**
 
-After it, **E9 — the mastery map — is the next epic to build.**
+**E9 closed the loop.** A marked hand-in now lands somewhere: `/mastery` claims
+the skill and links to the work, `/progress` prices what is left at the pace
+actually kept. Everything E1–E9 promised a learner is now reachable in a browser.
+**E10 — the SEO infrastructure — is the next epic to build**, and the ones after
+it (E11 free tools, E12 content, E13 billing) are acquisition and money rather
+than product.
 
 ## E7.5 — Generated packs (built between E7 and E8)
 
@@ -1893,9 +1933,16 @@ matching pack triggers Generated-pack creation") could not be met without it.
 - Confidence band and evidence tier are displayed
 - Failures degrade gracefully: queued, retried, and the user is emailed — never a silent loss
 
-### E9 — Mastery map + progress (days 21–23)
+### E9 — Mastery map + progress (days 21–23) — ✅ done
 **Out:** `/mastery` with evidence-linked "what I can do" statements; `/progress` weekly digest.
 **Accept:** every capability statement links to the artefact that proves it; decay is visible; **no percentage-complete anywhere in the UI.**
+
+All three met, and the first one turned out to be the design rather than a
+check on it: making the link mandatory is what decides who gets into the claim
+list, which is the difference between this screen and a progress bar. Decay is
+visible twice — as a warning on a claim about to lapse, and as a claim that has
+lapsed and put its skill back on the path. The percentage rule is asserted in
+both page tests against the rendered output, not merely observed.
 
 ### E10 — SEO infrastructure (days 20–25, parallel with E9)
 **Out:** all page templates · `sitemap.ts` (indexable-only) · `robots.ts` · JSON-LD helpers · `generateMetadata` per route · internal-link renderer · dynamic OG images · the quality-score job.

@@ -325,6 +325,18 @@ export function Confidence({ level }: { level: ConfidenceLevel }) {
 }
 
 /**
+ * §7.2's confidence bands, mapped to the meter above.
+ *
+ * One mapping for the whole product: the evaluation screen and the mastery
+ * ledger both turn a stored confidence into a claim, and two cut-offs for
+ * "Demonstrated" would eventually disagree in front of the same learner.
+ */
+export function confidenceLevel(value: number): ConfidenceLevel {
+  if (value >= 0.8) return "high";
+  return value >= 0.5 ? "medium" : "low";
+}
+
+/**
  * §7.1 — the maturity badge shown to the learner. Honest scope is a feature, so
  * a Generated pack says "Experimental" rather than hiding behind silence.
  */

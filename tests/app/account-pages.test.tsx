@@ -236,13 +236,13 @@ describe("the (app) header", () => {
     currentUserMock.mockResolvedValue({ ...USER, emailVerified: false });
     render(await AppLayout({ children: <p>child</p> }));
 
-    expect(screen.getByText(/isn.t confirmed yet/i)).toBeDefined();
+    expect(screen.getByText(/address isn.t confirmed/i)).toBeDefined();
     expect(screen.getByText("Confirm it")).toBeDefined();
   });
 
   it("stays quiet once the address is confirmed", async () => {
     render(await AppLayout({ children: <p>child</p> }));
-    expect(screen.queryByText(/isn.t confirmed yet/i)).toBeNull();
+    expect(screen.queryByText(/address isn.t confirmed/i)).toBeNull();
   });
 });
 

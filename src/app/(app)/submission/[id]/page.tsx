@@ -10,6 +10,7 @@ import { BAND_SCORE, type Band } from "@/lib/contracts/evaluation";
 import {
   Card,
   Confidence,
+  confidenceLevel,
   DisplayTitle,
   Lead,
   Meta,
@@ -194,12 +195,6 @@ export default async function SubmissionPage({ params }: Props) {
       </Link>
     </main>
   );
-}
-
-/** §7.2's confidence bands, as the shared component names them. */
-export function confidenceLevel(value: number): "high" | "medium" | "low" {
-  if (value >= 0.8) return "high";
-  return value >= 0.5 ? "medium" : "low";
 }
 
 /** Kept beside the page because only this screen maps bands to a score. */

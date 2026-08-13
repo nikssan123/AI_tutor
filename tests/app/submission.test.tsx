@@ -50,7 +50,7 @@ vi.mock("@/lib/inngest/client", async (importOriginal) => ({
   inngest: { send: sendMock },
 }));
 
-const { default: SubmissionPage, confidenceLevel } = await import(
+const { default: SubmissionPage } = await import(
   "@/app/(app)/submission/[id]/page"
 );
 const { submitWorkAction } = await import("@/app/(app)/submission/actions");
@@ -292,13 +292,5 @@ describe("the result screen", () => {
     submissionMock.mockResolvedValue(stored({ projectSlug: "deleted-brief" }));
     render(await SubmissionPage({ params: params() }));
     expect(screen.getByText("Your marked work")).toBeDefined();
-  });
-});
-
-describe("confidenceLevel", () => {
-  it("maps §7.2's ranges onto what the UI may claim", () => {
-    expect(confidenceLevel(0.9)).toBe("high");
-    expect(confidenceLevel(0.65)).toBe("medium");
-    expect(confidenceLevel(0.2)).toBe("low");
   });
 });

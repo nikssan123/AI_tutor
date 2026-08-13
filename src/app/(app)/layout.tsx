@@ -24,8 +24,18 @@ export const metadata: Metadata = {
 /** Dynamic by construction — nothing under (app) is ever statically cached. */
 export const dynamic = "force-dynamic";
 
+/**
+ * §8's authenticated journey, in the order a learner lives it: the thing to do
+ * now, the record of what they have proved, and last week's read on it.
+ *
+ * §8.5.1's density rule governs content, not chrome — navigation is the part
+ * that is meant to recede — but it is still the reason there are three
+ * destinations here and not a menu.
+ */
 const NAV = [
   { href: "/today", label: "Today" },
+  { href: "/mastery", label: "Mastery" },
+  { href: "/progress", label: "Progress" },
   { href: "/account", label: "Account" },
 ];
 
@@ -69,12 +79,10 @@ function AppNav({ user }: { user: AccountUser }) {
       {user.emailVerified ? null : (
         <div className="border-t border-hairline bg-accent-weak">
           <p className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-2 gap-y-1 px-6 py-3 text-[length:var(--text-label-size)] text-ink-muted">
-            {/* One sentence, one action (§8.5.5) — and the sentence says what
-                is actually at stake, not "please verify your email". */}
-            <span>
-              Your email isn&rsquo;t confirmed yet, so we can&rsquo;t send you a
-              password reset if you need one.
-            </span>
+            {/* One state, one action (§8.5.5). The banner's job is to say the
+                account is unconfirmed; /account is where the consequences and
+                the resend live, so the sentence does not carry them here. */}
+            <span>Your email address isn&rsquo;t confirmed.</span>
             <Link
               href="/account"
               className="font-[550] text-accent underline-offset-4 hover:underline"
