@@ -84,12 +84,20 @@ describe("the screen", () => {
     }
   });
 
-  it("says plainly that nothing self-reported counts", async () => {
+  it("says what the level picker is for, without lecturing", async () => {
     render(await StartPage({ searchParams: search() }));
-    // The form asks for a level because §8 screen 3 does. §7.2 means it cannot
-    // move the record, and the screen has to say so where it is asked.
-    expect(screen.getByText(/nothing you pick here counts as proof/i)).toBeDefined();
-    expect(screen.getByText(/start with nothing proven/i)).toBeDefined();
+    /*
+     * The form asks for a level because §8 screen 3 does, and §7.2 means it
+     * cannot move the record. The screen used to say so twice — once under the
+     * picker and once in a card of its own, on the accent field.
+     *
+     * That is marketing copy on a task screen. Someone filling this in has
+     * already signed up; telling them their self-assessment is not evidence
+     * answers a question they did not ask, in a register that reads as
+     * distrust. What they actually need is what the field does.
+     */
+    expect(screen.getByText(/just a starting point/i)).toBeDefined();
+    expect(screen.queryByText(/counts as proof/i)).toBeNull();
   });
 
   it("tells a visitor their anonymous check is coming with them", async () => {

@@ -9,7 +9,6 @@ import {
   Lead,
   Meta,
   stagger,
-  Status,
 } from "@/components/ui";
 import { signUpAction } from "./actions";
 
@@ -120,13 +119,6 @@ export default async function SignUpPage({ searchParams }: Props) {
           </Link>
         </div>
       </Card>
-
-      <div className="rise" style={stagger(2)}>
-        <Status tone="neutral">
-          Nothing you say about yourself counts as evidence — only work we check
-          does.
-        </Status>
-      </div>
     </main>
   );
 }

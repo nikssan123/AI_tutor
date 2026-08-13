@@ -271,7 +271,7 @@ describe("the result", () => {
   it("counts self-marked answers separately and says they do not count", async () => {
     seed(nineClosed());
     render(await page.default({ params: params() }));
-    expect(screen.getByText(/does not count either way/)).toBeDefined();
+    expect(screen.getByText(/not in the list above/)).toBeDefined();
   });
 
   /**

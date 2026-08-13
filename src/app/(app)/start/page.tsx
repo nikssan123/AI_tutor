@@ -181,10 +181,7 @@ export default async function StartPage({ searchParams }: Props) {
           <fieldset className="flex flex-col gap-3 border-0 p-0 m-0">
             <legend className="sr-only">Where you are starting from</legend>
             <span className={fieldLabel}>Where are you starting?</span>
-            <Meta>
-              This only sets your expectations. Nothing you pick here counts as
-              proof — only work we check does that.
-            </Meta>
+            <Meta>Just a starting point. The check adjusts it.</Meta>
             {choice("statedLevel", LEVELS)}
           </fieldset>
         </Card>
@@ -231,18 +228,6 @@ export default async function StartPage({ searchParams }: Props) {
             />
           </div>
         </Card>
-
-        {/* The one promise this screen has to make, so it gets the accent field
-            rather than a fourth identical grey card. */}
-        <div
-          className="rise rounded-[var(--radius-card)] bg-accent-weak p-6"
-          style={stagger(4)}
-        >
-          <Meta tone="muted">
-            Nothing you say about yourself here counts as proof. You start with
-            nothing proven, and that fills up as your work gets checked.
-          </Meta>
-        </div>
 
         <div className="rise" style={stagger(5)}>
           <Button type="submit">Build my plan</Button>

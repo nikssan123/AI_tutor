@@ -172,12 +172,15 @@ export default async function CheckRunPage({ params }: Params) {
           ))}
         </ul>
 
+        {/* The intro already explained that self-marked answers do not count,
+            and the self-mark screen says it again at the moment it matters.
+            Here the reader only needs to know why those skills are missing
+            from the list above — not to be told a third time. */}
         {summary.selfMarkedCount > 0 ? (
           <Meta>
             You marked {summary.selfMarkedCount} answer
-            {summary.selfMarkedCount === 1 ? "" : "s"} yourself. That is good
-            practice, but it does not count either way — marking your own work
-            is never proof.
+            {summary.selfMarkedCount === 1 ? "" : "s"} yourself, so those are
+            not in the list above.
           </Meta>
         ) : null}
 
