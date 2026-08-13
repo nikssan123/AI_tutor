@@ -72,28 +72,12 @@ describe("(app) layout — §13.1's structural noindex", () => {
   });
 });
 
-describe("landing page", () => {
-  it("sets an explicit canonical (§13.3 — never rely on defaults)", async () => {
-    const { metadata } = await import("@/app/(marketing)/page");
-    expect(metadata.alternates?.canonical).toBeTruthy();
-  });
-
-  it("leads with the positioning statement from §6.2", async () => {
-    const { default: HomePage } = await import("@/app/(marketing)/page");
-    render(<HomePage />);
-    expect(
-      screen.getByRole("heading", { level: 1 }).textContent,
-    ).toContain("Prove it");
-  });
-
-  it("uses the JS-free theme control, not the Radix one (§8.5.8)", async () => {
-    // Importing the client component here would drag Radix into the marketing
-    // bundle, which is the budget mistake §8.5.8 exists to prevent.
-    const source = await import("@/app/(marketing)/page");
-    render(<source.default />);
-    expect(screen.getByRole("group", { name: "Appearance" })).toBeDefined();
-  });
-});
+/*
+ * The landing page moved to its own suite once it became a real page —
+ * tests/app/marketing-pages.test.tsx. The theme control now lives in the
+ * marketing footer (§8.5.4: "a small control in the footer"), so it is
+ * asserted there against SiteFooter rather than against the page.
+ */
 
 describe("/today — the retention surface (§8 screen 6)", () => {
   it("redirects an unauthenticated visitor to sign in", async () => {
@@ -131,7 +115,7 @@ describe("/design — the drift guard (§8.5.8)", () => {
       "Failed",
       "Demonstrated",
       "Likely capable",
-      "Deeply supported",
+      "Written and checked by hand",
       "Experimental — help us improve it",
     ]) {
       // getAllByText: "Demonstrated" legitimately appears twice — once as the

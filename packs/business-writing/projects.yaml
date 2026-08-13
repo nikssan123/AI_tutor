@@ -1,0 +1,67 @@
+projects:
+  - slug: unbudgeted-spend-memo
+    title: Get £8,000 of unbudgeted spend approved
+    rubric: recommendation-memo
+    evidenceType: document
+    difficulty: 0.55
+    estimatedMinutes: 60
+    isPublic: true
+    targetSkills: [proposal-shape, the-one-thing, evidence-and-claims, cutting]
+    brief: >-
+      Write a one-page memo asking a finance director you have never met to
+      approve £8,000 that is not in the budget. They will read it between two
+      other meetings and will not ask you a clarifying question — they will
+      simply decline if anything is unclear.
+
+      Include what happens if the answer is no. That section is the one most
+      people skip, and it is usually the one that gets the yes.
+    acceptanceCriteria:
+      - One page or less.
+      - The recommendation and the number appear in the first two sentences.
+      - At least two rejected alternatives, each with its reason.
+      - A "if we do nothing" section with a concrete consequence.
+      - Any estimate is marked as an estimate, with its basis.
+
+  - slug: the-slip-message
+    title: Tell them the deadline is slipping
+    rubric: difficult-message
+    evidenceType: document
+    difficulty: 0.7
+    estimatedMinutes: 40
+    isPublic: true
+    targetSkills: [difficult-messages, tone-and-register, the-one-thing]
+    brief: >-
+      A commitment you made will slip by two weeks. You have known for three
+      days. Write the message to the person who is depending on it.
+
+      The hard part is not the writing. It is putting the slip in the first
+      sentence instead of the fourth paragraph, and resisting every instinct to
+      pad it with context first.
+    acceptanceCriteria:
+      - The slip is in the first sentence.
+      - The new date is specific.
+      - The cause is stated once, without a paragraph of justification.
+      - It says what you are doing about it.
+      - Under 200 words.
+
+  - slug: summary-of-something-long
+    title: Summarise something long, without losing the bad news
+    rubric: summary-that-stands-alone
+    evidenceType: document
+    difficulty: 0.75
+    estimatedMinutes: 75
+    isPublic: true
+    targetSkills: [executive-summary, cutting, evidence-and-claims, structure-and-signposting]
+    brief: >-
+      Take a real document of at least 1,500 words — a report, a proposal, a
+      post-mortem — and compress it to 150 words that stand alone.
+
+      The test is not brevity. It is whether a decision-maker who reads only
+      your version reaches the same decision they would have reached after
+      reading all of it, including the parts that do not flatter the project.
+    acceptanceCriteria:
+      - 150 words or fewer.
+      - Submitted alongside the original.
+      - Every material risk in the original appears in the summary.
+      - Nothing is stated more confidently than the original supports.
+      - A reader could decide from the summary alone.

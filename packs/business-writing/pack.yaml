@@ -1,0 +1,241 @@
+# Business Writing & Communication — Curated Domain Pack
+#
+# One of the 12 Curated packs §7.1 names for launch, and deliberately the second
+# one built: it is Tier 2 (artefact review) on the Text workspace, where SQL is
+# Tier 1 on Query & Sheet. Two packs at different tiers on different workspaces
+# is what proves the engine is domain-agnostic — §7.3's rule that adding a
+# domain requires no code change is only true if someone tests it.
+#
+# It is also the pack that answers "is this a developer tool?". It is not.
+
+slug: business-writing
+name: Business Writing & Communication
+taxonomyParent: professional-business
+maturity: curated
+# §7.2 Tier 2 — "Assessed against the rubric." Multi-pass LLM rubric grading
+# with a verifier pass. Confidence 0.65–0.85, and the UI says so.
+evalTier: 2
+workspace: text
+
+evaluatorConfig:
+  model: opus
+  # Tier 2 has no deterministic ground truth, so §14.5 step 4 applies: a second
+  # pass at a different framing, and a flag when the two disagree by a band.
+  passes: 2
+  verifier: quote-match
+  tools: [read_document, word_count]
+
+quality:
+  status: reviewed
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- Before you write ------------------------------------------------------
+  - slug: audience-and-purpose
+    name: Audience and purpose
+    description: >-
+      Deciding who is reading, what they already know, what you want them to do
+      differently afterwards, and writing for that person rather than for
+      yourself.
+    level: foundational
+    area: thinking
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: State in one line who a document is for and what you want them to do, then write to that
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.25, pLearn: 0.2, pSlip: 0.12, pGuess: 0.15 }
+
+  - slug: the-one-thing
+    name: The single most important sentence
+    description: >-
+      Finding the one sentence that must survive if the reader stops after the
+      first paragraph, and putting it first.
+    level: foundational
+    area: thinking
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Identify the single sentence a document exists to deliver, and lead with it
+    observableEvidence: [document, explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.18, pSlip: 0.14, pGuess: 0.1 }
+
+  - slug: evidence-and-claims
+    name: Evidence and claims
+    description: >-
+      Distinguishing what you know from what you believe, attaching the right
+      evidence to each claim, and saying plainly when you are uncertain.
+    level: core
+    area: thinking
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Separate claim from evidence and mark your confidence in each honestly
+    observableEvidence: [document, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.16, pSlip: 0.14, pGuess: 0.08 }
+
+  # --- Structure -------------------------------------------------------------
+  - slug: structure-and-signposting
+    name: Structure and signposting
+    description: >-
+      Ordering a document so a reader can stop at any point and still have the
+      most important part, and telling them where they are.
+    level: core
+    area: structure
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Order a document so the most important thing comes first and each section earns its place
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.15, pLearn: 0.18, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: executive-summary
+    name: Writing an executive summary
+    description: >-
+      Compressing a long document into the version a busy decision-maker will
+      actually read, without hiding the bad news.
+    level: advanced
+    area: structure
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Compress a long document into a summary that stands alone and hides nothing
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.08, pLearn: 0.15, pSlip: 0.14, pGuess: 0.06 }
+
+  - slug: proposal-shape
+    name: The shape of a proposal
+    description: >-
+      Problem, options considered, recommendation, cost, risk, and what happens
+      if nothing is done — in the order a decision-maker needs them.
+    level: advanced
+    area: structure
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Structure a recommendation so a reader can approve or reject it without a meeting
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.08, pLearn: 0.15, pSlip: 0.14, pGuess: 0.06 }
+
+  # --- Craft -----------------------------------------------------------------
+  - slug: plain-language
+    name: Plain language
+    description: >-
+      Replacing jargon, nominalisations and hedges with words that carry the
+      same meaning and less fog.
+    level: core
+    area: craft
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Rewrite a dense paragraph in plain language without losing precision
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.12, pGuess: 0.12 }
+
+  - slug: sentence-craft
+    name: Sentence craft
+    description: >-
+      Varying sentence length deliberately, putting the actor before the action,
+      and ending sentences on the word that matters.
+    level: core
+    area: craft
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Write sentences where the subject does the verb and the emphasis lands where you meant it
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.12, pLearn: 0.17, pSlip: 0.13, pGuess: 0.08 }
+
+  - slug: cutting
+    name: Cutting
+    description: >-
+      Removing a third of a draft without losing anything the reader needed —
+      the single highest-leverage editing skill there is.
+    level: advanced
+    area: craft
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Cut a draft by a third while keeping every load-bearing idea
+    observableEvidence: [document, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.14, pGuess: 0.05 }
+
+  - slug: tone-and-register
+    name: Tone and register
+    description: >-
+      Matching formality to relationship and stakes, and noticing when warmth
+      reads as evasion or brevity reads as rudeness.
+    level: advanced
+    area: craft
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Match tone to the reader and the stakes, and defend the choice
+    observableEvidence: [document, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.15, pSlip: 0.15, pGuess: 0.08 }
+
+  # --- At work ---------------------------------------------------------------
+  - slug: email-that-gets-replies
+    name: Email that gets a reply
+    description: >-
+      Subject lines that survive a full inbox, a first line that states the ask,
+      and a close that makes the next action obvious.
+    level: core
+    area: workplace
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Write an email whose ask is unmissable in the first two lines
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.2, pLearn: 0.2, pSlip: 0.12, pGuess: 0.12 }
+
+  - slug: difficult-messages
+    name: Difficult messages
+    description: >-
+      Saying no, delivering bad news, and pushing back upward — clearly, early,
+      and without either cruelty or padding.
+    level: specialist
+    area: workplace
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Deliver bad news early and plainly, without padding it into ambiguity
+    observableEvidence: [document, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.13, pSlip: 0.16, pGuess: 0.04 }
+
+  - slug: written-feedback
+    name: Feedback in writing
+    description: >-
+      Critiquing someone's work in text, where tone is unreadable and the
+      recipient cannot ask a clarifying question for six hours.
+    level: specialist
+    area: workplace
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Give specific, actionable written feedback that a reader can act on without a call
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.08, pLearn: 0.14, pSlip: 0.15, pGuess: 0.05 }
+
+  - slug: meeting-notes
+    name: Notes people actually use
+    description: >-
+      Recording decisions, owners and deadlines rather than transcribing
+      discussion.
+    level: core
+    area: workplace
+    evalTier: 2
+    estimatedHours: 1
+    canDoStatement: Turn a meeting into notes that name every decision, owner and deadline
+    observableEvidence: [document]
+    bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.12, pGuess: 0.12 }
+
+dependencies:
+  - { from: audience-and-purpose, to: the-one-thing, type: hard }
+  - { from: audience-and-purpose, to: tone-and-register, type: hard }
+  - { from: the-one-thing, to: structure-and-signposting, type: hard }
+  - { from: the-one-thing, to: email-that-gets-replies, type: hard }
+  - { from: audience-and-purpose, to: evidence-and-claims, type: soft, strength: 0.6 }
+  - { from: structure-and-signposting, to: executive-summary, type: hard }
+  - { from: evidence-and-claims, to: executive-summary, type: soft, strength: 0.7 }
+  - { from: structure-and-signposting, to: proposal-shape, type: hard }
+  - { from: evidence-and-claims, to: proposal-shape, type: hard }
+  - { from: audience-and-purpose, to: plain-language, type: hard }
+  - { from: plain-language, to: sentence-craft, type: hard }
+  - { from: sentence-craft, to: cutting, type: hard }
+  - { from: plain-language, to: cutting, type: soft, strength: 0.8 }
+  - { from: tone-and-register, to: difficult-messages, type: hard }
+  - { from: the-one-thing, to: difficult-messages, type: hard }
+  - { from: tone-and-register, to: written-feedback, type: hard }
+  - { from: evidence-and-claims, to: written-feedback, type: soft, strength: 0.7 }
+  - { from: structure-and-signposting, to: meeting-notes, type: soft, strength: 0.5 }
+  - { from: cutting, to: executive-summary, type: soft, strength: 0.9 }

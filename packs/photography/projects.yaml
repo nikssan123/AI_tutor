@@ -1,0 +1,63 @@
+projects:
+  - slug: exposure-under-control
+    title: Take control of exposure
+    rubric: exposure-control
+    evidenceType: image
+    difficulty: 0.45
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [exposure-triangle, metering-and-histogram, dynamic-range]
+    brief: >-
+      Photograph one subject four times: correctly exposed, deliberately one
+      stop under, deliberately one stop over, and once in a scene where the
+      meter gets it wrong and you override it.
+
+      The point is not four good photographs. It is proving the exposure was a
+      decision rather than whatever the camera picked.
+    acceptanceCriteria:
+      - Four frames, with EXIF intact.
+      - A line per frame stating what you intended.
+      - The over- and under-exposed frames are within about half a stop of the stated target.
+      - The overridden frame states the compensation used and why the meter failed.
+
+  - slug: one-light-portrait
+    title: A portrait with one light you chose
+    rubric: light-and-separation
+    evidenceType: image
+    difficulty: 0.6
+    estimatedMinutes: 120
+    isPublic: true
+    targetSkills: [light-direction, light-quality, focus-accuracy, subject-separation]
+    brief: >-
+      Make a portrait using a single light source — a window counts — where you
+      chose the direction and the quality on purpose, and can say why.
+
+      Focus lands on the near eye. The background does not compete. Everything
+      at the edges of the frame is there because you decided it should be.
+    acceptanceCriteria:
+      - One final frame plus a 100% crop of the eye.
+      - A sentence naming the light source, its direction, and why you chose it.
+      - The subject is separated from the background by at least one identifiable means.
+      - No unaddressed distractions at the frame edges.
+
+  - slug: six-frame-set
+    title: Six frames that belong together
+    rubric: coherent-set
+    evidenceType: image
+    difficulty: 0.8
+    estimatedMinutes: 180
+    isPublic: true
+    targetSkills: [consistency-across-a-set, tonal-correction, white-balance, raw-workflow]
+    brief: >-
+      Shoot and edit six frames, in changing light, that read as one body of
+      work rather than six separate photographs.
+
+      This is the skill that separates a portfolio from a camera roll, and it is
+      almost entirely a post-processing discipline: pick a reference frame and
+      match the others to it.
+    acceptanceCriteria:
+      - Six frames, edited from raw.
+      - You name the reference frame you matched the others to.
+      - White balance and black point are consistent across the set, or the exception is explained.
+      - No frame has accidental clipping or missed focus.
+      - You identify which frame you consider the weakest, and why.

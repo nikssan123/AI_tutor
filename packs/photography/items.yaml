@@ -1,0 +1,326 @@
+# Tier 3 items lean heavily on "make a photograph that demonstrates X", because
+# recognising good exposure and producing it are different skills — and only the
+# second one is evidence (§4.2 law 1).
+
+items:
+  - slug: triangle-equivalent
+    skill: exposure-triangle
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      You are at f/4, 1/125s, ISO 400 and correctly exposed. Give two other
+      combinations that produce the same exposure, and say what each one costs
+      you.
+    answerKey:
+      concepts: [reciprocity, depth-of-field-cost, motion-blur-cost, noise-cost]
+
+  - slug: triangle-shoot
+    skill: exposure-triangle
+    type: micro_artifact
+    difficulty: 0.45
+    prompt: >-
+      Photograph the same subject three times at the same exposure, each time
+      spending a different setting. Submit all three with their EXIF.
+    answerKey:
+      concepts: [same-brightness, visibly-different-rendering]
+
+  - slug: triangle-pick
+    skill: exposure-triangle
+    type: mcq
+    difficulty: 0.25
+    prompt: The light drops by one stop and you must keep the same shutter speed and depth of field. What changes?
+    options: ["Aperture", "ISO", "Focal length", "White balance"]
+    answerKey: { correct: 1 }
+
+  - slug: histogram-read
+    skill: metering-and-histogram
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      A histogram is bunched hard against the right edge with a spike at the
+      end. Say what has happened, whether it is recoverable, and what you would
+      change.
+    answerKey:
+      concepts: [clipped-highlights, unrecoverable-detail, reduce-exposure]
+
+  - slug: histogram-fooled
+    skill: metering-and-histogram
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      You photograph a snowy field and the meter gives you grey slush. Explain
+      why, and say what compensation you would dial in.
+    answerKey:
+      concepts: [meter-assumes-mid-grey, bright-scene-underexposed, positive-compensation]
+
+  - slug: histogram-shoot
+    skill: metering-and-histogram
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Photograph a scene the meter gets wrong. Submit the uncorrected frame, the
+      corrected frame, and the compensation you used.
+    answerKey:
+      concepts: [demonstrates-meter-failure, correction-applied, exif-shows-compensation]
+
+  - slug: dynamic-range-choice
+    skill: dynamic-range
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      A room with a bright window: you cannot hold both the view outside and the
+      face inside. Say which you would protect and why, and name one way to
+      avoid the choice entirely.
+    answerKey:
+      concepts: [protect-highlights-or-subject, add-light-or-change-position, deliberate-sacrifice]
+
+  - slug: dynamic-range-shoot
+    skill: dynamic-range
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Photograph a scene that exceeds your sensor's range. Submit one frame
+      protecting the highlights and one protecting the shadows, and say which
+      you would keep.
+    answerKey:
+      concepts: [two-deliberate-exposures, stated-preference-with-reason]
+
+  - slug: dof-place-it
+    skill: depth-of-field
+    type: micro_artifact
+    difficulty: 0.45
+    prompt: >-
+      Photograph three objects at different distances so exactly the middle one
+      is sharp. State the aperture, focal length and your distance.
+    answerKey:
+      concepts: [middle-sharp, near-and-far-soft, settings-reported]
+
+  - slug: dof-three-controls
+    skill: depth-of-field
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Name the three things that change depth of field, and say which one you
+      would reach for first when you cannot open the aperture any further.
+    answerKey:
+      concepts: [aperture, subject-distance, focal-length]
+
+  - slug: dof-pick
+    skill: depth-of-field
+    type: mcq
+    difficulty: 0.3
+    prompt: You halve your distance to the subject at a fixed aperture and focal length. Depth of field…
+    options: ["Roughly doubles", "Is unchanged", "Gets much shallower", "Depends on ISO"]
+    answerKey: { correct: 2 }
+
+  - slug: focus-near-eye
+    skill: focus-accuracy
+    type: micro_artifact
+    difficulty: 0.4
+    prompt: >-
+      Photograph a person at a wide aperture with focus on the near eye. Submit
+      a 100% crop of the eye alongside the full frame.
+    answerKey:
+      concepts: [near-eye-sharp, crop-proves-it]
+
+  - slug: focus-mode
+    skill: focus-accuracy
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Say which focus mode you would use for a walking subject and why
+      single-shot autofocus fails there.
+    answerKey:
+      concepts: [continuous-af, subject-moves-between-lock-and-shutter]
+
+  - slug: perspective-move
+    skill: focal-length-and-perspective
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Photograph one subject twice so it stays the same size in the frame but
+      the background changes dramatically. Report both focal lengths and both
+      distances.
+    answerKey:
+      concepts: [wide-close-vs-long-far, background-compression, subject-size-constant]
+
+  - slug: perspective-explain
+    skill: focal-length-and-perspective
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      "Telephoto lenses compress perspective." Explain why this is loose
+      language, and what actually causes the compression.
+    answerKey:
+      concepts: [perspective-comes-from-position, focal-length-crops, distance-is-the-cause]
+
+  - slug: motion-three-ways
+    skill: motion-and-shutter
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Photograph the same moving subject frozen, blurred, and panned. Submit all
+      three with shutter speeds.
+    answerKey:
+      concepts: [three-distinct-renderings, shutter-speeds-reported, panning-shows-sharp-subject]
+
+  - slug: motion-pick
+    skill: motion-and-shutter
+    type: mcq
+    difficulty: 0.3
+    prompt: You want a sharp subject against a blurred background while panning. What matters most?
+    options:
+      - A very fast shutter speed
+      - Matching your movement to the subject's
+      - A narrow aperture
+      - A high ISO
+    answerKey: { correct: 1 }
+
+  - slug: light-hard-soft
+    skill: light-quality
+    type: micro_artifact
+    difficulty: 0.45
+    prompt: >-
+      Photograph the same subject in hard light and in soft light. Say what you
+      changed to move between them.
+    answerKey:
+      concepts: [shadow-edge-transition, apparent-source-size, diffusion-or-distance]
+
+  - slug: light-quality-explain
+    skill: light-quality
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      The sun is enormous, yet it produces hard light. Explain the apparent
+      contradiction in one paragraph.
+    answerKey:
+      concepts: [apparent-size-from-subject, distance, cloud-as-diffuser]
+
+  - slug: direction-four-ways
+    skill: light-direction
+    type: micro_artifact
+    difficulty: 0.55
+    prompt: >-
+      Photograph one subject with front, side, back and top light. Say what each
+      direction did to the sense of texture and depth.
+    answerKey:
+      concepts: [side-light-reveals-texture, front-light-flattens, backlight-separates]
+
+  - slug: direction-pick
+    skill: light-direction
+    type: mcq
+    difficulty: 0.3
+    prompt: Which light direction reveals surface texture most strongly?
+    options: ["Front", "Side", "Top", "Diffuse overcast"]
+    answerKey: { correct: 1 }
+
+  - slug: wb-mixed
+    skill: white-balance
+    type: micro_artifact
+    difficulty: 0.45
+    prompt: >-
+      Photograph a scene lit by two different colour temperatures. Submit one
+      version neutralised for each source, and say which you would keep.
+    answerKey:
+      concepts: [mixed-lighting, cannot-neutralise-both, deliberate-choice]
+
+  - slug: wb-explain
+    skill: white-balance
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Why is white balance a free choice on a raw file and a destructive one on
+      a JPEG?
+    answerKey:
+      concepts: [raw-stores-sensor-data, jpeg-bakes-it-in]
+
+  - slug: edges-audit
+    skill: framing-and-edges
+    type: micro_artifact
+    difficulty: 0.4
+    prompt: >-
+      Photograph a scene, then photograph it again having fixed every edge
+      problem you can find. Submit both and list what you changed.
+    answerKey:
+      concepts: [mergers, half-objects, distracting-brights-at-edge]
+
+  - slug: edges-explain
+    skill: framing-and-edges
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      Name three things at the edge of a frame that quietly spoil an otherwise
+      good photograph, and say how you would fix each without cropping.
+    answerKey:
+      concepts: [move-your-feet, change-angle, wait-for-it-to-leave]
+
+  - slug: separation-shoot
+    skill: subject-separation
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Photograph a subject in a visually busy environment so the eye still lands
+      on them first. Say which tools you used to do it.
+    answerKey:
+      concepts: [tonal-contrast, focus-falloff, colour-contrast, position]
+
+  - slug: raw-recover
+    skill: raw-workflow
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Deliberately underexpose a raw frame by two stops, then recover it.
+      Submit the original, the recovery, and a note on what did not survive.
+    answerKey:
+      concepts: [shadow-noise, recoverable-detail, honest-about-limits]
+
+  - slug: raw-explain
+    skill: raw-workflow
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Explain what "non-destructive editing" actually means at the file level,
+      and why it matters six months later.
+    answerKey:
+      concepts: [edits-stored-as-instructions, original-untouched, revisit-decisions]
+
+  - slug: tonal-blackpoint
+    skill: tonal-correction
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Correct a flat, low-contrast raw file by setting black and white points
+      without clipping either end. Submit before, after, and both histograms.
+    answerKey:
+      concepts: [no-clipping, full-tonal-range, histograms-show-the-work]
+
+  - slug: tonal-explain
+    skill: tonal-correction
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Why is "crushing the blacks" a stylistic choice rather than a mistake, and
+      when does it stop being one?
+    answerKey:
+      concepts: [deliberate-vs-accidental, loses-detail-permanently, consistency-across-set]
+
+  - slug: consistency-set
+    skill: consistency-across-a-set
+    type: micro_artifact
+    difficulty: 0.8
+    prompt: >-
+      Edit six frames shot in changing light so they read as one set. Submit all
+      six and say what you standardised on and why.
+    answerKey:
+      concepts: [consistent-white-balance, consistent-black-point, stated-reference-frame]
+
+  - slug: consistency-explain
+    skill: consistency-across-a-set
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      A set of individually excellent photographs can still fail as a set.
+      Explain what makes that happen, in technical terms rather than aesthetic
+      ones.
+    answerKey:
+      concepts: [colour-temperature-drift, contrast-mismatch, inconsistent-black-point]

@@ -1,0 +1,254 @@
+# Photography — Curated Domain Pack
+#
+# The third pack, and the one that exists to prove §7.2 is real rather than
+# rhetoric. It is **Tier 3** on the Media workspace: the system can grade
+# exposure, focus and framing against technical criteria, and it cannot tell you
+# whether a photograph is any good.
+#
+# §7.2's claim for this tier, verbatim: "Technical feedback. Aesthetic judgement
+# is yours." Every rubric below stays inside that line — a criterion that scored
+# "beauty" would be the overclaiming §4.2 law 3 rules out, and would make the
+# whole mastery ledger untrustworthy by association.
+
+slug: photography
+name: Photography
+taxonomyParent: creative
+maturity: curated
+# §7.2 Tier 3 — multimodal rubric grading against technical criteria only.
+# Confidence 0.5–0.7, and the UI renders it as a band, never a number.
+evalTier: 3
+workspace: media
+
+evaluatorConfig:
+  model: opus
+  passes: 2
+  verifier: quote-match
+  tools: [read_image, read_exif]
+
+quality:
+  status: reviewed
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- Exposure --------------------------------------------------------------
+  - slug: exposure-triangle
+    name: The exposure triangle
+    description: >-
+      How aperture, shutter speed and ISO trade against each other, and choosing
+      which one to spend when the light changes.
+    level: foundational
+    area: exposure
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Hit a target exposure deliberately by choosing which of the three settings to spend
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.2, pLearn: 0.2, pSlip: 0.12, pGuess: 0.15 }
+
+  - slug: metering-and-histogram
+    name: Metering and the histogram
+    description: >-
+      Reading the histogram rather than the rear screen, and knowing when the
+      meter is being fooled by a bright or dark subject.
+    level: core
+    area: exposure
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Read a histogram to confirm exposure and recognise when the meter has been fooled
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.17, pSlip: 0.14, pGuess: 0.08 }
+
+  - slug: dynamic-range
+    name: Working within dynamic range
+    description: >-
+      Recognising a scene the sensor cannot hold, and deciding what to protect —
+      highlights or shadows — before you press the shutter.
+    level: advanced
+    area: exposure
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Identify a scene that exceeds the sensor's range and choose deliberately what to sacrifice
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.15, pSlip: 0.15, pGuess: 0.06 }
+
+  # --- Optics ----------------------------------------------------------------
+  - slug: depth-of-field
+    name: Depth of field
+    description: >-
+      Controlling what is sharp, using aperture, distance and focal length —
+      and knowing which of the three to reach for.
+    level: core
+    area: optics
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Place the zone of sharpness where you intended, and say which control put it there
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.18, pSlip: 0.13, pGuess: 0.1 }
+
+  - slug: focus-accuracy
+    name: Focus accuracy
+    description: >-
+      Putting the focal plane on the right thing — the near eye, not the
+      eyelash — and choosing the focus mode that suits the subject.
+    level: core
+    area: optics
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Land focus on the intended plane consistently, including on moving subjects
+    observableEvidence: [image]
+    bktPriors: { pInit: 0.15, pLearn: 0.2, pSlip: 0.13, pGuess: 0.1 }
+
+  - slug: focal-length-and-perspective
+    name: Focal length and perspective
+    description: >-
+      Understanding that perspective comes from where you stand, not from the
+      lens — and using focal length to control the relationship between subject
+      and background.
+    level: advanced
+    area: optics
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Change the subject-to-background relationship deliberately by moving, not just zooming
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.15, pSlip: 0.14, pGuess: 0.06 }
+
+  - slug: motion-and-shutter
+    name: Motion and shutter speed
+    description: >-
+      Freezing, blurring, and panning — choosing a shutter speed for the effect
+      rather than accepting whatever the camera picked.
+    level: core
+    area: optics
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Render motion the way you intended — frozen, blurred or panned — on purpose
+    observableEvidence: [image]
+    bktPriors: { pInit: 0.12, pLearn: 0.18, pSlip: 0.13, pGuess: 0.08 }
+
+  # --- Light -----------------------------------------------------------------
+  - slug: light-quality
+    name: Quality of light
+    description: >-
+      Hard versus soft light, what makes it one or the other, and how to change
+      it with distance and diffusion.
+    level: core
+    area: light
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Identify whether light is hard or soft, say why, and change it deliberately
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.17, pSlip: 0.14, pGuess: 0.08 }
+
+  - slug: light-direction
+    name: Direction of light
+    description: >-
+      Front, side, back and top light, and what each does to shape, texture and
+      the impression of depth.
+    level: core
+    area: light
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Place your subject relative to a light source to get the shaping you wanted
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.17, pSlip: 0.14, pGuess: 0.08 }
+
+  - slug: white-balance
+    name: White balance and colour temperature
+    description: >-
+      Neutralising a colour cast when you want accuracy, and keeping one when
+      you want the warmth.
+    level: foundational
+    area: light
+    evalTier: 3
+    estimatedHours: 1
+    canDoStatement: Produce neutral colour under mixed light, and depart from neutral on purpose
+    observableEvidence: [image]
+    bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.12, pGuess: 0.12 }
+
+  # --- Framing ---------------------------------------------------------------
+  - slug: framing-and-edges
+    name: Framing and edges
+    description: >-
+      Deciding what is inside the frame and what is not, and watching the edges
+      for the things that quietly ruin an otherwise good photograph.
+    level: foundational
+    area: framing
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Make a deliberate decision about every edge of the frame
+    observableEvidence: [image]
+    bktPriors: { pInit: 0.18, pLearn: 0.18, pSlip: 0.14, pGuess: 0.1 }
+
+  - slug: subject-separation
+    name: Separating subject from background
+    description: >-
+      Using contrast, focus, colour and position so the eye lands where you
+      meant it to.
+    level: advanced
+    area: framing
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Make the intended subject unmistakable within the frame
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.1, pLearn: 0.16, pSlip: 0.14, pGuess: 0.07 }
+
+  # --- After the shutter -----------------------------------------------------
+  - slug: raw-workflow
+    name: Raw workflow
+    description: >-
+      Why raw holds more than a JPEG, what a non-destructive edit means, and
+      keeping the original recoverable.
+    level: core
+    area: post
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Work non-destructively from raw and recover detail a JPEG would have lost
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.2, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: tonal-correction
+    name: Tonal correction
+    description: >-
+      Setting black and white points, and adjusting contrast without crushing
+      shadows or clipping highlights.
+    level: advanced
+    area: post
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Correct tone across a set so black and white points are consistent and nothing clips
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.14, pGuess: 0.06 }
+
+  - slug: consistency-across-a-set
+    name: Consistency across a set
+    description: >-
+      Making a series of frames look as though they belong together — the skill
+      that separates a portfolio from a folder of photos.
+    level: specialist
+    area: post
+    evalTier: 3
+    estimatedHours: 2.5
+    canDoStatement: Edit a set so exposure, colour and contrast read as one body of work
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.13, pSlip: 0.15, pGuess: 0.04 }
+
+dependencies:
+  - { from: exposure-triangle, to: metering-and-histogram, type: hard }
+  - { from: metering-and-histogram, to: dynamic-range, type: hard }
+  - { from: exposure-triangle, to: motion-and-shutter, type: hard }
+  - { from: exposure-triangle, to: depth-of-field, type: hard }
+  - { from: depth-of-field, to: focus-accuracy, type: soft, strength: 0.6 }
+  - { from: depth-of-field, to: focal-length-and-perspective, type: hard }
+  - { from: light-quality, to: light-direction, type: hard }
+  - { from: metering-and-histogram, to: light-quality, type: soft, strength: 0.5 }
+  - { from: exposure-triangle, to: white-balance, type: soft, strength: 0.4 }
+  - { from: framing-and-edges, to: subject-separation, type: hard }
+  - { from: depth-of-field, to: subject-separation, type: hard }
+  - { from: light-direction, to: subject-separation, type: soft, strength: 0.7 }
+  - { from: white-balance, to: raw-workflow, type: soft, strength: 0.5 }
+  - { from: raw-workflow, to: tonal-correction, type: hard }
+  - { from: metering-and-histogram, to: tonal-correction, type: hard }
+  - { from: tonal-correction, to: consistency-across-a-set, type: hard }
+  - { from: white-balance, to: consistency-across-a-set, type: hard }
+  - { from: dynamic-range, to: tonal-correction, type: soft, strength: 0.8 }

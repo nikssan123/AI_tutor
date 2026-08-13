@@ -190,9 +190,13 @@ describe("listPackDirs", () => {
 });
 
 describe("loadAllPacks", () => {
-  it("loads the real SQL pack from the repository", () => {
-    const packs = loadAllPacks();
-    expect(packs).toHaveLength(1);
-    expect(packs[0]!.slug).toBe("sql-data-analysis");
+  it("loads every real pack in the repository", () => {
+    // Pinned by name rather than counted, so a pack silently disappearing from
+    // disk fails here instead of quietly shrinking the product.
+    expect(loadAllPacks().map((p) => p.slug).sort()).toEqual([
+      "business-writing",
+      "photography",
+      "sql-data-analysis",
+    ]);
   });
 });

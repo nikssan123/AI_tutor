@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { join } from "node:path";
 import { createClient } from "@/db";
 import {
@@ -198,11 +198,18 @@ live("seedPack (integration)", () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.packSlug).toBe("valid-minimal");
   });
+
 });
 
 live("seeding a pack with no dependencies", () => {
   const { db, close } = createClient(DATABASE_URL!, 1);
-  afterAll(() => close());
+
+  afterAll(async () => {
+    // These tests share a database with local development, so any fixture pack
+    // that survives shows up at /admin/packs and in every listing query.
+    await db.delete(domainPack).where(ne(domainPack.slug, "sql-data-analysis"));
+    await close();
+  });
 
   it("handles a pack whose skills have no edges between them", async () => {
     // A Generated pack legitimately starts life as a flat list of skills.

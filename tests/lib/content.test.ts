@@ -1,0 +1,325 @@
+import { describe, expect, it } from "vitest";
+import {
+  allPacks,
+  allProjects,
+  allTopics,
+  CHECKS_ARE_NEVER_INDEXED,
+  findPack,
+  findProject,
+  findSkill,
+  isTopicIndexable,
+  projectDetails,
+  resetContentCache,
+  search,
+  skillDetails,
+  topicSummary,
+} from "@/lib/content";
+import type { DomainPack } from "@/lib/packs/types";
+
+/**
+ * The marketing content model. The property that matters most is §12.1's
+ * structural defence: a page is indexable only when the thing it describes
+ * genuinely exists and works. Nothing here may default to true.
+ */
+
+const pack = findPack("sql-data-analysis")!;
+
+describe("allPacks", () => {
+  it("loads the real packs and caches them", () => {
+    expect(allPacks()).toBe(allPacks());
+    expect(allPacks().map((p) => p.slug).sort()).toEqual([
+      "business-writing",
+      "photography",
+      "sql-data-analysis",
+    ]);
+  });
+
+  /**
+   * §7.1's whole premise is that this is horizontal — "all kinds of users can
+   * sign up to learn all kinds of skills". That claim is only true if the
+   * catalogue actually spans domains, so it is asserted rather than assumed:
+   * one technical, one professional, one creative, across three evaluation
+   * tiers and three workspaces.
+   *
+   * If this ever fails because the catalogue collapsed back to a single
+   * technical subject, the product has quietly become a developer tool.
+   */
+  it("spans domains, tiers and workspaces (§7.1)", () => {
+    const packs = allPacks();
+    expect(new Set(packs.map((p) => p.taxonomyParent))).toEqual(
+      new Set(["technical-entry", "professional-business", "creative"]),
+    );
+    expect(new Set(packs.map((p) => p.evalTier))).toEqual(new Set([1, 2, 3]));
+    expect(new Set(packs.map((p) => p.workspace))).toEqual(
+      new Set(["query-sheet", "text", "media"]),
+    );
+    expect(packs.filter((p) => p.taxonomyParent !== "technical-entry").length)
+      .toBeGreaterThanOrEqual(2);
+  });
+
+  /**
+   * §4.2 law 3 — never overclaim. Tier 3 promises "technical feedback;
+   * aesthetic judgement is yours", so a photography rubric that scored beauty
+   * would break the promise the page makes. Enforced here because a rubric is
+   * data, and data has no type system to stop it.
+   */
+  it("keeps Tier 3 rubrics off aesthetic judgement (§7.2)", () => {
+    const aesthetic = /\b(beaut|artist|creativ|pleasing|striking|tasteful|evocative)/i;
+    for (const pack of allPacks().filter((p) => p.evalTier >= 3)) {
+      for (const rubric of pack.rubrics) {
+        for (const criterion of rubric.criteria) {
+          expect(
+            aesthetic.test(`${criterion.name} ${criterion.description}`),
+            `${pack.slug}/${rubric.slug}: "${criterion.name}"`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("rebuilds after a reset", () => {
+    const first = allPacks();
+    resetContentCache();
+    expect(allPacks()).not.toBe(first);
+  });
+});
+
+describe("findPack", () => {
+  it("finds a pack by slug", () => {
+    expect(findPack("sql-data-analysis")?.name).toBe("SQL & Data Analysis");
+  });
+
+  it("returns undefined for an unknown slug", () => {
+    expect(findPack("no-such-pack")).toBeUndefined();
+  });
+});
+
+describe("§12.1 — indexing is earned, never granted", () => {
+  it("refuses to index a pack that has not been human-reviewed", () => {
+    // The SQL pack is Curated but `reviewedBy` is still "unreviewed", so it is
+    // served and not submitted for indexing. This is the gate, working.
+    expect(pack.maturity).toBe("curated");
+    expect(pack.quality.reviewedBy).toBe("unreviewed");
+    expect(isTopicIndexable(pack)).toBe(false);
+  });
+
+  it("indexes a Curated pack once a human has signed it off", () => {
+    const reviewed = {
+      ...pack,
+      quality: { ...pack.quality, reviewedBy: "nixon" },
+    };
+    expect(isTopicIndexable(reviewed)).toBe(true);
+  });
+
+  it("never indexes a Standard or Generated pack, reviewed or not", () => {
+    for (const maturity of ["standard", "generated"] as const) {
+      const other: DomainPack = {
+        ...pack,
+        maturity,
+        quality: { ...pack.quality, reviewedBy: "nixon" },
+      };
+      expect(isTopicIndexable(other), maturity).toBe(false);
+    }
+  });
+
+  it("keeps every skill check out of the index until the tool exists", () => {
+    // §2.6 calls the skill-assessment SERP "the crack in the wall", but the
+    // thing that earns the ranking is the working assessment — E4/E11.
+    expect(CHECKS_ARE_NEVER_INDEXED).toEqual({ index: false, follow: true });
+  });
+});
+
+describe("topicSummary", () => {
+  const summary = topicSummary(pack);
+
+  it("counts skills, projects and hours from the pack itself", () => {
+    expect(summary.skillCount).toBe(26);
+    expect(summary.projectCount).toBe(4);
+    expect(summary.totalHours).toBeGreaterThan(40);
+  });
+
+  it("lists the areas in graph order without duplicates", () => {
+    expect(summary.areas.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(summary.areas).size).toBe(summary.areas.length);
+    expect(summary.areas[0]).toBe("foundations");
+  });
+
+  it("carries the declared maturity and tier through unchanged", () => {
+    expect(summary.maturity).toBe("curated");
+    expect(summary.evalTier).toBe(1);
+  });
+});
+
+describe("allTopics", () => {
+  it("sorts by name so the listing is stable", () => {
+    const names = allTopics().map((t) => t.name);
+    expect([...names].sort()).toEqual(names);
+  });
+});
+
+describe("skillDetails", () => {
+  const skills = skillDetails(pack);
+  const joinGrain = skills.find((s) => s.slug === "join-grain")!;
+
+  it("resolves hard and soft prerequisites separately", () => {
+    // The planner gates on hard edges only; conflating them would lock
+    // learners out of material they could handle.
+    expect(joinGrain.hardPrerequisites).toContain("outer-joins");
+    expect(joinGrain.hardPrerequisites).toContain("group-by-grain");
+    expect(joinGrain.softPrerequisites).toContain("distinct-and-duplicates");
+    expect(joinGrain.hardPrerequisites).not.toContain(
+      "distinct-and-duplicates",
+    );
+  });
+
+  it("resolves what a skill unlocks", () => {
+    expect(joinGrain.unlocks).toContain("query-performance");
+    expect(joinGrain.unlocks).toContain("result-validation");
+  });
+
+  it("counts the item bank behind each skill", () => {
+    expect(joinGrain.itemCount).toBeGreaterThan(0);
+    // A Curated pack assesses every skill it claims to teach.
+    expect(skills.every((s) => s.itemCount > 0)).toBe(true);
+  });
+
+  it("carries the can-do statement, which is the bar the page states", () => {
+    expect(joinGrain.canDoStatement).toContain("grain");
+  });
+
+  it("reports no prerequisites for a starting-point skill", () => {
+    const start = skills.find((s) => s.slug === "select-projection")!;
+    expect(start.hardPrerequisites).toEqual([]);
+    expect(start.softPrerequisites).toEqual([]);
+  });
+});
+
+describe("findSkill", () => {
+  it("finds a skill within a topic", () => {
+    expect(findSkill("sql-data-analysis", "join-grain")?.skill.name).toBe(
+      "Join grain and fan-out",
+    );
+  });
+
+  it("returns undefined for an unknown topic", () => {
+    expect(findSkill("nope", "join-grain")).toBeUndefined();
+  });
+
+  it("returns undefined for an unknown skill in a real topic", () => {
+    expect(findSkill("sql-data-analysis", "nope")).toBeUndefined();
+  });
+});
+
+describe("projectDetails", () => {
+  const projects = projectDetails(pack);
+
+  it("attaches the full rubric each project is graded against", () => {
+    // §4.2 law 2 — the rubric is public *before* the work is done, so it has to
+    // be on the page, not behind a signup.
+    for (const project of projects) {
+      expect(project.rubricDetail.criteria.length).toBeGreaterThanOrEqual(4);
+      for (const criterion of project.rubricDetail.criteria) {
+        expect(criterion.bands.absent.length).toBeGreaterThan(0);
+        expect(criterion.bands.strong.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("resolves target skills to names and can-do statements", () => {
+    const funnel = projects.find((p) => p.slug === "sales-funnel-analysis")!;
+    expect(funnel.skills.map((s) => s.slug)).toContain("join-grain");
+    expect(funnel.skills[0]!.canDoStatement.length).toBeGreaterThan(10);
+  });
+
+  it("drops a target skill that is not in the pack rather than rendering a hole", () => {
+    const broken = {
+      ...pack,
+      projects: [{ ...pack.projects[0]!, targetSkills: ["ghost"] }],
+    };
+    expect(projectDetails(broken)[0]!.skills).toEqual([]);
+  });
+
+  it("throws if a project points at a rubric that does not exist", () => {
+    // The validator makes this unreachable in production; failing loudly beats
+    // rendering a brief with no rubric, which would break §4.2 law 2.
+    const broken = {
+      ...pack,
+      projects: [{ ...pack.projects[0]!, rubric: "no-such-rubric" }],
+    };
+    expect(() => projectDetails(broken)).toThrow(/missing rubric/);
+  });
+
+  it("requires both public *and* an indexable topic to be indexable", () => {
+    const reviewed = {
+      ...pack,
+      quality: { ...pack.quality, reviewedBy: "nixon" },
+    };
+    expect(projectDetails(reviewed).every((p) => p.indexable)).toBe(true);
+
+    const privateProject = {
+      ...reviewed,
+      projects: [{ ...reviewed.projects[0]!, isPublic: false }],
+    };
+    expect(projectDetails(privateProject)[0]!.indexable).toBe(false);
+  });
+});
+
+describe("allProjects / findProject", () => {
+  it("orders projects easiest first", () => {
+    const difficulties = allProjects().map((p) => p.difficulty);
+    expect([...difficulties].sort((a, b) => a - b)).toEqual(difficulties);
+  });
+
+  it("finds a project by slug", () => {
+    expect(findProject("slow-query-rescue")?.title).toContain("slow query");
+  });
+
+  it("returns undefined for an unknown slug", () => {
+    expect(findProject("nope")).toBeUndefined();
+  });
+});
+
+describe("search", () => {
+  it("finds skills by name and by can-do statement", () => {
+    const hits = search("join");
+    expect(hits.some((h) => h.title === "Inner joins")).toBe(true);
+    // Matched on the can-do statement rather than the title.
+    expect(hits.some((h) => h.title === "NULL semantics")).toBe(true);
+  });
+
+  it("finds a topic by name", () => {
+    expect(search("SQL").some((h) => h.kind === "topic")).toBe(true);
+  });
+
+  it("finds a project by title and by brief", () => {
+    expect(search("cohort").some((h) => h.kind === "project")).toBe(true);
+    expect(search("dashboard query takes 40").some((h) => h.kind === "project")).toBe(
+      true,
+    );
+  });
+
+  it("finds skills by area", () => {
+    expect(search("windows").some((h) => h.kind === "skill")).toBe(true);
+  });
+
+  it("is case-insensitive and ignores surrounding whitespace", () => {
+    expect(search("  JOIN GRAIN  ").length).toBeGreaterThan(0);
+  });
+
+  it("returns nothing for an empty query", () => {
+    expect(search("")).toEqual([]);
+    expect(search("   ")).toEqual([]);
+  });
+
+  it("returns nothing for a subject the product does not teach", () => {
+    // The autocomplete must never promise something that does not exist.
+    expect(search("underwater basket weaving")).toEqual([]);
+  });
+
+  it("links every hit to a real route", () => {
+    for (const hit of search("join")) {
+      expect(hit.href).toMatch(/^\/(learn|check|projects)\//);
+      expect(hit.detail.length).toBeGreaterThan(0);
+    }
+  });
+});

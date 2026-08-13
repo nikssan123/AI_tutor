@@ -44,7 +44,7 @@ describe("/admin/packs/[slug]", () => {
     render(
       await PackPage({ params: Promise.resolve({ slug: "sql-data-analysis" }) }),
     );
-    expect(screen.getByText("Deeply supported")).toBeDefined();
+    expect(screen.getByText("Written and checked by hand")).toBeDefined();
     expect(screen.getByText("Validation passing")).toBeDefined();
   });
 

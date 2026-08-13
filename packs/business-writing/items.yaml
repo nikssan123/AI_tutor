@@ -1,0 +1,384 @@
+# §16.4's build-time rule holds here too: production items outnumber
+# multiple-choice at least 2:1. In a writing pack that is easy to honour and
+# easy to get wrong — recognising good prose is not the same skill as producing
+# it, and only one of those is what the learner came for.
+
+items:
+  # --- audience-and-purpose --------------------------------------------------
+  - slug: audience-one-liner
+    skill: audience-and-purpose
+    type: short_text
+    difficulty: 0.2
+    prompt: >-
+      You need your finance director to approve £8,000 of unbudgeted spend.
+      Write the one line that states who this is for and what you want them to
+      do. Nothing else.
+    answerKey:
+      concepts: [names-the-reader, names-the-decision, no-preamble]
+
+  - slug: audience-mismatch
+    skill: audience-and-purpose
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      A engineer sends the board a two-page update full of component names and
+      ticket numbers. The board reads none of it. Diagnose the failure in terms
+      of audience, and say what the update should have led with instead.
+    answerKey:
+      concepts: [reader-does-not-share-context, lead-with-consequence, translate-detail-to-impact]
+
+  - slug: audience-pick
+    skill: audience-and-purpose
+    type: mcq
+    difficulty: 0.25
+    prompt: You are writing to someone who will forward your message to their boss. Who should you write for?
+    options:
+      - The person you are emailing
+      - The boss who will read the forward
+      - Both — write so it survives being forwarded unchanged
+      - Neither; write for the record
+    answerKey: { correct: 2 }
+
+  # --- the-one-thing ---------------------------------------------------------
+  - slug: one-thing-extract
+    skill: the-one-thing
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Take any document you wrote in the last month. Write the single sentence
+      that must survive if the reader stops after the first paragraph. Then say
+      where that sentence currently sits in the document.
+    answerKey:
+      concepts: [single-sentence, states-consequence-or-ask, usually-buried]
+
+  - slug: one-thing-buried
+    skill: the-one-thing
+    type: code_read
+    difficulty: 0.5
+    prompt: |-
+      "Following our review of the Q3 vendor landscape, and after consultation
+      with procurement and several stakeholders across the business, we have
+      compiled a comparison of the available options. Cost, integration effort
+      and support quality were all considered. On balance, we recommend
+      switching to Vendor B, which would save roughly £40,000 a year."
+
+      Rewrite so the reader gets the point in the first eight words.
+    answerKey:
+      concepts: [recommendation-first, saving-is-the-hook, process-detail-comes-after]
+
+  # --- evidence-and-claims ---------------------------------------------------
+  - slug: evidence-separate
+    skill: evidence-and-claims
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      "Customers hate the new onboarding." Rewrite this as a claim with its
+      evidence attached, and mark how confident you actually are.
+    answerKey:
+      concepts: [quantify, name-the-source, state-uncertainty]
+
+  - slug: evidence-hedge-audit
+    skill: evidence-and-claims
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Explain the difference between a hedge that is honest ("we think, based on
+      three interviews") and one that is evasive ("it could be argued that there
+      may be some concerns"). Why does the second one damage trust more than
+      being wrong would?
+    answerKey:
+      concepts: [honest-hedge-names-basis, evasive-hedge-hides-author, unfalsifiable-claims-cost-credibility]
+
+  - slug: evidence-pick
+    skill: evidence-and-claims
+    type: mcq
+    difficulty: 0.3
+    prompt: Which sentence is a claim rather than evidence?
+    options:
+      - "Support tickets rose 40% between March and May."
+      - "Three of five interviewed users abandoned at step two."
+      - "The onboarding flow is too long."
+      - "Median completion time is 11 minutes."
+    answerKey: { correct: 2 }
+
+  # --- structure-and-signposting ---------------------------------------------
+  - slug: structure-reorder
+    skill: structure-and-signposting
+    type: micro_artifact
+    difficulty: 0.5
+    prompt: >-
+      Take a document of yours with more than four sections. Reorder it so a
+      reader who stops after any section still has the most important remaining
+      thing. Submit the new section headings and one line on what moved and why.
+    answerKey:
+      concepts: [descending-importance, headings-carry-meaning, justification]
+
+  - slug: structure-headings
+    skill: structure-and-signposting
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Rewrite these headings so each one tells the reader what it says rather
+      than what it is about: "Background", "Analysis", "Considerations",
+      "Next Steps".
+    answerKey:
+      concepts: [headings-state-conclusions, scannable-without-body]
+
+  # --- executive-summary -----------------------------------------------------
+  - slug: exec-summary-write
+    skill: executive-summary
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Summarise a document of at least 1,500 words into 150 words that stand
+      alone. The reader must be able to make the decision without opening the
+      full version — including any decision to say no.
+    answerKey:
+      concepts: [stands-alone, includes-the-bad-news, decision-enabling]
+
+  - slug: exec-summary-badnews
+    skill: executive-summary
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      A summary omits the one risk that could sink the project, on the grounds
+      that it is "detail for the full document". Explain why this is a failure
+      of summarising rather than a judgement call.
+    answerKey:
+      concepts: [summary-must-be-decision-complete, omission-is-a-claim, trust-cost]
+
+  # --- proposal-shape --------------------------------------------------------
+  - slug: proposal-do-nothing
+    skill: proposal-shape
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      Every proposal needs a "what happens if we do nothing" section. Write one
+      for a recommendation you have actually made, in under 60 words.
+    answerKey:
+      concepts: [status-quo-has-a-cost, concrete-consequence, no-scaremongering]
+
+  - slug: proposal-options
+    skill: proposal-shape
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Why does listing the options you rejected — and why — make a
+      recommendation more persuasive rather than less decisive?
+    answerKey:
+      concepts: [shows-the-work, pre-empts-objections, signals-judgement]
+
+  # --- plain-language --------------------------------------------------------
+  - slug: plain-rewrite
+    skill: plain-language
+    type: short_text
+    difficulty: 0.35
+    prompt: |-
+      Rewrite in plain language, keeping every fact:
+
+      "Utilisation of the aforementioned functionality has been observed to
+      exhibit a downward trajectory subsequent to the implementation of the
+      revised authentication requirements."
+    answerKey:
+      concepts: [fewer-nominalisations, active-voice, same-meaning]
+
+  - slug: plain-nominalisation
+    skill: plain-language
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Turn these nominalisations back into verbs, in a sentence each:
+      "the implementation of", "a reduction in", "the provision of",
+      "an improvement to".
+    answerKey:
+      concepts: [verb-not-noun, shorter, clearer-actor]
+
+  - slug: plain-jargon-pick
+    skill: plain-language
+    type: mcq
+    difficulty: 0.25
+    prompt: When is domain jargon the right choice?
+    options:
+      - Never — always use plain words
+      - When every reader shares the term and the plain version is longer or vaguer
+      - When you want to sound authoritative
+      - When the document is internal
+    answerKey: { correct: 1 }
+
+  # --- sentence-craft --------------------------------------------------------
+  - slug: sentence-actor-first
+    skill: sentence-craft
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Rewrite so the actor does the verb: "A decision was reached by the
+      committee that the deployment would be postponed until such time as
+      testing has been completed."
+    answerKey:
+      concepts: [active-voice, named-actor, shorter]
+
+  - slug: sentence-stress-position
+    skill: sentence-craft
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Explain why "We can ship on Friday, although testing is not finished"
+      lands differently from "Although testing is not finished, we can ship on
+      Friday" — and when you would choose each.
+    answerKey:
+      concepts: [end-position-carries-emphasis, subordinate-clause-demotes, choose-by-what-you-want-remembered]
+
+  - slug: sentence-rhythm
+    skill: sentence-craft
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Write a paragraph of exactly five sentences where the shortest is under
+      six words and the longest is over twenty. The variation should do work,
+      not decorate.
+    answerKey:
+      concepts: [deliberate-variation, short-sentence-lands-a-point]
+
+  # --- cutting ---------------------------------------------------------------
+  - slug: cutting-third
+    skill: cutting
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Take a piece of your own writing of at least 400 words and cut it by a
+      third. Submit both versions and one line naming the hardest cut and why
+      you made it.
+    answerKey:
+      concepts: [33-percent-shorter, nothing-load-bearing-lost, justified-hard-cut]
+
+  - slug: cutting-what-goes-first
+    skill: cutting
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      List, in order, the first four things you delete from any first draft —
+      and say why each one is almost always safe to lose.
+    answerKey:
+      concepts: [throat-clearing-opener, restated-conclusion, hedges, adverbs]
+
+  # --- tone-and-register -----------------------------------------------------
+  - slug: tone-three-ways
+    skill: tone-and-register
+    type: micro_artifact
+    difficulty: 0.55
+    prompt: >-
+      Write the same two-sentence message three times: to a close colleague, to
+      a client you have never met, and to a regulator. Change only what the
+      relationship requires.
+    answerKey:
+      concepts: [register-shifts-not-content, formality-matched-to-stakes]
+
+  - slug: tone-warmth-evasion
+    skill: tone-and-register
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Give an example of warmth that reads as evasion, and rewrite it so it
+      stays warm but stops hiding the message.
+    answerKey:
+      concepts: [padding-obscures-the-ask, warmth-and-clarity-are-compatible]
+
+  # --- email-that-gets-replies -----------------------------------------------
+  - slug: email-subject-lines
+    skill: email-that-gets-replies
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Write three subject lines for an email asking a busy person to review a
+      document by Thursday. Then say which you would send and why.
+    answerKey:
+      concepts: [names-the-ask, names-the-deadline, survives-a-full-inbox]
+
+  - slug: email-rewrite
+    skill: email-that-gets-replies
+    type: micro_artifact
+    difficulty: 0.45
+    prompt: >-
+      Take a real email you sent that got no reply. Rewrite it so the ask is
+      unmissable in the first two lines, and say what you think went wrong the
+      first time.
+    answerKey:
+      concepts: [ask-first, one-ask-only, explicit-deadline]
+
+  # --- difficult-messages ----------------------------------------------------
+  - slug: difficult-slip
+    skill: difficult-messages
+    type: micro_artifact
+    difficulty: 0.75
+    prompt: >-
+      A deadline you committed to will slip by two weeks, and you have known for
+      three days. Write the message. Lead with the slip.
+    answerKey:
+      concepts: [bad-news-first, no-burying, states-new-date-and-cause, owns-the-delay]
+
+  - slug: difficult-saying-no
+    skill: difficult-messages
+    type: short_text
+    difficulty: 0.65
+    prompt: >-
+      Decline a request from someone more senior than you, in under 80 words,
+      without hedging it into a maybe.
+    answerKey:
+      concepts: [unambiguous-no, reason-given-once, offers-what-you-can-do]
+
+  - slug: difficult-pick
+    skill: difficult-messages
+    type: mcq
+    difficulty: 0.4
+    prompt: Where should bad news sit in a message?
+    options:
+      - At the end, after the context that explains it
+      - In the middle, cushioned on both sides
+      - At the start, with the context after
+      - Implied, so the reader reaches it themselves
+    answerKey: { correct: 2 }
+
+  # --- written-feedback ------------------------------------------------------
+  - slug: feedback-specific
+    skill: written-feedback
+    type: micro_artifact
+    difficulty: 0.6
+    prompt: >-
+      Rewrite this feedback so the recipient can act on it without a call:
+      "This doesn't really work for me — can you have another go?"
+    answerKey:
+      concepts: [names-what-specifically, names-the-standard, suggests-a-direction]
+
+  - slug: feedback-tone
+    skill: written-feedback
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Why does written feedback need to be *warmer* than the same feedback said
+      out loud, while staying just as specific?
+    answerKey:
+      concepts: [no-tone-of-voice, no-immediate-clarification, reader-fills-gaps-negatively]
+
+  # --- meeting-notes ---------------------------------------------------------
+  - slug: notes-decisions
+    skill: meeting-notes
+    type: micro_artifact
+    difficulty: 0.4
+    prompt: >-
+      Turn a real meeting you attended into notes. Every line must be a
+      decision, an owner, or a deadline. Discussion that produced none of those
+      does not appear.
+    answerKey:
+      concepts: [decisions-not-transcript, named-owners, explicit-dates]
+
+  - slug: notes-pick
+    skill: meeting-notes
+    type: mcq
+    difficulty: 0.3
+    prompt: Which belongs in meeting notes?
+    options:
+      - "Sarah raised concerns about the timeline."
+      - "Timeline moved to 14 March; Sarah owns the revised plan, due Friday."
+      - "There was a long discussion about timelines."
+      - "Timelines were considered."
+    answerKey: { correct: 1 }

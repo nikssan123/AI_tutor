@@ -193,3 +193,296 @@ E3 (goal intake), E4 (diagnostic), E6 (curriculum + validator), E7 (session +
 tutor), E8 (evaluation agent), E9–E13. All either need `ANTHROPIC_API_KEY` or
 build on the primitives above. `src/lib/ai/models.ts` records the model IDs the
 later epics route to.
+
+---
+
+# Delivery record — pass 2: the horizontal catalogue
+
+Triggered by a single observation: *"Still feels too tech oriented — the idea is
+that all kinds of users can sign up to learn all kinds of skills, not only
+technical."*
+
+That was a content problem wearing a copy problem's clothes. The product had one
+pack, and it was SQL, so every page the content model derived — every project
+brief, every subject card, every autocomplete suggestion — was about databases.
+No amount of rewriting the hero could fix a catalogue with one subject in it.
+
+## Two new Curated packs
+
+| Pack | Taxonomy | Tier | Workspace | Skills | Items | Projects |
+|---|---|---|---|---|---|---|
+| `business-writing` | professional-business | 2 | text | 14 | 33 | 3 |
+| `photography` | creative | 3 | media | 15 | 32 | 3 |
+| `sql-data-analysis` | technical-entry | 1 | query-sheet | 26 | 52 | 4 |
+
+The tier spread is the point, not a coincidence. §7.3 claims adding a domain is
+a data change requiring no code; that claim was untested while every pack shared
+one tier and one workspace. It now holds across three of each, and the landing
+page shows all three honesty claims stacked together — which is the only way a
+reader learns that "verified" means something specific.
+
+Photography is deliberately Tier 3, and its three rubrics contain **no aesthetic
+criterion**. §7.2's promise at that tier is "technical feedback; aesthetic
+judgement is yours", and a rubric scoring beauty would break it. A test enforces
+this: any rubric in a Tier 3+ pack whose criteria mention beauty, artistry or
+"pleasing" fails the build.
+
+## Defect found: the briefs overclaimed
+
+`/projects/[slug]` hardcoded the Tier 1 evaluation note, so the photography
+brief — graded at Tier 3, where the system explicitly cannot judge the result —
+told readers *"Verified: your work is run and checked."* That is §4.2 law 3
+("never overclaim") violated on the page whose entire job is to state the
+grading contract before the work starts.
+
+Invisible while every pack was Tier 1. Fixed by carrying `evalTier` from the
+pack onto `ProjectDetail` and deriving the note from it, with a per-project test
+asserting each brief states its own claim *and none of the others*. The landing
+page's blanket Tier 1 note is gone for the same reason.
+
+## Tests
+
+864 passing, 0 skipped, 100% statements/branches/functions/lines maintained.
+
+Two additions worth naming, both encoding a promise rather than a behaviour:
+
+- **`spans domains, tiers and workspaces`** — asserts the catalogue covers three
+  taxonomies, three tiers and three workspaces. If it ever collapses back to a
+  single technical subject, the product has quietly become a developer tool and
+  this fails.
+- **`tests/app/marketing-indexable.test.tsx`** — every real pack ships
+  `reviewedBy: unreviewed`, so the open side of the §12.1 gate was never
+  exercised. It now runs against a reviewed fixture, so the path a launch takes
+  is tested before launch rather than discovered during one.
+
+Counted assertions ("all four briefs", "26 skills") were replaced with ones
+derived from the packs, so pack #4 does not break the suite. One pinned
+assertion remains, listing the packs by name, so a pack disappearing from disk
+still fails loudly.
+
+## Still open
+
+The 80KB JS budget decision above. And every pack remains `unreviewed`, so
+`/learn/*` and `/projects/*` serve as `noindex, follow` and the sitemap lists
+only the three hubs — the §12.1 gate working as designed. Setting `reviewedBy`
+in each `pack.yaml` after reading it end to end is what opens it.
+
+---
+
+# Delivery record — pass 3: making the landing page legible
+
+*"I don't really understand it — it's like you know what the site is about but
+for normal users it's not very clear."*
+
+Correct, and the cause was specific: the page was written in our vocabulary, not
+a visitor's. "Deeply supported", "Verified: your work is run and checked",
+"4 criteria · 75 min", "Check → Path → Prove" — every one of those is precise
+and meaningless to someone meeting the product for the first time. The page
+asserted that it was concrete instead of being concrete.
+
+## What changed
+
+- **Headline states the problem, not a slogan.** "Don't just learn it. Prove
+  it." → "Anyone can teach you. Almost no one checks whether you learned it."
+- **Five steps written as things that happen to you**, replacing the three
+  abstract nouns. Step 4 quotes a real task so the promise stays tied to content
+  that exists.
+- **One real task with its complete marking checklist, reproduced in full** —
+  "Tell them the deadline is slipping", with all four criteria, their weights,
+  and what full marks means for each. This replaced a list of brief titles. It
+  is the most convincing artefact the product has, and it was previously three
+  clicks away.
+- **Tier and maturity language rewritten in plain English.** "Assessed against
+  the published rubric" → "We grade it against a checklist you can read first".
+  "Technical feedback; aesthetic judgement is yours" → "We check the technical
+  side — whether it's any good is your call". "Deeply supported" → "Written and
+  checked by hand".
+- **Footer no longer restates the headline.**
+
+§8.5.1's density rule still holds: five things at rest (hero, walkthrough,
+checklist, subjects, limits). The budget is the same, spent on concrete things.
+
+## Hydration warning — investigated, not reproduced
+
+Reported mid-pass. Checked properly rather than guessed at:
+
+- SSR output is byte-identical across repeated requests on `/`, `/learn`,
+  `/projects`, `/today`, `/sign-in`, `/design` (Next's dev-only request id
+  aside), and there is no `Date.now`, `Math.random` or locale formatting
+  anywhere in `src/components` or `src/app`.
+- Headless Chrome with a clean profile produced **zero** hydration console
+  output on every one of those routes, and no unexpected attributes on `<html>`
+  or `<body>`.
+- The one pre-hydration DOM mutation we make (the anti-FOUC script setting
+  `data-theme`) is on `<html>`, which carries `suppressHydrationWarning`.
+
+The remaining likely cause is a browser extension writing attributes onto
+`<body>`, which is the classic source of that exact message and which `<body>`
+is not currently guarded against. Not fixed blind — the full error text names
+the attribute, and that is what would settle it.
+
+## Separately found: the marketing theme toggle lies about its state
+
+`ThemeToggleStatic` renders `aria-pressed` on "system" unconditionally, and its
+inline script only updates the pressed state **on click**. So a visitor who has
+previously chosen dark sees the correct theme with "system" shown as selected.
+Cosmetic, real, and not yet fixed.
+
+---
+
+# Delivery record — pass 4: structure, not just wording
+
+*"There is just too much text and no clear sections — feels like there is just
+a long list of stuff."*
+
+Pass 3 fixed the vocabulary but not the shape. Every block was still a
+paragraph at the same visual weight, so there was nothing to tell a skimmer
+where one idea ended and the next began — five sections of prose read as one
+list.
+
+## The rule now enforced on this page
+
+**One line per idea, and never two paragraphs in a row.** Prose is reserved for
+the hero. Everything after it is a numbered section with a rule above it, and
+rows readable at a glance.
+
+- `SectionHead` — a numbered eyebrow ("01 · How it works") over a rule. Gives
+  the eye somewhere to land and tells a skimmer how much is left.
+- Steps went from a paragraph each to a bold line plus one short line.
+- The marking checklist went from four blocks of description + band text to
+  four rows of `criterion — weight`, with a link to the full version. The
+  detail still exists on `/projects/[slug]`, which is where someone who has
+  decided to care will go.
+- Column narrowed from `max-w-3xl` to `max-w-2xl`; section gap 24 → 16.
+- Maturity badges dropped from the landing page (they live on `/learn`), so
+  each subject row carries one claim rather than two.
+
+Visible copy is now ~385 words for the whole page.
+
+Also fixed: the hero and step 1 opened with the same sentence, and the
+Organization structured data still carried the old "AI coach... evidence-backed
+record" line, which no longer matched anything a visitor reads.
+
+867 tests, 100% coverage, build clean.
+
+---
+
+# Delivery record — pass 5: the icon set
+
+Six hand-drawn icons in `src/components/icons.tsx`, plus an icon slot on
+`SectionHead`.
+
+## Why hand-drawn rather than a package
+
+§8.5.8 caps marketing routes at **zero component-library JavaScript**. Every
+icon library — lucide, heroicons, phosphor — ships a React component per glyph
+and pulls the client runtime into a route that currently has none. Six inline
+paths cost nothing and render in the server HTML, which is verifiable: `curl` on
+`/` returns six `<svg viewBox="0 0 24 24">` elements with no script involved.
+
+## House rules, enforced by test rather than review
+
+An icon set decays one addition at a time, so the rules are asserted across
+every icon:
+
+- 24×24 viewBox, 1.5 stroke, round caps and joins.
+- **`currentColor` only.** An icon that names its own colour needs a second
+  definition for dark mode and will be forgotten (§8.5.4). The test greps the
+  rendered markup for any hex, `rgb()` or `hsl()` literal and fails on one.
+- `aria-hidden` and `focusable="false"` — each sits beside a text label that
+  already carries the meaning.
+- A passed `className` merges rather than replaces.
+
+## Where they went
+
+| Surface | Icons |
+|---|---|
+| Landing `SectionHead` | steps, checklist, grid — one per numbered section |
+| Landing + `/learn` subject rows | pen / camera / database, by taxonomy |
+| `/learn/[topic]` title | the subject's own mark |
+| `/design` | all six, so the drift guard covers them |
+
+`SubjectIcon` maps `taxonomyParent` → mark, so adding a Domain Pack picks up the
+right icon without touching a component (§7.3 rule 1). Unknown or absent
+taxonomy falls back to the neutral grid rather than guessing at a metaphor; both
+fallbacks are tested.
+
+Threading `taxonomyParent` onto `TopicSummary` surfaced that it is nullable in
+the pack schema — typed through as `string | null` rather than asserted away.
+
+894 tests, 100% coverage, build clean.
+
+## Hydration warning — closed
+
+Confirmed gone by the user, consistent with the investigation in pass 3: nothing
+in our render was mismatching. No code change was made for it, and none was
+needed.
+
+---
+
+# Delivery record — pass 6: E4, the Skill Check
+
+*"The learn section feels too generic — I don't feel like actually learning."*
+
+Correct, and the honest diagnosis was that `/learn/*` and `/check/*` were a
+catalogue and a landing page for a tool that did not exist. The teaching loop
+(E4, E6, E7, E8) was all deferred behind `ANTHROPIC_API_KEY`.
+
+E4 is the piece that does not need the key, so it is built.
+
+## What it is
+
+A working adaptive diagnostic at `/check/[topic]`, linked from every subject
+page. One route, four states — intro, question, self-mark, result — each
+transition a plain form POST to a Server Action. **Zero client JavaScript**:
+verified by serving the page and counting script tags, which match the landing
+page's baseline exactly. It works with JS disabled.
+
+## The design problem, and the honest answer
+
+A machine with no evaluator can only *verify* a closed item. The packs are
+production-heavy by design (§16.4 requires production items to outnumber MCQ
+2:1), so across all three packs there are 117 items and only **16** that a
+machine can decide.
+
+Pretending otherwise was the one thing not on the table. So:
+
+| Item type | Count | How the check treats it |
+|---|---|---|
+| `mcq` | 16 | Graded deterministically. Tier 1. Moves mastery. |
+| `short_text`, `explain`, `code_read` | 68 | Answer, then the key is revealed and **you** mark it. Tier 5. Recorded, never counted. |
+| `micro_artifact` | 33 | Excluded — that is project work, not a ten-minute check. |
+
+The Tier 5 rule is enforced in the BKT, not in the UI, so the result screen
+cannot drift from it: a learner can mark themselves correct on every open
+question and the result still says *"Nothing here could be machine-marked."*
+That is asserted end to end in `tests/engine/diagnostic.test.ts`.
+
+A real photography run reports **2 of 15 skills machine-marked**, everything
+else "Not assessed". Thin, and true.
+
+## Notable engineering
+
+- **Selection is coverage-first, information-second.** The first cut was purely
+  information-greedy and drilled a single skill, because answering correctly
+  moves a posterior *towards* 0.5 — exactly where items are most informative.
+  Right for grading one skill, wrong for "find my gaps". Fewest-observations now
+  wins outright; ties break on information, then slug.
+- **State lives in a cookie holding only answers**; mastery is replayed through
+  the engine on every request. Sound because selection is deterministic, and it
+  means a forged cookie cannot invent a mastery score — only lie to itself,
+  which the Tier 5 rule already neutralises. No anonymous identifier is minted
+  and no row needs expiring.
+- **Bug found in review:** the question counter read `cookie.a.length` while
+  completion read the replayed state. A stale cookie referencing removed items
+  desynchronised them into "Question 10 of 9" and a check that never ended. The
+  cookie is input; the engine state is the authority.
+
+998 tests, 100% coverage, build clean.
+
+## Finding — the item bank is the bottleneck
+
+16 closed items across 55 skills is not enough for a check to say much. Nothing
+is wrong with the code; the packs need more `mcq` items, and §16.4's 2:1 ratio
+leaves room for roughly 39 before the constraint binds. That is authoring work,
+not engineering.

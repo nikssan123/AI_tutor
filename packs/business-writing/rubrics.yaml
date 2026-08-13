@@ -1,0 +1,129 @@
+# §4.2 law 2 — public before the work is done.
+#
+# Tier 2 rubrics carry more weight than Tier 1 ones, because there is no test
+# suite underneath: the rubric *is* the ground truth. That makes band
+# descriptions load-bearing — a vague band is where sycophantic grading enters.
+
+rubrics:
+  - slug: recommendation-memo
+    version: 1
+    isPublic: true
+    criteria:
+      - id: leads-with-the-ask
+        name: Leads with the decision
+        description: The reader knows what they are being asked to approve within the first two sentences.
+        weight: 0.3
+        bands:
+          absent: The ask appears in the final paragraph, or not at all.
+          developing: The ask is present early but competes with context for attention.
+          competent: The first two sentences state the recommendation and what approval means.
+          strong: The opening states the recommendation, the cost and the consequence of declining.
+      - id: options-and-reasoning
+        name: Shows the options considered
+        description: Rejected alternatives appear with the reason each was rejected.
+        weight: 0.25
+        bands:
+          absent: Only the preferred option is mentioned.
+          developing: Alternatives are listed without reasons.
+          competent: Each rejected option carries a specific reason.
+          strong: Reasons are comparable against a stated criterion, so a reader could disagree usefully.
+      - id: honest-uncertainty
+        name: Uncertainty is marked
+        description: Claims are separated from evidence, and confidence is stated where it is low.
+        weight: 0.25
+        bands:
+          absent: Estimates are presented as facts.
+          developing: Some hedging, but unattributed or vague.
+          competent: Weak claims are marked as weak, with the basis named.
+          strong: Marked, sourced, and the reader is told what would change the recommendation.
+      - id: economy
+        name: Nothing that does not earn its place
+        description: No throat-clearing, no restated conclusions, no padding.
+        weight: 0.2
+        bands:
+          absent: A third of the document could be cut without loss.
+          developing: Noticeable padding in one or two sections.
+          competent: Tight throughout; each paragraph does distinct work.
+          strong: Tight, and the structure makes the brevity feel generous rather than terse.
+
+  - slug: difficult-message
+    version: 1
+    isPublic: true
+    criteria:
+      - id: leads-with-the-news
+        name: The news comes first
+        description: The difficult part is in the opening, not buried after context.
+        weight: 0.35
+        bands:
+          absent: The reader must reach the third paragraph to learn what happened.
+          developing: Present in the first paragraph but softened into ambiguity.
+          competent: The first sentence states the news plainly.
+          strong: States it plainly and immediately follows with what happens next.
+      - id: unambiguous
+        name: It cannot be misread as good news
+        description: A hurried reader reaches the correct conclusion.
+        weight: 0.3
+        bands:
+          absent: A skim could plausibly read this as fine.
+          developing: Clear on careful reading only.
+          competent: Unambiguous on a skim.
+          strong: Unambiguous, and pre-empts the most likely misreading.
+      - id: ownership
+        name: Ownership is clear
+        description: Who is responsible, and what they are doing about it.
+        weight: 0.2
+        bands:
+          absent: Passive throughout; no one appears to have done anything.
+          developing: Ownership implied but never stated.
+          competent: The author names what they own and what they will do.
+          strong: Ownership stated without either over-apologising or deflecting.
+      - id: respect
+        name: Respectful without padding
+        description: Warm enough for the relationship, without softening into evasion.
+        weight: 0.15
+        bands:
+          absent: Either cold, or so padded the message is lost.
+          developing: Tone is off for the relationship in one direction.
+          competent: Warmth and clarity coexist.
+          strong: The reader would feel respected even while receiving bad news.
+
+  - slug: summary-that-stands-alone
+    version: 1
+    isPublic: true
+    criteria:
+      - id: decision-complete
+        name: A decision can be made from it alone
+        description: The reader never needs the full document to say yes or no.
+        weight: 0.35
+        bands:
+          absent: Reads as a teaser for the full version.
+          developing: Most of what is needed, with one material gap.
+          competent: Everything needed to decide is present.
+          strong: Complete, and states explicitly what is *not* covered.
+      - id: includes-bad-news
+        name: The bad news survived compression
+        description: Risks and caveats material to the decision are in the summary.
+        weight: 0.3
+        bands:
+          absent: A material risk was dropped in compression.
+          developing: Risks mentioned but softened relative to the original.
+          competent: Material risks carried through at their original weight.
+          strong: Carried through, and the most likely failure is named first.
+      - id: faithful
+        name: Faithful to the original
+        description: Nothing is overstated or reweighted to make the summary read better.
+        weight: 0.2
+        bands:
+          absent: Claims are stronger than the source supports.
+          developing: Emphasis shifted in one place.
+          competent: Proportions match the original.
+          strong: Proportions match, and any judgement call is flagged as the summariser's.
+      - id: length-discipline
+        name: Within the length it promised
+        description: Meets the stated word budget without abandoning completeness.
+        weight: 0.15
+        bands:
+          absent: More than 25% over, or complete only by omission.
+          developing: Slightly over, or scraping under by dropping something needed.
+          competent: Within budget and complete.
+          strong: Comfortably within budget with room to spare.

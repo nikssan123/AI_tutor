@@ -128,8 +128,8 @@ describe("Confidence — a meter and a word, never a number (§8.5.5)", () => {
 
 describe("MaturityBadge — §7.1's declared depth", () => {
   it.each([
-    ["curated", "Deeply supported"],
-    ["standard", "Well supported"],
+    ["curated", "Written and checked by hand"],
+    ["standard", "Solid coverage"],
     ["generated", "Experimental — help us improve it"],
   ] as const)("labels a %s pack honestly", (maturity, label) => {
     render(<MaturityBadge maturity={maturity} />);

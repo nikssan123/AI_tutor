@@ -138,7 +138,7 @@ describe("§16.4 — recall over recognition", () => {
 
 describe("§7.1 — depth is declared, so severity depends on maturity", () => {
   it("blocks a curated pack with an unassessable skill", () => {
-    // A Curated pack shows a "Deeply supported" badge. A skill the diagnostic
+    // A Curated pack shows a "Written and checked by hand" badge. A skill the diagnostic
     // cannot place a learner on makes that badge a lie.
     const report = validatePack(fixture("orphan-skill"));
     const issue = report.issues.find((i) => i.check === "item_coverage");
@@ -293,7 +293,7 @@ describe("the real SQL pack", () => {
   });
 
   it("is a genuine Curated pack, not a stub", () => {
-    // §7.1 sets the bar for the "Deeply supported" badge; §23 Phase 0 sets the
+    // §7.1 sets the bar for the "Written and checked by hand" badge; §23 Phase 0 sets the
     // shape: ~25 skills, ~40 items, 4 projects with full rubrics.
     expect(pack.maturity).toBe("curated");
     expect(report.stats.skills).toBeGreaterThanOrEqual(25);

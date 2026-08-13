@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
+  CameraIcon,
+  ChecklistIcon,
+  DatabaseIcon,
+  GridIcon,
+  PenIcon,
+  StepsIcon,
+} from "@/components/icons";
+import {
   ArtifactMat,
   Button,
   Card,
@@ -81,6 +89,29 @@ export default function DesignPage() {
             characters.
           </p>
           <Meta>Updated 12 August 2026</Meta>
+        </Card>
+      </Section>
+
+      <Section
+        title="Icons"
+        note="Hand-drawn inline SVG, 24×24 at a 1.5 stroke, currentColor only — no icon package, because marketing routes ship zero component-library JS (§8.5.8)."
+      >
+        <Card className="flex flex-wrap items-center gap-8 text-ink">
+          {[
+            ["Steps", <StepsIcon key="s" />],
+            ["Checklist", <ChecklistIcon key="c" />],
+            ["Grid", <GridIcon key="g" />],
+            ["Pen", <PenIcon key="p" />],
+            ["Camera", <CameraIcon key="m" />],
+            ["Database", <DatabaseIcon key="d" />],
+          ].map(([label, icon]) => (
+            <span key={String(label)} className="flex flex-col items-center gap-2">
+              <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
+                {icon}
+              </span>
+              <Meta>{label}</Meta>
+            </span>
+          ))}
         </Card>
       </Section>
 
