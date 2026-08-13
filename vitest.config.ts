@@ -15,6 +15,7 @@ const DATABASE_TESTS = [
   "tests/packs/read.test.ts",
   "tests/packs/seed.test.ts",
   "tests/session/store.test.ts",
+  "tests/submissions/store.test.ts",
 ];
 
 export default defineConfig({

@@ -1415,3 +1415,70 @@ submissions are not built, `/submission/{id}` does not exist, and nothing writes
 been waiting since pass 1. After that, §24 E8's remaining acceptance criteria:
 the Phase-0 hand-graded set for Cohen's κ, and two runs landing within one band
 ≥85% of the time. Both need a corpus that does not exist yet.
+
+---
+
+# Delivery record — pass 18: handing work in
+
+The other half of E8. Pass 17 built the marker; this is the part a learner
+touches, and the sentence it deletes is the one the `apply` block has carried
+since pass 13: *"You can't hand it in here yet."*
+
+## The write that matters
+
+`recordEvaluation` puts the `Evaluation`, the `MasteryUpdate` and the new
+mastery row in **one transaction**. §15 promises "every mastery change is
+traceable to evidence", and a mastery row whose evaluation failed to write is
+precisely the untraceable change §4.2 law 1 exists to prevent — so they land
+together or not at all.
+
+`masteryUpdate.reason` is written for a person, because it is the row that
+answers "why did my score move": *"Marked 75% against the rubric, at confidence
+0.80."* Tier-5 work gets the other sentence — logged as engagement, cannot raise
+mastery — and a null delta.
+
+The artefact is stored inline rather than in object storage. A deliberate limit:
+this build accepts pasted text, bounded by the ingest cap, and a bucket holding
+60KB of prose would be infrastructure with nobody behind it. A repo URL or a file
+upload changes that, and `storageRef` is named for the day it does.
+
+## The result screen
+
+The score never appears without what it is worth — tier and confidence sit
+beside it, because §7.2 says a tier-3 verdict at 0.8 is not the claim a tier-1
+one is. Every criterion leads with the quote from the learner's own work, set
+apart, before the reasoning. A criterion whose quote could not be found was
+thrown out before it reached the page, so everything on it is quotable by
+construction.
+
+Truncation and human review are both stated on the page rather than implied.
+
+## Two dead branches deleted rather than covered
+
+`mark` re-queried the database for a user id the load step had already
+established, which added a branch that could never be false; it takes the id
+through instead. And `lastPracticedAt` was written behind a ternary, when
+`applyObservation` stamps it on every path including the engagement-only one.
+
+## A test that was wrong about the engine
+
+An assertion expected mastery to fall after work that fell short. It rises
+slightly: §16.2's `pLearn` moves the belief even on a failed attempt, because
+attempting it is practice. What must not happen — and does not — is the
+retention clock starting, so `lastSuccessAt` stays null.
+
+2124 tests, 100% on all four metrics, `pnpm verify` clean.
+
+## Still open
+
+**The loop has not been watched end to end with Inngest running.** The pipeline
+was verified against real rubrics in pass 17 and every branch of the handler is
+tested, but a submission has not been followed from the textarea to a marked
+result the way pack generation was. That is the next thing, and it is the one
+that can still reveal a design problem rather than a missing test.
+
+Then §24 E8's two remaining acceptance criteria, both of which need a corpus
+that does not exist: Cohen's κ ≥ 0.6 against a hand-graded set, and two runs
+landing within one band ≥85% of the time. §23's Phase 0 lists "grade 5 real
+submissions by hand" as a MUST that was never done, and it is a prerequisite the
+build owes rather than something code can supply.

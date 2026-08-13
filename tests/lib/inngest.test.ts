@@ -1,8 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 import {
   buildPack,
   buildPackHandler,
+  evaluate,
+  evaluateHandler,
+  type EvaluateResult,
   functions,
   ping,
   pingHandler,
@@ -35,7 +38,8 @@ describe("the ping function — E1's durability proof", () => {
   it("is registered", () => {
     expect(functions).toContain(ping);
     expect(functions).toContain(buildPack);
-    expect(functions).toHaveLength(2);
+    expect(functions).toContain(evaluate);
+    expect(functions).toHaveLength(3);
   });
 
   it("triggers on the ping event", () => {
@@ -85,7 +89,34 @@ describe("the ping function — E1's durability proof", () => {
  * interesting half is testable, but the closures that connect it to the real
  * generator, seeder and build row are code too, and nothing else runs them.
  */
-vi.mock("@/db", () => ({ getDb: () => ({ db: true }) }));
+let submissionRows: unknown[] = [{ userId: "u1" }];
+
+vi.mock("@/db", () => ({
+  getDb: () => ({
+    db: true,
+    select: () => ({
+      from: () => ({ where: () => ({ limit: async () => submissionRows }) }),
+    }),
+  }),
+}));
+vi.mock("@/lib/content/resolve", () => ({
+  resolvePack: async () => packStub,
+}));
+vi.mock("@/lib/goals/store", () => ({
+  masteryFor: async () => heldMastery,
+}));
+vi.mock("@/lib/evaluation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/evaluation")>()),
+  evaluateSubmission: vi.fn(async () => evaluationOutcome),
+}));
+vi.mock("@/lib/submissions/store", () => ({
+  submissionById: async () => storedSubmission,
+  setStatus: vi.fn(async () => undefined),
+  recordEvaluation: vi.fn(async () => ({
+    evaluationId: "ev-1",
+    masteryDelta: 0.1,
+  })),
+}));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({ client: true }) }));
 vi.mock("@/lib/packs/generate", () => ({
   generatePack: vi.fn(async () => ({
@@ -134,14 +165,21 @@ describe("the registered build function", () => {
     });
 
     expect(result.status).toBe("ready");
+    // The db stub grew a query surface for the evaluate tests, so these match
+    // on the handle being the real one rather than on its exact shape.
     expect(generatePack).toHaveBeenCalledWith(
-      { client: { client: true }, db: { db: true }, userId: "u1" },
+      expect.objectContaining({ client: { client: true }, userId: "u1" }),
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
-    expect(seedPack).toHaveBeenCalledWith({ db: true }, { slug: "rust" });
-    expect(finishBuild).toHaveBeenCalledWith({ db: true }, "rust", {
-      status: "ready",
-    });
+    expect(seedPack).toHaveBeenCalledWith(
+      expect.objectContaining({ db: true }),
+      { slug: "rust" },
+    );
+    expect(finishBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ db: true }),
+      "rust",
+      { status: "ready" },
+    );
   });
 });
 
@@ -230,5 +268,282 @@ describe("buildPackHandler", () => {
     const result = await handler({ event: {}, step });
     expect(result.slug).toBe("");
     expect(result.status).toBe("failed");
+  });
+});
+
+/** The registered evaluate function's own wiring to the real collaborators. */
+const packStub = {
+  slug: "photography",
+  projects: [
+    {
+      slug: "p1",
+      rubric: "r1",
+      title: "A brief",
+      brief: "do the thing",
+      acceptanceCriteria: ["it exists"],
+      targetSkills: ["s1"],
+    },
+  ],
+  rubrics: [{ slug: "r1", version: 1, criteria: [] }],
+  skills: [
+    {
+      slug: "s1",
+      name: "A skill",
+      evalTier: 2,
+      bktPriors: { pInit: 0.1, pLearn: 0.2, pSlip: 0.1, pGuess: 0.2 },
+    },
+  ],
+} as never;
+
+let heldMastery: unknown[] = [];
+
+let storedSubmission: unknown = {
+  id: "s1",
+  userId: "u1",
+  packSlug: "photography",
+  projectSlug: "p1",
+  skillSlug: "s1",
+  status: "queued",
+  artefact: "some work",
+  truncated: false,
+};
+
+let evaluationOutcome: unknown = {
+  result: {
+    overall: 0.8,
+    confidence: 0.8,
+    evalTier: 2,
+    humanReview: false,
+    observation: { correct: true, confidence: 0.8, evidenceTier: 2 },
+    criteria: [],
+    strengths: [],
+    gaps: [],
+    nextActions: [],
+    bandSpread: 0,
+    verification: { upheld: [], invalidated: [], missing: [], passed: true },
+  },
+  reason: null,
+};
+
+describe("the registered evaluate function", () => {
+  const run = async () => {
+    const ran: string[] = [];
+    const result = await (
+      evaluate as unknown as { fn: (c: unknown) => Promise<EvaluateResult> }
+    ).fn({
+      event: { data: { submissionId: "s1", userId: "u1" } },
+      step: {
+        run: async <T>(name: string, f: () => T | Promise<T>) => {
+          ran.push(name);
+          return f();
+        },
+      },
+    });
+    return { ran, result };
+  };
+
+  beforeEach(() => {
+    heldMastery = [];
+    submissionRows = [{ userId: "u1" }];
+    storedSubmission = {
+      id: "s1",
+      userId: "u1",
+      packSlug: "photography",
+      projectSlug: "p1",
+      skillSlug: "s1",
+      status: "queued",
+      artefact: "some work",
+      truncated: false,
+    };
+    evaluationOutcome = {
+      result: {
+        overall: 0.8,
+        confidence: 0.8,
+        evalTier: 2,
+        humanReview: false,
+        observation: { correct: true, confidence: 0.8, evidenceTier: 2 },
+        criteria: [],
+        strengths: [],
+        gaps: [],
+        nextActions: [],
+        bandSpread: 0,
+        verification: { upheld: [], invalidated: [], missing: [], passed: true },
+      },
+      reason: null,
+    };
+  });
+
+  it("marks a submission and records it", async () => {
+    const { result } = await run();
+    expect(result).toMatchObject({ submissionId: "s1", status: "complete" });
+  });
+
+  it("moves the mastery the learner already had, rather than starting fresh", async () => {
+    heldMastery = [
+      {
+        skillId: "s1",
+        mastery: 0.4,
+        confidence: 0.5,
+        evidenceCount: 2,
+        lastSuccessAt: null,
+        lastPracticedAt: null,
+        decayHalfLifeDays: 7,
+      },
+    ];
+    expect((await run()).result.status).toBe("complete");
+  });
+
+  it("passes a human-review verdict through", async () => {
+    (evaluationOutcome as { result: { humanReview: boolean } }).result.humanReview =
+      true;
+    expect((await run()).result.status).toBe("human_review");
+  });
+
+  it("fails a submission row that is not there", async () => {
+    submissionRows = [];
+    const { result } = await run();
+    expect(result.status).toBe("failed");
+  });
+
+  it("fails when the work itself cannot be read back", async () => {
+    storedSubmission = undefined;
+    const { result } = await run();
+    expect(result.reason).toContain("vanished");
+  });
+
+  it("fails when the brief it was handed in against has gone", async () => {
+    // A pack edited under a queued submission is a deployment event, and the
+    // learner is told rather than left waiting.
+    storedSubmission = { ...(storedSubmission as object), projectSlug: "gone" };
+    const { result } = await run();
+    expect(result.reason).toContain("no longer available");
+  });
+
+  it("marks a submission failed rather than leaving it in grading", async () => {
+    // §24 E8 — "never a silent loss". The fail closure is the half of that
+    // which runs after the marker has already given up.
+    evaluationOutcome = { result: null, reason: "nothing to quote" };
+    const { ran } = await run();
+    expect(ran).toContain("record-failure");
+  });
+
+  it("passes the marker's own reason through when it could not mark", async () => {
+    evaluationOutcome = { result: null, reason: "nothing to quote" };
+    const { result } = await run();
+    expect(result.reason).toBe("nothing to quote");
+  });
+
+  it("says something rather than nothing when no reason came back", async () => {
+    evaluationOutcome = { result: null, reason: null };
+    const { result } = await run();
+    expect(result.reason).toContain("could not be marked");
+  });
+});
+
+describe("evaluateHandler", () => {
+  const recordingStep = () => {
+    const ran: string[] = [];
+    return {
+      ran,
+      step: {
+        run: async <T>(name: string, fn: () => T | Promise<T>) => {
+          ran.push(name);
+          return fn();
+        },
+      },
+    };
+  };
+
+  const deps = (over: Partial<Parameters<typeof evaluateHandler>[0]> = {}) => {
+    const failed: Array<{ id: string; reason: string }> = [];
+    return {
+      failed,
+      handler: evaluateHandler({
+        load: async () => ({ userId: "u1", ok: true, reason: null }),
+        mark: async () => ({ status: "complete" as const, reason: null }),
+        fail: async (id, reason) => {
+          failed.push({ id, reason });
+        },
+        ...over,
+      }),
+    };
+  };
+
+  it("marks a submission and reports it complete", async () => {
+    const { failed, handler } = deps();
+    const { ran, step } = recordingStep();
+
+    const result = await handler({ event: { data: { submissionId: "s1" } }, step });
+
+    expect(result).toEqual({ submissionId: "s1", status: "complete", reason: null });
+    expect(ran).toEqual(["load-submission", "mark"]);
+    expect(failed).toEqual([]);
+  });
+
+  it("passes a human-review verdict through rather than flattening it", async () => {
+    const { handler } = deps({
+      mark: async () => ({ status: "human_review" as const, reason: null }),
+    });
+    const { step } = recordingStep();
+
+    const result = await handler({ event: { data: { submissionId: "s1" } }, step });
+    expect(result.status).toBe("human_review");
+  });
+
+  it("records a failure rather than leaving it stuck in grading", async () => {
+    // §24 E8 — "never a silent loss".
+    const { failed, handler } = deps({
+      mark: async () => ({ status: "failed" as const, reason: "nothing to quote" }),
+    });
+    const { ran, step } = recordingStep();
+
+    const result = await handler({ event: { data: { submissionId: "s1" } }, step });
+
+    expect(result).toMatchObject({ status: "failed", reason: "nothing to quote" });
+    expect(failed).toEqual([{ id: "s1", reason: "nothing to quote" }]);
+    expect(ran).toEqual(["load-submission", "mark", "record-failure"]);
+  });
+
+  it("fails a submission that is not there without trying to mark it", async () => {
+    const { failed, handler } = deps({
+      load: async () => ({ userId: "", ok: false, reason: null }),
+      mark: async () => {
+        throw new Error("must not be called");
+      },
+    });
+    const { ran, step } = recordingStep();
+
+    const result = await handler({ event: { data: { submissionId: "gone" } }, step });
+
+    expect(result.status).toBe("failed");
+    expect(failed[0]!.reason).toContain("could not be found");
+    expect(ran).toEqual(["load-submission", "record-missing"]);
+  });
+
+  it("uses the loader's own reason when it gives one", async () => {
+    const { failed, handler } = deps({
+      load: async () => ({ userId: "", ok: false, reason: "already marked" }),
+    });
+    const { step } = recordingStep();
+
+    await handler({ event: { data: { submissionId: "s1" } }, step });
+    expect(failed[0]!.reason).toBe("already marked");
+  });
+
+  it("tolerates an event with no data", async () => {
+    const { handler } = deps();
+    const { step } = recordingStep();
+
+    const result = await handler({ event: {}, step });
+    expect(result.submissionId).toBe("");
+  });
+
+  it("runs one marking per submission at a time", () => {
+    // Two runs marking the same submission would both pay and both write.
+    expect(evaluate.opts.concurrency).toMatchObject({
+      key: "event.data.submissionId",
+      limit: 1,
+    });
+    expect(evaluate.opts.triggers).toEqual([{ event: EVENTS.evaluate }]);
   });
 });

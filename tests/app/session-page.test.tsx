@@ -218,9 +218,9 @@ describe("the session screen", () => {
     expect(screen.getByText(/left this one blank/)).toBeDefined();
   });
 
-  it("admits that work cannot be handed in yet", async () => {
-    // §4.2 law 5 — the declared limit has to be the real one. A submit button
-    // that files nothing would be worse than saying so.
+  it("takes the work, now that there is something to take it", async () => {
+    // This used to assert the opposite — §4.2 law 5, a declared limit that was
+    // real. E8 made it untrue, so the assertion changed with the behaviour.
     sessionViewMock.mockResolvedValue(
       view({
         blocks: [
@@ -237,7 +237,8 @@ describe("the session screen", () => {
     );
 
     await show(await SessionPage({ params }));
-    expect(screen.getByText(/can.t hand it in here yet/)).toBeDefined();
+    expect(screen.getByPlaceholderText("Paste your work here…")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Hand it in" })).toBeDefined();
   });
 
   it("keeps a reflection without marking it", async () => {

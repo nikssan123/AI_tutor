@@ -13,7 +13,6 @@ import {
   Button,
   Card,
   DisplayTitle,
-  EmptyState,
   Lead,
   Meta,
   Skeleton,
@@ -21,6 +20,7 @@ import {
   Title,
   stagger,
 } from "@/components/ui";
+import { submitWorkAction } from "@/app/(app)/submission/actions";
 import { TutorPanel } from "./tutor-panel";
 import { LessonBody } from "./lesson-body";
 import { answerAction, continueAction, finishAction, noteAction } from "./actions";
@@ -302,13 +302,36 @@ function ApplyBlock(
     <div className="flex flex-col gap-5">
       <Lead>{props.block.brief}</Lead>
 
-      {/*
-       * Handing work in is E8, and saying so plainly beats a button that files
-       * it nowhere. §4.2 law 5: the declared limit has to be the real one.
-       */}
-      <EmptyState message="Do this away from the screen, in whatever you normally work in. You can't hand it in here yet — marked submissions are the next thing being built." />
+      <Meta>
+        Do this away from the screen, in whatever you normally work in. Paste it
+        back here when you are ready and it gets marked against the rubric.
+      </Meta>
 
-      <ContinueOnly sessionId={props.sessionId} index={props.index} label="Done" />
+      {/* §24 E8. A form POST, so handing work in needs no JavaScript either. */}
+      <form action={submitWorkAction} className="flex flex-col gap-3">
+        <input type="hidden" name="skill" value={props.block.skillId} />
+        <input type="hidden" name="rubric" value={props.block.rubricId ?? ""} />
+        <input
+          type="hidden"
+          name="returnTo"
+          value={`/session/${props.sessionId}`}
+        />
+
+        <label htmlFor="work" className="sr-only">
+          What you made
+        </label>
+        <textarea
+          id="work"
+          name="work"
+          rows={10}
+          required
+          placeholder="Paste your work here…"
+          className="w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 py-3 font-mono text-[length:var(--text-meta-size)] text-ink placeholder:text-ink-faint focus:border-accent"
+        />
+        <Button type="submit">Hand it in</Button>
+      </form>
+
+      <ContinueOnly sessionId={props.sessionId} index={props.index} label="Skip for now" />
     </div>
   );
 }
