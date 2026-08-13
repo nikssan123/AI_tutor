@@ -469,9 +469,6 @@ describe("/check/[topic]/[skill]", () => {
     // page has to be honest about.
     render(await check.default({ params: p }));
     expect(screen.getByText(/cannot check this skill on its own yet/)).toBeDefined();
-    expect(
-      screen.getByText(/stays out of search results until you can check this skill/),
-    ).toBeDefined();
   });
 
   it("cites the real item count behind the skill", async () => {

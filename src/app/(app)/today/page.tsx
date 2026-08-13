@@ -149,9 +149,13 @@ export default async function TodayPage({ searchParams }: Props) {
         </div>
 
         {/* The session runner is E7. Until it exists this card says what it
-            would contain rather than offering a button that goes nowhere. */}
+            would contain rather than offering a button that goes nowhere.
+
+            It used to say "arrives with E7" — an internal epic code, printed to
+            a signed-in learner who has no way to know what E7 is. The state is
+            worth declaring; our roadmap shorthand is not. */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
-          <Meta>The session runner arrives with E7.</Meta>
+          <Meta>You can&rsquo;t work through a session here yet.</Meta>
           <Link
             href={`/today?minutes=${SHORTER}`}
             className="text-accent font-[550] hover:underline underline-offset-4"

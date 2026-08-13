@@ -202,8 +202,8 @@ export default async function TopicPage({
 
         {!summary.indexable ? (
           <Meta>
-            Nobody has reviewed this subject by hand yet, so we keep it out of
-            search results.
+            Nobody has reviewed this subject by hand yet, so treat it as a first
+            draft.
           </Meta>
         ) : null}
       </PageFrame>

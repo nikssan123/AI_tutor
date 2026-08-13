@@ -88,8 +88,8 @@ describe("the screen", () => {
     render(await StartPage({ searchParams: search() }));
     // The form asks for a level because §8 screen 3 does. §7.2 means it cannot
     // move the record, and the screen has to say so where it is asked.
-    expect(screen.getByText(/never moves your record/i)).toBeDefined();
-    expect(screen.getByText(/starts empty/i)).toBeDefined();
+    expect(screen.getByText(/nothing you pick here counts as proof/i)).toBeDefined();
+    expect(screen.getByText(/start with nothing proven/i)).toBeDefined();
   });
 
   it("tells a visitor their anonymous check is coming with them", async () => {

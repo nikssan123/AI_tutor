@@ -170,10 +170,6 @@ export default async function CheckPage({
               {detail.itemCount} question{detail.itemCount === 1 ? "" : "s"} for
               this skill so far.
             </p>
-            <Meta className="mt-auto">
-              This page stays out of search results until you can check this
-              skill on its own.
-            </Meta>
           </div>
         </div>
 

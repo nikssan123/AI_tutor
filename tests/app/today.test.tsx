@@ -219,7 +219,11 @@ describe("with a plan", () => {
     todayForMock.mockResolvedValue(view());
     render(await TodayPage({ searchParams: search() }));
 
-    expect(screen.getByText(/session runner arrives with E7/i)).toBeDefined();
+    // The state is worth declaring; the epic code it used to name ("arrives
+    // with E7") meant nothing to the learner reading it.
+    expect(
+      screen.getByText(/can.t work through a session here yet/i),
+    ).toBeDefined();
     expect(screen.queryByRole("button", { name: /start/i })).toBeNull();
   });
 

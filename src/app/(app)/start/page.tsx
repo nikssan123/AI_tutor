@@ -182,8 +182,8 @@ export default async function StartPage({ searchParams }: Props) {
             <legend className="sr-only">Where you are starting from</legend>
             <span className={fieldLabel}>Where are you starting?</span>
             <Meta>
-              This sets your expectations, not ours. It never moves your record —
-              only work we can actually check does that.
+              This only sets your expectations. Nothing you pick here counts as
+              proof — only work we check does that.
             </Meta>
             {choice("statedLevel", LEVELS)}
           </fieldset>
@@ -239,8 +239,8 @@ export default async function StartPage({ searchParams }: Props) {
           style={stagger(4)}
         >
           <Meta tone="muted">
-            Nothing you say about yourself here counts as evidence. Your record
-            starts empty and fills up with work that was actually checked.
+            Nothing you say about yourself here counts as proof. You start with
+            nothing proven, and that fills up as your work gets checked.
           </Meta>
         </div>
 
