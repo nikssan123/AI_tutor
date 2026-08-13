@@ -471,6 +471,7 @@ Also avoided, because it is the *current default aesthetic of AI-generated front
   --font-mono: "JetBrains Mono", ui-monospace, monospace;   /* code artefacts ONLY */
 
   /* Six sizes. Tight tracking on large sizes is where the character lives. */
+  --text-hero:    clamp(2.5rem,6vw,4.5rem)/1.02 650 -0.04em;  /* marketing headline ONLY */
   --text-display: 2.5rem/1.1    650  -0.03em;   /* 40px — page + marketing titles */
   --text-title:   1.5rem/1.25   600  -0.02em;   /* 24px */
   --text-lead:    1.1875rem/1.5 400  -0.01em;   /* 19px — session content, intros */
@@ -502,8 +503,9 @@ Also avoided, because it is the *current default aesthetic of AI-generated front
   --touch-min: 44px;       /* non-negotiable on mobile */
   --measure: 68ch;         /* max reading width */
 
-  /* Elevation — one shadow, used rarely. Space separates; shadow lifts. */
+  /* Elevation — two shadows, used rarely. Space separates; shadow lifts. */
   --shadow-raised: 0 1px 2px rgb(23 25 28 / .04), 0 12px 32px rgb(23 25 28 / .07);
+  --shadow-lifted: 0 2px 4px rgb(23 25 28 / .05), 0 24px 56px -12px rgb(23 25 28 / .16);
 }
 
 /* Dark values — see §8.5.4 for how these are applied */
@@ -513,7 +515,17 @@ Also avoided, because it is the *current default aesthetic of AI-generated front
 --accent: #35C79A;  --accent-weak: #12302A;
 --attention: #E0A33C;  --problem: #F2726A;
 --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
+--shadow-lifted: 0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6);
 ```
+
+**Two amendments made during the landing-page rebuild**, both scoped to marketing and both because the original rule produced a page that was correct and dull:
+
+- **`--text-hero` is a seventh size.** The six-size rule governs *product screens*, where a seventh is drift. But `--text-display` at a fixed 2.5rem is only 2.5× body, so on a desktop viewport the landing headline had no more presence than a section heading. Hero is fluid, so a phone still renders it at the scale's 2.5rem. **Marketing headline only — never on a product screen.**
+- **`--shadow-lifted` is a second elevation.** "One shadow" holds wherever space separates. It fails in exactly one place: a `--surface` card on the `--accent-weak` field measures **1.13:1** in light, so without a deeper shadow the card has no edge at all. **Marketing showcase surfaces only.**
+
+Both are pinned by tests in `tests/lib/theme.test.ts`, and both appear on `/design` so the drift guard can see them.
+
+**`--accent-weak` is now a reading surface, not just a tint.** The landing page uses it as a full-bleed field, which puts it under the same contrast bar as any other surface. Measured: `--ink` 15.6:1 light / 12.8:1 dark, `--ink-muted` 5.5 / 6.0, `--accent` 4.8 / 6.6 — all pass. **`--ink-faint` does not** (4.15 / 3.96), so 13px meta text on the field steps up to `--ink-muted` via `Meta`'s `tone` prop. This is asserted rather than remembered.
 
 **Typeface rationale.** [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans) — open source, variable, geometric-humanist with just enough quirk to be recognisable, and crucially *not* Inter, Roboto, Geist or a system stack, all of which read as unbranded defaults. *(Alternate if you want more warmth: General Sans from Fontshare. Alternate if you want more neutrality: Public Sans.)* Self-host, subset to Latin, ship **two weights only** (400/600 from the variable file), `font-display: swap`, and define a metric-matched `Instrument Sans Fallback` via `size-adjust` so there is no layout shift — that keeps the §13 CLS < 0.05 and LCP < 2.0s targets intact at roughly 28KB.
 

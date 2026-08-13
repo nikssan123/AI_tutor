@@ -59,6 +59,15 @@ describe("§8.5.3 — the palette", () => {
     expect(luminance(dark.hairline)).toBeGreaterThan(luminance(dark.surface));
   });
 
+  it("keeps the two elevations distinct in both themes", () => {
+    // §8.5.3 allows one shadow; --shadow-lifted is the documented second, for
+    // marketing showcase surfaces only. If they ever converge, one of them is
+    // dead weight.
+    for (const palette of [light, dark]) {
+      expect(palette.shadowLifted).not.toBe(palette.shadowRaised);
+    }
+  });
+
   it("builds dark elevation from lighter surfaces rather than shadow", () => {
     expect(luminance(dark.ground)).toBeLessThan(luminance(dark.surface));
     expect(luminance(dark.surface)).toBeLessThan(luminance(dark.raised));
@@ -100,6 +109,38 @@ describe("§8.5.4 — WCAG 2.2 AA contrast in both themes", () => {
     expect(contrast(palette.inkFaint, palette.surface)).toBeGreaterThanOrEqual(3);
   });
 
+  /**
+   * The landing page turned `--accent-weak` from a small tinted fill into a
+   * full-bleed band carrying real copy, which puts it under the same bar as any
+   * other reading surface. Asserted here rather than eyeballed, because the
+   * band is the one place on the site where a contrast regression would be
+   * invisible in light and obvious in dark.
+   */
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("%s: text on the accent field clears 4.5:1", (_name, palette) => {
+    expect(contrast(palette.ink, palette.accentWeak)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(palette.inkMuted, palette.accentWeak)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(contrast(palette.accent, palette.accentWeak)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  });
+
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("%s: faint text does NOT clear 4.5:1 on the accent field", (_name, palette) => {
+    // 4.15:1 light, 3.96:1 dark. This is why `Meta` has a `tone` prop and why
+    // anything meta-sized on the field passes `tone="muted"`. If a palette
+    // change ever makes this pass, the prop can go — but until then the
+    // failure mode is silent, so it is pinned.
+    expect(contrast(palette.inkFaint, palette.accentWeak)).toBeLessThan(4.5);
+    expect(contrast(palette.inkFaint, palette.accentWeak)).toBeGreaterThanOrEqual(3);
+  });
+
   it.each([
     ["light", light],
     ["dark", dark],
@@ -111,12 +152,27 @@ describe("§8.5.4 — WCAG 2.2 AA contrast in both themes", () => {
 });
 
 describe("§8.5.3 — scale and geometry", () => {
-  it("has exactly six type sizes", () => {
-    expect(Object.keys(typeScale)).toHaveLength(6);
+  it("has six product sizes, plus hero for the marketing headline", () => {
+    // The six-size rule governs product screens, where a seventh size is
+    // drift. `hero` is the deliberate exception and the only one — if this
+    // ever reads 8, something has started inventing sizes again.
+    expect(Object.keys(typeScale)).toHaveLength(7);
+    expect(Object.keys(typeScale)).toContain("hero");
+  });
+
+  it("keeps the hero fluid, so a phone still gets the scale's 2.5rem", () => {
+    // A fixed 4.5rem headline would overflow a 360px viewport, and a fixed
+    // 2.5rem one is what made the landing page look flat on a desktop.
+    expect(typeScale.hero.size).toMatch(/^clamp\(/);
+    expect(typeScale.hero.size).toContain("2.5rem");
+    expect(typeScale.display.size).toBe("2.5rem");
   });
 
   it("tightens tracking as size increases", () => {
     const track = (v: string) => parseFloat(v);
+    expect(track(typeScale.hero.tracking)).toBeLessThan(
+      track(typeScale.display.tracking),
+    );
     expect(track(typeScale.display.tracking)).toBeLessThan(
       track(typeScale.title.tracking),
     );

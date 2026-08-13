@@ -15,6 +15,7 @@ import {
   Confidence,
   DisplayTitle,
   EmptyState,
+  HeroTitle,
   Lead,
   MaturityBadge,
   Meta,
@@ -24,6 +25,8 @@ import {
   Status,
   Title,
 } from "@/components/ui";
+import { RubricLadder } from "@/components/marketing";
+import { featuredProject } from "@/lib/content";
 
 /**
  * §8.5.8 — "Ship a tokens.css and a /design reference route in week 1, before
@@ -61,6 +64,11 @@ function Section({
 }
 
 export default function DesignPage() {
+  const featured = featuredProject();
+  const heaviest = [...featured.rubricDetail.criteria].sort(
+    (a, b) => b.weight - a.weight,
+  )[0]!;
+
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-16 px-6 py-16">
       <header className="flex flex-col gap-4">
@@ -74,9 +82,10 @@ export default function DesignPage() {
 
       <Section
         title="Type"
-        note="Six sizes. Character comes from scale and tracking, not from mixing typefaces."
+        note="Six product sizes plus hero, which is the marketing headline and nothing else. Character comes from scale and tracking, not from mixing typefaces."
       >
         <Card className="flex flex-col gap-3">
+          <HeroTitle>Prove you learned it.</HeroTitle>
           <DisplayTitle>Don&rsquo;t just learn it. Prove it.</DisplayTitle>
           <Title>Join grain and fan-out</Title>
           <Lead>
@@ -197,6 +206,46 @@ export default function DesignPage() {
             message="Nothing is due today. Your next session unlocks tomorrow."
             action={<Button variant="text">Change plan</Button>}
           />
+        </Card>
+      </Section>
+
+      <Section
+        title="Elevation"
+        note="Two shadows. --shadow-raised is the product default; --shadow-lifted exists only for marketing showcase surfaces, where a --surface card on the --accent-weak field measures 1.13:1 and would otherwise have no edge."
+      >
+        <div className="flex flex-col gap-6 rounded-[var(--radius-card)] bg-accent-weak p-6 sm:flex-row">
+          <div className="flex-1 rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-raised)]">
+            <Meta tone="muted">--shadow-raised</Meta>
+          </div>
+          <div className="flex-1 rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-lifted)]">
+            <Meta tone="muted">--shadow-lifted</Meta>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Band ladder"
+        note="§4.2 law 2 made legible — a real criterion from a real rubric, with what each grade band actually says. Competent is marked because a four-rung ladder with no marked line leaves the reader guessing which rung they have to reach."
+      >
+        <Card>
+          <RubricLadder criterion={heaviest} />
+        </Card>
+      </Section>
+
+      <Section
+        title="Entrance motion"
+        note="§8.5.6 — 24ms stagger, first render only, pure CSS so marketing routes still ship no motion JS. Under prefers-reduced-motion the translate is zeroed and it becomes a 100ms fade."
+      >
+        <Card className="flex flex-col gap-3">
+          {["First", "Second", "Third"].map((label, i) => (
+            <span
+              key={label}
+              className="rise"
+              style={{ "--rise-delay": `${i * 24}ms` } as React.CSSProperties}
+            >
+              {label} — rises 12px and fades in
+            </span>
+          ))}
         </Card>
       </Section>
 

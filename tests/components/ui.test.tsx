@@ -9,6 +9,7 @@ import {
   cx,
   DisplayTitle,
   EmptyState,
+  HeroTitle,
   Lead,
   MaturityBadge,
   Meta,
@@ -55,6 +56,34 @@ describe("typography", () => {
   it("renders meta text", () => {
     render(<Meta>13 August 2026</Meta>);
     expect(screen.getByText("13 August 2026")).toBeDefined();
+  });
+
+  it("renders the marketing hero as an h1 at the fluid hero size", () => {
+    render(<HeroTitle>Prove you learned it</HeroTitle>);
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toBe("Prove you learned it");
+    expect(h1.className).toContain("var(--text-hero-size)");
+  });
+
+  it("keeps the hero and the product display title on separate sizes", () => {
+    // If these ever collapse into one class, the landing page has silently
+    // gone back to a 40px headline.
+    const { container: hero } = render(<HeroTitle>a</HeroTitle>);
+    const { container: display } = render(<DisplayTitle>b</DisplayTitle>);
+    expect(hero.firstElementChild!.className).not.toBe(
+      display.firstElementChild!.className,
+    );
+  });
+
+  it("steps meta text up to muted on request, swapping rather than stacking", () => {
+    // Two competing text-ink-* utilities resolve by stylesheet order, so the
+    // tone has to replace the class, not append to it.
+    const { container: faint } = render(<Meta>x</Meta>);
+    const { container: muted } = render(<Meta tone="muted">x</Meta>);
+
+    expect(faint.firstElementChild!.className).toContain("text-ink-faint");
+    expect(muted.firstElementChild!.className).toContain("text-ink-muted");
+    expect(muted.firstElementChild!.className).not.toContain("text-ink-faint");
   });
 
   it("accepts extra classes without dropping its own", () => {

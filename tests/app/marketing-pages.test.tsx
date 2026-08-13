@@ -130,6 +130,63 @@ describe("landing page (§8 screen 1)", () => {
   });
 
   /**
+   * The page used to render the rubric as `name … 35%`, which proves only that
+   * a rubric exists. The bands are the actual claim — they are the standard the
+   * work is held to, published before it is done (§4.2 law 2) — and a visitor
+   * can only check us against a standard they can read.
+   */
+  it("shows what the grades mean, not just that grading happens", () => {
+    render(<HomePage />);
+    const heaviest = [...featuredProject().rubricDetail.criteria].sort(
+      (a, b) => b.weight - a.weight,
+    )[0]!;
+
+    for (const band of Object.values(heaviest.bands)) {
+      expect(screen.getByText(band), band).toBeDefined();
+    }
+    expect(screen.getByText(/the bar you have to clear/)).toBeDefined();
+  });
+
+  it("shows what finishing the task means, from the brief itself", () => {
+    render(<HomePage />);
+    for (const line of featuredProject().acceptanceCriteria) {
+      expect(screen.getByText(line), line).toBeDefined();
+    }
+  });
+
+  /**
+   * §8 screen 1 — "one input: what do you want to get good at?" The landing
+   * page is the one place that input is the entire proposition, so it gets the
+   * hero treatment; anywhere else it is a filter and must not.
+   */
+  it("gives the goal input hero weight and the headline the hero size", () => {
+    const { container } = render(<HomePage />);
+    expect(container.querySelector('input[name="q"]')!.className).toContain(
+      "h-14",
+    );
+    expect(
+      screen.getByRole("heading", { level: 1 }).className,
+    ).toContain("var(--text-hero-size)");
+  });
+
+  /**
+   * §8.5.6 — "list items stagger 24ms on first render only, never on
+   * re-render." A CSS animation is the only way to get the "first render only"
+   * half for free, and it keeps the route at zero motion JS (§8.5.8).
+   */
+  it("staggers its entrance in CSS rather than JavaScript", () => {
+    const { container } = render(<HomePage />);
+    const risen = [...container.querySelectorAll(".rise")];
+    expect(risen.length).toBeGreaterThan(5);
+    expect(container.querySelector("script[src]")).toBeNull();
+
+    const delays = risen
+      .map((el) => el.getAttribute("style"))
+      .filter((s): s is string => s !== null && s.includes("--rise-delay"));
+    expect(delays.some((s) => s.includes("24ms"))).toBe(true);
+  });
+
+  /**
    * The differentiator is only legible when subjects sit at different tiers: a
    * page where every subject says "verified" teaches the reader nothing about
    * what verification means. So the landing page must show the honest ceiling

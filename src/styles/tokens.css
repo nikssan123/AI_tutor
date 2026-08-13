@@ -25,10 +25,15 @@
   --attention: #B26A00;
   --problem: #B3261E;
   --shadow-raised: 0 1px 2px rgb(23 25 28 / .04), 0 12px 32px rgb(23 25 28 / .07);
+  --shadow-lifted: 0 2px 4px rgb(23 25 28 / .05), 0 24px 56px -12px rgb(23 25 28 / .16);
 
   /* Type — §8.5.3 */
   --font-sans: "Instrument Sans", "Instrument Sans Fallback", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --text-hero-size: clamp(2.5rem, 6vw, 4.5rem);
+  --text-hero-line: 1.02;
+  --text-hero-weight: 650;
+  --text-hero-tracking: -0.04em;
   --text-display-size: 2.5rem;
   --text-display-line: 1.1;
   --text-display-weight: 650;
@@ -88,6 +93,7 @@
     --attention: #E0A33C;
     --problem: #F2726A;
     --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
+    --shadow-lifted: 0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6);
   }
 }
 
@@ -106,6 +112,7 @@
   --attention: #E0A33C;
   --problem: #F2726A;
   --shadow-raised: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35);
+  --shadow-lifted: 0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6);
 }
 
 /*

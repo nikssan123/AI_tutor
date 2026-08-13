@@ -97,6 +97,13 @@ describe("/design — the drift guard (§8.5.8)", () => {
       "Likely capable",
       "Written and checked by hand",
       "Experimental — help us improve it",
+      // Added with the landing-page rebuild. §8.5.8 makes this page the drift
+      // guard, so a component that ships without appearing here is a component
+      // nobody can review against the spec.
+      "--shadow-raised",
+      "--shadow-lifted",
+      "Prove you learned it.",
+      "— the bar you have to clear",
     ]) {
       // getAllByText: "Demonstrated" legitimately appears twice — once as the
       // confidence label and once inside the row list demonstrating it.

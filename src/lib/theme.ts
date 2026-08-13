@@ -24,6 +24,14 @@ export interface Palette {
   attention: string;
   problem: string;
   shadowRaised: string;
+  /**
+   * §8.5.3 keeps elevation to one shadow because product screens separate with
+   * space. The marketing hero is the one place that rule fails: a `--surface`
+   * card sitting on an `--accent-weak` field measures 1.13:1 in light, so
+   * without a deeper shadow the card has no edge at all. Used on marketing
+   * showcase surfaces only — never on a product screen.
+   */
+  shadowLifted: string;
 }
 
 /**
@@ -47,6 +55,8 @@ export const light: Palette = {
   problem: "#B3261E",
   shadowRaised:
     "0 1px 2px rgb(23 25 28 / .04), 0 12px 32px rgb(23 25 28 / .07)",
+  shadowLifted:
+    "0 2px 4px rgb(23 25 28 / .05), 0 24px 56px -12px rgb(23 25 28 / .16)",
 };
 
 /**
@@ -70,6 +80,7 @@ export const dark: Palette = {
   attention: "#E0A33C",
   problem: "#F2726A",
   shadowRaised: "0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35)",
+  shadowLifted: "0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6)",
 };
 
 /** CSS custom-property name for a palette key. */
@@ -86,13 +97,29 @@ export const CSS_VAR: Record<keyof Palette, string> = {
   attention: "--attention",
   problem: "--problem",
   shadowRaised: "--shadow-raised",
+  shadowLifted: "--shadow-lifted",
 };
 
 /**
- * §8.5.3 — six sizes. Character comes from scale and tracking discipline, not
- * from mixing typefaces. Tight tracking on the large sizes is where it lives.
+ * §8.5.3 — six product sizes, plus one.
+ *
+ * `hero` is the seventh, and it exists for exactly one job: the marketing
+ * landing headline. The six-size rule is about *product screens*, where a
+ * seventh size is drift — but `display` at a fixed 2.5rem is only 2.5× body,
+ * so on a 1440px viewport the landing hero had no more presence than a section
+ * heading, and the page read as flat. Fluid rather than fixed, so the phone
+ * still gets the 2.5rem the scale specifies and the desktop gets 4.5rem.
+ *
+ * Character comes from scale and tracking discipline, not from mixing
+ * typefaces. Tight tracking on the large sizes is where it lives.
  */
 export const typeScale = {
+  hero: {
+    size: "clamp(2.5rem, 6vw, 4.5rem)",
+    line: "1.02",
+    weight: "650",
+    tracking: "-0.04em",
+  },
   display: { size: "2.5rem", line: "1.1", weight: "650", tracking: "-0.03em" },
   title: { size: "1.5rem", line: "1.25", weight: "600", tracking: "-0.02em" },
   lead: { size: "1.1875rem", line: "1.5", weight: "400", tracking: "-0.01em" },

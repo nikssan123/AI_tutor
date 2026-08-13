@@ -3,6 +3,7 @@ import { ThemeToggleStatic } from "@/components/theme-toggle-static";
 import { cx, Meta, Status, Title } from "@/components/ui";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
+import type { RubricCriterion } from "@/lib/packs/types";
 
 /**
  * Marketing-only chrome.
@@ -122,13 +123,30 @@ export function GoalSearch({
   suggestions,
   defaultValue = "",
   autoFocus = false,
+  size = "default",
 }: {
   suggestions: string[];
   defaultValue?: string;
   autoFocus?: boolean;
+  /**
+   * `hero` is the landing page's one input, and it is the only control above
+   * the fold — at the default row height it read as a filter box on a search
+   * results page rather than as the thing the whole product starts with.
+   */
+  size?: "default" | "hero";
 }) {
+  const hero = size === "hero";
+
   return (
-    <form action="/learn" method="get" role="search" className="flex flex-col gap-3 sm:flex-row">
+    <form
+      action="/learn"
+      method="get"
+      role="search"
+      className={cx(
+        "flex flex-col gap-3 sm:flex-row",
+        hero && "w-full max-w-xl",
+      )}
+    >
       <label htmlFor="goal-q" className="sr-only">
         What do you want to get good at?
       </label>
@@ -144,6 +162,9 @@ export function GoalSearch({
           "flex-1 min-h-[var(--touch-min)] px-5",
           "rounded-[var(--radius-control)] border border-hairline bg-surface text-ink",
           "text-[length:var(--text-lead-size)] placeholder:text-ink-faint",
+          "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+          "focus:border-accent",
+          hero && "h-14 shadow-[var(--shadow-raised)]",
         )}
       />
       <datalist id="goal-suggestions">
@@ -157,6 +178,7 @@ export function GoalSearch({
           "min-h-[var(--touch-min)] px-6 rounded-[var(--radius-control)]",
           "bg-accent text-white text-[length:var(--text-label-size)] font-[550]",
           "hover:opacity-90 transition-opacity duration-[var(--dur-fast)]",
+          hero && "h-14 px-8",
         )}
       >
         Show me
@@ -177,24 +199,118 @@ export function SectionHead({
   label,
   title,
   icon,
+  onField = false,
 }: {
   step: string;
   label: string;
   title: string;
   /** Decorative — the eyebrow beside it already carries the meaning. */
   icon: React.ReactNode;
+  /**
+   * True when the head sits on the `--accent-weak` field rather than on
+   * `--ground`. The accent-on-accent-weak pair measures 4.83:1 in light, which
+   * passes, but the *chip* behind the icon disappears entirely — same fill as
+   * the field. On the field it becomes a surface chip instead.
+   */
+  onField?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-t border-hairline pt-8">
+    <div
+      className={cx(
+        "flex flex-col gap-3 pt-8",
+        onField ? "border-t border-accent/20" : "border-t border-hairline",
+      )}
+    >
       <div className="flex items-center gap-3">
-        <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
+        <span
+          className={cx(
+            "flex size-9 items-center justify-center rounded-[var(--radius-control)] text-accent",
+            onField ? "bg-surface shadow-[var(--shadow-raised)]" : "bg-accent-weak",
+          )}
+        >
           {icon}
         </span>
         <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
           {step} · {label}
         </span>
       </div>
-      <Title>{title}</Title>
+      <Title className="text-[length:var(--text-display-size)] leading-[var(--text-display-line)] tracking-[var(--text-display-tracking)]">
+        {title}
+      </Title>
+    </div>
+  );
+}
+
+/**
+ * The band ladder — the single most convincing thing the product can put on a
+ * landing page, and until now the one it threw away.
+ *
+ * The page used to render a rubric as `name … 35%`, which tells a visitor
+ * nothing beyond "there is a rubric". The bands are where the actual promise
+ * lives: *"Absent: the reader must reach the third paragraph to learn what
+ * happened. Competent: the first sentence states the news plainly."* That is
+ * §4.2 law 2 made legible — the grading standard, published before the work is
+ * done, in language a visitor can check us against.
+ *
+ * Competent is marked as the pass bar, because a ladder with four rungs and no
+ * marked line leaves the reader guessing which one they have to reach.
+ */
+export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
+  const rungs = [
+    { key: "absent", label: "Absent", text: criterion.bands.absent },
+    { key: "developing", label: "Developing", text: criterion.bands.developing },
+    { key: "competent", label: "Competent", text: criterion.bands.competent },
+    { key: "strong", label: "Strong", text: criterion.bands.strong },
+  ] as const;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+          {criterion.name}
+        </span>
+        <span className="text-[length:var(--text-meta-size)] text-ink-muted">
+          <span className="font-[650] text-ink">
+            {Math.round(criterion.weight * 100)}%
+          </span>{" "}
+          of the grade
+        </span>
+      </div>
+
+      <ol className="flex list-none flex-col gap-0 p-0 m-0">
+        {rungs.map((rung, i) => {
+          // Competent and Strong are the two that count as a pass.
+          const passing = i >= 2;
+          return (
+            <li
+              key={rung.key}
+              className={cx(
+                "flex flex-col gap-1 border-l-2 py-3 pl-4",
+                passing ? "border-accent" : "border-hairline",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={cx(
+                    "text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.1em]",
+                    passing ? "text-accent" : "text-ink-faint",
+                  )}
+                >
+                  {rung.label}
+                </span>
+                {rung.key === "competent" ? (
+                  <span className="text-[length:var(--text-meta-size)] text-ink-muted">
+                    — the bar you have to clear
+                  </span>
+                ) : null}
+              </span>
+              <span className="text-[length:var(--text-label-size)] text-ink-muted">
+                {rung.text}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

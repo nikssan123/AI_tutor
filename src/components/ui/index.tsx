@@ -17,6 +17,27 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 
 type HeadingProps = React.HTMLAttributes<HTMLHeadingElement>;
 
+/**
+ * §8.5.3 — the marketing headline, and the only user of the `hero` size.
+ *
+ * Product screens use `DisplayTitle`; this exists because a landing page has to
+ * carry the whole proposition in one glance and 40px does not, on a desktop
+ * viewport, look like the largest thing on a page. Fluid, so the phone still
+ * renders it at the scale's 2.5rem.
+ */
+export function HeroTitle({ className, ...props }: HeadingProps) {
+  return (
+    <h1
+      className={cx(
+        "text-[length:var(--text-hero-size)] leading-[var(--text-hero-line)]",
+        "font-[650] tracking-[var(--text-hero-tracking)] text-ink text-balance",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 /** §8.5.5 — a static display title with generous space. Never collapse-on-scroll. */
 export function DisplayTitle({ className, ...props }: HeadingProps) {
   return (
@@ -62,13 +83,28 @@ export function Lead({
 
 export function Meta({
   className,
+  tone = "faint",
   ...props
-}: React.HTMLAttributes<HTMLSpanElement>) {
+}: React.HTMLAttributes<HTMLSpanElement> & {
+  /**
+   * `muted` exists for one measured reason: `--ink-faint` on `--accent-weak`
+   * is 4.15:1 in light and 3.96:1 in dark, which clears the 3:1 large-text bar
+   * but not the 4.5:1 bar that 13px meta text is held to (§8.5.4). Anything
+   * sitting on the accent field steps up a level.
+   *
+   * A prop rather than a `className` override, because two competing
+   * `text-ink-*` utilities resolve by stylesheet order, not by the order they
+   * appear in the attribute — the override would work or not work depending on
+   * which one Tailwind happened to emit last.
+   */
+  tone?: "faint" | "muted";
+}) {
   return (
     <span
       className={cx(
         "text-[length:var(--text-meta-size)] leading-[var(--text-meta-line)]",
-        "tracking-[var(--text-meta-tracking)] text-ink-faint",
+        "tracking-[var(--text-meta-tracking)]",
+        tone === "faint" ? "text-ink-faint" : "text-ink-muted",
         className,
       )}
       {...props}

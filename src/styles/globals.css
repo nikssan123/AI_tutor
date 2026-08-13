@@ -37,6 +37,7 @@
   --radius-pill: var(--radius-pill);
 
   --shadow-raised: var(--shadow-raised);
+  --shadow-lifted: var(--shadow-lifted);
 
   --ease-spring: var(--ease-spring);
   --ease-out: var(--ease-out);
@@ -109,4 +110,40 @@ body {
 ::selection {
   background: var(--accent-weak);
   color: var(--ink);
+}
+
+/*
+ * §8.5.6 — "list items stagger 24ms on first render only, never on re-render."
+ *
+ * A CSS animation is the only way to honour the "first render only" half of
+ * that rule for free: it runs once at first paint and never again, and it costs
+ * the marketing routes zero JavaScript (§8.5.8). Callers set `--rise-delay` per
+ * item to build the stagger.
+ *
+ * The shift is a variable rather than a literal so reduced motion can zero it.
+ * The global rule in tokens.css already clamps the duration to 100ms, but it
+ * cannot remove a transform — without this the page would still slide, just
+ * faster, which is exactly what the preference is asking us not to do.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    /* §8.5.6 — nothing translates more than 20px. */
+    transform: translateY(var(--rise-shift, 12px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise var(--dur-base) var(--ease-out) both;
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    --rise-shift: 0px;
+  }
 }

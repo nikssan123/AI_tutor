@@ -6,9 +6,13 @@ import {
   EvalTierNote,
   GoalSearch,
   JsonLdScript,
+  RubricLadder,
+  SectionHead,
   SiteFooter,
   SiteHeader,
 } from "@/components/marketing";
+import { StepsIcon } from "@/components/icons";
+import type { RubricCriterion } from "@/lib/packs/types";
 
 afterEach(cleanup);
 
@@ -134,6 +138,95 @@ describe("GoalSearch", () => {
     expect(document.activeElement).toBe(
       screen.getByLabelText(/what do you want to get good at/i),
     );
+  });
+
+  it("renders taller on the landing page than in a results header", () => {
+    // The default row height reads as a filter box. Above the fold it is the
+    // only control on the page and has to look like the way in.
+    const { container: hero } = render(
+      <GoalSearch suggestions={[]} size="hero" />,
+    );
+    const { container: plain } = render(<GoalSearch suggestions={[]} />);
+
+    expect(hero.querySelector("input")!.className).toContain("h-14");
+    expect(plain.querySelector("input")!.className).not.toContain("h-14");
+  });
+});
+
+describe("SectionHead", () => {
+  const props = { step: "01", label: "How it works", title: "Five steps" };
+
+  it("numbers the section so a skimmer knows how much is left", () => {
+    render(<SectionHead {...props} icon={<StepsIcon />} />);
+    expect(screen.getByText(/01 · How it works/)).toBeDefined();
+    expect(screen.getByText("Five steps")).toBeDefined();
+  });
+
+  it("swaps the icon chip to a surface when it sits on the accent field", () => {
+    // On --ground the chip is an accent-weak tint. On the accent-weak field
+    // that is the same fill as the background, so the chip vanishes.
+    const { container: onGround } = render(
+      <SectionHead {...props} icon={<StepsIcon />} />,
+    );
+    const { container: onField } = render(
+      <SectionHead {...props} icon={<StepsIcon />} onField />,
+    );
+
+    expect(onGround.querySelector("span")!.className).toContain("bg-accent-weak");
+    expect(onField.querySelector("span")!.className).toContain("bg-surface");
+  });
+});
+
+/**
+ * The band ladder is the page's whole argument, so it is asserted on content,
+ * not on markup: if the four bands stop being visible the landing page is back
+ * to claiming it grades work without ever showing what the grades mean.
+ */
+describe("RubricLadder", () => {
+  const criterion: RubricCriterion = {
+    id: "leads-with-the-news",
+    name: "The news comes first",
+    description: "The difficult part is in the opening.",
+    weight: 0.35,
+    bands: {
+      absent: "The reader must reach the third paragraph.",
+      developing: "Present in the first paragraph but softened.",
+      competent: "The first sentence states the news plainly.",
+      strong: "States it plainly and says what happens next.",
+    },
+  };
+
+  it("shows every band, in the pack's own words", () => {
+    render(<RubricLadder criterion={criterion} />);
+    for (const text of Object.values(criterion.bands)) {
+      expect(screen.getByText(text), text).toBeDefined();
+    }
+  });
+
+  it("names the criterion and its weight as a standalone figure", () => {
+    render(<RubricLadder criterion={criterion} />);
+    expect(screen.getByText("The news comes first")).toBeDefined();
+    // Its own element, so the page's "every weight is shown" assertion can
+    // find the figure rather than a sentence that happens to contain it.
+    expect(screen.getByText("35%")).toBeDefined();
+    expect(screen.getByText(/of the grade/)).toBeDefined();
+  });
+
+  it("marks Competent as the pass bar", () => {
+    // Four rungs with no marked line leaves the reader guessing which one they
+    // have to reach — which is the question the whole section exists to answer.
+    render(<RubricLadder criterion={criterion} />);
+    expect(screen.getByText(/the bar you have to clear/)).toBeDefined();
+  });
+
+  it("colours the two passing rungs with the accent and the rest faint", () => {
+    render(<RubricLadder criterion={criterion} />);
+    // §8.5.5 bans colour as the sole carrier of meaning, so the words Absent /
+    // Developing / Competent / Strong are always present too.
+    expect(screen.getByText("Competent").className).toContain("text-accent");
+    expect(screen.getByText("Strong").className).toContain("text-accent");
+    expect(screen.getByText("Absent").className).toContain("text-ink-faint");
+    expect(screen.getByText("Developing").className).toContain("text-ink-faint");
   });
 });
 
