@@ -11,11 +11,26 @@ import {
 import {
   ChecklistIcon,
   GridIcon,
+  PenIcon,
   StepsIcon,
   SubjectIcon,
 } from "@/components/icons";
-import { Card, HeroTitle, Lead, LinkCard, Meta, stagger } from "@/components/ui";
+import {
+  Card,
+  HeroTitle,
+  Lead,
+  LinkCard,
+  MaturityBadge,
+  Meta,
+  stagger,
+} from "@/components/ui";
 import { allTopics, featuredProject } from "@/lib/content";
+import {
+  MAX_GENERATED_SKILLS,
+  MIN_GENERATED_ITEMS,
+  MIN_GENERATED_SKILLS,
+  MIN_ITEMS_PER_SKILL,
+} from "@/lib/contracts/pack";
 import { organisation, website } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
 
@@ -54,19 +69,43 @@ import { canonical } from "@/lib/site";
  * enforced against layout. Every string below is now a plain sentence in the
  * order a reader would think it.
  *
+ * Sixth cut, and it is about what the product now does. §7.1's Generated tier
+ * shipped (§24 E7.5): a subject nobody has written gets written on request, in
+ * about three minutes. The headline had already been changed to promise it —
+ * "Learn anything" — and the page underneath still argued the opposite. Three
+ * subject cards under "What you can learn today", and the offer to build a
+ * fourth as a card at the very bottom, below the fold, phrased as an
+ * exception ("Not one of those three?"). A reader who believed the page rather
+ * than the headline came away thinking this was a three-subject site.
+ *
+ * So the build is now a band of its own, above the catalogue, and it is
+ * specific rather than enthusiastic: what gets written, what is checked before
+ * a learner sees it, and the two things a built subject is never allowed to
+ * claim. The numbers in it are imported from the generator's own floor rather
+ * than typed here, so the promise cannot drift away from the code that keeps
+ * it — §12's rule that a page cannot promise what the product does not do,
+ * enforced by the compiler instead of by memory.
+ *
+ * The three curated subjects keep their band and lose their billing: they are
+ * no longer "what you can learn", they are the ones a person wrote by hand,
+ * and their badge now says so beside the tier note.
+ *
  * §13.1 — statically rendered, revalidated daily.
  */
 export const revalidate = 86_400;
 
 export const metadata: Metadata = {
-  title: "Learn something properly — and prove you did",
+  title: "Learn anything — and prove you actually learned it",
+  // §13.3's metadata rule — title ≤60 characters, description 140–160, so
+  // neither is cut mid-promise in a result. Both halves of the offer have to
+  // survive the truncation, which is what decides the wording here.
   description:
-    "Tell us what you want to get good at. A ten-minute check finds what you know. Then you get a plan, and real work marked against a checklist you read first.",
+    "Ask for any subject. If nobody has written it, we write it in about three minutes — then your work is marked against a checklist you read first.",
   alternates: { canonical: canonical("/") },
   openGraph: {
-    title: "Learn something properly — and prove you did",
+    title: "Learn anything — and prove you actually learned it",
     description:
-      "Most courses can't tell you whether you learned anything. Here you hand in real work, and it's marked against a checklist you see before you start.",
+      "There is no catalogue. Ask for a subject nobody has written and we write it — the skills, the questions, and the checklist your work is marked against.",
     url: canonical("/"),
     type: "website",
   },
@@ -76,7 +115,7 @@ export const metadata: Metadata = {
 const STEPS = [
   {
     name: "Say what you want to learn",
-    body: "In your own words. There is no catalogue to pick from.",
+    body: "Anything, in your own words. If nobody has written it, we write it first.",
   },
   {
     name: "Take a ten-minute check",
@@ -93,6 +132,31 @@ const STEPS = [
   {
     name: "Get it marked",
     body: "Every score quotes the part of your work it is based on.",
+  },
+];
+
+/**
+ * What gets written when nobody has written your subject.
+ *
+ * Every number here is imported from the contract the generator is held to, not
+ * typed into the copy: `MIN_GENERATED_SKILLS`/`MAX_GENERATED_SKILLS` bound the
+ * graph the model is asked for, and `MIN_ITEMS_PER_SKILL` with
+ * `MIN_GENERATED_ITEMS` are two of the three gates in `meetsQualityFloor`. If
+ * the floor moves, this paragraph moves with it — which is the only way a
+ * promise this specific stays true a year from now.
+ */
+const WRITTEN = [
+  {
+    name: "The skills, in order",
+    body: `${MIN_GENERATED_SKILLS} to ${MAX_GENERATED_SKILLS} of them, each one placed after whatever you need first.`,
+  },
+  {
+    name: "Questions that find your level",
+    body: `At least ${MIN_ITEMS_PER_SKILL} per skill and ${MIN_GENERATED_ITEMS} in all, so the check has something to work with.`,
+  },
+  {
+    name: "Work that can be marked",
+    body: "At least one real task, and the checklist it will be marked against.",
   },
 ];
 
@@ -130,13 +194,20 @@ export default function HomePage() {
           </HeroTitle>
 
           <Lead className="rise" style={stagger(1)}>
-            Tell us what you want to get good at. We find your gaps, set you
-            real work, and mark it against a checklist you can read first.
+            Type any subject. If nobody has written it yet, we write it — the
+            skills, the questions that find your level, and the checklist your
+            work gets marked against.
           </Lead>
 
           <div className="rise flex flex-col gap-3" style={stagger(2)}>
             <GoalSearch suggestions={suggestions} autoFocus size="hero" />
-            <Meta>Free to start. No account until you have seen your result.</Meta>
+            {/* Precise about *which* thing is free of an account: the check on
+                a subject we have written is anonymous, and having one built for
+                you is not. The line this replaced ("No account until you have
+                seen your result") was true of the first and read as a promise
+                about the second — which is the one a "learn anything" headline
+                sends people towards. */}
+            <Meta>Free to start. The ten-minute check needs no account.</Meta>
           </div>
         </section>
 
@@ -176,7 +247,86 @@ export default function HomePage() {
           </ol>
         </section>
 
-        {/* ── 02 A real task and its marking scheme ──────────────────────── */}
+        {/* ── 02 The subject nobody has written ──────────────────────────── */}
+        {/*
+         * The band that answers the headline's boldest word. It sits on
+         * `--ground` in one card rather than on the accent field, because the
+         * field belongs to 03: a reader meeting two full-bleed fills in a row
+         * stops seeing either as emphasis.
+         */}
+        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 pb-24">
+          <SectionHead
+            step="02"
+            label="Any subject"
+            title="If nobody has written yours, we write it"
+            icon={<PenIcon />}
+          />
+
+          <Card className="rise flex flex-col gap-8 p-7 sm:p-9">
+            <Lead>
+              Ask for something we don&rsquo;t cover and it gets written to
+              order. It takes about three minutes, and what comes out is a
+              subject like any other here.
+            </Lead>
+
+            <ul className="grid list-none grid-cols-1 gap-x-8 gap-y-6 p-0 m-0 sm:grid-cols-3">
+              {WRITTEN.map((piece) => (
+                <li
+                  key={piece.name}
+                  className="flex flex-col gap-2 border-t border-hairline pt-4"
+                >
+                  <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                    {piece.name}
+                  </span>
+                  <Meta>{piece.body}</Meta>
+                </li>
+              ))}
+            </ul>
+
+            {/*
+             * The half of the offer that costs us something to say, and the
+             * reason the band is worth its space: §7.1's "depth is declared,
+             * not faked". A thin subject is refused rather than shipped, and
+             * the two claims a built subject may never make are named here
+             * rather than discovered later.
+             */}
+            <div className="flex flex-col gap-4 border-t border-hairline pt-6">
+              <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                And what we won&rsquo;t do
+              </span>
+              {/* Held to the reading measure by hand: the card is the full
+                  page width, and `Meta` — unlike `Lead` — carries no measure of
+                  its own, so a paragraph in here runs to 110 characters. */}
+              <Meta className="max-w-[var(--measure)]">
+                We check it before you see it. If it comes out thin — too few
+                questions, skills with nothing to ask about, no task anyone
+                could mark — we stop and tell you, rather than hand it over.
+              </Meta>
+              <MaturityBadge maturity="generated" />
+              <Meta className="max-w-[var(--measure)]">
+                That is what a subject we built for you is called until a person
+                has read it. It also can&rsquo;t claim the strongest kind of
+                marking — running your work and checking the answer needs a
+                marker somebody wrote by hand.
+              </Meta>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-hairline pt-6">
+              <Link
+                href="/start"
+                className="min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90"
+              >
+                Have one built
+              </Link>
+              <Meta>
+                A few questions about what you want to do with it, then it
+                starts writing.
+              </Meta>
+            </div>
+          </Card>
+        </section>
+
+        {/* ── 03 A real task and its marking scheme ──────────────────────── */}
         {/*
          * The one full-bleed accent field on the site. §8.5.4 warns that large
          * saturated fills glare in dark — `--accent-weak` is a *tint* in light
@@ -186,7 +336,7 @@ export default function HomePage() {
         <section className="bg-accent-weak">
           <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-24">
             <SectionHead
-              step="02"
+              step="03"
               label="What marking looks like"
               title="A real task, and how it is marked"
               icon={<ChecklistIcon />}
@@ -270,14 +420,27 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── 03 Subjects ────────────────────────────────────────────────── */}
+        {/* ── 04 The hand-written subjects ───────────────────────────────── */}
+        {/*
+         * These three used to head the page as "What you can learn today",
+         * which is the sentence that made a site offering any subject look
+         * like a site offering three. They are not the catalogue; they are the
+         * deep end, and the honest contrast with 02 is the whole point of
+         * showing them — §7.1's declared depth needs both halves visible or it
+         * declares nothing.
+         */}
         <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-24">
           <SectionHead
-            step="03"
-            label="Subjects"
-            title="What you can learn today"
+            step="04"
+            label="Written by hand"
+            title="Three we wrote and checked ourselves"
             icon={<GridIcon />}
           />
+
+          <Lead className="max-w-[var(--measure)]">
+            A person wrote every skill, question and checklist in these, which
+            is why they go deeper than three minutes of writing can.
+          </Lead>
 
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
             {topics.map((topic, i) => (
@@ -293,7 +456,11 @@ export default function HomePage() {
                     {topic.skillCount} skills · {topic.projectCount} pieces of
                     work · about {topic.totalHours} hours
                   </Meta>
-                  <span className="mt-auto border-t border-hairline pt-4">
+                  {/* The maturity badge joins the tier note here, because the
+                      page now shows two kinds of subject and a reader can only
+                      tell them apart if both say which they are. */}
+                  <span className="mt-auto flex flex-col gap-2 border-t border-hairline pt-4">
+                    <MaturityBadge maturity={topic.maturity} />
                     <EvalTierNote tier={topic.evalTier} />
                   </span>
                 </LinkCard>
@@ -301,36 +468,16 @@ export default function HomePage() {
             ))}
           </ul>
 
-          {/*
-            This used to read "we add a subject only after a person has written
-            and checked it", which stopped being true when packs started being
-            built on demand. Both halves are said here rather than the flattering
-            one: a hand-checked subject and one written on request are not the
-            same thing, and §7.1's whole argument is that the difference is
-            declared rather than hidden.
-          */}
-          <Card className="rise flex flex-col items-start gap-4">
-            <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
-              Not one of those three? Say so, and we&rsquo;ll build it.
-            </span>
-            <Lead>
-              Tell us what you want to get good at — Rust, negotiation,
-              watercolour, anything. We write the skills, work out what depends
-              on what, and put together the questions that find out where you
-              already are. It takes about three minutes.
-            </Lead>
-            <Meta>
-              The three above were written and checked by a person. One we build
-              for you is marked <strong>Experimental</strong> until it has been,
-              so you always know which you are looking at.
-            </Meta>
+          <Meta>
+            Everything else is written when someone asks for it, and says so on
+            every screen it appears.{" "}
             <Link
               href="/start"
-              className="min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90"
+              className="font-[550] text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
             >
-              Build my subject
+              Ask for a subject
             </Link>
-          </Card>
+          </Meta>
 
           <Breadcrumbs crumbs={[{ name: "Home", path: "/" }]} />
         </section>

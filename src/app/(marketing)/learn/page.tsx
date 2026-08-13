@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { GridIcon, StepsIcon, SubjectIcon } from "@/components/icons";
 import {
   CustomPathOffer,
@@ -11,6 +12,7 @@ import {
 } from "@/components/marketing";
 import { LinkCard, MaturityBadge, Meta, stagger } from "@/components/ui";
 import { allProjects, allTopics, search } from "@/lib/content";
+import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
 import { breadcrumbs } from "@/lib/seo/jsonld";
 import { canonical } from "@/lib/site";
 
@@ -48,7 +50,7 @@ export async function generateMetadata({
   return {
     title: "What you can learn — and prove",
     description:
-      "Every subject here has a full list of skills, real questions and marked projects behind it. We tell you how deep each one goes.",
+      "Every subject here was written and checked by hand, with real questions and marked projects behind it. Ask for one that isn’t — we write it in three minutes.",
     alternates: { canonical: canonical("/learn") },
   };
 }
@@ -91,6 +93,25 @@ export default async function LearnIndexPage({
         <PageIntro
           title={q ? `Results for “${q}”` : "What you can learn — and prove"}
           lead="A subject appears here only once it has a full list of skills, real questions written for it, and at least one project we can mark."
+          /*
+           * The list is what a person has written, and it is not the limit of
+           * what you can learn — §7.1's Generated tier answers everything else.
+           * Saying so above the search box rather than only after a search
+           * comes back empty: someone browsing this page never runs that
+           * search, and leaves believing the list is the offer.
+           */
+          facts={
+            <Meta>
+              Not here?{" "}
+              <Link
+                href={CUSTOM_PATH_HREF}
+                className="font-[550] text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+              >
+                Ask for it
+              </Link>{" "}
+              and we write it, in about three minutes.
+            </Meta>
+          }
           action={<GoalSearch suggestions={suggestions} defaultValue={q ?? ""} />}
         />
 

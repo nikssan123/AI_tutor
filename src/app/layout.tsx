@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · online_uni",
   },
   description:
-    "Tell it your goal. It finds your gaps, sets you real work, grades what you make, and shows you exactly what you can do — and what's left.",
+    "Name any subject — if nobody has written it, we write it for you. Then it finds your gaps, sets you real work, and grades what you make against a public checklist.",
 };
 
 export default function RootLayout({

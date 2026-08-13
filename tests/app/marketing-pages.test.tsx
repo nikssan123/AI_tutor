@@ -99,9 +99,93 @@ describe("landing page (§8 screen 1)", () => {
    */
   it("separates its sections with numbered headings", () => {
     render(<HomePage />);
-    for (const label of [/01 · How it works/, /02 · What marking looks like/, /03 · Subjects/]) {
+    for (const label of [
+      /01 · How it works/,
+      /02 · Any subject/,
+      /03 · What marking looks like/,
+      /04 · Written by hand/,
+    ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
     }
+  });
+
+  /**
+   * The headline promises "anything", and until §7.1's Generated tier shipped
+   * the page under it argued the opposite — three subject cards billed as
+   * "what you can learn today", and the offer to build a fourth as a card
+   * below the fold. The band that answers the headline is now structural, and
+   * these assertions are what stop it drifting back into a footnote.
+   */
+  it("answers 'anything' with a band of its own, above the catalogue", () => {
+    const { container } = render(<HomePage />);
+    const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
+
+    expect(heads).toContain("If nobody has written yours, we write it");
+    // Above the three hand-written subjects, or the page still reads as a
+    // three-subject site to anyone who stops scrolling.
+    expect(
+      heads.indexOf("If nobody has written yours, we write it"),
+    ).toBeLessThan(heads.indexOf("Three we wrote and checked ourselves"));
+  });
+
+  /**
+   * §12 — "a page cannot promise something the product does not actually do."
+   * The band quotes the generator's own floor, so the numbers are read from the
+   * contract here too: a floor that moves without the copy moving is exactly
+   * the drift this guards.
+   */
+  it("quotes the real quality floor, not a rounder number", async () => {
+    const {
+      MAX_GENERATED_SKILLS,
+      MIN_GENERATED_ITEMS,
+      MIN_GENERATED_SKILLS,
+      MIN_ITEMS_PER_SKILL,
+    } = await import("@/lib/contracts/pack");
+    render(<HomePage />);
+
+    expect(
+      screen.getByText(
+        new RegExp(`${MIN_GENERATED_SKILLS} to ${MAX_GENERATED_SKILLS}`),
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `At least ${MIN_ITEMS_PER_SKILL} per skill and ${MIN_GENERATED_ITEMS} in all`,
+        ),
+      ),
+    ).toBeDefined();
+  });
+
+  /**
+   * §7.1 — "depth is declared, not faked". The offer to build a subject is
+   * only honest while the two things a built one may never claim are on the
+   * same screen as the offer.
+   */
+  it("says what a built subject is called and what it cannot claim", () => {
+    render(<HomePage />);
+    expect(screen.getByText("Experimental — help us improve it")).toBeDefined();
+    expect(screen.getByText(/we stop and tell you/)).toBeDefined();
+    expect(screen.getByText(/can’t claim the strongest kind of marking/)).toBeDefined();
+  });
+
+  it("sends someone who wants one built to the conversation that builds it", () => {
+    render(<HomePage />);
+    for (const label of ["Have one built", "Ask for a subject"]) {
+      expect(screen.getByText(label).getAttribute("href"), label).toBe("/start");
+    }
+  });
+
+  /**
+   * Two kinds of subject now appear on one page, so the hand-written three
+   * have to say which they are — a badge on one and silence on the other
+   * leaves the reader to assume they are the same thing.
+   */
+  it("badges the hand-written subjects as hand-written", () => {
+    render(<HomePage />);
+    expect(
+      screen.getAllByText("Written and checked by hand").length,
+    ).toBe(allTopics().length);
   });
 
   /**
@@ -224,7 +308,11 @@ describe("landing page (§8 screen 1)", () => {
   it("sets an explicit canonical and an OG image-less social card", async () => {
     const { metadata } = await import("@/app/(marketing)/page");
     expect(metadata.alternates?.canonical).toBeTruthy();
-    expect(metadata.openGraph?.title).toContain("prove you did");
+    // The social card carries the same promise as the headline. It used to
+    // pitch "learn something properly", which sold the marking and hid the
+    // half of the product a search result has to convey in one line.
+    expect(metadata.openGraph?.title).toContain("Learn anything");
+    expect(metadata.openGraph?.description).toContain("nobody has written");
   });
 });
 
@@ -255,6 +343,19 @@ describe("/learn", () => {
     for (const claim of Object.values(CLAIM)) {
       expect(screen.getAllByText(claim).length, claim).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * The offer to build a subject used to appear only after a search came back
+   * empty, which is a moment most visitors never reach — someone who browses
+   * the hub sees three cards and concludes three is the offer.
+   */
+  it("says the list is not the limit, before anyone searches", async () => {
+    render(await learn.default({ searchParams: params({}) }));
+    expect(screen.getByText(/Not here\?/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "Ask for it" }).getAttribute("href"),
+    ).toBe("/start");
   });
 
   it("returns real results for a query", async () => {

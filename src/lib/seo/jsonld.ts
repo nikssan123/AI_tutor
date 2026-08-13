@@ -21,7 +21,7 @@ export function organisation(): JsonLd {
     name: ORGANISATION_NAME,
     url: siteUrl(),
     description:
-      "Learn a skill and get the work you produce marked against a published checklist, so you end up with proof rather than a completion certificate.",
+      "Learn any skill — one written by hand or one written on request — and get the work you produce marked against a published checklist, so you end up with proof rather than a completion certificate.",
   };
 }
 
