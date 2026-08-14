@@ -2979,6 +2979,33 @@ and all three were invisible on the rendered page:
 Every one was fixed by writing more specifically. Nothing was relaxed, and the
 five pages now sit at 100/100 with 16 of 16 sources returning 200.
 
+## The `curl` check, finally run
+
+§13.1 names a trap and asks for it to be checked before launch: Next 15 could
+place `<head>` tags *after* body content in some versions, which breaks crawler
+parsing, and §24 E10 makes "`curl` confirms metadata in `<head>`, ahead of body
+content" an acceptance criterion. It had never been run. Against a real dev
+server on 16.3.0, on `/guides/why-do-i-forget-what-i-learn`:
+
+| | byte offset |
+|---|---|
+| `<title>` | 1504 |
+| `<meta name="description">` | 1560 |
+| `<meta name="robots">` | 1742 |
+| `rel="canonical"` | 1795 |
+| `og:title` | 1883 |
+| **`<body`** | **5888** |
+
+All of it in the head and none of it streamed late. The same fetch confirms the
+things only a real render can: **zero `{{` left on the page**, `26 skills` and
+`7 of them` resolved from the actual packs rather than the fixtures, four
+citation superscripts anchored to their sources, and `BreadcrumbList` +
+`FAQPage` with four questions — the same four the page shows.
+
+`robots: noindex, follow` on a page that scores 100/100, which is the gate
+working: unsigned means unpublished, and `follow` still lets its outbound links
+be crawled.
+
 ## Still open
 
 E12 is five pages of fifty. The substrate, the score, the link graph and the

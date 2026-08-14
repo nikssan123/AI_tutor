@@ -2362,6 +2362,13 @@ both page tests against the rendered output, not merely observed.
 **Out:** all page templates · `sitemap.ts` (indexable-only) · `robots.ts` · JSON-LD helpers · `generateMetadata` per route · internal-link renderer · dynamic OG images · the quality-score job.
 **Accept:** Lighthouse SEO 100 and Performance ≥95 on every marketing template · valid JSON-LD in Google's Rich Results Test · sitemap contains only `indexable: true` pages · **`curl` confirms metadata in `<head>`, ahead of body content** · GSC and Bing WMT verified.
 
+The `curl` check is **met**, and had never been run until pass 29: on 16.3.0 the
+title, description, robots, canonical and `og:*` all land between bytes 1504 and
+1883, with `<body` at 5888. §13.1's "known trap" does not bite on this version.
+The sitemap rule is enforced in code and tested. Lighthouse and the two
+webmaster tools still need a deployed origin — they are the only things left on
+this epic and none of them is a code change.
+
 ### E11 — Free tools + precomputed roadmap cache (days 23–26)
 **Out:** `/check/{skill}` anonymous flow · roadmap generator with the precompute pipeline · time calculator · rate limiting + Turnstile.
 **Accept:** a check completes with no signup; a cached roadmap returns in <200ms with zero AI cost; the abuse limits actually trigger; the anonymous check result is preserved through signup.
