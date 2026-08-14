@@ -22,11 +22,16 @@ const answerCheckMock = vi.fn();
 const activeGoalMock = vi.fn();
 const masteryForMock = vi.fn();
 const gradeCheckMock = vi.fn();
+const appendBlocksMock = vi.fn();
+const recentSignalsMock = vi.fn();
 
 vi.mock("next/navigation", () => ({ redirect: (u: string) => redirectMock(u) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({}) }));
+// The disk half of `resolvePack` runs for real against `findPack`; the database
+// half has no stub db to look in, so a miss on disk is a miss outright.
+vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
 vi.mock("@/lib/account/session", () => ({
   requireUser: () => requireUserMock(),
 }));
@@ -49,6 +54,8 @@ vi.mock("@/lib/session/store", () => ({
   advance: (...a: unknown[]) => advanceMock(...(a as [])),
   completeSession: (...a: unknown[]) => completeMock(...(a as [])),
   recordResponse: (...a: unknown[]) => recordResponseMock(...(a as [])),
+  appendBlocks: (...a: unknown[]) => appendBlocksMock(...(a as [])),
+  recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
 }));
 
 const {
@@ -56,6 +63,7 @@ const {
   continueAction,
   finishAction,
   noteAction,
+  proveAction,
   startSessionAction,
 } = await import("@/app/(app)/session/[id]/actions");
 
@@ -98,6 +106,8 @@ beforeEach(() => {
   sessionByIdMock.mockResolvedValue(stored());
   startSessionMock.mockResolvedValue({ id: SESSION_ID });
   answerCheckMock.mockResolvedValue({});
+  appendBlocksMock.mockResolvedValue(stored());
+  recentSignalsMock.mockResolvedValue([]);
   todayForMock.mockResolvedValue({
     goal: { id: "g1" },
     session: { blocks: [checkBlock], plannedFor: "2026-08-13" },
@@ -289,5 +299,105 @@ describe("finishAction", () => {
     sessionByIdMock.mockResolvedValue(undefined);
     await expect(finishAction(SESSION_ID)).rejects.toThrow("REDIRECT:/today");
     expect(completeMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * PLAN-ADAPTATION step 4 — accepting the offer buys questions and nothing else.
+ *
+ * The assertions that matter are the negative ones: no mastery is written, no
+ * skill is skipped, and a post with no signal behind it gets nothing.
+ */
+describe("proveAction", () => {
+  const CLAIMED = "select-projection";
+
+  function claimed() {
+    recentSignalsMock.mockResolvedValue([
+      { skillSlug: CLAIMED, signal: "already_knows" },
+    ]);
+  }
+
+  it("appends real questions on the claimed skill", async () => {
+    claimed();
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow(
+      `REDIRECT:/session/${SESSION_ID}`,
+    );
+
+    expect(appendBlocksMock).toHaveBeenCalledTimes(1);
+    const blocks = appendBlocksMock.mock.calls[0]![2] as SessionBlock[];
+    expect(blocks.length).toBeGreaterThan(0);
+    expect(
+      blocks.every(
+        (b) => b.type === "check" && b.skillId === CLAIMED && b.itemId !== null,
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * The whole design in one assertion. A tutor's impression of a conversation
+   * buys an assessment; it may not buy a result.
+   */
+  it("moves no mastery and grades nothing", async () => {
+    claimed();
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:");
+
+    expect(answerCheckMock).not.toHaveBeenCalled();
+    expect(gradeCheckMock).not.toHaveBeenCalled();
+    expect(recordResponseMock).not.toHaveBeenCalled();
+    expect(advanceMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A posted request is not a claim. Without a signal behind it, a learner
+   * could otherwise conjure free questions on any skill they named — which is
+   * harmless on its own and is exactly how the offer would stop meaning
+   * anything.
+   */
+  it("gives nothing to a learner who was never heard to claim it", async () => {
+    recentSignalsMock.mockResolvedValue([]);
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
+  });
+
+  it("gives nothing the second time", async () => {
+    claimed();
+    sessionByIdMock.mockResolvedValue(
+      stored({ blocks: [checkBlock, { ...checkBlock, itemId: "already" }] }),
+    );
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a signed-out visitor away without touching the session", async () => {
+    requireUserMock.mockRejectedValue(new Error("REDIRECT:/sign-in"));
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:/sign-in");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
+  });
+
+  it("bails out when the session is not the learner's", async () => {
+    sessionByIdMock.mockResolvedValue(undefined);
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:/today");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
+  });
+
+  it("bails out when no course is running", async () => {
+    claimed();
+    activeGoalMock.mockResolvedValue(undefined);
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:/today");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
+  });
+
+  it("bails out when the goal's pack has left the build", async () => {
+    activeGoalMock.mockResolvedValue({ id: "g1", packSlug: "deleted-pack" });
+
+    await expect(proveAction(SESSION_ID)).rejects.toThrow("REDIRECT:/today");
+    expect(appendBlocksMock).not.toHaveBeenCalled();
   });
 });

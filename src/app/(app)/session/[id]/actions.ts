@@ -14,11 +14,14 @@ import { gradeCheck } from "@/lib/session/grade";
 import { answerCheck } from "@/lib/session/run";
 import {
   advance,
+  appendBlocks,
   completeSession,
+  recentSignals,
   recordResponse,
   sessionById,
   startSession,
 } from "@/lib/session/store";
+import { proveBlocks, proveItems, proveOffer } from "@/lib/session/prove";
 
 /**
  * The session runner's transitions, as Server Actions.
@@ -92,6 +95,62 @@ export async function answerAction(
     grade: (request) => gradeCheck(getAnthropic(), request),
     now,
   });
+
+  revalidatePath(`/session/${sessionId}`);
+  redirect(`/session/${sessionId}`);
+}
+
+/**
+ * Accept the prove-it offer (PLAN-ADAPTATION step 4).
+ *
+ * It appends questions and nothing else. No mastery moves here, no skill is
+ * skipped, no verdict is recorded — the learner answers the appended blocks
+ * through `answerAction` like any other check, and whatever the grader makes of
+ * them is what counts. That is the entire point: the tutor's impression buys an
+ * assessment, never a result.
+ *
+ * The offer is re-derived server-side rather than trusted from the form. A
+ * posted skill slug is a request, and one that no longer has a signal behind it
+ * — or has already been answered — must not be able to conjure free questions
+ * on any skill the learner names.
+ */
+export async function proveAction(sessionId: string): Promise<void> {
+  const user = await requireUser();
+  const db = getDb();
+  const now = new Date();
+
+  const session = await sessionById(db, sessionId, user.id);
+  if (!session) redirect("/today");
+
+  const goal = await activeGoal(db, user.id);
+  const pack = goal ? await resolvePack(db, goal.packSlug) : undefined;
+  if (!pack) redirect("/today");
+
+  const signals = await recentSignals(db, user.id, pack.slug, now);
+  const offer = proveOffer({
+    signals,
+    block: session.blocks[session.blockIndex],
+    blocks: session.blocks,
+    pack,
+  });
+  if (!offer) redirect(`/session/${sessionId}`);
+
+  // Total by construction: `proveOffer` only returns a skill it found items
+  // for, and the pack validator rejects a pack whose item names a skill that
+  // does not exist. A guard here would be a branch nothing can reach.
+  const skill = toEngineGraph(pack).skills.find(
+    (s) => s.id === offer.skillSlug,
+  )!;
+
+  await appendBlocks(
+    db,
+    session,
+    proveBlocks(
+      proveItems(pack, offer.skillSlug),
+      offer.skillSlug,
+      skill.canDoStatement,
+    ),
+  );
 
   revalidatePath(`/session/${sessionId}`);
   redirect(`/session/${sessionId}`);

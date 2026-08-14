@@ -225,6 +225,36 @@ export async function recordResponse(
   return { ...session, responses, blockIndex };
 }
 
+/**
+ * Add blocks to a running session and move the learner onto the first of them.
+ *
+ * The only thing in the product that lengthens a session after it has been
+ * planned, and it exists for one caller: accepting the prove-it offer
+ * (PLAN-ADAPTATION step 4). Appending rather than inserting keeps every existing
+ * `blockIndex` — and therefore every recorded response — pointing at the block
+ * it was actually about.
+ *
+ * Returns the session unchanged when there is nothing to add, so a caller does
+ * not have to special-case an empty list to avoid a pointless write.
+ */
+export async function appendBlocks(
+  db: Db,
+  session: StoredSession,
+  blocks: SessionBlock[],
+): Promise<StoredSession> {
+  if (blocks.length === 0) return session;
+
+  const combined = [...session.blocks, ...blocks];
+  const blockIndex = session.blocks.length;
+
+  await db
+    .update(learningSession)
+    .set({ blocks: combined, blockIndex })
+    .where(eq(learningSession.id, session.id));
+
+  return { ...session, blocks: combined, blockIndex };
+}
+
 /** Skipping a block is a real answer to "I don't want to do this one". */
 export async function advance(
   db: Db,

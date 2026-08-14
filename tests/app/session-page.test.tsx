@@ -18,6 +18,7 @@ const redirectMock = vi.fn((url: string) => {
 });
 const sessionViewMock = vi.fn();
 const lessonForBlockMock = vi.fn();
+const recentSignalsMock = vi.fn();
 const hasApiKeyMock = vi.fn(() => true);
 
 vi.mock("next/navigation", () => ({ redirect: (u: string) => redirectMock(u) }));
@@ -39,10 +40,16 @@ vi.mock("@/app/(app)/session/[id]/actions", () => ({
   continueAction: vi.fn(),
   finishAction: vi.fn(),
   noteAction: vi.fn(),
+  proveAction: vi.fn(),
+}));
+vi.mock("@/lib/session/store", () => ({
+  recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
 }));
 vi.mock("@/app/(app)/session/[id]/tutor-panel", () => ({
   TutorPanel: () => <div>tutor panel</div>,
 }));
+
+import { findPack } from "@/lib/content";
 
 const SessionPage = (await import("@/app/(app)/session/[id]/page")).default;
 
@@ -99,7 +106,9 @@ function view(over: {
       completedAt: over.completedAt ?? null,
     },
     goal: { id: "g1", packSlug: "sql-data-analysis" },
-    pack: { name: "SQL for data analysis" },
+    // The real pack: the prove-it offer reads its item bank, and a stub with no
+    // items would let a page that crashed on a real one pass here.
+    pack: { ...findPack("sql-data-analysis")!, name: "SQL for data analysis" },
     block: blocks[blockIndex],
     skill,
     mastery,
@@ -122,6 +131,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   hasApiKeyMock.mockReturnValue(true);
   sessionViewMock.mockResolvedValue(view());
+  recentSignalsMock.mockResolvedValue([]);
   lessonForBlockMock.mockResolvedValue({ content: lesson, cached: true });
 });
 
@@ -391,5 +401,78 @@ describe("the session screen", () => {
     hasApiKeyMock.mockReturnValue(false);
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/tutor is unavailable/)).toBeDefined();
+  });
+});
+
+/**
+ * PLAN-ADAPTATION step 4 — the offer, and the honesty of its copy.
+ *
+ * The card promises questions, says they count either way, and never promises
+ * that the skill will be skipped. That last distinction is the whole feature:
+ * accepting buys an assessment, not a result.
+ */
+describe("the prove-it offer", () => {
+  const check: SessionBlock = {
+    type: "check",
+    skillId: "join-grain",
+    prompt: "In your own words?",
+    expected: "e",
+    isRetrieval: false,
+    itemId: null,
+    estMinutes: 5,
+  };
+
+  function claiming() {
+    recentSignalsMock.mockResolvedValue([
+      { skillSlug: "join-grain", signal: "already_knows" },
+    ]);
+    sessionViewMock.mockResolvedValue(view({ blocks: [check] }));
+  }
+
+  it("stays out of the way when nothing was claimed", async () => {
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.queryByText(/You said you already know this/)).toBeNull();
+  });
+
+  it("offers to test a claim the tutor heard", async () => {
+    claiming();
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText(/You said you already know this/)).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: /Give me the questions/ }),
+    ).toBeDefined();
+  });
+
+  it("says the answers count either way", async () => {
+    claiming();
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText(/count either way/)).toBeDefined();
+  });
+
+  /**
+   * The copy must not promise a skip. Mastery moves on the answers or it does
+   * not move at all, and a card that said "skip this" would be writing a cheque
+   * the grader has to honour.
+   */
+  it("promises questions, never a skip", async () => {
+    claiming();
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.queryByText(/skip ahead/i)).toBeNull();
+    expect(screen.queryByText(/mark it as known/i)).toBeNull();
+  });
+
+  it("disappears once the questions have been taken", async () => {
+    recentSignalsMock.mockResolvedValue([
+      { skillSlug: "join-grain", signal: "already_knows" },
+    ]);
+    sessionViewMock.mockResolvedValue(
+      view({ blocks: [check, { ...check, itemId: "taken" }] }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.queryByText(/You said you already know this/)).toBeNull();
   });
 });

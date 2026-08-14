@@ -38,6 +38,7 @@ import {
 import { answerCheck, checkBlockAt, isBlank } from "@/lib/session/run";
 import { lessonForBlock, sessionView, supportFor } from "@/lib/session/view";
 import {
+  appendBlocks,
   recentSignals,
   recordTutorSignal,
   SIGNAL_WINDOW_DAYS,
@@ -1222,6 +1223,71 @@ live("the session view and its lesson", () => {
       ]),
     );
     expect(reachable.size).toBe(2);
+  });
+
+  describe("appendBlocks", () => {
+    async function openSessionFor(userId: string) {
+      const goalId = await createGoal(db, {
+        userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+      });
+      return startSession(db, {
+        userId,
+        goalId,
+        planned: {
+          goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+          blocks: [
+            { type: "explain", skillId: skill.id, content: "c", estMinutes: 5 },
+          ],
+          totalMinutes: 5, targetSkillIds: [skill.id], backingOff: false,
+          reason: "r", compression: null, ranked: [],
+        },
+        now: NOW,
+      });
+    }
+
+    it("adds blocks and moves the learner onto the first of them", async () => {
+      const userId = await newUser();
+      const session = await openSessionFor(userId);
+      const before = session.blocks.length;
+
+      const after = await appendBlocks(db, session, [
+        {
+          type: "check", skillId: skill.id, prompt: "hard one",
+          expected: "concepts", isRetrieval: false, itemId: "i1", estMinutes: 4,
+        },
+      ]);
+
+      expect(after.blocks).toHaveLength(before + 1);
+      expect(after.blockIndex).toBe(before);
+
+      // And it is on the row, not only in the returned object.
+      const reread = await sessionById(db, session.id, userId);
+      expect(reread?.blocks).toHaveLength(before + 1);
+      expect(reread?.blockIndex).toBe(before);
+    });
+
+    /**
+     * Appending rather than inserting is what keeps every recorded response
+     * pointing at the block it was actually about.
+     */
+    it("leaves the existing blocks and their indices alone", async () => {
+      const userId = await newUser();
+      const session = await openSessionFor(userId);
+
+      const after = await appendBlocks(db, session, [
+        { type: "reflect", prompt: "later", estMinutes: 2 },
+      ]);
+
+      expect(after.blocks.slice(0, session.blocks.length)).toEqual(
+        session.blocks,
+      );
+    });
+
+    it("writes nothing when there is nothing to add", async () => {
+      const userId = await newUser();
+      const session = await openSessionFor(userId);
+      expect(await appendBlocks(db, session, [])).toEqual(session);
+    });
   });
 
   describe("tutor signals", () => {

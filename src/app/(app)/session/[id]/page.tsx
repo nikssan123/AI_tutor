@@ -25,7 +25,15 @@ import { AppFrame, AppHeader } from "@/components/app-shell";
 import { submitWorkAction } from "@/app/(app)/submission/actions";
 import { TutorPanel } from "./tutor-panel";
 import { LessonBody } from "./lesson-body";
-import { answerAction, continueAction, finishAction, noteAction } from "./actions";
+import {
+  answerAction,
+  continueAction,
+  finishAction,
+  noteAction,
+  proveAction,
+} from "./actions";
+import { PROVE_ITEM_COUNT, proveOffer } from "@/lib/session/prove";
+import { recentSignals } from "@/lib/session/store";
 
 /**
  * §8 screen 7 — "20–60 minutes of active learning. Never passive."
@@ -67,6 +75,16 @@ export default async function SessionPage({ params, searchParams }: Props) {
 
   const { session, block, skill } = view;
   const position = Math.min(session.blockIndex + 1, session.blocks.length);
+
+  // PLAN-ADAPTATION step 4. Derived on every render rather than stored: the
+  // offer is a function of what the tutor heard and what the session already
+  // contains, and both of those move while the page is open.
+  const offer = proveOffer({
+    signals: await recentSignals(db, user.id, view.goal.packSlug, now),
+    block,
+    blocks: session.blocks,
+    pack: view.pack,
+  });
 
   return (
     /* §8.5.9's documented exception — a session is a thing you *do*, so it
@@ -135,6 +153,26 @@ export default async function SessionPage({ params, searchParams }: Props) {
           </div>
         </Card>
       )}
+
+      {offer && skill ? (
+        <Card className="rise flex flex-col items-start gap-4" style={stagger(2)}>
+          <Title>You said you already know this</Title>
+          <Lead>
+            Then show us. {PROVE_ITEM_COUNT} questions on {skill.name}, the
+            hardest ones in the bank.
+          </Lead>
+          <Meta>
+            They&rsquo;re marked like everything else, and they count either way
+            — which is what makes getting them right mean something. Do well and
+            this comes off your path.
+          </Meta>
+          <form action={proveAction.bind(null, session.id)}>
+            <Button type="submit" variant="text">
+              Give me the questions
+            </Button>
+          </form>
+        </Card>
+      ) : null}
 
       <section className="rise flex flex-col gap-4" style={stagger(2)}>
         <Title>Tutor</Title>
