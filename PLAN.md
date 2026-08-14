@@ -791,6 +791,25 @@ Spring-based, but composed rather than playful — settle without visible bounce
 
 Rules: things **grow from where they were tapped** — a row expands into the screen it opens · nothing translates more than 20px except a panel · list items stagger 24ms on first render only, never on re-render · state changes cross-fade, they don't slide · **`prefers-reduced-motion: reduce` collapses everything to a 100ms opacity fade.**
 
+### The marketing amendment: motion the scroll drives
+
+**Added during the landing-page redesign, and scoped to the marketing routes only.** Nikolay's call, and the rule above was wrong for these pages rather than being bent for them.
+
+Every rule in this section was written for a screen you *operate*, where a row that travels is a row you lose track of. A landing page is read, and on a read page "stagger 24ms on first render" means **everything below the fold has finished animating before anyone has seen it** — the entire motion budget is spent on the one screenful that did not need it. The result is what the pages actually were: an entrance at the top and a dead scroll under it.
+
+So the four marketing routes get scroll-linked motion, under constraints that keep it composed rather than playful:
+
+| Constraint | Why it is the one that matters |
+|---|---|
+| **`animation-timeline`, never JavaScript** | The compositor drives it off the scroll position. §8.5.8's "marketing routes ship zero component-library JS" and §13.1's 80KB budget are untouched — no IntersectionObserver, no scroll listener, nothing to hydrate. About 40 lines of CSS |
+| **Everything inside `@supports (animation-timeline: view())`** | A browser that cannot drive these gets the page exactly as it was: static, complete, `opacity: 1`. The failure mode of a JS reveal library is a blank page; this cannot have that failure |
+| **Big enough to see, and no bigger** | The first cut held to §8.5.6's literal 20px and was *invisible*: 27 animations running on the landing page and the review verdict was "I don't see any animations", which is correct for motion that finishes at the bottom edge of the screen where nobody is looking. Distance was only half the fault — the ranges also ended at `entry 100%`, so everything was over before the element reached the part of the screen you read. Travel is 48–72px, scale bottoms out at 0.9, ranges end about a third of the way up the viewport. Still no rotation, no blur, no overshoot — `linear` throughout, because on a scroll timeline the reader's own scrolling is the easing |
+| **One pinned scene, and it teaches** | `pin-scene` holds the marking band for a viewport and a half while the rubric ladder builds Absent → Developing → Competent → Strong. It earns the scroll because what happens during the pin is the argument in its own order, not decoration. A pinned element's own `view()` timeline is frozen by definition, so the rungs are driven by the section's **named** timeline (`view-timeline-name`) — that is the load-bearing trick. Desktop only: below `lg` the card is taller than the viewport and cannot stick |
+| **`prefers-reduced-motion` removes it, not just its duration** | The global clamp in `tokens.css` cannot help: a scroll-driven animation has no duration to shorten, so it is gated at the declaration |
+| **The stagger is a *range*, not a delay** | A view timeline has no clock. `revealAt(i)` offsets each item's `animation-range` by 6%, which is what lets a horizontal rail build left-to-right on a vertical timeline — `stagger(i)` cannot do that at any speed |
+
+The classes are `reveal`, `settle`, `drift` and `recede`, all in `globals.css`. `rise` stays, and is now the *hero's* animation and nothing else: an element carrying both would fight itself, since the stylesheet's last rule would win. Asserted in `tests/app/marketing-pages.test.tsx`.
+
 ## 8.5.7 Reconciling restraint with two hard requirements
 
 Two places where "extremely simple" genuinely conflicts with the plan, and the resolution:

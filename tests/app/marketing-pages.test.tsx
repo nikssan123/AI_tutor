@@ -115,18 +115,43 @@ describe("landing page (§8 screen 1)", () => {
   /**
    * The page reads as "a long list of stuff" the moment sections stop being
    * visually distinct, so the numbered heads are structural, not decorative.
+   *
+   * Four, where there were five. The old 04 drew a card per category linking to
+   * `/learn` and the old 05 drew the hand-written subjects; between them they
+   * said "we have subjects" twice, and because 05 was the only band that listed
+   * anything, a reader counted three and concluded the site had three.
    */
   it("separates its sections with numbered headings", () => {
     render(<HomePage />);
     for (const label of [
       /01 · How it works/,
-      /02 · Any subject/,
-      /03 · What marking looks like/,
+      /02 · What marking looks like/,
+      /03 · Any subject/,
       /04 · What's here/,
-      /05 · Written by hand/,
     ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
     }
+    expect(screen.queryByText(/05 · /)).toBeNull();
+  });
+
+  /**
+   * The fold used to be a headline, an input, and half a screen of nothing —
+   * so the first thing a visitor learned about the product was whatever they
+   * inferred from six words. These three sentences are the answer to "what is
+   * this", above the point most people stop scrolling.
+   */
+  it("states what the product is on the fold, under the input", () => {
+    const { container } = render(<HomePage />);
+    for (const promise of [
+      "You read the checklist before you start",
+      "You hand in real work, not a quiz",
+      "Every score quotes the part it came from",
+    ]) {
+      expect(screen.getByText(promise), promise).toBeDefined();
+    }
+    // In the hero, not somewhere further down dressed as a summary.
+    const hero = container.querySelector("section")!;
+    expect(hero.textContent).toContain("You hand in real work, not a quiz");
   });
 
   /**
@@ -149,15 +174,44 @@ describe("landing page (§8 screen 1)", () => {
     const { groupByCategory } = await import("@/lib/content/categories");
     render(<HomePage />);
 
-    for (const { category, topics } of groupByCategory(allTopics())) {
+    for (const { category } of groupByCategory(allTopics())) {
       expect(screen.getByText(category.name), category.slug).toBeDefined();
-      expect(
-        screen.getAllByText(
-          `${topics.length} subject${topics.length === 1 ? "" : "s"}`,
-        ).length,
-        category.slug,
-      ).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * The band that replaced two.
+   *
+   * The old pair could each be true and still mislead together: one named
+   * categories and linked them all to the same page, the other named three
+   * subjects out of seven under a claim only those three could carry. A reader
+   * who counted came away with the wrong number both times. One row list names
+   * every category *and* every subject, so counting it gives the right answer.
+   */
+  it("names and links every subject from the catalogue band", () => {
+    const { container } = render(<HomePage />);
+    const band = [...container.querySelectorAll("section")].find((s) =>
+      s.querySelector("h2")?.textContent?.includes("grouped by kind"),
+    )!;
+
+    const linked = [...band.querySelectorAll("a[href^='/learn/']")].map((a) =>
+      a.getAttribute("href")!.replace("/learn/", ""),
+    );
+    expect(linked.sort()).toEqual(allTopics().map((t) => t.slug).sort());
+  });
+
+  /**
+   * §7.1 — depth is declared, not faked, and the landing page's obligation is
+   * the negative one: it must not let a reader believe the hand-written depth
+   * covers the catalogue. The per-subject badges moved to `/learn`, where
+   * somebody is actually choosing; what stays here is the sentence that names
+   * both kinds and says every subject is labelled.
+   */
+  it("says the catalogue holds two kinds of subject, not one", () => {
+    render(<HomePage />);
+    const line = screen.getByText(/Some of these were written and checked/);
+    expect(line.textContent).toContain("the rest are written when someone asks");
+    expect(line.textContent).toContain("Every subject says which it is");
   });
 
   /**
@@ -172,11 +226,29 @@ describe("landing page (§8 screen 1)", () => {
     const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
 
     expect(heads).toContain("If nobody has written yours, we write it");
-    // Above the three hand-written subjects, or the page still reads as a
-    // three-subject site to anyone who stops scrolling.
+    // Above the list of what exists, or the page reads as a fixed catalogue to
+    // anyone who stops scrolling — which is the failure it has had twice.
     expect(
       heads.indexOf("If nobody has written yours, we write it"),
-    ).toBeLessThan(heads.indexOf("The ones we wrote and checked ourselves"));
+    ).toBeLessThan(
+      heads.indexOf(`${allTopics().length} subjects, grouped by kind`),
+    );
+  });
+
+  /**
+   * The example before the caveats.
+   *
+   * The marking band used to be fourth, behind a process diagram and three
+   * paragraphs of small print about generation quality floors — so the most
+   * convincing artefact the product owns was the last thing a visitor met.
+   */
+  it("shows what marking is before it explains what gets written", () => {
+    const { container } = render(<HomePage />);
+    const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
+
+    expect(
+      heads.indexOf("A real task, and the standard it is held to"),
+    ).toBeLessThan(heads.indexOf("If nobody has written yours, we write it"));
   });
 
   /**
@@ -222,58 +294,33 @@ describe("landing page (§8 screen 1)", () => {
 
   it("sends someone who wants one built to the conversation that builds it", () => {
     render(<HomePage />);
-    for (const label of ["Have one built", "Ask for a subject"]) {
+    for (const label of ["Have one built", "ask for a subject"]) {
       expect(screen.getByText(label).getAttribute("href"), label).toBe("/start");
     }
   });
 
-  /**
-   * Two kinds of subject now appear on one page, so the hand-written three
-   * have to say which they are — a badge on one and silence on the other
-   * leaves the reader to assume they are the same thing.
-   */
-  it("badges the hand-written subjects as hand-written", () => {
+  /** The catalogue band's other exit — the full list, with the labels on it. */
+  it("sends anyone who wants the labelled list to the hub that has them", () => {
     render(<HomePage />);
-    const curated = allTopics().filter((t) => t.maturity === "curated");
     expect(
-      screen.getAllByText("Written and checked by hand").length,
-    ).toBe(curated.length);
-  });
-
-  it("links only hand-written subjects from the band that claims they are", () => {
-    // The band iterated `allTopics()` while every pack on disk happened to be
-    // Curated, so it would have passed a Standard pack off as hand-written the
-    // moment one existed — on the page whose whole argument is that the
-    // difference is declared rather than hidden.
-    //
-    // Scoped to the band's own links, not the whole page: the autocomplete
-    // above offers every subject we teach, which is correct and is a different
-    // claim entirely.
-    const { container } = render(<HomePage />);
-    const band = [...container.querySelectorAll("section")].find((s) =>
-      s.querySelector("h2")?.textContent?.includes("wrote and checked ourselves"),
-    );
-
-    const linked = [...band!.querySelectorAll("a[href^='/learn/']")].map((a) =>
-      a.getAttribute("href")!.replace("/learn/", ""),
-    );
-    expect(linked.sort()).toEqual(
-      allTopics()
-        .filter((t) => t.maturity === "curated")
-        .map((t) => t.slug)
-        .sort(),
-    );
+      screen.getByText(`See all ${allTopics().length}`).getAttribute("href"),
+    ).toBe("/learn");
   });
 
   /**
    * The landing page used to list every brief as a bare title. That told a
    * newcomer nothing, so it now shows one real task with its complete grading
    * checklist — the single most convincing artefact the product has.
+   *
+   * `getAllByText` on the title, because the hero shows the same brief in its
+   * compressed form: the specimen is the argument the band below makes in full,
+   * and the two naming the same piece of work is the point rather than a
+   * duplicate.
    */
   it("shows one real task, every criterion, and every weight", () => {
     render(<HomePage />);
     const featured = featuredProject();
-    expect(screen.getByText(featured.title)).toBeDefined();
+    expect(screen.getAllByText(featured.title).length).toBeGreaterThan(0);
     expect(
       screen.getByText((t) => t.startsWith(featured.brief.slice(0, 40))),
     ).toBeDefined();
@@ -285,12 +332,67 @@ describe("landing page (§8 screen 1)", () => {
     );
     expect(total).toBeCloseTo(1);
     for (const c of featured.rubricDetail.criteria) {
-      expect(screen.getByText(c.name), c.id).toBeDefined();
+      expect(screen.getAllByText(c.name).length, c.id).toBeGreaterThan(0);
       expect(
         screen.getAllByText(`${Math.round(c.weight * 100)}%`).length,
         c.id,
       ).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * The fold has to show the product, not just describe it.
+   *
+   * The hero was a headline, a paragraph, an input and three grey bullets down
+   * the left of a 1440px viewport, with nothing anywhere on it that showed what
+   * the product actually does — a page about marked work whose first impression
+   * was a search box. The right column is band 02's argument in compressed
+   * form: the real criteria of a real brief, with their real weights.
+   *
+   * §12 still holds, and this is the line it draws: the specimen is a *rubric*,
+   * which the product genuinely publishes, and not a mocked-up dashboard or an
+   * invented screenshot of somebody's graded submission.
+   */
+  it("puts a real artefact on the fold, not just a search box", () => {
+    const { container } = render(<HomePage />);
+    const hero = container.querySelector("section")!;
+    const featured = featuredProject();
+
+    expect(hero.textContent).toContain(featured.title);
+    for (const c of featured.rubricDetail.criteria) {
+      expect(hero.textContent, c.id).toContain(c.name);
+      expect(hero.textContent, c.id).toContain(
+        `${Math.round(c.weight * 100)}%`,
+      );
+    }
+    // Named as a standard, not as a score — §4.2 law 3.
+    expect(hero.textContent).toContain("Competent on each is a pass");
+  });
+
+  /**
+   * The one place the page stops.
+   *
+   * A pinned element's own `view()` timeline is frozen by definition — it is
+   * not moving relative to the viewport — so the rungs inside the stuck card
+   * have to be driven by the *section's* named timeline instead. That is the
+   * whole trick, and it is invisible in the markup: what is assertable is that
+   * the scene and the stage are both present and that the rungs that build
+   * during the pin are inside it.
+   */
+  it("pins the marking band and builds the ladder inside it", () => {
+    const { container } = render(<HomePage />);
+    const scene = container.querySelector(".pin-scene")!;
+
+    expect(scene.querySelector(".pin-stage")).not.toBeNull();
+    // The four rungs of the featured criterion, staggered across the pin.
+    const rungs = [...scene.querySelectorAll(".reveal")];
+    expect(rungs).toHaveLength(4);
+    expect(rungs.map((r) => r.getAttribute("style"))).toEqual([
+      "--reveal-start: 0%;",
+      "--reveal-start: 6%;",
+      "--reveal-start: 12%;",
+      "--reveal-start: 18%;",
+    ]);
   });
 
   it("links to the full checklist rather than reproducing all of it", () => {
@@ -345,39 +447,61 @@ describe("landing page (§8 screen 1)", () => {
    * §8.5.6 — "list items stagger 24ms on first render only, never on
    * re-render." A CSS animation is the only way to get the "first render only"
    * half for free, and it keeps the route at zero motion JS (§8.5.8).
+   *
+   * Two mechanisms now, and the split is what the page needed: `rise` runs off
+   * a clock, so everything below the fold used to finish animating before
+   * anybody saw it. Only the hero keeps it. Everything further down is `reveal`
+   * or `settle`, which run off `animation-timeline: view()` — the scroll drives
+   * them, and because a view timeline has no clock, the stagger is a *range*
+   * offset rather than a delay. Still zero JavaScript, which is the whole
+   * reason neither one is a library.
    */
   it("staggers its entrance in CSS rather than JavaScript", () => {
     const { container } = render(<HomePage />);
-    const risen = [...container.querySelectorAll(".rise")];
-    expect(risen.length).toBeGreaterThan(5);
     expect(container.querySelector("script[src]")).toBeNull();
 
-    const delays = risen
-      .map((el) => el.getAttribute("style"))
-      .filter((s): s is string => s !== null && s.includes("--rise-delay"));
-    expect(delays.some((s) => s.includes("24ms"))).toBe(true);
+    const styles = (selector: string) =>
+      [...container.querySelectorAll(selector)]
+        .map((el) => el.getAttribute("style"))
+        .filter((s): s is string => s !== null);
+
+    // The fold, on a clock.
+    const risen = styles(".rise");
+    expect(risen.some((s) => s.includes("--rise-delay: 24ms"))).toBe(true);
+
+    // Everything past it, on the scroll.
+    const revealed = styles(".reveal, .settle");
+    expect(revealed.length).toBeGreaterThan(5);
+    expect(revealed.some((s) => s.includes("--reveal-start: 6%"))).toBe(true);
+
+    // A view timeline cannot be delayed, so an element carrying both would
+    // fight itself — whichever rule the stylesheet emitted last would win.
+    expect(container.querySelector(".rise.reveal, .rise.settle")).toBeNull();
   });
 
   /**
-   * The differentiator is only legible when subjects sit at different tiers: a
-   * page where every subject says "verified" teaches the reader nothing about
-   * what verification means. So the landing page must show the honest ceiling
-   * of each subject, including the one that says a machine cannot judge it.
+   * §4.2 law 3, on the page that has the most to gain from breaking it.
+   *
+   * The per-subject tier claims moved to `/learn`, which is where somebody is
+   * choosing between subjects and the difference between "we mark it against a
+   * checklist" and "whether it's any good is your call" changes what they
+   * click. What must not happen is the landing page keeping the flattering half
+   * — a blanket claim over a catalogue whose subjects do not all support it.
    */
-  it("states a per-subject evaluation claim, not one blanket claim (§7.2)", () => {
-    render(<HomePage />);
+  it("makes no blanket evaluation claim over the whole catalogue (§7.2)", () => {
+    const { container } = render(<HomePage />);
+    const band = [...container.querySelectorAll("section")].find((s) =>
+      s.querySelector("h2")?.textContent?.includes("grouped by kind"),
+    )!;
 
-    // Each subject says its own honest ceiling...
-    for (const t of allTopics()) {
-      expect(screen.getAllByText(CLAIM[t.evalTier]!).length, t.slug).toBeGreaterThan(0);
+    for (const [tier, claim] of Object.entries(CLAIM)) {
+      expect(band.textContent, `tier ${tier}`).not.toContain(claim);
     }
+  });
 
-    // ...and they are not all the same sentence, which is the property the
-    // differentiator actually rests on. Asserted as "more than one distinct
-    // claim" rather than as a list of every tier that exists: the old form
-    // required tier 1's sentence to be on the page, and no page may say it.
-    const shown = new Set(allTopics().map((t) => CLAIM[t.evalTier]!));
-    expect(shown.size).toBeGreaterThan(1);
+  it("states no tier-1 claim anywhere on it, whatever a pack declares", () => {
+    render(<HomePage />);
+    expect(screen.queryByText(CLAIM[1]!)).toBeNull();
   });
 
   it("shows a non-technical subject first, so it cannot read as a dev tool", () => {
@@ -403,25 +527,50 @@ describe("landing page (§8 screen 1)", () => {
 });
 
 describe("/learn", () => {
-  it("lists subjects and graded projects", async () => {
-    render(await learn.default({ searchParams: params({}) }));
+  it("lists every subject, grouped, and links each one", async () => {
+    const { container } = render(await learn.default({ searchParams: params({}) }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
       "What you can learn",
     );
     expect(screen.getByText(/01 · Subjects/)).toBeDefined();
-    expect(screen.getByText(/02 · Graded projects/)).toBeDefined();
 
-    // Every subject and every brief is reachable from the hub — it is the top
-    // of the internal link graph (§13.3), so a missing card is a dead branch.
+    // Every subject is reachable from the hub — it is the top of the internal
+    // link graph (§13.3), so a missing card is a dead branch.
+    const linked = new Set(
+      [...container.querySelectorAll("a[href^='/learn/']")].map((a) =>
+        a.getAttribute("href")!.replace("/learn/", ""),
+      ),
+    );
     for (const topic of allTopics()) {
       expect(screen.getAllByText(topic.name).length, topic.slug).toBeGreaterThan(0);
+      expect(linked.has(topic.slug), topic.slug).toBe(true);
     }
-    for (const project of allProjects()) {
-      expect(
-        screen.getAllByText(project.title).length,
-        project.slug,
-      ).toBeGreaterThan(0);
-    }
+  });
+
+  /**
+   * The hub used to end in every graded brief in the product: twenty-two cards,
+   * a bare title and `4 criteria · 75 min` each, no subject attached, in an
+   * order derived from a difficulty number the reader cannot see. It was
+   * `/projects` reproduced without the grouping and the briefs that make
+   * `/projects` legible, on a page whose job is subjects.
+   *
+   * Scoped to the rendered page rather than to `container.textContent`, because
+   * the goal-search dropdown legitimately offers briefs by name — that is an
+   * autocomplete, not a listing, and it is hidden until the field is used.
+   */
+  it("points at the briefs instead of reproducing them", async () => {
+    const { container } = render(await learn.default({ searchParams: params({}) }));
+
+    // Not one link to an individual brief, and exactly one to the page that
+    // has all of them.
+    expect(container.querySelectorAll("a[href^='/projects/']")).toHaveLength(0);
+    expect(container.querySelectorAll("a[href='/projects']")).toHaveLength(1);
+
+    expect(screen.getByText(/02 · Graded projects/)).toBeDefined();
+    expect(screen.getByText(`${allProjects().length} briefs`)).toBeDefined();
+    expect(screen.getByText("Read the briefs").getAttribute("href")).toBe(
+      "/projects",
+    );
   });
 
   it("states what each subject can verify, not just how deep it goes", async () => {
@@ -553,13 +702,62 @@ describe("/learn/[topic]", () => {
 });
 
 describe("/projects", () => {
-  it("lists every brief across every subject", async () => {
-    render(projects.default());
-    expect(
-      screen.getAllByRole("link").filter((a) =>
-        a.getAttribute("href")?.startsWith("/projects/"),
+  it("lists every brief, grouped under the subject it belongs to", () => {
+    const { container } = render(projects.default());
+
+    // A Set, not a count: the page also cites one brief by name in the band
+    // that explains what a checklist is, so the same href legitimately appears
+    // twice. What matters is that no brief is missing.
+    const linked = new Set(
+      [...container.querySelectorAll("a[href^='/projects/']")].map((a) =>
+        a.getAttribute("href")!.replace("/projects/", ""),
       ),
-    ).toHaveLength(allProjects().length);
+    );
+    expect([...linked].sort()).toEqual(
+      allProjects().map((p) => p.slug).sort(),
+    );
+
+    // Grouped, which is the axis a reader actually has. The flat list this
+    // replaced was ordered by `difficulty` — a number nobody can see, which put
+    // a cooking brief between two SQL ones for no legible reason.
+    for (const slug of new Set(allProjects().map((p) => p.topicSlug))) {
+      const topic = allTopics().find((t) => t.slug === slug)!;
+      expect(screen.getAllByText(topic.name).length, slug).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * "Graded" is the word this page is selling, and the wall of cards never
+   * defined it — a criteria count proves a rubric exists and nothing more.
+   * §4.2 law 2 publishes the standard; a page that does not show one is
+   * throwing away the only thing that makes the count mean anything.
+   */
+  it("shows a real band of a real rubric before listing anything", () => {
+    render(projects.default());
+    const heaviest = [...featuredProject().rubricDetail.criteria].sort(
+      (a, b) => b.weight - a.weight,
+    )[0]!;
+
+    for (const band of Object.values(heaviest.bands)) {
+      expect(screen.getByText(band), band).toBeDefined();
+    }
+    expect(screen.getByText(/this is the pass mark/)).toBeDefined();
+  });
+
+  /** A brief cut mid-word reads as a bug, not as an excerpt. */
+  it("cuts a long brief at a word, never inside one", () => {
+    const { container } = render(projects.default());
+    const long = allProjects().find((p) => p.brief.length > 150)!;
+
+    const cut = [...container.querySelectorAll("a[href^='/projects/']")]
+      .find((a) => a.getAttribute("href") === `/projects/${long.slug}`)!
+      .textContent!;
+    const shown = cut.slice(cut.indexOf(long.title) + long.title.length);
+    expect(shown).toContain("…");
+    // Whatever survived the cut is a prefix of the brief, ending at a word.
+    const excerpted = shown.slice(0, shown.indexOf("…"));
+    expect(long.brief.startsWith(excerpted)).toBe(true);
+    expect(long.brief[excerpted.length]).toMatch(/[\s.,;:—-]/);
   });
 });
 

@@ -283,6 +283,26 @@ export function stagger(index: number): React.CSSProperties {
 }
 
 /**
+ * `stagger`'s counterpart for the `reveal` and `settle` classes, which are
+ * driven by the scroll rather than by a clock.
+ *
+ * A scroll-driven animation has no delay to stagger — `animation-delay` is
+ * measured in time, and there is no time in a view timeline. What it has
+ * instead is a *range*, so an item that should arrive after its neighbour
+ * starts its range further into the band's entrance. Six percent per step is
+ * about 40ms at an ordinary scroll speed, which reads as a sequence rather than
+ * as five things arriving late.
+ *
+ * Capped at 8 for the same reason `stagger` is: the ninth item in a row would
+ * not begin until the band was half past.
+ */
+export function revealAt(index: number): React.CSSProperties {
+  return {
+    "--reveal-start": `${Math.min(index, 8) * 6}%`,
+  } as React.CSSProperties;
+}
+
+/**
  * §8.5.5 — "Row list", not a data table. Rows are separated by space and a
  * subtle background shift; hairlines only where space genuinely fails.
  */

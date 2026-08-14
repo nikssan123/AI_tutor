@@ -1,10 +1,23 @@
 import Link from "next/link";
+import { SubjectIcon } from "@/components/icons";
 import { Wordmark } from "@/components/logo";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
-import { Card, cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
+import {
+  Card,
+  cx,
+  DisplayTitle,
+  Lead,
+  LinkCard,
+  MaturityBadge,
+  Meta,
+  revealAt,
+  Status,
+  Title,
+} from "@/components/ui";
 import { currentUser } from "@/lib/account/session";
 import { DEFAULT_DESTINATION } from "@/lib/account/next-url";
 import { evalTierClaim } from "@/lib/claims";
+import type { ProjectDetail, TopicSummary } from "@/lib/content";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
@@ -518,6 +531,14 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
         {criterion.description}
       </p>
 
+      {/*
+       * The rungs arrive in order as the ladder crosses the fold, rather than
+       * all at once. This is the one place on the site where scroll-linked
+       * motion is doing something other than decoration: the ladder is an
+       * argument that reads bottom-up — Absent, then Developing, then the pass
+       * mark — and building it in that order is how a reader who is scanning
+       * still receives it in the order it was written.
+       */}
       <ol className="flex list-none flex-col gap-0 p-0 m-0">
         {rungs.map((rung, i) => {
           // Competent and Strong are the two that count as a pass.
@@ -525,8 +546,9 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
           return (
             <li
               key={rung.key}
+              style={revealAt(i)}
               className={cx(
-                "flex flex-col gap-1 border-l-2 py-3 pl-4",
+                "reveal flex flex-col gap-1 border-l-2 py-3 pl-4",
                 passing ? "border-accent" : "border-hairline",
               )}
             >
@@ -553,6 +575,99 @@ export function RubricLadder({ criterion }: { criterion: RubricCriterion }) {
         })}
       </ol>
     </div>
+  );
+}
+
+/* ── The two cards the catalogue is made of ─────────────────────────────── */
+
+/**
+ * Title type without the heading.
+ *
+ * A card is a link, and its title is the link's own label rather than a
+ * section heading — an `<h2>` inside an `<li>` inside a group already headed by
+ * an `<h3>` puts the outline in the wrong order for anyone navigating by
+ * headings. Same size, same tracking, no landmark.
+ */
+export const CARD_TITLE =
+  "text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink";
+
+/**
+ * A brief's opening, cut at a word rather than mid-syllable.
+ *
+ * `/projects` used `brief.slice(0, 160)`, which sheared words in half —
+ * "What is being marked…", "Two things separate a real projection from a s…".
+ * The first regex trims back to the last whitespace; the second drops the
+ * punctuation that trim can leave stranded, because a cut that lands just after
+ * a full stop otherwise reads `you state before you start.…`. Neither has a
+ * branch: a `replace` whose pattern does not match returns the string it was
+ * given, which is the right answer and not a case anyone has to test for.
+ */
+export function excerpt(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text
+    .slice(0, max)
+    .replace(/\s+\S*$/, "")
+    .replace(/[.,;:—-]+$/, "")}…`;
+}
+
+/**
+ * One subject in a collection.
+ *
+ * Lived twice, character for character, in `/` and `/learn` — which is how the
+ * two pages ended up showing four facts each in a line that wrapped to three
+ * rows at a third of the grid width. One component, one decision about what a
+ * subject card is worth saying.
+ *
+ * **Both claims or neither.** §7.1's maturity says how the material got
+ * written; §7.2's tier says what marking it can honour. A card carrying one and
+ * not the other tells half the story, and it is always the flattering half that
+ * survives — so they are drawn together here rather than assembled per page.
+ */
+export function SubjectCard({ topic }: { topic: TopicSummary }) {
+  return (
+    <LinkCard href={`/learn/${topic.slug}`} className="gap-4 p-6">
+      <span className="flex size-10 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
+        <SubjectIcon taxonomyParent={topic.taxonomyParent} />
+      </span>
+      <span className={CARD_TITLE}>{topic.name}</span>
+      {/* Three facts, not four. "N areas" was on here because the loader knew
+          it, which is not a reason — nobody choosing a subject is counting its
+          internal areas, and it was the fact that pushed the line to a third
+          row on a 280px card. */}
+      <Meta>
+        {topic.skillCount} skills · {topic.projectCount} graded projects · about{" "}
+        {topic.totalHours} hours
+      </Meta>
+      <span className="mt-auto flex flex-col gap-2 border-t border-hairline pt-4">
+        <MaturityBadge maturity={topic.maturity} />
+        <EvalTierNote tier={topic.evalTier} />
+      </span>
+    </LinkCard>
+  );
+}
+
+/**
+ * One graded brief in a collection.
+ *
+ * No subject label on it, deliberately: every list that draws these is grouped
+ * by subject and headed with the subject's name, so a label on all twenty-two
+ * cards would repeat the heading three centimetres below itself. If a flat list
+ * of briefs is ever wanted again, the label belongs back here — but the flat
+ * list is what `/projects` was before this, and the reason it was unreadable.
+ */
+export function BriefCard({ project }: { project: ProjectDetail }) {
+  return (
+    <LinkCard href={`/projects/${project.slug}`} className="gap-3 p-6">
+      <span className={CARD_TITLE}>{project.title}</span>
+      <span className="text-[length:var(--text-label-size)] leading-[var(--text-body-line)] text-ink-muted">
+        {excerpt(project.brief, 150)}
+      </span>
+      <span className="mt-auto flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-hairline pt-4">
+        <Meta>{project.rubricDetail.criteria.length} criteria</Meta>
+        <Meta>{project.estimatedMinutes} min</Meta>
+        <Meta>Hand in: {project.evidenceType}</Meta>
+      </span>
+    </LinkCard>
   );
 }
 
