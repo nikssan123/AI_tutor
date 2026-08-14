@@ -1,0 +1,164 @@
+slug: how-long-does-it-take-to-learn-python
+title: How long does it take to learn Python?
+description: >-
+  The question hides a bigger one: which Python? Three different destinations,
+  what the shared core costs, and where the estimates you have seen went wrong.
+h1: How long does it take to learn Python?
+
+answer: >-
+  The shared core is about {{topic:python-fundamentals.hours}} hours across
+  {{topic:python-fundamentals.skills}} skills. After that the answer splits by
+  destination — scripting stops there, data work adds SQL and a library, web
+  work adds a framework and HTTP. Most published figures quietly answer only the
+  first.
+
+tool:
+  path: /tools/learning-roadmap-generator
+  label: Price it against your week
+  pitch: >-
+    It takes the same {{topic:python-fundamentals.skills}} skills and lays them
+    out against the hours you actually have, with the checkpoints dated.
+
+sections:
+  - heading: "\"Learn Python\" is three different courses"
+    body: >-
+      This is why the estimates you find disagree by a factor of ten, and it is
+      not because anyone is lying. Python is a language three largely separate
+      populations use for three largely separate purposes, and the word covers
+      all of them.
+
+
+      Somebody automating a spreadsheet task, somebody building an API and
+      somebody cleaning a dataset need the same first fifteen hours and then
+      diverge completely. An estimate is only meaningful once it says which of
+      the three it is answering — so this page prices the shared core, which is
+      the part every route needs, and then says what each destination adds. The
+      official tutorial covers most of that core and is a fair thing to time
+      yourself against.[^tutorial]
+    list:
+      - Scripting and automation — the core, plus files and paths. The shortest
+        honest route, and a real skill on its own.
+      - Data work — the core, plus SQL and one library. SQL is the bigger half
+        and it is independent, so you can do it in parallel.
+      - Web and services — the core, plus a framework, HTTP and deployment.
+        The longest, and the one where the core is most often skipped.
+    links:
+      - to: /learn/python-fundamentals
+        type: related
+        anchor: the shared core, skill by skill
+
+  - heading: What the shared core actually contains
+    body: >-
+      {{topic:python-fundamentals.hours}} hours across
+      {{topic:python-fundamentals.skills}} skills in
+      {{topic:python-fundamentals.areas}} areas — values, control flow, data
+      structures, functions, correctness and working with real data. That figure
+      is the sum of the per-skill estimates in the course itself and moves when
+      the course does, rather than being a number chosen to look approachable.
+
+
+      The distribution is the interesting part. The syntax half is quick and it
+      is the half everyone teaches. The expensive skills are the ones about
+      being right rather than about being able: writing a test that fails for
+      the right reason first, handling the specific failure you expected without
+      hiding the ones you did not, and loading a real imperfect file and being
+      honest in the output about what it skipped. Together those three are most
+      of the difference between somebody who can write Python and somebody you
+      would let near a real dataset.
+    links:
+      - to: /guides/what-should-i-learn-after-python-basics
+        type: next_step
+        anchor: those skills, in dependency order
+      - to: /projects/orders-summary-script
+        type: project_for
+        anchor: a brief that exercises the expensive half
+
+  - heading: Where the published numbers go wrong
+    body: >-
+      Two failures, and they push in the same direction.
+
+
+      The first is counting exposure. Hours of video watched are not hours of
+      Python learned, and the gap is not a rounding error — material studied
+      passively decays fast, with most of the loss inside the first
+      day.[^ebbinghaus] A number built on watch time is measuring something that
+      partly evaporates before the next session — which is the same reason the
+      passive study strategies come out worst when techniques are ranked by
+      evidence.[^dunlosky]
+
+
+      The second is stopping at syntax. A course that ends when you can write a
+      loop has priced the cheap half and called it the subject. That is how
+      "learn Python in 30 days" survives contact with reality: it is true, for a
+      definition of Python that stops before anything goes wrong.
+    links:
+      - to: /guides/why-do-i-forget-what-i-learn
+        type: prerequisite
+        anchor: what happens between sessions
+
+  - heading: If the destination is data, do SQL alongside
+    body: >-
+      Worth saying plainly because it changes the plan rather than the estimate.
+      SQL is {{topic:sql-data-analysis.hours}} hours across
+      {{topic:sql-data-analysis.skills}} skills — larger than the Python core —
+      it is what most analysis roles actually test, and it does not depend on
+      Python at all. Two subjects at once halves your spacing on both, so the
+      honest advice is sequential rather than simultaneous: core Python first
+      because it is shorter, then SQL, then the library.
+    links:
+      - to: /guides/how-long-does-it-take-to-learn-sql
+        type: related
+        anchor: what SQL costs, on the same basis
+      - to: /check/python-fundamentals
+        type: check_for
+        anchor: find out how much of the core you have
+
+sources:
+  - id: tutorial
+    url: https://docs.python.org/3/tutorial/
+    title: "The Python Tutorial (official)"
+    note: >-
+      Free, current, and shorter than any course covering the same ground. The
+      thing it will not tell you is which parts matter most, which is what makes
+      it hard to time-budget from.
+  - id: ebbinghaus
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0120644
+    title: "Murre & Dros (2015), Replication and Analysis of Ebbinghaus' Forgetting Curve"
+    note: >-
+      The replication worth citing for the shape of the decay. Measured on
+      nonsense syllables, so use it for the direction and not for a percentage.
+  - id: dunlosky
+    url: https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html
+    title: "Dunlosky et al. (2013), Improving Students' Learning With Effective Learning Techniques"
+    note: >-
+      Ten study techniques ranked by evidence, free summary. Relevant here for
+      why hours-of-watching is the wrong unit to plan in.
+
+faqs:
+  - question: Can I learn Python in a month?
+    answer: >-
+      The core, yes, at about ten hours a week — {{topic:python-fundamentals.hours}}
+      hours is roughly three to four weeks at that pace. What you will not have
+      is a destination on top of it, and the destination is usually the reason
+      you started.
+  - question: Is Python harder than SQL?
+    answer: >-
+      Broader rather than harder. Python's core is
+      {{topic:python-fundamentals.hours}} hours against SQL's
+      {{topic:sql-data-analysis.hours}}, but Python keeps going afterwards and
+      SQL mostly does not. SQL is deeper in a smaller space.
+  - question: Do I need to learn Python before pandas?
+    answer: >-
+      Enough of it, yes. People who skip to pandas can usually follow a tutorial
+      and cannot debug one, because the error messages are about Python and not
+      about pandas. The core is the part that makes the errors readable.
+  - question: How long before I can get a job with it?
+    answer: >-
+      Longer than the language takes, and the gap is not more Python. It is
+      having work somebody else can inspect — which is why this site prices
+      courses in hours and then asks you to hand something in.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

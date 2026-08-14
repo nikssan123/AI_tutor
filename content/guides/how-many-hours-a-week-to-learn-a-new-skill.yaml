@@ -1,0 +1,164 @@
+slug: how-many-hours-a-week-to-learn-a-new-skill
+title: How many hours a week to learn a new skill?
+description: >-
+  There is a floor, and forgetting sets it rather than ambition. Why two short
+  sessions beat one long one, and what happens below about two hours a week.
+h1: How many hours a week to learn a new skill?
+
+answer: >-
+  Two to five, split across at least two sessions, is the range where most
+  adults make steady progress. The floor matters more than the ceiling: below
+  about two hours a week you spend most of your time recovering ground you lost
+  since last time, so the same annual total buys far less than it should.
+
+tool:
+  path: /tools/learning-roadmap-generator
+  label: See what your week actually buys
+  pitch: >-
+    Put your real weekly hours in and it prices a whole subject against them —
+    {{topic:sql-data-analysis.hours}} hours of SQL, for instance, in weeks
+    rather than in encouragement.
+
+sections:
+  - heading: The question people mean is about total; the answer is about spacing
+    body: >-
+      A hundred hours in a year is a hundred hours whichever way you cut it, and
+      it is very much not the same skill at the end. Twenty-five four-hour
+      Saturdays and a hundred one-hour evenings are different interventions, and
+      the research on this is unusually clear about which direction the
+      difference runs.
+
+
+      Distributed repetition beats massed repetition for long-term retention,
+      and the effect is largest exactly where you care about it — at delays of
+      24 hours and longer.[^spacing] The same review adds a wrinkle worth
+      knowing: the *optimal* gap scales with how long you need to remember
+      something for. Learning for next week and learning for next year want
+      different schedules, and only one of those is what you are doing here.
+    list:
+      - One 4-hour block a week — the worst common shape. Fatigue in the second
+        half, six days of decay after.
+      - Two 2-hour sessions — noticeably better for the same total.
+      - Four 1-hour sessions — better still for anything with judgement in it.
+      - Daily 20 minutes — excellent for retention, hard for anything that needs
+        a run-up.
+
+  - heading: The floor, and why it is a floor rather than a preference
+    body: >-
+      Below roughly two hours a week, split into at least two sittings, most
+      adults are running a losing race against forgetting. The material from
+      three weeks ago has decayed enough that each session starts with
+      recovering it, and recovery crowds out the new work. The hours are real
+      and the progress is not.
+
+
+      This is not a motivational claim, and it is not about discipline. It falls
+      straight out of the shape of the forgetting curve: most of the loss on
+      untouched material happens fast, and a gap wide enough to lose it is a gap
+      you then have to pay for twice.[^ebbinghaus]
+
+
+      The practical consequence is that **one hour a week is usually worse than
+      it looks and two is usually enough**. If two is genuinely all you have,
+      spend it as two ones rather than one two, and put the recovery to work by
+      starting each session with retrieval rather than with review.
+    links:
+      - to: /guides/why-do-i-forget-what-i-learn
+        type: prerequisite
+        anchor: what the recovery cost actually is
+      - to: /check/sql-data-analysis
+        type: check_for
+        anchor: measure what is still there before you plan
+
+  - heading: What a realistic week costs in calendar time
+    body: >-
+      Once the floor is cleared, the arithmetic is honest and dull. Our SQL
+      course is {{topic:sql-data-analysis.hours}} hours across
+      {{topic:sql-data-analysis.skills}} skills; Python fundamentals is
+      {{topic:python-fundamentals.hours}}. Divide by the hours you actually keep
+      — not the ones you intend — and you have the answer nobody selling a
+      course wants to print.
+    list:
+      - Five hours a week — a subject this size in about ten weeks.
+      - Three hours — about four months, which is the most common honest answer.
+      - Two hours — about six months, and it works if the two hours are split.
+      - Ten hours — about five weeks, and almost nobody sustains it past three.
+
+    links:
+      - to: /learn/sql-data-analysis
+        type: related
+        anchor: what those hours are spent on
+      - to: /projects/the-slip-message
+        type: project_for
+        anchor: a {{project:the-slip-message.minutes}}-minute brief, to see what one sitting buys
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: put your own number in
+
+  - heading: Consistency beats intensity, and the reason is not moral
+    body: >-
+      The advice to "be consistent" usually arrives with a whiff of virtue about
+      it, which makes it easy to dismiss. The mechanism is more interesting than
+      the sermon: a consistent schedule keeps the gaps short enough that
+      retrieval is still possible, and retrieval is what does the work.[^spaced]
+      An irregular schedule produces gaps that are sometimes too long, and the
+      sessions on the far side of those gaps are spent re-reading.
+
+
+      Which is why the useful thing to fix is not the total. It is the *worst
+      gap* in your month. Two hours a week with a three-week hole in it behaves
+      like a much smaller commitment than the number suggests, and the fix costs
+      nothing.
+    links:
+      - to: /guides/how-do-i-know-if-im-actually-improving
+        type: next_step
+        anchor: how to tell whether the schedule is working
+
+sources:
+  - id: spacing
+    url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5476736/
+    title: "Smith & Scarf (2017), Spacing Repetitions Over Long Timescales"
+    note: >-
+      A review specifically about long gaps, which is the case a weekly schedule
+      is actually in. Read it for the point that the best gap depends on how
+      long you need to remember something.
+  - id: ebbinghaus
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0120644
+    title: "Murre & Dros (2015), Replication and Analysis of Ebbinghaus' Forgetting Curve"
+    note: >-
+      The modern replication. Cited here for the shape of the decay, not for
+      numbers — it was measured on nonsense syllables and yours will differ.
+  - id: spaced
+    url: https://www.learningscientists.org/spaced-practice
+    title: "The Learning Scientists — spaced practice"
+    note: >-
+      The practical version, in a page. Written for students and teachers, which
+      makes it the fastest way to turn the research above into a schedule.
+
+faqs:
+  - question: Is one hour a week enough to learn anything?
+    answer: >-
+      For a small, self-contained skill, yes. For a subject with dependencies —
+      where week six needs week two — one hour a week means most sessions start
+      by rebuilding what decayed. Two hours split in half is a much bigger jump
+      than the numbers suggest.
+  - question: Should I study every day?
+    answer: >-
+      You do not need to, and for most adults it is a schedule that breaks. Two
+      to four sessions a week captures nearly all of the spacing benefit without
+      requiring your life to cooperate every single day.
+  - question: What about weekends only?
+    answer: >-
+      Workable if it is both days rather than one long Saturday. Two sittings a
+      week is the thing that matters; whether they are Tuesday and Thursday or
+      Saturday and Sunday matters much less.
+  - question: Does the answer change for physical skills?
+    answer: >-
+      The direction holds — spacing beats massing for motor skills too — but the
+      literature is clear that the size of the effect varies by task type. Treat
+      the numbers here as being about the kind of learning this site is for.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

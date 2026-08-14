@@ -128,6 +128,31 @@ export const GuideReview = z.object({
 });
 export type GuideReview = z.infer<typeof GuideReview>;
 
+/**
+ * Every word on the page, in one string.
+ *
+ * Lives here rather than beside either of its callers because both the score
+ * and the link graph need "all the text" and they need the *same* answer. Two
+ * copies of this drifted within an hour of existing: one of them counted link
+ * anchors and the other did not, so a figure quoted in a link was proprietary
+ * data to one gate and invisible to the other.
+ */
+export function guideProse(guide: Guide): string {
+  return [
+    guide.answer,
+    // The tool pitch is rendered above the fold and may quote a figure, so it
+    // is prose by every definition that matters here.
+    guide.tool.pitch,
+    ...guide.sections.flatMap((s) => [
+      s.heading,
+      s.body,
+      ...s.list,
+      ...s.links.map((l) => l.anchor),
+    ]),
+    ...guide.faqs.flatMap((f) => [f.question, f.answer]),
+  ].join("\n\n");
+}
+
 export const GuideSchema = z
   .object({
     slug,

@@ -1,7 +1,7 @@
 import { allProjects, allTopics, findPack, skillDetails } from "@/lib/content";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { dataReferences } from "./data";
-import type { Guide, GuideLink } from "./types";
+import { guideProse, type Guide, type GuideLink } from "./types";
 
 /**
  * §13.3's internal-link row, which E10 left unbuilt because it had nothing to
@@ -72,14 +72,8 @@ export function outboundLinks(guide: Guide): GuideLink[] {
  * so the two cannot disagree.
  */
 export function subjectsCited(guide: Guide): string[] {
-  const prose = [
-    guide.answer,
-    ...guide.sections.flatMap((s) => [s.heading, s.body, ...s.list]),
-    ...guide.faqs.flatMap((f) => [f.question, f.answer]),
-  ].join("\n");
-
   const slugs = new Set<string>();
-  for (const reference of dataReferences(prose)) {
+  for (const reference of dataReferences(guideProse(guide))) {
     const match = /^\{\{topic:([a-z0-9-]+)\./.exec(reference);
     if (match) slugs.add(match[1]!);
   }
@@ -92,7 +86,41 @@ export interface Inbound {
   anchor: string;
 }
 
-/** Contextual inbound links to one guide. Excludes the `/guides` index. */
+/**
+ * §8.5.1's density rule reaches this file.
+ *
+ * SQL is cited by seven of the eight guides, and seven link cards in one band
+ * is a directory rather than a section. Four is the cap, and *because* it is
+ * capped the inbound count below has to be computed from the same function the
+ * page renders from — a metric that counted a link the page does not draw would
+ * be worse than no metric.
+ */
+export const GUIDES_PER_SUBJECT = 4;
+
+/**
+ * The guides a subject page links to, most-relevant first.
+ *
+ * Relevance is how many times a guide quotes *this* subject's figures, which is
+ * the only non-arbitrary signal available and needs no authoring. Slug order
+ * breaks ties so the section is stable between builds.
+ */
+export function guidesForSubject(topicSlug: string, all: Guide[]): Guide[] {
+  const citations = (guide: Guide) =>
+    dataReferences(guideProse(guide)).filter((r) =>
+      r.startsWith(`{{topic:${topicSlug}.`),
+    ).length;
+
+  return all
+    .filter((guide) => citations(guide) > 0)
+    .sort((a, b) => citations(b) - citations(a) || a.slug.localeCompare(b.slug))
+    .slice(0, GUIDES_PER_SUBJECT);
+}
+
+/**
+ * Contextual inbound links to one guide. Excludes the `/guides` index, for the
+ * reason at the top of this file, and counts a subject page only when that page
+ * actually renders the link.
+ */
 export function inboundLinks(guide: Guide, all: Guide[]): Inbound[] {
   const here = guidePath(guide.slug);
   const inbound: Inbound[] = [];
@@ -107,18 +135,11 @@ export function inboundLinks(guide: Guide, all: Guide[]): Inbound[] {
   }
 
   for (const subject of subjectsCited(guide)) {
-    inbound.push({ from: `/learn/${subject}`, anchor: guide.title });
+    const shown = guidesForSubject(subject, all);
+    if (shown.some((g) => g.slug === guide.slug)) {
+      inbound.push({ from: `/learn/${subject}`, anchor: guide.title });
+    }
   }
 
   return inbound;
-}
-
-/**
- * The guides a subject page should link to, which is the render side of the
- * same rule. Sorted by slug so the section is stable between builds.
- */
-export function guidesForSubject(topicSlug: string, all: Guide[]): Guide[] {
-  return all
-    .filter((guide) => subjectsCited(guide).includes(topicSlug))
-    .sort((a, b) => a.slug.localeCompare(b.slug));
 }

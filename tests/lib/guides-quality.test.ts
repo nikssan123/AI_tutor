@@ -35,6 +35,7 @@ vi.mock("@/lib/guides/loader", async (importOriginal) => {
 const { resetContentCache } = await import("@/lib/content");
 const { loadAllGuides } = await import("@/lib/guides/loader");
 const {
+  GUIDES_PER_SUBJECT,
   guidePath,
   guidesForSubject,
   inboundLinks,
@@ -156,6 +157,62 @@ describe("the link graph", () => {
     );
     expect(guidesForSubject("something-else", corpus())).toEqual([]);
   });
+
+  /**
+   * Relevance is how often a guide quotes *this* subject's figures — the only
+   * non-arbitrary signal available, and one nobody has to author. `a-full`
+   * quotes valid-minimal four times to `b-thin`'s one, so it leads.
+   */
+  it("puts the guide that is most about the subject first", () => {
+    expect(guidesForSubject("valid-minimal", [thin(), full()])[0]!.slug).toBe(
+      "a-full",
+    );
+  });
+
+  it("falls back to slug order when two guides are equally about it", () => {
+    const twin: Guide = { ...full(), slug: "z-twin" };
+    expect(
+      guidesForSubject("valid-minimal", [twin, full()]).map((g) => g.slug),
+    ).toEqual(["a-full", "z-twin"]);
+  });
+
+  /**
+   * §8.5.1's density rule reaches the link graph: seven cards in one band is a
+   * directory. The cap has to live here rather than in the page, because the
+   * inbound count is computed from this list — a metric counting a link the
+   * page does not draw would be worse than no metric at all.
+   */
+  it("shows at most four, however many are about the subject", () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      ...full(),
+      slug: `clone-${i}`,
+    }));
+    expect(guidesForSubject("valid-minimal", many)).toHaveLength(
+      GUIDES_PER_SUBJECT,
+    );
+  });
+
+  it("stops claiming an inbound link once the subject page stops drawing it", () => {
+    // Five guides that quote this subject more often than `a-full` does, so it
+    // is relevance rather than a tie-break that pushes it off the page — and
+    // its own inbound count has to follow.
+    const keener = (i: number): Guide => ({
+      ...full(),
+      slug: `keen-${i}`,
+      tool: {
+        ...full().tool,
+        pitch: `${full().tool.pitch} {{topic:valid-minimal.hours}} {{topic:valid-minimal.areas}}`,
+      },
+    });
+    const crowd = [full(), ...Array.from({ length: 5 }, (_, i) => keener(i))];
+
+    expect(guidesForSubject("valid-minimal", crowd).map((g) => g.slug)).not.toContain(
+      "a-full",
+    );
+    expect(inboundLinks(full(), crowd).map((i) => i.from)).not.toContain(
+      "/learn/valid-minimal",
+    );
+  });
 });
 
 describe("the near-duplicate check", () => {
@@ -245,6 +302,14 @@ describe("the quality score", () => {
     expect(dimension(full(), 2, [full()]).note).toMatch(/nothing else on the site/);
   });
 
+  /** It reports the nearest page, not the last one it happened to look at. */
+  it("names the closest match rather than whichever came last", () => {
+    const clone: Guide = { ...full(), slug: "a-copy" };
+    expect(dimension(full(), 2, [full(), clone, thin()]).note).toMatch(
+      /100% 5-gram overlap with a-copy/,
+    );
+  });
+
   it("requires a linked brief for the worked-example dimension", () => {
     expect(dimension(full(), 5).earned).toBe(1);
     expect(dimension(thin(), 5).earned).toBe(0);
@@ -321,9 +386,16 @@ describe("the quality score", () => {
     expect(QUALITY_FLOOR).toBe(70);
   });
 
-  it("reads the whole page, headings and questions included", () => {
+  /**
+   * One definition of "all the text", shared by the score and the link graph.
+   * Two copies of this drifted within an hour of existing — one counted link
+   * anchors and the other did not, so a figure quoted in a link was
+   * proprietary data to one gate and invisible to the other.
+   */
+  it("reads the whole page — headings, questions and link anchors alike", () => {
     expect(prose(full())).toContain("Familiarity is not recall");
     expect(prose(full())).toContain("Do flashcards count?");
+    expect(prose(full())).toContain("a brief with its rubric published");
   });
 });
 
@@ -386,7 +458,30 @@ describe("the module a route talks to", () => {
     expect(allGuides().map((g) => g.slug)).toEqual(["a-full", "b-thin"]);
   });
 
+  /**
+   * Link anchors included. They were missed first time round, which made a link
+   * the one string on a page still carrying braces — and nobody proof-reads
+   * link text, so it is exactly the kind of gap that survives a review.
+   */
   it("substitutes every figure before a reader can see a brace", () => {
+    const anchored: Guide = {
+      ...full(),
+      sections: full().sections.map((s, i) =>
+        i === 0
+          ? {
+              ...s,
+              links: s.links.map((l) => ({
+                ...l,
+                anchor: `a {{topic:valid-minimal.hours}}-hour brief`,
+              })),
+            }
+          : s,
+      ),
+    };
+    expect(resolveGuide(anchored).sections[0]!.links[0]!.anchor).toBe(
+      "a 3-hour brief",
+    );
+
     const resolved = resolveGuide(full());
     expect(JSON.stringify(resolved)).not.toContain("{{");
     expect(resolved.sections[0]!.list[0]).toBe(

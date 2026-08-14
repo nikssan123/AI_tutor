@@ -1,0 +1,166 @@
+slug: best-way-to-learn-a-skill-as-an-adult
+title: What's the best way to learn a skill as an adult?
+description: >-
+  Adults learn differently for four structural reasons, none of them about age.
+  What to do with each, and the one myth that makes people quit before starting.
+h1: What's the best way to learn a skill as an adult?
+
+answer: >-
+  Use the four advantages you have and stop apologising for the constraints. You
+  arrive with related knowledge worth skipping ahead on, you have a real goal to
+  point at, and nobody is setting your syllabus. The costs are irregular time
+  and no external deadline, and both are schedulable problems.
+
+tool:
+  path: /check/sql-data-analysis
+  label: Skip what you already know
+  pitch: >-
+    The adult advantage in ten minutes — a check across
+    {{topic:sql-data-analysis.skills}} skills that reports which ones you can
+    already do, so the course you get is shorter than the catalogue.
+
+sections:
+  - heading: Four things that are actually different, none of them your brain
+    body: >-
+      The premise of most advice on this is that adults learn worse, and the
+      evidence for that is much weaker than the folklore. What is genuinely
+      different is structural, and every one of the four has an obvious move
+      attached once you name it.
+    list:
+      - You already know things. A spreadsheet user learning SQL is not a
+        beginner; a pivot table is a `GROUP BY` and a VLOOKUP is a join. Find
+        the overlap first and refuse to be taught it.
+      - You have a goal with an outcome attached. Use it as the filter — the
+        question is not "what does this subject contain" but "what does the
+        thing I want to produce need".
+      - Nobody sets your syllabus. This is freedom and it is the main cause of
+        failure, because deciding what to do next is itself work.
+      - Your time is irregular. Not scarce — irregular, which is a different
+        problem and a worse one for retention.
+    links:
+      - to: /guides/how-many-hours-a-week-to-learn-a-new-skill
+        type: prerequisite
+        anchor: what irregular time costs, specifically
+
+  - heading: Start from what you will produce, not from lesson one
+    body: >-
+      An adult with a goal has a shortcut a student does not: you can name a
+      piece of work you want to be able to make, and then learn backwards from
+      it. That inverts the usual order and it removes the largest source of
+      quitting, which is spending six weeks on foundations without evidence that
+      any of it is going anywhere.
+
+
+      Concretely: pick the artefact, read what a good one is judged on, attempt
+      it badly, and let the failures tell you what to study. The failures are a
+      diagnostic you cannot get any other way, and they are specific in a way no
+      syllabus is.
+
+
+      This is also the honest version of "deliberate practice", which is the most
+      cited and most mangled idea in this area. The original work found expert
+      performance associated with a decade or more of effortful, feedback-rich
+      practice designed to improve — not with hours logged.[^ericsson] Practice
+      without feedback is repetition, and repetition is what most self-study is.
+    links:
+      - to: /projects/unbudgeted-spend-memo
+        type: project_for
+        anchor: a small brief with its marking checklist published
+      - to: /guides/how-do-i-know-if-im-actually-improving
+        type: related
+        anchor: how to get feedback when nobody is grading you
+
+  - heading: The myth to drop first
+    body: >-
+      "It takes 10,000 hours" is the single most discouraging sentence in adult
+      learning, and it is a popularisation rather than a finding. The paper
+      behind it describes a *minimum of ten years* of deliberate practice in the
+      route to elite, world-class performance in highly competitive
+      domains.[^ericsson] That is a claim about violinists and chess
+      grandmasters. It is not a claim about becoming employably good at SQL,
+      which our own course prices at {{topic:sql-data-analysis.hours}} hours.
+
+
+      The gap between those two numbers is the entire space most adult learning
+      lives in, and mistaking one for the other is why people decide it is too
+      late before they have started.
+
+  - heading: Mix things up more than feels comfortable
+    body: >-
+      One technique is worth singling out because it is counter-intuitive and
+      adults are unusually well placed to use it. Practising several related
+      things in a mixed order — interleaving — feels worse and performs better
+      than doing one thing until it is smooth and then moving on.[^interleaving]
+      It feels worse for the same reason retrieval does: the difficulty is the
+      mechanism.
+
+
+      Adults can do this more easily than students because nobody is making you
+      finish a chapter. Python fundamentals, for instance, is
+      {{topic:python-fundamentals.skills}} skills across
+      {{topic:python-fundamentals.areas}} areas — values, control flow,
+      structures, functions, correctness and real data — and a session that
+      touches three of those areas will feel messier and stick better than an
+      evening spent finishing the loops chapter.
+
+
+      That is how the sessions here are composed across all
+      {{catalogue.subjects}} subjects: mixed rather than blocked, and opening
+      with retrieval of earlier work rather than with new material.[^retrieval]
+    links:
+      - to: /learn/python-fundamentals
+        type: related
+        anchor: what a mixed subject looks like laid out
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: build the schedule around the time you have
+
+sources:
+  - id: ericsson
+    url: https://gwern.net/doc/psychology/1993-ericsson.pdf
+    title: "Ericsson, Krampe & Tesch-Römer (1993), The Role of Deliberate Practice in the Acquisition of Expert Performance"
+    note: >-
+      The paper behind "10,000 hours", which it never says. Read the abstract at
+      least — it is about elite performance over a decade, and the distance
+      between that and ordinary competence is the point.
+  - id: interleaving
+    url: https://www.learningscientists.org/interleaving
+    title: "The Learning Scientists — interleaving"
+    note: >-
+      Short, practical, and honest that interleaving feels worse while you do
+      it. The best single page on the technique adults find hardest to adopt.
+  - id: retrieval
+    url: https://www.retrievalpractice.org/
+    title: "Agarwal, Retrieval Practice — research library and free downloads"
+    note: >-
+      A cognitive scientist's practitioner site. Written for teachers, which
+      makes it unusually concrete; it also sells books, worth knowing as you read.
+
+faqs:
+  - question: Am I too old to learn this?
+    answer: >-
+      Almost certainly not, and the question is usually standing in for a
+      different one about time. The structural constraints on adult learning are
+      irregular schedules and no external deadline, both of which are fixable,
+      and neither of which is about age.
+  - question: Should I go back to formal education?
+    answer: >-
+      Only if you need the credential or the deadline. Those are the two things
+      a course buys that you cannot easily replicate; the material is almost
+      always available for free, and self-directed study fails on structure
+      rather than on access.
+  - question: How do I stay motivated without a teacher?
+    answer: >-
+      Replace motivation with a schedule and a next action decided in advance.
+      Motivation is what gets you started once; a decision made on Sunday about
+      what Tuesday contains is what keeps it going.
+  - question: Is it better to go broad or deep?
+    answer: >-
+      Deep on one thing, and mixed *within* it. Two subjects at once halves your
+      spacing on both. Interleaving several skills inside one subject is the
+      version of variety that helps.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

@@ -43,6 +43,13 @@ export function resolveGuide(guide: Guide): Guide {
       heading: resolveData(section.heading),
       body: resolveData(section.body),
       list: section.list.map(resolveData),
+      // Anchors are prose too. Missing them meant a link could be the one
+      // string on the page still carrying braces, which is exactly the kind of
+      // gap that survives review — nobody proof-reads link text.
+      links: section.links.map((link) => ({
+        ...link,
+        anchor: resolveData(link.anchor),
+      })),
     })),
     faqs: guide.faqs.map((faq) => ({
       question: resolveData(faq.question),

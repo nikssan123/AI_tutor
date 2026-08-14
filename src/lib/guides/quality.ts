@@ -1,7 +1,7 @@
 import { allProjects } from "@/lib/content";
 import { dataReferences } from "./data";
 import { GUIDES_PATH, outboundLinks, inboundLinks, sitePaths } from "./links";
-import { wordCount, type Guide } from "./types";
+import { guideProse, wordCount, type Guide } from "./types";
 
 /**
  * §12.2 — the Content Quality Score, "computed at generation, blocks
@@ -56,13 +56,7 @@ export interface QualityReport {
 const HUBS = new Set(["/", "/learn", "/projects", GUIDES_PATH]);
 
 /** All the prose on the page, which is what most dimensions read. */
-export function prose(guide: Guide): string {
-  return [
-    guide.answer,
-    ...guide.sections.flatMap((s) => [s.heading, s.body, ...s.list]),
-    ...guide.faqs.flatMap((f) => [f.question, f.answer]),
-  ].join("\n\n");
-}
+export { guideProse as prose } from "./types";
 
 function citations(text: string): string[] {
   return [...text.matchAll(/\[\^([a-z0-9-]+)\]/g)].map((m) => m[1]!);
@@ -96,7 +90,7 @@ function ratio(actual: number, target: number): number {
 }
 
 export function scoreGuide(guide: Guide, corpus: Guide[]): QualityReport {
-  const text = prose(guide);
+  const text = guideProse(guide);
   const paths = sitePaths(corpus);
   const outbound = outboundLinks(guide);
   const inbound = inboundLinks(guide, corpus);
@@ -135,7 +129,7 @@ export function scoreGuide(guide: Guide, corpus: Guide[]): QualityReport {
   let worstAgainst = "";
   for (const other of corpus) {
     if (other.slug === guide.slug) continue;
-    const share = overlap(mine, fiveGrams(prose(other)));
+    const share = overlap(mine, fiveGrams(guideProse(other)));
     if (share > worst) {
       worst = share;
       worstAgainst = other.slug;

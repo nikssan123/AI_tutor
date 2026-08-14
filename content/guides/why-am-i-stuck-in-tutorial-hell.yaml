@@ -87,6 +87,10 @@ sections:
       - Write down what "done" means before writing anything else.
       - Look things up freely. Looking things up is not tutorial hell; being
         walked through the decisions is.
+    links:
+      - to: /guides/best-way-to-learn-a-skill-as-an-adult
+        type: related
+        anchor: why choosing is the skill adults have to build deliberately
 
   - heading: What we do instead of a walkthrough
     body: >-
