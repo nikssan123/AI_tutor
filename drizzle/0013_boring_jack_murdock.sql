@@ -1,0 +1,1 @@
+ALTER TABLE "domain_pack" ADD COLUMN "review_kind" text;

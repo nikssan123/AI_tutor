@@ -6,6 +6,8 @@ import { findPack } from "@/lib/content";
 import { evaluateSubmission } from "@/lib/evaluation";
 import {
   agreementBetween,
+  KAPPA_TARGET,
+  STABILITY_TARGET,
   verdictFor,
   type Judgement,
 } from "@/lib/evaluation/agreement";
@@ -47,8 +49,19 @@ function fail(message: string): never {
 }
 
 async function main() {
-  const path = process.argv[2];
-  if (!path) fail("usage: pnpm calibrate <corpus.yaml>");
+  const args = process.argv.slice(2);
+  /**
+   * E8 has two acceptance criteria and only one of them needs a human.
+   *
+   * κ compares the grader against hand-grades and cannot be computed without
+   * them. **Stability compares the grader against itself**, so it needs no
+   * corpus grades at all — and until this flag existed it was unreachable
+   * anyway, because the validation below refuses to run on an ungraded corpus.
+   * That coupling meant half of E8 sat blocked on the wrong person.
+   */
+  const stabilityOnly = args.includes("--stability-only");
+  const path = args.find((a) => !a.startsWith("--"));
+  if (!path) fail("usage: pnpm calibrate [--stability-only] <corpus.yaml>");
 
   const corpus = parse(await readFile(path, "utf8")) as Corpus;
 
@@ -65,18 +78,20 @@ async function main() {
   // Checked before spending anything: a typo'd criterion id silently drops a
   // judgement, and a corpus that quietly measures 12 pairs instead of 20 is
   // worse than one that refuses to run.
-  for (const submission of corpus.submissions) {
-    const graded = Object.keys(submission.grades);
-    for (const id of graded) {
-      if (!criterionIds.has(id)) {
-        fail(`submission "${submission.id}" grades unknown criterion "${id}"`);
+  if (!stabilityOnly) {
+    for (const submission of corpus.submissions) {
+      const graded = Object.keys(submission.grades ?? {});
+      for (const id of graded) {
+        if (!criterionIds.has(id)) {
+          fail(`submission "${submission.id}" grades unknown criterion "${id}"`);
+        }
       }
-    }
-    const missing = [...criterionIds].filter((id) => !graded.includes(id));
-    if (missing.length > 0) {
-      fail(
-        `submission "${submission.id}" is missing grades for: ${missing.join(", ")}`,
-      );
+      const missing = [...criterionIds].filter((id) => !graded.includes(id));
+      if (missing.length > 0) {
+        fail(
+          `submission "${submission.id}" is missing grades for: ${missing.join(", ")}`,
+        );
+      }
     }
   }
 
@@ -98,8 +113,10 @@ async function main() {
 
   try {
     for (const submission of corpus.submissions) {
-      for (const [criterionId, band] of Object.entries(submission.grades)) {
-        human.push({ submissionId: submission.id, criterionId, band });
+      if (!stabilityOnly) {
+        for (const [criterionId, band] of Object.entries(submission.grades)) {
+          human.push({ submissionId: submission.id, criterionId, band });
+        }
       }
 
       for (const [pass, sink] of [
@@ -108,7 +125,10 @@ async function main() {
       ] as const) {
         const started = Date.now();
         const outcome = await evaluateSubmission(
-          { client, db, userId: null },
+          // Operator work, not a visitor: without this the run's spend counts
+          // against §19.2's free-tier cap and degrades the anonymous check for
+          // real people. Ten deep-tier calls is ~100¢ of a 500¢ daily budget.
+          { client, db, userId: null, origin: "operator" },
           {
             project,
             criteria: rubric.criteria,
@@ -145,17 +165,38 @@ async function main() {
   const stability = agreementBetween(first, second);
   const verdict = verdictFor(accuracy, stability);
 
-  console.log(`\n── agreement with your grades ──────────────────────────`);
-  console.log(`  pairs compared:  ${accuracy.n}`);
-  console.log(`  same band:       ${(accuracy.observed * 100).toFixed(0)}%`);
-  console.log(`  within one band: ${(accuracy.withinOneBand * 100).toFixed(0)}%`);
-  console.log(`  by chance:       ${(accuracy.expected * 100).toFixed(0)}%`);
-  console.log(
-    `  κ:               ${accuracy.kappa === null ? "undefined" : accuracy.kappa.toFixed(2)}`,
-  );
+  if (!stabilityOnly) {
+    console.log(`\n── agreement with your grades ──────────────────────────`);
+    console.log(`  pairs compared:  ${accuracy.n}`);
+    console.log(`  same band:       ${(accuracy.observed * 100).toFixed(0)}%`);
+    console.log(`  within one band: ${(accuracy.withinOneBand * 100).toFixed(0)}%`);
+    console.log(`  by chance:       ${(accuracy.expected * 100).toFixed(0)}%`);
+    console.log(
+      `  κ:               ${accuracy.kappa === null ? "undefined" : accuracy.kappa.toFixed(2)}`,
+    );
+  }
 
   console.log(`\n── run 1 against run 2 ─────────────────────────────────`);
+  console.log(`  pairs compared:  ${stability.n}`);
+  console.log(`  same band:       ${(stability.observed * 100).toFixed(0)}%`);
   console.log(`  within one band: ${(stability.withinOneBand * 100).toFixed(0)}%`);
+
+  if (stabilityOnly) {
+    console.log(`\n── verdict ─────────────────────────────────────────────`);
+    const met = stability.n > 0 && stability.withinOneBand >= STABILITY_TARGET;
+    console.log(
+      met
+        ? `  stability ${(stability.withinOneBand * 100).toFixed(0)}% within one band ≥ ${STABILITY_TARGET * 100}% — E8's consistency criterion is met.`
+        : `  stability ${(stability.withinOneBand * 100).toFixed(0)}% within one band is under ${STABILITY_TARGET * 100}%. Two learners handing in the same work would be told different things.`,
+    );
+    // Said every time, because the danger of this mode is that a green line
+    // above gets read as "E8 passes".
+    console.log(
+      `  κ was not measured. E8 also needs κ ≥ ${KAPPA_TARGET} against hand-grades,`,
+    );
+    console.log(`  and that number cannot come from this command.\n`);
+    process.exit(met ? 0 : 1);
+  }
 
   if (accuracy.disagreements.length > 0) {
     console.log(`\n── where you and it disagree, worst first ──────────────`);

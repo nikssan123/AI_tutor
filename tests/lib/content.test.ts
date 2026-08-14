@@ -14,7 +14,8 @@ import {
   topicSummary,
 } from "@/lib/content";
 import { MAX_TIER_WITHOUT_EXECUTION } from "@/lib/evaluation/tier";
-import type { DomainPack } from "@/lib/packs/types";
+import { maturityClaim } from "@/lib/claims";
+import { PackManifest, type DomainPack } from "@/lib/packs/types";
 
 /**
  * The marketing content model. The property that matters most is §12.1's
@@ -117,7 +118,7 @@ describe("§12.1 — indexing is earned, never granted", () => {
     const unsigned = {
       ...pack,
       maturity: "curated" as const,
-      quality: { ...pack.quality, reviewedBy: "unreviewed" },
+      quality: { ...pack.quality, reviewedBy: null, reviewKind: null },
     };
     expect(isTopicIndexable(unsigned)).toBe(false);
   });
@@ -125,30 +126,49 @@ describe("§12.1 — indexing is earned, never granted", () => {
   it("indexes a Curated pack once a reviewer is recorded", () => {
     const reviewed = {
       ...pack,
-      quality: { ...pack.quality, reviewedBy: "nixon" },
+      quality: { ...pack.quality, reviewedBy: "nixon", reviewKind: "human" as const },
     };
     expect(isTopicIndexable(reviewed)).toBe(true);
   });
 
   /**
-   * **The gate checks that a reviewer is named, not that they are human.**
+   * **The regression this gate was built wrong for.**
    *
-   * §7.1 calls the Curated tier "human-reviewed" and the badge says "checked by
-   * hand", so the string in `reviewedBy` is load-bearing in a way the code
-   * cannot enforce — anything other than the literal "unreviewed" opens it.
-   * `sql-data-analysis` is currently signed by a model review, at Nikolay's
-   * request and recorded as such in its own `quality` block.
-   *
-   * Pinned here so the discrepancy is visible in the suite rather than only in
-   * a YAML comment: if the badge is ever to mean what it says, this is the seam
-   * to close.
+   * The old test was `reviewedBy !== "unreviewed"` — the absence of a magic
+   * string rather than the presence of a real value. `reviewedBy` defaults to
+   * `null`, and `null !== "unreviewed"`, so a pack that never declared a
+   * `quality` block at all was indexable *by omission*. Only a pack that
+   * explicitly opted out was held back, which is the gate backwards.
    */
-  it("cannot tell a human reviewer from any other kind", () => {
+  it("refuses to index a pack that never declared a quality block", () => {
+    const silent = PackManifest.parse({
+      slug: "silent",
+      name: "Silent",
+      maturity: "curated",
+      evalTier: 2,
+      workspace: "text",
+      skills: pack.skills,
+    });
+    expect(silent.quality.reviewKind).toBeNull();
+    expect(isTopicIndexable({ ...pack, ...silent })).toBe(false);
+  });
+
+  /**
+   * A model review still opens the index gate — that is the standing decision
+   * for the three packs signed that way. What it no longer does is *say* a
+   * human did it; `maturityClaim` is where that is now enforced.
+   */
+  it("indexes a model-reviewed pack without calling it hand-checked", () => {
     const byModel = {
       ...pack,
-      quality: { ...pack.quality, reviewedBy: "Claude Opus 5 (model review)" },
+      quality: {
+        ...pack.quality,
+        reviewedBy: "Claude Opus 5 (model review)",
+        reviewKind: "model" as const,
+      },
     };
     expect(isTopicIndexable(byModel)).toBe(true);
+    expect(maturityClaim("curated", "model").label).not.toMatch(/by hand/i);
   });
 
   it("never indexes a Standard or Generated pack, reviewed or not", () => {
@@ -156,7 +176,7 @@ describe("§12.1 — indexing is earned, never granted", () => {
       const other: DomainPack = {
         ...pack,
         maturity,
-        quality: { ...pack.quality, reviewedBy: "nixon" },
+        quality: { ...pack.quality, reviewedBy: "nixon", reviewKind: "human" },
       };
       expect(isTopicIndexable(other), maturity).toBe(false);
     }

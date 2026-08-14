@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
-import { loadPack } from "@/lib/packs/loader";
+import { loadAllPacks, loadPack } from "@/lib/packs/loader";
 import {
   assertValid,
   MIN_PRODUCTION_TO_MCQ_RATIO,
@@ -120,6 +120,72 @@ describe("§16.4 — recall over recognition", () => {
     const pack = fixture("valid-minimal");
     pack.items = pack.items.filter((i) => i.type !== "mcq");
     expect(blockingChecks(pack)).not.toContain("recall_over_recognition");
+  });
+});
+
+/**
+ * The real defect: across the seven shipped packs the correct option was never
+ * in position A and was in position B 76% of the time, 6/6 in two packs. Every
+ * item was individually right, so nothing that reads one item at a time could
+ * see it — which is the argument for checking it here rather than in review.
+ */
+describe("multiple-choice answer position", () => {
+  function withAnswers(positions: number[]) {
+    const pack = fixture("valid-minimal");
+    const mcq = pack.items.find((i) => i.type === "mcq")!;
+    pack.items = [
+      ...pack.items.filter((i) => i.type !== "mcq"),
+      ...positions.map((correct, index) => ({
+        ...mcq,
+        slug: `mcq-${index}`,
+        options: ["a", "b", "c", "d"],
+        answerKey: { correct },
+      })),
+    ];
+    return pack;
+  }
+
+  it("rejects a pack where one position holds most of the answers", () => {
+    const report = validatePack(withAnswers([1, 1, 1, 1, 1, 1]));
+    const issue = report.issues.find((i) => i.check === "mcq_answer_position");
+    expect(issue?.severity).toBe("blocking");
+    // Reported as the option a learner sees (1-based), not the stored index.
+    expect(issue?.message).toContain("option 2");
+    expect(issue?.message).toContain("100%");
+  });
+
+  it("accepts an evenly spread bank", () => {
+    expect(blockingChecks(withAnswers([0, 1, 2, 3, 0, 2]))).not.toContain(
+      "mcq_answer_position",
+    );
+  });
+
+  it("allows exactly half, and rejects one more than half", () => {
+    expect(blockingChecks(withAnswers([0, 0, 1, 2]))).not.toContain(
+      "mcq_answer_position",
+    );
+    expect(blockingChecks(withAnswers([0, 0, 0, 1]))).toContain(
+      "mcq_answer_position",
+    );
+  });
+
+  /**
+   * Below four MCQs the share is noise — three items cannot be spread across
+   * four positions, and failing a small honest pack would push authors toward
+   * padding the bank rather than balancing it.
+   */
+  it("ignores a bank too small for the share to mean anything", () => {
+    expect(blockingChecks(withAnswers([1, 1, 1]))).not.toContain(
+      "mcq_answer_position",
+    );
+  });
+
+  it("holds for every pack in the repository", () => {
+    for (const pack of loadAllPacks()) {
+      expect(blockingChecks(pack), pack.slug).not.toContain(
+        "mcq_answer_position",
+      );
+    }
   });
 
   it("counts every production type toward the ratio", () => {

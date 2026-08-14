@@ -73,11 +73,11 @@ items:
     difficulty: 0.2
     prompt: "`WHERE created_at BETWEEN '2026-01-01' AND '2026-01-31'` on a timestamp column misses which rows?"
     options:
-      - Nothing — it covers all of January
       - Rows on 31 January after midnight
+      - Nothing — it covers all of January
       - Rows on 1 January before midnight
       - Rows with a NULL created_at only
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   - slug: filter-like-pattern
     skill: filtering
@@ -118,10 +118,10 @@ items:
     prompt: "What does `SELECT * FROM t WHERE col = NULL` return?"
     options:
       - Every row where col is NULL
-      - No rows at all
       - Every row
+      - No rows at all
       - A syntax error
-    answerKey: { correct: 1 }
+    answerKey: { correct: 2 }
 
   - slug: null-in-aggregate
     skill: null-semantics
@@ -185,10 +185,10 @@ items:
     prompt: Which expression safely turns the text '2026-08-12' into a date in standard SQL?
     options:
       - "DATE('2026-08-12')"
-      - "CAST('2026-08-12' AS DATE)"
-      - "'2026-08-12'::string"
       - "TO_TEXT('2026-08-12')"
-    answerKey: { correct: 1 }
+      - "'2026-08-12'::string"
+      - "CAST('2026-08-12' AS DATE)"
+    answerKey: { correct: 3 }
 
   # --- aggregate-functions ---------------------------------------------------
   - slug: agg-count-variants
@@ -253,11 +253,11 @@ items:
     difficulty: 0.3
     prompt: You want customers whose *2026* orders total more than £1,000. Where does the year filter belong?
     options:
-      - In HAVING, alongside the total filter
       - In WHERE, before aggregation
+      - In HAVING, alongside the total filter
       - Either — they are equivalent
       - In the ORDER BY
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   - slug: having-explain
     skill: having-vs-where

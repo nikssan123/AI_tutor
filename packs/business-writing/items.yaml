@@ -98,11 +98,11 @@ items:
     difficulty: 0.3
     prompt: Which sentence is a claim rather than evidence?
     options:
-      - "Support tickets rose 40% between March and May."
-      - "Three of five interviewed users abandoned at step two."
       - "The onboarding flow is too long."
+      - "Three of five interviewed users abandoned at step two."
+      - "Support tickets rose 40% between March and May."
       - "Median completion time is 11 minutes."
-    answerKey: { correct: 2 }
+    answerKey: { correct: 0 }
 
   # --- structure-and-signposting ---------------------------------------------
   - slug: structure-reorder
@@ -337,9 +337,9 @@ items:
     options:
       - At the end, after the context that explains it
       - In the middle, cushioned on both sides
-      - At the start, with the context after
       - Implied, so the reader reaches it themselves
-    answerKey: { correct: 2 }
+      - At the start, with the context after
+    answerKey: { correct: 3 }
 
   # --- written-feedback ------------------------------------------------------
   - slug: feedback-specific

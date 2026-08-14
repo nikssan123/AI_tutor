@@ -246,14 +246,34 @@ describe("Confidence — a meter and a word, never a number (§8.5.5)", () => {
   });
 });
 
-describe("MaturityBadge — §7.1's declared depth", () => {
+describe("MaturityBadge — §7.1's declared depth and who checked it", () => {
   it.each([
-    ["curated", "Written and checked by hand"],
-    ["standard", "Covers the subject well"],
-    ["generated", "Experimental — help us improve it"],
-  ] as const)("labels a %s pack honestly", (maturity, label) => {
-    render(<MaturityBadge maturity={maturity} />);
+    ["curated", "human", "Written and checked by hand"],
+    ["standard", "human", "Checked by hand"],
+    ["curated", "model", "Checked against published curricula"],
+    ["standard", "model", "Checked against published curricula"],
+    ["standard", null, "Covers the subject well"],
+    // The regression this pair exists for: keyed on maturity alone, an
+    // unreviewed Curated pack printed "Written and checked by hand".
+    ["curated", null, "Covers the subject well"],
+    ["generated", null, "Experimental — help us improve it"],
+  ] as const)("labels a %s pack reviewed by %s honestly", (maturity, review, label) => {
+    render(<MaturityBadge maturity={maturity} review={review} />);
     expect(screen.getByText(label)).toBeDefined();
+  });
+
+  it("never says 'by hand' without a human reviewer", () => {
+    for (const maturity of ["curated", "standard", "generated"] as const) {
+      for (const review of ["model", null] as const) {
+        const { container, unmount } = render(
+          <MaturityBadge maturity={maturity} review={review} />,
+        );
+        expect(container.textContent, `${maturity}/${review}`).not.toMatch(
+          /by hand/i,
+        );
+        unmount();
+      }
+    }
   });
 
   it("marks a generated pack with the attention tone, not a neutral one", () => {

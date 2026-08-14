@@ -14,7 +14,15 @@ projects:
     difficulty: 0.35
     estimatedMinutes: 60
     isPublic: true
-    targetSkills: [knife-control, mise-en-place, food-safety]
+    # `food-safety` was targeted here and assessed by nothing: the rubric's
+    # `safe-technique` is knife safety — guiding hand, stable board — while
+    # food safety is cross-contamination and temperature. A learner working on
+    # "Not poisoning anyone" would have been offered this project and had that
+    # skill's mastery moved by how evenly they diced a carrot, because
+    # `recordEvaluation` moves the submitted-for skill on the *whole* rubric
+    # score. Removed rather than papered over; no project assesses food safety
+    # yet, and none claiming to is better than one that does not.
+    targetSkills: [knife-control, mise-en-place]
     brief: >-
       Take one vegetable and cut it four ways — dice, slice, julienne, and a
       rough chop for something that will be blended. Photograph each pile.
@@ -36,7 +44,11 @@ projects:
     difficulty: 0.55
     estimatedMinutes: 75
     isPublic: true
-    targetSkills: [heat-control, browning, doneness, resting-and-carryover, salting]
+    # `salting` dropped for the same reason: the brief asks for seasoning points
+    # but none of this rubric's four criteria marks them, so the score that moved
+    # the skill would not have been about it. `wednesday-night` targets salting
+    # against `seasoning-points`, which does mark it.
+    targetSkills: [heat-control, browning, doneness, resting-and-carryover]
     brief: >-
       Cook one substantial thing — a piece of meat, a thick fish fillet, a
       halloumi steak, a large mushroom — to a doneness you state *before* you

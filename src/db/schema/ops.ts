@@ -67,6 +67,8 @@ export const agentRun = pgTable(
     output: jsonb("output"),
     /** ok | schema_invalid | refusal | rate_limited | timeout | failed */
     status: text("status").notNull(),
+    /** visitor | operator | null — see the note above the table. */
+    origin: text("origin"),
     costCents: real("cost_cents"),
     latencyMs: integer("latency_ms"),
     error: text("error"),

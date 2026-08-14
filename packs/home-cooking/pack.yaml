@@ -13,7 +13,10 @@
 # learner's written method (temperature, resting, seasoning points, sequence).
 # None marks whether the food was nice.
 #
-# **Standard, not Curated** — authored by a model, validated, unread by a human.
+# **Standard, not Curated** — authored by a model, validated, and now read
+# end to end by a model against published curricula, but still not by a person.
+# Curated is a claim about authoring depth, which a review does not change, so
+# this stays Standard and stays out of the sitemap.
 
 slug: home-cooking
 name: Home Cooking
@@ -29,9 +32,30 @@ evaluatorConfig:
   tools: [read_image]
 
 quality:
-  status: draft
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  status: reviewed
+  # Reviewed end to end, and attributed to what did it. All 32 answer keys, 13
+  # can-do statements, 16 dependency edges, three rubrics band by band, three
+  # briefs against their rubrics. Also read against Nosrat's four-element frame,
+  # The Food Lab and the USDA FSIS chart — see CURRICULUM-SOURCES.md for the
+  # three coverage gaps that found (fat, moist-heat methods, vegetables), which
+  # are authoring work rather than defects.
+  #
+  # Three defects fixed:
+  #   1. The pack promised "the temperatures that matter" and stated none — no
+  #      number in either scale anywhere in four files, while the reheating item
+  #      marked "piping hot". Figures now read directly off the FSIS chart and
+  #      Danger Zone page in a browser, not from a summary of them.
+  #   2. Six of six multiple-choice answers sat in option B. Always guessing B
+  #      scored 100% on this pack.
+  #   3. `one-vegetable-four-cuts` targeted `food-safety`, which its rubric does
+  #      not assess.
+  #
+  # **This is a model review, not a human one**, and the page says so:
+  # `reviewKind: model` earns the badge "Checked against published curricula",
+  # never "Written and checked by hand", which is reserved for a human reviewer.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:

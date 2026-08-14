@@ -1,0 +1,256 @@
+# The Phase-0 corpus for `slow-query-rescue` — five submissions, written.
+#
+# ── READ THIS BEFORE TRUSTING ANY NUMBER OUT OF IT ──────────────────────────
+#
+# **The `grades` below are not hand-grades, and κ computed against them is not
+# E8's κ.** They are the bands each submission was *written to exhibit* — the
+# spec, not an independent judgement. A model wrote these artefacts and the
+# same model family grades them, so agreement here measures whether the grader
+# recovers an intent that was deliberately encoded, which is a construct check
+# and nothing more. Inter-rater reliability with a human is, by construction,
+# not a thing a model can measure about itself.
+#
+# §27 says do not proceed past E8 without the real number. That still holds and
+# nothing in this file changes it.
+#
+# **What Nikolay has to do**, reduced from "write five submissions and grade
+# them" to just the grading: read the five artefacts below, and for each of the
+# four criteria write the band you would give it — *before* running anything,
+# because reading the model's output first will anchor you and the number comes
+# out flattering and worthless. Overwrite the `grades` blocks as you go. The
+# `intent` line under each is what it was written to be; it is there so you can
+# see where you disagree with the author, and it is not evidence.
+#
+# What does not need you at all is **stability** — run 1 against run 2 — which
+# is E8's other criterion and involves no human grades:
+#
+#   DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate --stability-only calibration/query-rescue.yaml
+#
+# ── The scenario the five submissions answer ────────────────────────────────
+#
+# There is no fixture query in the repository, so one is described here and all
+# five submissions are written against it. It is the ordinary shape of this bug:
+# a join to a child table that fans out, wrapped in a DISTINCT that hides the
+# fan-out and costs a sort.
+#
+#   SELECT DISTINCT c.id, c.name, c.segment, o.placed_at
+#   FROM customers c
+#   JOIN orders o        ON o.customer_id = c.id
+#   JOIN order_items oi  ON oi.order_id   = o.id
+#   WHERE o.placed_at >= '2026-01-01'
+#   ORDER BY o.placed_at DESC;
+#
+# `order_items` is joined and never selected from. It multiplies every order row
+# by its line count, and the DISTINCT then removes the duplicates it created —
+# so the answer is right and the machine sorts several million rows to get it.
+
+pack: sql-data-analysis
+project: slow-query-rescue
+
+submissions:
+  # ── 1. Plainly bad ────────────────────────────────────────────────────────
+  - id: s1-no-evidence
+    intent: absent on everything except a lucky guess at proportionality
+    grades:
+      diagnosis: absent
+      improvement: absent
+      correctness-preserved: absent
+      proportionality: absent
+    artefact: |
+      The query was slow because there was no index, so I added indexes on
+      everything it touches:
+
+        CREATE INDEX ON orders (customer_id);
+        CREATE INDEX ON orders (placed_at);
+        CREATE INDEX ON order_items (order_id);
+        CREATE INDEX ON customers (id);
+        CREATE INDEX ON customers (segment);
+        CREATE INDEX ON customers (name);
+
+      It is much faster now. The dashboard feels instant when I load it.
+
+      I did not change the query itself so the results must be the same.
+
+  # ── 2. Half-right ─────────────────────────────────────────────────────────
+  - id: s2-right-instinct
+    intent: spots the DISTINCT, never explains the fan-out, measures once, no equivalence proof
+    grades:
+      diagnosis: developing
+      improvement: developing
+      correctness-preserved: developing
+      proportionality: competent
+    artefact: |
+      Looking at the plan there is a big Unique node near the top with a sort
+      under it, and that is where the time goes:
+
+        Unique  (cost=482913.55..501244.02 rows=1833047 width=48)
+          ->  Sort  (cost=482913.55..487496.17 rows=1833047 width=48)
+                Sort Key: o.placed_at DESC, c.id, c.name, c.segment
+                Sort Method: external merge  Disk: 96432kB
+
+      So the DISTINCT is the expensive part. I do not think we need it, because
+      customers only appear once per order anyway, so I took it out:
+
+        SELECT c.id, c.name, c.segment, o.placed_at
+        FROM customers c
+        JOIN orders o        ON o.customer_id = c.id
+        JOIN order_items oi  ON oi.order_id   = o.id
+        WHERE o.placed_at >= '2026-01-01'
+        ORDER BY o.placed_at DESC;
+
+      Ran it once and it came back in about 6 seconds instead of 40, so that is
+      a good improvement.
+
+      I checked the first 20 rows against the old query and they look the same.
+
+  # ── 3. Realistic middle — strong diagnosis, thin proof ────────────────────
+  - id: s3-solid
+    intent: competent throughout; the honest middle of the distribution
+    grades:
+      diagnosis: competent
+      improvement: competent
+      correctness-preserved: competent
+      proportionality: competent
+    artefact: |
+      **Cause.** `order_items` is joined but never referenced in the SELECT, the
+      WHERE or the ORDER BY. It is a pure fan-out: each order is multiplied by
+      its line count, and the DISTINCT then collapses the duplicates the join
+      itself created. The plan shows it — 1.8M rows arriving at a sort that
+      spills to disk, against 214k orders in the window:
+
+        Unique  (cost=482913.55..501244.02 rows=1833047 width=48)
+          ->  Sort  (cost=482913.55..487496.17 rows=1833047 width=48)
+                Sort Method: external merge  Disk: 96432kB
+                ->  Hash Join  (cost=8821.44..151002.31 rows=1833047 width=48)
+                      Hash Cond: (oi.order_id = o.id)
+
+      1,833,047 is not a number of orders, it is a number of order lines. That
+      is the fan-out in the plan rather than in my head.
+
+      **Fix.** Drop the join. Nothing selects from it, so with it gone every row
+      is already distinct and the DISTINCT goes too:
+
+        SELECT c.id, c.name, c.segment, o.placed_at
+        FROM customers c
+        JOIN orders o ON o.customer_id = c.id
+        WHERE o.placed_at >= '2026-01-01'
+        ORDER BY o.placed_at DESC;
+
+      After:
+
+        Sort  (cost=31118.22..31653.85 rows=214252 width=48)
+              Sort Method: quicksort  Memory: 28914kB
+          ->  Hash Join  (cost=8821.44..12203.90 rows=214252 width=48)
+
+      **Timing.** Five runs each on the same warm database, median reported:
+      40.2s before, 0.6s after.
+
+      **Equivalence.** Full result sets compared, not spot-checked:
+
+        SELECT * FROM (old EXCEPT ALL new) a
+        UNION ALL
+        SELECT * FROM (new EXCEPT ALL old) b;
+
+      Zero rows both directions, and both queries return 214,252 rows.
+
+  # ── 4. Realistic middle — the mirror of s3 ────────────────────────────────
+  - id: s4-solid-but-unproven
+    intent: right fix, weakly supported diagnosis and measurement; heavier than needed
+    grades:
+      diagnosis: competent
+      improvement: developing
+      correctness-preserved: competent
+      proportionality: developing
+    artefact: |
+      The problem is the join to `order_items`, which fans each order out to one
+      row per line and forces the DISTINCT to dedupe them again afterwards.
+
+      I rewrote it as a CTE so the order filtering happens first, and added a
+      covering index to help the range scan:
+
+        CREATE INDEX orders_placed_at_customer_idx
+          ON orders (placed_at DESC, customer_id, id);
+
+        WITH recent_orders AS (
+          SELECT o.id, o.customer_id, o.placed_at
+          FROM orders o
+          WHERE o.placed_at >= '2026-01-01'
+        )
+        SELECT c.id, c.name, c.segment, r.placed_at
+        FROM customers c
+        JOIN recent_orders r ON r.customer_id = c.id
+        ORDER BY r.placed_at DESC;
+
+      It went from 40 seconds to about 1 second.
+
+      For equivalence I ran both versions into temp tables and compared them
+      with EXCEPT in both directions plus a count check — identical, 214,252
+      rows each, and the NULL segments come through the same because nothing in
+      the rewrite touches that column.
+
+  # ── 5. Genuinely good ─────────────────────────────────────────────────────
+  - id: s5-verified
+    intent: strong on all four; competing explanation ruled out, alternatives named and declined
+    grades:
+      diagnosis: strong
+      improvement: strong
+      correctness-preserved: strong
+      proportionality: strong
+    artefact: |
+      **Cause, and the one I ruled out.** The plan shows 1,833,047 rows entering
+      an external-merge sort:
+
+        Unique  (cost=482913.55..501244.02 rows=1833047 width=48)
+          ->  Sort  (cost=482913.55..487496.17 rows=1833047 width=48)
+                Sort Method: external merge  Disk: 96432kB
+
+      The obvious competing explanation is a missing index on
+      `orders.placed_at` making the range scan the bottleneck. It is not: the
+      scan is 214,252 rows and 180ms of the 40 seconds, and adding that index on
+      its own moved the total to 39.4s. The cost is the sort, and the sort is
+      large because `order_items` is joined and never used — 214,252 orders
+      become 1,833,047 order lines, an 8.6× fan-out, and the DISTINCT exists
+      only to undo it. Confirmed by counting directly:
+
+        SELECT count(*) FROM orders o WHERE o.placed_at >= '2026-01-01';
+        -- 214252
+        SELECT count(*) FROM orders o JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.placed_at >= '2026-01-01';
+        -- 1833047
+
+      **Fix — the smallest one.** Remove the unused join; the DISTINCT then has
+      nothing to remove and goes with it:
+
+        SELECT c.id, c.name, c.segment, o.placed_at
+        FROM customers c
+        JOIN orders o ON o.customer_id = c.id
+        WHERE o.placed_at >= '2026-01-01'
+        ORDER BY o.placed_at DESC;
+
+        Sort  (cost=31118.22..31653.85 rows=214252 width=48)
+              Sort Method: quicksort  Memory: 28914kB
+
+      **Rejected, and why.** A covering index on `(placed_at DESC, customer_id,
+      id)` gains a further ~120ms and has to be maintained on every insert to a
+      hot table — not worth it for a dashboard that was already fast enough. A
+      materialised view was considered and rejected: it introduces staleness
+      into a query that is now sub-second, which is a worse product for a
+      correctness win of zero. Neither is needed once the fan-out is gone.
+
+      **Timing.** Ten alternating runs, warm cache, so ordering effects cancel:
+      before median 40.2s (min 39.6, max 41.8); after median 0.58s (min 0.54,
+      max 0.71).
+
+      **Equivalence, including NULLs.** Symmetric difference over the full
+      result set, which treats NULLs as equal where a join comparison would not:
+
+        SELECT count(*) FROM (
+          (SELECT * FROM old_result EXCEPT ALL SELECT * FROM new_result)
+          UNION ALL
+          (SELECT * FROM new_result EXCEPT ALL SELECT * FROM old_result)
+        ) d;
+        -- 0
+
+      Both sides 214,252 rows. 1,204 of them have a NULL `segment` and 3 have a
+      NULL `name`; those counts match on both sides, which is the case a
+      spot-check of the first screen would have missed entirely.

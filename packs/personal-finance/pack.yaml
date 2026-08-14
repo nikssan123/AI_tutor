@@ -5,7 +5,10 @@
 # checkable: a budget either reconciles or it does not, a projection either
 # states its assumptions or it does not.
 #
-# **Standard, not Curated** — authored by a model, validated, unread by a human.
+# **Standard, not Curated** — authored by a model, validated, and now read
+# end to end by a model against published curricula, but still not by a person.
+# Curated is a claim about authoring depth, which a review does not change, so
+# this stays Standard and stays out of the sitemap.
 #
 # **Tier 2**, Text workspace. It could be Query & Sheet, and a curated version
 # should be: a spreadsheet model is exactly the artefact this subject produces.
@@ -39,13 +42,55 @@ evaluatorConfig:
   tools: []
 
 quality:
-  status: draft
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  status: reviewed
+  # Reviewed end to end, and attributed to what did it. All 34 answer keys, 14
+  # can-do statements, 20 dependency edges, three rubrics band by band, three
+  # briefs against their rubrics. Also read against investor.gov's sequence, the
+  # Bogleheads principles and the CFPB building blocks — see
+  # CURRICULUM-SOURCES.md.
+  #
+  # Two defects fixed:
+  #   1. `risk-and-volatility` and `stress-testing` both consumed "a stated
+  #      horizon and goal" and no skill taught it — the pack depended on a skill
+  #      it did not contain. `goals-and-horizon` added, with the two hard edges.
+  #   2. Six of six multiple-choice answers sat in option B.
+  #
+  # And two contested claims softened to the tradeoffs they are: buffer-before-
+  # debt (investor.gov orders it the other way) and avalanche-over-snowball. The
+  # items already taught both sides; it was the skill descriptions that asserted
+  # one, so this was a description-to-item mismatch rather than wrong teaching.
+  #
+  # **This is a model review, not a human one**, and the page says so:
+  # `reviewKind: model` earns the badge "Checked against published curricula",
+  # never "Written and checked by hand", which is reserved for a human reviewer.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:
   # --- position --------------------------------------------------------------
+  # `goals-and-horizon` was added by review, not by the original authoring pass.
+  # Two skills already promised it in their own can-do statements —
+  # `risk-and-volatility` says "for a stated horizon and goal" and
+  # `stress-testing` consumes the same thing — so the pack was built on a skill
+  # it never taught. It is also step 1 of investor.gov's sequence and principle
+  # 1 of the Bogleheads philosophy, both of which open here and not at net
+  # worth. See CURRICULUM-SOURCES.md.
+  - slug: goals-and-horizon
+    name: What the money is for, and when
+    description: >-
+      A goal with a date and a number attached, because "grow my savings" cannot
+      be planned against and "£20,000 for a deposit in four years" can. The
+      horizon is what decides how much volatility you can survive.
+    level: foundational
+    area: position
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: State a financial goal with an amount and a date, and say what the horizon rules out
+    observableEvidence: [explanation, spreadsheet]
+    bktPriors: { pInit: 0.22, pLearn: 0.24, pSlip: 0.1, pGuess: 0.12 }
+
   - slug: knowing-where-you-stand
     name: Knowing where you stand
     description: >-
@@ -73,10 +118,12 @@ skills:
     bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.11, pGuess: 0.1 }
 
   - slug: emergency-buffer
-    name: The buffer before anything else
+    name: The buffer, and where it sits in the order
     description: >-
-      Why liquid savings come before investing and before extra debt repayment,
-      and how to size one from your own fixed costs rather than a rule of thumb.
+      How to size liquid savings from your own fixed costs rather than a rule of
+      thumb, and the live argument about what comes first — a buffer, or paying
+      down expensive debt. Which side you take depends on what credit you could
+      actually get in a crisis.
     level: foundational
     area: position
     evalTier: 2
@@ -116,7 +163,9 @@ skills:
     name: The cost of debt
     description: >-
       APR versus flat rates, what a minimum payment actually costs over time, and
-      ordering repayments by interest rate rather than by balance.
+      the two orders you can repay in — highest rate first, which costs least,
+      and smallest balance first, which more people finish. You should be able to
+      price the difference before choosing.
     level: core
     area: money-over-time
     evalTier: 2
@@ -220,6 +269,14 @@ skills:
     bktPriors: { pInit: 0.09, pLearn: 0.18, pSlip: 0.12, pGuess: 0.08 }
 
 dependencies:
+  # `goals-and-horizon` gates the two skills that were already assuming it.
+  # Hard into `risk-and-volatility` because its can-do statement is not
+  # answerable without a horizon; hard into `stress-testing` because "what
+  # breaks first" is meaningless without a target to miss. Soft into the buffer,
+  # which is sized from fixed costs but argued from what the money is for.
+  - { from: goals-and-horizon, to: risk-and-volatility, type: hard }
+  - { from: goals-and-horizon, to: stress-testing, type: hard }
+  - { from: goals-and-horizon, to: emergency-buffer, type: soft, strength: 0.5 }
   - { from: knowing-where-you-stand, to: cashflow-not-salary, type: hard }
   - { from: cashflow-not-salary, to: emergency-buffer, type: hard }
   - { from: knowing-where-you-stand, to: compounding, type: soft, strength: 0.5 }

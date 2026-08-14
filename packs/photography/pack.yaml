@@ -33,11 +33,13 @@ quality:
   # criterion stays inside §7.2 tier 3: technical only, nothing scores taste.
   # One defect fixed - subject-separation had no item the check could serve.
   #
-  # **This is a model review, not a human one.** §7.1's Curated tier says
-  # "human-reviewed" and the badge says "Written and checked by hand". The
-  # writing was by hand; the checking was not. The gate cannot tell the
-  # difference - see the test in tests/lib/content.test.ts.
+  # **This is a model review, not a human one**, and the page now says so.
+  # `reviewKind: model` earns "Checked against published curricula" rather than
+  # "Written and checked by hand". Also read against Cambridge in Colour's
+  # tutorial set and Peterson's *Understanding Exposure*; the five coverage
+  # gaps — composition is the largest — are in CURRICULUM-SOURCES.md.
   reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
   reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 

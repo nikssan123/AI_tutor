@@ -32,11 +32,13 @@ quality:
   # rubrics band by band, three briefs. Two defects fixed: an item typed
   # code_read in a pack with no code, and - in a writing pack - 'A engineer'.
   #
-  # **This is a model review, not a human one.** §7.1's Curated tier says
-  # "human-reviewed" and the badge says "Written and checked by hand". The
-  # writing was by hand; the checking was not. The gate cannot tell the
-  # difference - see the test in tests/lib/content.test.ts.
+  # **This is a model review, not a human one**, and the page now says so.
+  # `reviewKind: model` earns "Checked against published curricula" rather than
+  # "Written and checked by hand". Also read against Purdue OWL's professional
+  # writing reference, Garner's HBR guide, Minto and the federal plain-language
+  # guidance; the four coverage gaps are in CURRICULUM-SOURCES.md.
   reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
   reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 

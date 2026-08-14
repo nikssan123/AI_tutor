@@ -17,6 +17,31 @@ who are, so the disagreements can be deliberate instead of accidental.
 **Result: 1 verifiable defect, 29 coverage gaps, 2 contested claims stated as
 settled.** Nothing here blocks a launch on SQL. The defect is in home cooking.
 
+> **Actioned 2026-08-14 (pass 28).** The defect, the two contested claims and
+> the top structural recommendation are fixed; the 29 coverage gaps are
+> deliberately not, because they are authoring work rather than errors.
+>
+> - **Home cooking's missing temperatures** — fixed, and the numbers below were
+>   **confirmed in a browser against the FSIS pages** rather than left as the
+>   search summary this document warned about. Two corrections came out of that:
+>   FSIS gives 145°F as **62.8**°C (not 63) and 165°F as **73.9**°C (not 74),
+>   and the page also carries the 2-hour rule and fish/egg temperatures the
+>   summary lacked. See the note under the table.
+> - **Personal finance's missing goals-and-horizon skill** — added, with hard
+>   edges into `risk-and-volatility` and `stress-testing`, the two skills that
+>   were already depending on it.
+> - **The two contested claims** — softened to tradeoffs. Worth recording *why*
+>   this was cheap: the items already taught both sides, so only the skill
+>   descriptions asserted one. It was a description-to-item mismatch rather than
+>   wrong teaching.
+> - **Not done:** Simpson's paradox (statistics), query execution order (SQL),
+>   and the rest. These remain the recommendations below, in the same order.
+>
+> A separate review pass over the same packs found a defect this document could
+> not have seen, because it is invisible one item at a time: **the correct
+> multiple-choice option was never A across all 38 questions, and was B 76% of
+> the time.** See `HUMAN-REVIEW.md`.
+
 ---
 
 ## What I checked against
@@ -310,11 +335,22 @@ them, since it blocks automated fetching)*:
 
 | Food | Minimum internal temperature |
 |---|---|
-| Poultry, whole or ground | 165°F / 74°C |
-| Whole cuts — beef, pork, veal, lamb | 145°F / 63°C, then rest 3 minutes |
-| Ground meat other than poultry | 160°F / 71°C |
-| Leftovers, reheated | 165°F / 74°C |
-| The danger zone | 40–140°F / 4–60°C |
+| Poultry, whole or ground | 165°F / 73.9°C |
+| Whole cuts — beef, pork, veal, lamb | 145°F / 62.8°C, then rest 3 minutes |
+| Ground meat other than poultry | 160°F / 71.1°C |
+| Fish and shellfish | 145°F / 62.8°C |
+| Eggs | 160°F / 71.1°C |
+| Leftovers and casseroles, reheated | 165°F / 73.9°C |
+| The danger zone | 40–140°F / 4–60°C, no more than 2 hours (1 above 90°F) |
+
+> **These were confirmed in a browser on 2026-08-14** — the FSIS chart (last
+> updated Apr 2025) and Danger Zone page (Jun 2023) both loaded and were read
+> directly, so this is no longer a search summary. The check was worth making:
+> the summary had rounded °C values that FSIS states as 62.8 / 71.1 / 73.9, and
+> omitted the 2-hour rule, the 1-hour rule above 90°F, and the fish and egg rows
+> — all of which matter to a home cooking pack. The pack's answer keys use the
+> whole-degree roundings (63 / 71 / 74), which is standard practice and errs
+> upward on the two that matter.
 
 ### Gaps
 
@@ -361,11 +397,17 @@ In priority order, and the first one is the only one I would call urgent:
 
 ## What this does not settle
 
-Nothing here lets you set `reviewedBy` to your name. It is still a model review;
-it is now a model review *with external sources cited*, which is strictly better
-than the three consistency reviews already in the tree but is not the human
-sign-off that `HUMAN-REVIEW.md` describes and that the "Written and checked by
-hand" badge claims.
+Nothing here lets you set `reviewKind: human`. It is still a model review; it is
+now a model review *with external sources cited*, which is strictly better than
+the three consistency reviews that were in the tree but is not the human
+sign-off `HUMAN-REVIEW.md` describes.
+
+**The badge no longer claims otherwise.** When this was written, "Written and
+checked by hand" was keyed on `maturity` alone and appeared on every Curated
+pack regardless of who had read it — so the last paragraph of this section was
+describing a live falsehood on three indexed pages. `reviewKind` now separates
+the two, and a model review earns "Checked against published curricula" instead.
+Countersigning is what changes it, and that is still yours alone.
 
 What it does change is the cost of that sign-off. You no longer have to know SQL
 or food safety well enough to audit 55 answer keys from scratch — you have to

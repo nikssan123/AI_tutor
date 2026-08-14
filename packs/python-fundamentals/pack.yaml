@@ -4,9 +4,11 @@
 # repository that is **Standard** rather than Curated. The distinction is
 # provenance, and it is not decoration: Curated means a person authored the
 # graph and the rubrics and then read the whole thing; this was authored by a
-# model against §7.1's schema and has passed the validator and nothing else.
-# `quality.reviewedBy` stays `unreviewed` until someone has actually read it,
-# which is what keeps it out of the sitemap (`isTopicIndexable`).
+# model against §7.1's schema, has passed the validator, and has now been read
+# end to end against CS50P, Think Python and Automate the Boring Stuff — by a
+# model, not by a person. That review does not make it Curated, because Curated
+# is a claim about how it was *authored*, so it stays Standard and stays out of
+# the sitemap: `isTopicIndexable` requires Curated as well as a recorded review.
 #
 # **Tier 2, not tier 1.** The Code workspace could support tier 1 — execute the
 # tests, assert the behaviour — and a Curated Python pack should claim it. This
@@ -32,9 +34,32 @@ evaluatorConfig:
   tools: [read_file]
 
 quality:
-  status: draft
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  status: reviewed
+  # Reviewed end to end, and attributed to what did it. All 43 answer keys
+  # worked through by hand — every code_read traced, every MCQ's distractors
+  # checked for plausibility — 17 can-do statements, 26 dependency edges, three
+  # rubrics band by band, three briefs. Also read against CS50P, Think Python
+  # and Automate the Boring Stuff; see CURRICULUM-SOURCES.md for the four gaps,
+  # of which classes/OOP is the one that needs a decision rather than an edit.
+  #
+  # Two defects fixed:
+  #   1. `names-aliasing` asked for "the one-character change to line 2" that
+  #      makes it print [1, 2, 3]. Line 2 is `b = a`; the smallest fix is
+  #      `b = a[:]`, three characters, and the item's own key says "copy with a
+  #      slice or list". The question asked for something impossible.
+  #   2. Four of five multiple-choice answers sat in option B.
+  #
+  # Known and deliberate: `lists-and-tuples` is a hard prerequisite of
+  # `loops-and-iteration`, which is the inverse of all three references. Ours is
+  # defensible — you iterate a collection, so know the collection first — but it
+  # is a choice, recorded here so it stays one.
+  #
+  # **This is a model review, not a human one**, and the page says so:
+  # `reviewKind: model` earns the badge "Checked against published curricula",
+  # never "Written and checked by hand", which is reserved for a human reviewer.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:

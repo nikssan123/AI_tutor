@@ -85,7 +85,10 @@ export default async function PacksIndexPage() {
                   {pack.name}
                 </Link>
                 <span className="flex flex-wrap items-center gap-4">
-                  <MaturityBadge maturity={pack.maturity} />
+                  <MaturityBadge
+                    maturity={pack.maturity}
+                    review={pack.quality.reviewKind}
+                  />
                   <Meta>
                     {report.stats.skills} skills · {report.stats.items} items ·
                     tier {pack.evalTier}

@@ -30,12 +30,15 @@ quality:
   # reads, and two briefs each omitting a rubric criterion worth 10% and 25% of
   # its grade.
   #
-  # **This is a model review, not a human one.** §7.1's Curated tier says
-  # "human-reviewed", and the badge on the subject page says "Written and
-  # checked by hand". The writing was by hand. The checking, here, was not — so
-  # the badge overstates this pack by exactly one word until Nikolay
-  # countersigns below.
+  # **This is a model review, not a human one**, and the page now says so.
+  # `reviewKind: model` earns the badge "Checked against published curricula"
+  # rather than "Written and checked by hand", which is reserved for a human
+  # reviewer. The pack was additionally read against SQLBolt and Tanimura's
+  # *SQL for Data Analysis*; the five coverage gaps that found are recorded in
+  # CURRICULUM-SOURCES.md. A countersignature from Nikolay would change this to
+  # `human` and upgrade the badge with it.
   reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
   # A full ISO instant, not a bare date. `reviewedAt` is a timestamp column, so
   # "2026-08-14" comes back from the database as "2026-08-14T00:00:00.000Z" and
   # `tests/packs/read.test.ts` fails its byte-for-byte round-trip. Latent until

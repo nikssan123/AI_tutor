@@ -11,6 +11,42 @@
 # note at the top of pack.yaml.
 
 items:
+  # --- goals-and-horizon -----------------------------------------------------
+  # Added with the skill, which review found two other skills already depending
+  # on. Free-text only: this pack's MCQ share is already at its limit, and the
+  # thing being assessed here is whether a learner can *state* a goal precisely,
+  # which recognition cannot show.
+  - slug: goal-make-it-checkable
+    skill: goals-and-horizon
+    type: short_text
+    difficulty: 0.2
+    prompt: >-
+      "I want to grow my savings." Rewrite this as a goal a plan could actually
+      be checked against, and name what you had to add.
+    answerKey:
+      concepts: [an-amount, a-date-or-horizon, what-the-money-is-for, without-those-no-plan-can-be-right-or-wrong]
+
+  - slug: goal-horizon-rules-out
+    skill: goals-and-horizon
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Two people both want £20,000. One needs it in 18 months for a deposit; the
+      other in 25 years for retirement. Say what the horizon rules out for the
+      first, and why the same choice is reasonable for the second.
+    answerKey:
+      concepts: [a-short-horizon-cannot-absorb-a-fall, no-time-to-recover-before-the-money-is-needed, the-long-horizon-can-wait-out-volatility, the-risk-is-the-same-the-consequence-is-not]
+
+  - slug: goal-competing-goals
+    skill: goals-and-horizon
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Someone has three goals and cannot fund all of them. What do you need to
+      know about each before you can say which to fund first?
+    answerKey:
+      concepts: [the-date-each-one-lands, what-happens-if-it-is-missed, whether-it-is-reversible-or-not, the-cost-of-delaying-each]
+
   # --- knowing-where-you-stand -----------------------------------------------
   - slug: networth-what-counts
     skill: knowing-where-you-stand
@@ -39,11 +75,11 @@ items:
     difficulty: 0.3
     prompt: Your salary rises by £5,000 and your spending rises by £5,000. What happens to net worth?
     options:
-      - It rises, because income rose
       - It is unchanged, because nothing was retained
+      - It rises, because income rose
       - It falls, because of tax
       - It cannot be determined without the interest rate
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- cashflow-not-salary ---------------------------------------------------
   - slug: cashflow-annualise
@@ -173,10 +209,10 @@ items:
     prompt: A "0% for 18 months" balance transfer with a 3% transfer fee. What is the honest way to describe its cost?
     options:
       - It is free for 18 months
-      - About 3% for 18 months, then the standard rate
       - 3% per year
+      - About 3% for 18 months, then the standard rate
       - Cheaper than any repayment plan
-    answerKey: { correct: 1 }
+    answerKey: { correct: 2 }
 
   # --- risk-and-volatility ---------------------------------------------------
   - slug: risk-vs-volatility
@@ -217,11 +253,11 @@ items:
     difficulty: 0.45
     prompt: Diversification most reliably reduces which of these?
     options:
-      - The chance of any loss at all
       - The impact of one holding going badly wrong
+      - The chance of any loss at all
       - The effect of a market-wide fall
       - The fees you pay
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- fees-and-drag ---------------------------------------------------------
   - slug: fees-lifetime
@@ -295,10 +331,10 @@ items:
     prompt: A plan survives every single-variable stress test but fails when two move together. This mainly shows…
     options:
       - The plan is fine; two things rarely move together
-      - Adverse conditions correlate, so joint tests matter
-      - The single-variable tests were wrong
       - The plan needs a higher return assumption
-    answerKey: { correct: 1 }
+      - The single-variable tests were wrong
+      - Adverse conditions correlate, so joint tests matter
+    answerKey: { correct: 3 }
 
   # --- tax-wrappers ----------------------------------------------------------
   - slug: wrapper-mechanism

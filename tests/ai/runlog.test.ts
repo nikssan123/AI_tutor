@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createClient } from "@/db";
 import { agentRun, spendLedger, user } from "@/db/schema";
 import {
@@ -346,8 +346,40 @@ live("the AgentRun log", () => {
         at,
       );
 
+    /**
+     * The ceiling test needs a day it owns outright, which `NOW` is not.
+     *
+     * Two ways that bit. `anonymousSpentToday` counts *every* anonymous run,
+     * and this block's cleanup only removes its own `ANON_AGENT` rows — so
+     * anything else that ran without a user id on the same date stays and
+     * counts. On a shared dev database that is real spend: 488 cents of pack
+     * generation probes had accumulated on 2026-08-13, and once a run pushed
+     * the day over 500 the "starts under the cap" assertion began failing for
+     * everyone. Worse, the `tomorrow` date it used to prove the ceiling resets
+     * was 2026-08-14 — a real calendar day, which a calibration run then spent
+     * 103 cents on.
+     *
+     * A far-future day with every anonymous row cleared out of it is a day the
+     * test controls, which is what an absolute assertion needs. The delta-based
+     * tests above keep using `NOW`, because deltas are exactly the technique
+     * for a total you do not own.
+     */
+    const CAP_DAY = new Date("2027-03-01T09:00:00.000Z");
+    const CAP_NEXT_DAY = new Date("2027-03-02T09:00:00.000Z");
+
+    const clearAnonymousRunsOn = async (day: Date) =>
+      db
+        .delete(agentRun)
+        .where(
+          sql`${agentRun.userId} is null
+              and ${agentRun.createdAt} >= ${`${dayOf(day)}T00:00:00.000Z`}
+              and ${agentRun.createdAt} < ${`${dayOf(day)}T00:00:00.000Z`}::timestamptz + interval '1 day'`,
+        );
+
     afterAll(async () => {
       await db.delete(agentRun).where(eq(agentRun.agentName, ANON_AGENT));
+      await clearAnonymousRunsOn(CAP_DAY);
+      await clearAnonymousRunsOn(CAP_NEXT_DAY);
     });
 
     it("counts what the free tier spent today, and only today", async () => {
@@ -376,15 +408,60 @@ live("the AgentRun log", () => {
       expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before, 5);
     });
 
+    /**
+     * The bug: "no user id" meant both "a visitor on the free check" and "an
+     * operator running a script", and the cap counted them together. A
+     * calibration run put 103 cents into a day's anonymous bucket — in
+     * production that is the public free-tool budget, spent by work no visitor
+     * asked for, degrading `/check` for real people.
+     */
+    it("does not bill operator work to the free tier", async () => {
+      const before = await anonymousSpentToday(db, NOW);
+
+      await recordAgentRun(
+        db,
+        {
+          userId: null,
+          origin: "operator",
+          meta: meta({ costCents: 250, promptName: ANON_AGENT }),
+          status: "ok",
+        },
+        NOW,
+      );
+
+      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before, 5);
+    });
+
+    it("counts a visitor's run, and counts one that did not say", async () => {
+      const before = await anonymousSpentToday(db, NOW);
+      await recordAgentRun(
+        db,
+        {
+          userId: null,
+          origin: "visitor",
+          meta: meta({ costCents: 4, promptName: ANON_AGENT }),
+          status: "ok",
+        },
+        NOW,
+      );
+      // Unset is the cautious reading: over-counting degrades the free tier
+      // conservatively, under-counting leaves it unbounded.
+      await anonRun(6, NOW);
+
+      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 10, 5);
+    });
+
     it("stops the free tier once the day's ceiling is reached", async () => {
-      expect(await anonymousBudgetSpent(db, NOW)).toBe(false);
-      await anonRun(ANONYMOUS_DAILY_CAP_CENTS, NOW);
-      expect(await anonymousBudgetSpent(db, NOW)).toBe(true);
+      await clearAnonymousRunsOn(CAP_DAY);
+      await clearAnonymousRunsOn(CAP_NEXT_DAY);
+
+      expect(await anonymousBudgetSpent(db, CAP_DAY)).toBe(false);
+      await anonRun(ANONYMOUS_DAILY_CAP_CENTS, CAP_DAY);
+      expect(await anonymousBudgetSpent(db, CAP_DAY)).toBe(true);
 
       // And the next day starts clear — the ceiling is a day, not a total.
-      const tomorrow = new Date("2026-08-14T09:00:00.000Z");
-      expect(dayOf(tomorrow)).not.toBe(dayOf(NOW));
-      expect(await anonymousBudgetSpent(db, tomorrow)).toBe(false);
+      expect(dayOf(CAP_NEXT_DAY)).not.toBe(dayOf(CAP_DAY));
+      expect(await anonymousBudgetSpent(db, CAP_NEXT_DAY)).toBe(false);
     });
   });
 });

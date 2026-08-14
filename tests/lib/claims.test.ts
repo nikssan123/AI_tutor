@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EVAL_TIER_CLAIM, evalTierClaim, MATURITY_CLAIM } from "@/lib/claims";
+import {
+  EVAL_TIER_CLAIM,
+  evalTierClaim,
+  maturityClaim,
+  MATURITY_CLAIM,
+} from "@/lib/claims";
 
 /**
  * The two tables exist to stop the page and its share card claiming different
@@ -19,6 +24,93 @@ describe("MATURITY_CLAIM", () => {
       /by hand/i.test(c.label),
     );
     expect(byHand.map(([k]) => k)).toEqual(["curated"]);
+  });
+});
+
+/**
+ * **The claim three live pages were making falsely.**
+ *
+ * `MATURITY_CLAIM.curated` says "Written and checked by hand", and the badge
+ * used to be keyed on maturity alone — so SQL, business writing and photography
+ * all wore it while carrying `reviewedBy: "Claude Opus 5 (model review)"`. No
+ * hand had touched any of them. These tests are the thing that stops it coming
+ * back, because the wording is easy to restore by accident and the packs cannot
+ * see what the badge says about them.
+ */
+describe("maturityClaim", () => {
+  it("only says 'by hand' when a human actually reviewed it", () => {
+    expect(maturityClaim("curated", "human").label).toMatch(/by hand/i);
+    for (const review of ["model", null] as const) {
+      expect(maturityClaim("curated", review).label, String(review)).not.toMatch(
+        /by hand/i,
+      );
+    }
+  });
+
+  /**
+   * The tone is the at-a-glance signal and the label is the detail nobody reads
+   * on a share card, so `verified` is where an overclaim actually lands. Only a
+   * human sign-off earns it — at any depth, but never without one.
+   */
+  it("reserves the verified tone for a human sign-off", () => {
+    const everyCombination = (["curated", "standard", "generated"] as const).flatMap(
+      (m) => (["human", "model", null] as const).map((r) => [m, r] as const),
+    );
+    for (const [maturity, review] of everyCombination) {
+      if (maturityClaim(maturity, review).tone === "verified") {
+        expect(review, `${maturity}/${review}`).toBe("human");
+      }
+    }
+  });
+
+  /**
+   * The bug this function was written to remove, re-entering through its own
+   * fallback: a Curated pack with no reviewer fell through to the depth table
+   * and printed "Written and checked by hand" again. An unreviewed pack claims
+   * no check at any depth.
+   */
+  it("claims no check for a curated pack nobody has reviewed", () => {
+    expect(maturityClaim("curated", null)).toEqual(MATURITY_CLAIM.standard);
+    expect(maturityClaim("curated", null).label).not.toMatch(/checked/i);
+  });
+
+  /**
+   * A promoted Generated pack is Standard: a person read it, but a model wrote
+   * it. It claims the check and not the authorship.
+   */
+  it("does not credit a human reviewer with writing the pack", () => {
+    expect(maturityClaim("standard", "human").label).toMatch(/checked by hand/i);
+    expect(maturityClaim("standard", "human").label).not.toMatch(/written/i);
+  });
+
+  it("says what a model review actually was", () => {
+    expect(maturityClaim("curated", "model").label).toMatch(/published curricula/i);
+    expect(maturityClaim("standard", "model").label).toMatch(/published curricula/i);
+  });
+
+  /**
+   * A model wrote it, so a model reviewing it is not a second opinion —
+   * "Experimental" survives any review kind. Without this, promoting a
+   * generated pack by model review would launder it into a stronger claim.
+   */
+  it("never lets a review upgrade a generated pack", () => {
+    for (const review of ["human", "model", null] as const) {
+      expect(maturityClaim("generated", review), String(review)).toEqual(
+        MATURITY_CLAIM.generated,
+      );
+    }
+  });
+
+  /**
+   * `MaturityBadge` takes `review` as an optional prop, so a call site that
+   * forgets it must land on a *weaker* claim, never a stronger one. This is the
+   * property that makes the default safe.
+   */
+  it("understates rather than overstates when the reviewer is omitted", () => {
+    for (const maturity of ["curated", "standard", "generated"] as const) {
+      expect(maturityClaim(maturity)).toEqual(maturityClaim(maturity, null));
+      expect(maturityClaim(maturity).tone).not.toBe("verified");
+    }
   });
 });
 

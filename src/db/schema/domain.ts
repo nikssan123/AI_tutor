@@ -44,6 +44,12 @@ export const domainPack = pgTable(
     qualityStatus: text("quality_status").notNull().default("draft"),
     qualityScore: real("quality_score"),
     reviewedBy: text("reviewed_by"),
+    /**
+     * `human` | `model` | null — §7.1. Null is "nobody has checked this", and
+     * it is what `isTopicIndexable` requires a positive value against, so a
+     * pack seeded without one cannot reach the index by omission.
+     */
+    reviewKind: text("review_kind"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     evaluatorConfig: jsonb("evaluator_config"),
     createdAt: timestamp("created_at", { withTimezone: true })

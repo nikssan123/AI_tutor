@@ -96,6 +96,7 @@ live("packFromDb (integration)", () => {
     pack.quality = {
       status: "validated",
       reviewedBy: "nixon",
+      reviewKind: "human",
       reviewedAt: "2026-08-13T00:00:00.000Z",
       score: 82,
     };
@@ -106,9 +107,38 @@ live("packFromDb (integration)", () => {
     expect(fromDb!.quality).toEqual({
       status: "validated",
       reviewedBy: "nixon",
+      reviewKind: "human",
       reviewedAt: "2026-08-13T00:00:00.000Z",
       score: 82,
     });
+  });
+
+  /**
+   * The column is `text`, so nothing at the database level stops a row saying
+   * `reviewKind: "hand"`. An unrecognised reviewer is one we cannot vouch for,
+   * and the safe reading is that there isn't one — otherwise a typo written
+   * straight into the database opens the index gate that `PackQuality`'s enum
+   * exists to keep shut.
+   */
+  it("drops a review kind the enum does not recognise, and the name with it", async () => {
+    const pack = { ...fixture("valid-minimal") };
+    pack.quality = {
+      status: "validated",
+      reviewedBy: "nixon",
+      reviewKind: "human",
+      reviewedAt: null,
+      score: null,
+    };
+    await seedPack(db, pack);
+
+    await db
+      .update(domainPack)
+      .set({ reviewKind: "hand" })
+      .where(eq(domainPack.slug, pack.slug));
+
+    const fromDb = await packFromDb(db, pack.slug);
+    expect(fromDb!.quality.reviewKind).toBeNull();
+    expect(fromDb!.quality.reviewedBy).toBeNull();
   });
 
   it("reads back a pack with no dependencies", async () => {

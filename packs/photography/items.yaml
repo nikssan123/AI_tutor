@@ -29,8 +29,8 @@ items:
     type: mcq
     difficulty: 0.25
     prompt: The light drops by one stop and you must keep the same shutter speed and depth of field. What changes?
-    options: ["Aperture", "ISO", "Focal length", "White balance"]
-    answerKey: { correct: 1 }
+    options: ["ISO", "Aperture", "Focal length", "White balance"]
+    answerKey: { correct: 0 }
 
   - slug: histogram-read
     skill: metering-and-histogram
@@ -171,10 +171,10 @@ items:
     prompt: You want a sharp subject against a blurred background while panning. What matters most?
     options:
       - A very fast shutter speed
-      - Matching your movement to the subject's
-      - A narrow aperture
       - A high ISO
-    answerKey: { correct: 1 }
+      - A narrow aperture
+      - Matching your movement to the subject's
+    answerKey: { correct: 3 }
 
   - slug: light-hard-soft
     skill: light-quality

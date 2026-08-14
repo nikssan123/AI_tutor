@@ -7,7 +7,7 @@ import {
   subjectCard,
   titleFontSize,
 } from "@/lib/seo/og";
-import { MATURITY_CLAIM } from "@/lib/claims";
+import { maturityClaim } from "@/lib/claims";
 import { findPack, findProject, topicSummary } from "@/lib/content";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 
@@ -70,7 +70,20 @@ describe("brandCard", () => {
 
 describe("subjectCard", () => {
   it("carries the maturity badge, which is the point of generating it", () => {
-    expect(subjectCard(summary).badge).toEqual(MATURITY_CLAIM[summary.maturity]);
+    expect(subjectCard(summary).badge).toEqual(
+      maturityClaim(summary.maturity, summary.reviewKind),
+    );
+  });
+
+  /**
+   * The share card is exactly where a claim gets quietly upgraded — nobody
+   * scrolls a feed with the rubric open. This is the assertion that keeps the
+   * card from saying a kinder thing than the page it links to.
+   */
+  it("never calls a model-reviewed pack hand-checked", () => {
+    const byModel = { ...summary, maturity: "curated" as const, reviewKind: "model" as const };
+    expect(subjectCard(byModel).badge?.label).not.toMatch(/by hand/i);
+    expect(subjectCard(byModel).badge?.tone).not.toBe("verified");
   });
 
   it("quotes counts the page itself shows", () => {

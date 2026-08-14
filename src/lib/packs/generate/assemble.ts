@@ -52,6 +52,9 @@ export interface AssembleResult {
 export const GENERATED_QUALITY = {
   status: "unreviewed",
   reviewedBy: null,
+  // A model wrote it; a model reviewing it would not be a second opinion. Null
+  // until the admin promotion gate records a person.
+  reviewKind: null,
   reviewedAt: null,
   score: null,
 } as const;

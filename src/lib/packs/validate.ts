@@ -45,6 +45,32 @@ export const MIN_ITEMS_PER_PACK = 20;
 /** Below this, the diagnostic cannot place a learner on the skill at all. */
 export const MIN_ITEMS_PER_SKILL = 1;
 
+/**
+ * The largest share of a pack's multiple-choice answers allowed to sit in any
+ * one option position.
+ *
+ * **The defect this exists for.** Across the seven packs, the correct option
+ * was never once in position A, and was in position B 76% of the time — 6 of 6
+ * in both home cooking and personal finance. A learner who always picked B
+ * scored 76% catalogue-wide knowing nothing, and 100% on two packs. Nothing
+ * caught it: every item was individually correct, the options were plausible,
+ * and position is not a property any single item has. It only exists in the
+ * aggregate, which is exactly what a validator can see and a reviewer reading
+ * items one at a time cannot.
+ *
+ * It matters more here than in an ordinary quiz because these scores are not
+ * scores — they feed BKT, which feeds the planner and the mastery ledger. A
+ * guesser being handed 76% is a guesser being credited with knowledge.
+ *
+ * Half is deliberately loose. With four to seven MCQs per pack, an even split
+ * is not always reachable and demanding one would fail honest packs; the point
+ * is to bound what a fixed-position guess is worth, not to enforce a shuffle.
+ */
+export const MAX_MCQ_ANSWER_POSITION_SHARE = 0.5;
+
+/** Below this many MCQs, position share is noise rather than signal. */
+export const MIN_MCQS_FOR_POSITION_CHECK = 4;
+
 function issue(
   check: string,
   severity: Severity,
@@ -246,6 +272,35 @@ export function validatePack(pack: DomainPack): ValidationReport {
         `${productionItems} production items to ${mcqItems} multiple-choice; §16.4 requires at least ${MIN_PRODUCTION_TO_MCQ_RATIO}:1`,
       ),
     );
+  }
+
+  // §16.4 again, from the other side: recognition items must not be gameable by
+  // position. See MAX_MCQ_ANSWER_POSITION_SHARE for what this caught.
+  const answerPositions = pack.items
+    .filter((i) => i.type === "mcq")
+    // An MCQ with no answer key at all is caught by its own check; here it is
+    // simply not a position, rather than a crash.
+    .map((i) => (i.answerKey as { correct?: unknown } | undefined)?.correct)
+    .filter((c): c is number => typeof c === "number");
+
+  if (answerPositions.length >= MIN_MCQS_FOR_POSITION_CHECK) {
+    const perPosition = new Map<number, number>();
+    for (const position of answerPositions) {
+      perPosition.set(position, (perPosition.get(position) ?? 0) + 1);
+    }
+    const [topPosition, topCount] = [...perPosition].reduce((a, b) =>
+      b[1] > a[1] ? b : a,
+    );
+    const share = topCount / answerPositions.length;
+    if (share > MAX_MCQ_ANSWER_POSITION_SHARE) {
+      issues.push(
+        issue(
+          "mcq_answer_position",
+          "blocking",
+          `${topCount} of ${answerPositions.length} multiple-choice answers sit in option ${topPosition + 1} (${Math.round(share * 100)}%); always guessing it would score that much. Limit is ${Math.round(MAX_MCQ_ANSWER_POSITION_SHARE * 100)}%`,
+        ),
+      );
+    }
   }
 
   // --- Rubrics -------------------------------------------------------------

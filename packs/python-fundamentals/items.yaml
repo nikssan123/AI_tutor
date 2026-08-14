@@ -43,11 +43,11 @@ items:
     difficulty: 0.4
     prompt: "What does `0.1 + 0.2 == 0.3` evaluate to in Python?"
     options:
-      - "True"
       - "False"
+      - "True"
       - It raises a TypeError
       - It depends on the platform
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- names-and-references --------------------------------------------------
   - slug: names-aliasing
@@ -60,8 +60,8 @@ items:
       b.append(4)
       print(a)
 
-      What prints, and why? What one-character change to line 2 would make it
-      print [1, 2, 3]?
+      What prints, and why? What would you change line 2 to, so that it prints
+      [1, 2, 3]?
     answerKey:
       concepts: [both-names-point-at-one-list, append-mutates-in-place, copy-with-a-slice-or-list]
 
@@ -115,10 +115,10 @@ items:
     prompt: "`count` may be 0, or may be None. Which test distinguishes 'not supplied' from 'supplied as zero'?"
     options:
       - "if count:"
-      - "if count is not None:"
-      - "if not count:"
       - "if count != False:"
-    answerKey: { correct: 1 }
+      - "if not count:"
+      - "if count is not None:"
+    answerKey: { correct: 3 }
 
   - slug: truthiness-empty-list
     skill: conditionals-and-truthiness
@@ -231,10 +231,10 @@ items:
     prompt: "`grid = [[0] * 3] * 3`, then `grid[0][0] = 1`. What is `grid`?"
     options:
       - "[[1, 0, 0], [0, 0, 0], [0, 0, 0]]"
-      - "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
       - It raises an IndexError
+      - "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
       - "[[1, 1, 1], [0, 0, 0], [0, 0, 0]]"
-    answerKey: { correct: 1 }
+    answerKey: { correct: 2 }
 
   # --- dicts-and-sets --------------------------------------------------------
   - slug: dict-replace-scan

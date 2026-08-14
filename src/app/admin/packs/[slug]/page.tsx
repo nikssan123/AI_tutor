@@ -67,7 +67,10 @@ export default async function PackPage({
         title={pack.name}
         facts={
           <>
-            <MaturityBadge maturity={pack.maturity} />
+            <MaturityBadge
+              maturity={pack.maturity}
+              review={pack.quality.reviewKind}
+            />
             <Status tone={report.passed ? "verified" : "problem"}>
               {report.passed ? "Validation passing" : "Validation failing"}
             </Status>

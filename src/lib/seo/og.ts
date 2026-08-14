@@ -1,4 +1,4 @@
-import { evalTierClaim, MATURITY_CLAIM, type Claim } from "@/lib/claims";
+import { evalTierClaim, maturityClaim, type Claim } from "@/lib/claims";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 
 /**
@@ -94,7 +94,7 @@ export function subjectCard(topic: TopicSummary): OgCard {
       ...(graded ? [`${topic.projectCount} graded projects`] : []),
       `~${topic.totalHours} hours`,
     ],
-    badge: MATURITY_CLAIM[topic.maturity],
+    badge: maturityClaim(topic.maturity, topic.reviewKind),
   };
 }
 

@@ -151,12 +151,47 @@ export const PackProject = z.object({
 });
 export type PackProject = z.infer<typeof PackProject>;
 
-export const PackQuality = z.object({
-  status: z.string().default("draft"),
-  reviewedBy: z.string().nullable().default(null),
-  reviewedAt: z.string().nullable().default(null),
-  score: z.number().min(0).max(100).nullable().default(null),
-});
+/**
+ * §7.1 — *who* checked the pack, not just that someone did.
+ *
+ * The badge on a subject page says "Written and checked by hand", and for three
+ * packs in this repository that was false: they carried
+ * `reviewedBy: "Claude Opus 5 (model review)"` and the page had no way to tell
+ * a person from a model, so it made the stronger claim for both. An enum is the
+ * fix a free string could not be — `reviewKind` cannot be spelled wrong without
+ * failing validation, and there is no third value to drift into.
+ */
+export const ReviewKind = z.enum(["human", "model"]);
+export type ReviewKind = z.infer<typeof ReviewKind>;
+
+/**
+ * `reviewKind: null` is the only representation of "nobody has checked this".
+ *
+ * It replaces a sentinel string (`reviewedBy: "unreviewed"`) that `isTopicIndexable`
+ * compared against directly, which meant the *schema default* — `null` — was not
+ * equal to it and sailed through the gate. A pack that simply omitted its
+ * `quality` block was indexable without ever having been read. Absence now fails
+ * closed, because the gate asks for a positive value instead of the absence of a
+ * magic one.
+ */
+export const PackQuality = z
+  .object({
+    status: z.string().default("draft"),
+    reviewedBy: z.string().nullable().default(null),
+    reviewKind: ReviewKind.nullable().default(null),
+    reviewedAt: z.string().nullable().default(null),
+    score: z.number().min(0).max(100).nullable().default(null),
+  })
+  /**
+   * A reviewer with no kind, or a kind with no reviewer, is half a claim. Both
+   * halves travel together or the pack does not load — otherwise the two fields
+   * can disagree, and the one the badge reads would decide what the learner is
+   * told.
+   */
+  .refine((q) => (q.reviewedBy === null) === (q.reviewKind === null), {
+    message: "quality.reviewedBy and quality.reviewKind must be set together",
+    path: ["reviewKind"],
+  });
 
 export const PackManifest = z.object({
   slug,
@@ -170,6 +205,7 @@ export const PackManifest = z.object({
   quality: PackQuality.default({
     status: "draft",
     reviewedBy: null,
+    reviewKind: null,
     reviewedAt: null,
     score: null,
   }),

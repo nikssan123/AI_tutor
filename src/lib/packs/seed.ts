@@ -56,6 +56,7 @@ export async function seedPack(
           qualityStatus: rows.pack.qualityStatus,
           qualityScore: rows.pack.qualityScore,
           reviewedBy: rows.pack.reviewedBy,
+          reviewKind: rows.pack.reviewKind,
           reviewedAt: rows.pack.reviewedAt,
           updatedAt: new Date(),
         },

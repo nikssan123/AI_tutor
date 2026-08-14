@@ -74,7 +74,11 @@ describe("/admin/packs/[slug]", () => {
     render(
       await PackPage({ params: Promise.resolve({ slug: "sql-data-analysis" }) }),
     );
-    expect(screen.getByText("Written and checked by hand")).toBeDefined();
+    // The SQL pack is Curated and signed by a *model* review, so the operator
+    // screen says what was actually done rather than borrowing the badge a
+    // human sign-off earns. This assertion read "Written and checked by hand"
+    // while that was untrue of the pack it was rendering.
+    expect(screen.getByText("Checked against published curricula")).toBeDefined();
     expect(screen.getByText("Validation passing")).toBeDefined();
   });
 

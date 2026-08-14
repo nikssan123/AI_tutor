@@ -4,8 +4,10 @@
 # get the number, this one teaches you whether to believe it.
 #
 # **Standard, not Curated.** Authored by a model against §7.1's schema, validated,
-# and read by nobody yet. `quality.reviewedBy` stays `unreviewed`, which keeps it
-# out of the sitemap.
+# and now read end to end against OpenIntro and Calling Bullshit — by a model, not
+# by a person. Curated is a claim about *authoring* depth, and a review does not
+# change how a pack was written, so this stays Standard and stays out of the
+# sitemap: `isTopicIndexable` requires Curated as well as a recorded review.
 #
 # **Tier 2.** The Text workspace, marked against a published checklist. Tier 1
 # would mean executing something and asserting the result, and there is no
@@ -27,9 +29,28 @@ evaluatorConfig:
   tools: []
 
 quality:
-  status: draft
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  status: reviewed
+  # Reviewed end to end, and attributed to what did it. All 32 answer keys
+  # including the base-rate arithmetic (99 true positives against 1,098 flags is
+  # 9%, and the key says "under 10 percent" — correct), 14 can-do statements,
+  # 18 dependency edges, three rubrics band by band, three briefs. Also read
+  # against OpenIntro and UW's Calling Bullshit syllabus; see
+  # CURRICULUM-SOURCES.md for the five gaps, of which Simpson's paradox is the
+  # strongest recommendation and is authoring work rather than a defect.
+  #
+  # One defect fixed: three of five multiple-choice answers sat in option C and
+  # none in option A. Less extreme than the other packs and the same class of
+  # problem.
+  #
+  # The strongest pack of the four on can-do statements: every one of the 14 is
+  # settleable by looking at a piece of work, which is not true everywhere.
+  #
+  # **This is a model review, not a human one**, and the page says so:
+  # `reviewKind: model` earns the badge "Checked against published curricula",
+  # never "Written and checked by hand", which is reserved for a human reviewer.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:

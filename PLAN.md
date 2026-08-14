@@ -1993,23 +1993,37 @@ before picking the next thing up.**
 | **E6** Curriculum + validator | ✅ Done | `src/lib/curriculum/` |
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
-| **E8** Submission + Evaluation | 🟡 **Built, not accepted** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; κ and band-stability criteria still unmet |
+| **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ still needs Nikolay's 20 hand-grades |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD **and the share cards**. Internal-link renderer and the quality-score job remain, and both are E12's to earn |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
-| **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
+| **E12** Content production | ⬜ Not started | 3 curated packs of the 12; all 7 packs now reviewed and signed `reviewKind: model`, 9 defects fixed (pass 28) |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
 **E8's code is done and the loop has been watched run** — a real submission from
 the textarea through Inngest to a marked result, at $0.108 and about 45 seconds
-(IMPLEMENTATION.md pass 19). What is *not* done is accepting it: κ ≥ 0.6 against
-a hand-graded set, and two runs landing within one band ≥85% of the time. Both
-need the Phase-0 corpus in §23, which lists "grade 5 real submissions by hand" as
-a MUST that was never done. **That corpus is the next piece of work on E8, and it
-is human work rather than code.**
+(IMPLEMENTATION.md pass 19). Accepting it needs two numbers, and **one of them is
+now in**: two runs on the same submission landed in the *identical* band on all
+16 comparable pairs, against a bar of 85% within one band.
+
+That measurement never needed a human and was blocked behind one anyway, because
+the calibration runner refused to start without a full set of hand-grades;
+`--stability-only` separates them (pass 28).
+
+**κ remains the last unmet criterion on E8, and it is Nikolay's to close.** The
+five submissions are now written (`calibration/query-rescue.yaml`), so the ask is
+20 hand-grades rather than a day of authoring. It cannot be delegated to a model:
+grading a model's artefacts with the same model family measures self-agreement,
+which comes out flattering and means nothing about human agreement.
+
+One thing the run surfaced that neither criterion covers: **1 of 10 calls
+refused** — the verifier rejected its own grade — and the runner dropped that
+pair rather than invent a band. A ~10% refusal rate is invisible to both
+acceptance criteria and visible to a learner as a failure instead of a mark.
+Worth watching once there is volume.
 
 **E9 closed the loop.** A marked hand-in now lands somewhere: `/mastery` claims
 the skill and links to the work, `/progress` prices what is left at the pace

@@ -8,7 +8,7 @@ import {
   skill,
   skillDependency,
 } from "@/db/schema";
-import { DomainPackSchema, type DomainPack } from "./types";
+import { DomainPackSchema, ReviewKind, type DomainPack } from "./types";
 
 /**
  * Reads a pack back out of the database — the inverse of `toRows`.
@@ -30,16 +30,29 @@ import { DomainPackSchema, type DomainPack } from "./types";
  * `store.ts` already does this for mastery; this does it for the pack itself.
  */
 
-/** Rebuilds `pack.quality` from the four columns that carry it. */
+/**
+ * Rebuilds `pack.quality` from the five columns that carry it.
+ *
+ * `reviewKind` is parsed rather than cast: the column is `text`, so a row
+ * carrying anything but `human` or `model` is a row we do not understand, and
+ * the safe reading of an unrecognised reviewer is that there isn't one. Casting
+ * would let a typo written straight into the database open the index gate.
+ */
 function qualityOf(row: {
   qualityStatus: string;
   reviewedBy: string | null;
+  reviewKind: string | null;
   reviewedAt: Date | null;
   qualityScore: number | null;
 }) {
+  const kind = ReviewKind.safeParse(row.reviewKind);
+  const reviewKind = kind.success ? kind.data : null;
   return {
     status: row.qualityStatus,
-    reviewedBy: row.reviewedBy,
+    // Both halves travel together — `PackQuality` refuses a pack where only one
+    // is set, so an unreadable kind drops the name with it.
+    reviewedBy: reviewKind === null ? null : row.reviewedBy,
+    reviewKind,
     reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
     score: row.qualityScore,
   };

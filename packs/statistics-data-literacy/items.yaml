@@ -37,11 +37,11 @@ items:
     difficulty: 0.25
     prompt: Nine people earn £30k and one earns £1,000,000. Which is closer to what a new joiner should expect?
     options:
-      - The mean, because it uses every value
       - The median, because one extreme value dominates the mean
+      - The mean, because it uses every value
       - Neither; only the range matters
       - They are identical here
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- variation-and-spread --------------------------------------------------
   - slug: spread-delivery
@@ -151,10 +151,10 @@ items:
     prompt: Which of these is a self-selection problem rather than a survivorship one?
     options:
       - Reviewing only funds that still exist today
-      - Reading only the reviews customers chose to leave
-      - Studying only planes that returned from missions
       - Analysing only products still on the shelf
-    answerKey: { correct: 1 }
+      - Studying only planes that returned from missions
+      - Reading only the reviews customers chose to leave
+    answerKey: { correct: 3 }
 
   # --- sample-size-intuition -------------------------------------------------
   - slug: size-three-users
@@ -217,10 +217,10 @@ items:
     prompt: "A test returns p = 0.03. Which statement is correct?"
     options:
       - There is a 3% chance the result is wrong
-      - There is a 97% chance the effect is real
       - Data this extreme would be uncommon if there were no effect
+      - There is a 97% chance the effect is real
       - The effect is small but certain
-    answerKey: { correct: 2 }
+    answerKey: { correct: 1 }
 
   # --- multiple-comparisons --------------------------------------------------
   - slug: comparisons-dashboard

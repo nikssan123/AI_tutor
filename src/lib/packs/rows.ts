@@ -23,6 +23,7 @@ export interface PackRows {
     qualityStatus: string;
     qualityScore: number | null;
     reviewedBy: string | null;
+    reviewKind: string | null;
     reviewedAt: Date | null;
   };
   skills: Array<{
@@ -99,6 +100,7 @@ export function toRows(pack: DomainPack): PackRows {
       qualityStatus: pack.quality.status,
       qualityScore: pack.quality.score,
       reviewedBy: pack.quality.reviewedBy,
+      reviewKind: pack.quality.reviewKind,
       reviewedAt: pack.quality.reviewedAt
         ? new Date(pack.quality.reviewedAt)
         : null,

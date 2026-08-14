@@ -24,7 +24,12 @@ const reviewed = (): DomainPack => {
   return {
     ...pack,
     maturity: "curated",
-    quality: { ...pack.quality, status: "reviewed", reviewedBy: "a-human" },
+    quality: {
+      ...pack.quality,
+      status: "reviewed",
+      reviewedBy: "a-human",
+      reviewKind: "human",
+    },
     // A brief is only indexable when it is public *and* its topic is; the
     // fixture ships private, so opening the topic gate alone is not enough.
     projects: pack.projects.map((p) => ({ ...p, isPublic: true })),

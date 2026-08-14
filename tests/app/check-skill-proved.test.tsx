@@ -37,7 +37,12 @@ const stocked = (): DomainPack => {
   return {
     ...pack,
     maturity: "curated",
-    quality: { ...pack.quality, status: "reviewed", reviewedBy: "a-human" },
+    quality: {
+      ...pack.quality,
+      status: "reviewed",
+      reviewedBy: "a-human",
+      reviewKind: "human",
+    },
     items,
   };
 };

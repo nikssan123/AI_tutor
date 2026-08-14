@@ -3,6 +3,25 @@
 Two things gate launch that no amount of code will clear. Both are §23 Phase-0
 MUSTs that were skipped when the build started.
 
+> **Updated 2026-08-14.** Part A has been done as far as a model can do it: all
+> seven packs are now reviewed end to end and signed `reviewKind: model`, with
+> the findings in each `pack.yaml` and the external grounding in
+> `CURRICULUM-SOURCES.md`. **That is not the sign-off this document asks for**,
+> and the difference is now visible on the page rather than buried in a YAML
+> comment — a model review earns the badge "Checked against published
+> curricula", never "Written and checked by hand".
+>
+> What changed for you: you are no longer auditing 55 answer keys from scratch.
+> Nine defects were found and fixed (listed under "What the model review already
+> did"), and what is left for a human is **countersigning** — reading a pack you
+> care about and, if you agree, changing `reviewKind: model` to `human` with
+> your name. That is the only edit that upgrades the badge.
+>
+> Part B is unchanged in what it needs from you, but is now half done: the five
+> submissions are written (`calibration/query-rescue.yaml`), so your work is the
+> **20 grades** and nothing else. Band stability — E8's other criterion — has
+> been measured and is met; see below.
+
 Neither is long. Together they are roughly **one focused day** for the SQL pack
 alone, which is enough to launch on.
 
@@ -12,18 +31,27 @@ alone, which is enough to launch on.
 
 ## What it actually gates
 
-`isTopicIndexable` requires `maturity: curated` **and**
-`quality.reviewedBy !== "unreviewed"`. All three packs currently say
-`reviewedBy: unreviewed`, so right now:
+`isTopicIndexable` requires `maturity: curated` **and** a recorded
+`quality.reviewKind`. The three Curated packs are signed, so the SQL, business
+writing and photography subjects, their checks and their public briefs are in
+the sitemap and emit `Course` JSON-LD.
 
-- `sitemap.xml` contains **three URLs** — `/`, `/learn`, `/projects`. Nothing else.
-- Every `/learn/{topic}`, `/check/{topic}` and `/projects/{slug}` page ships
-  `noindex`.
-- No `Course` JSON-LD is emitted anywhere.
+The other four are `maturity: standard` and stay out regardless of review,
+because Curated is a claim about how a pack was *authored* and a review does not
+change that. Promoting one is a separate decision from signing it.
 
-The entire acquisition strategy is switched off behind one YAML field. Setting
-it is a claim you are making — *I have read this end to end* — which is why it
-is a name and not a boolean.
+> **Two bugs this gate had, both fixed 2026-08-14.**
+>
+> It **failed open.** The test was `reviewedBy !== "unreviewed"` — the absence of
+> a sentinel rather than the presence of a value — and `reviewedBy` defaults to
+> `null`, which is not that string. A pack that simply omitted its `quality`
+> block was therefore indexable *without ever having been reviewed*; only a pack
+> that explicitly opted out was held back. The gate now asks for a positive
+> `reviewKind`, so the default is the closed position.
+>
+> And the badge **overclaimed**. "Written and checked by hand" was keyed on
+> `maturity` alone, so all three signed-by-model packs wore it on live indexed
+> pages. `reviewKind` is what separates them now.
 
 ## What the machine already checks — do not spend time on these
 
@@ -106,14 +134,40 @@ caps every claim at tier 2 (nothing executes), so this is not currently a
 learner-facing risk — but it becomes one the day the sandbox ships. Check the
 declared tier is one the workspace could genuinely support.
 
-## Then
+## What the model review already did
+
+Do not repeat this. All seven packs, end to end: every answer key, every can-do
+statement, every dependency edge, every rubric band and every brief. Nine
+defects found and fixed:
+
+| Pack | Defect |
+|---|---|
+| **all seven** | **The correct multiple-choice option was never once A**, and was B 76% of the time — 6 of 6 in both home cooking and personal finance. Always guessing B scored 76% across the catalogue and 100% on two packs, and it fed straight into BKT. Redistributed to a 29% ceiling against a 25% chance floor, and now a blocking validator rule (`mcq_answer_position`) so it cannot drift back |
+| home cooking | Two skills promised "the temperatures that matter" and **no file stated a single temperature**; the reheating item marked "piping hot". Numbers now read directly off the FSIS chart and Danger Zone page in a browser |
+| home cooking | `one-vegetable-four-cuts` targeted `food-safety`, which its rubric does not assess — mastery for "Not poisoning anyone" would have moved on how evenly a carrot was diced |
+| home cooking | `sear-rest-and-prove-it` targeted `salting`, same problem |
+| personal finance | `risk-and-volatility` and `stress-testing` both consumed "a stated horizon and goal" and **no skill taught it**. `goals-and-horizon` added |
+| personal finance | Two contested claims stated as settled (buffer-before-debt, avalanche-over-snowball) softened to the tradeoffs the items already taught |
+| python | `names-aliasing` asked for "the one-character change" that makes it print `[1, 2, 3]`. The smallest is three characters and the item's own key says so — the question was unanswerable |
+| SQL, business writing, photography | Previously reviewed; re-signed under `reviewKind` |
+
+The coverage *gaps* — 29 of them, in `CURRICULUM-SOURCES.md` — were deliberately
+not closed. They are authoring work rather than defects, and the top two
+(Simpson's paradox for statistics, query execution order for SQL) are the ones
+worth doing first.
+
+## Then, if you countersign
 
 ```yaml
 quality:
   status: reviewed
   reviewedBy: Nikolay Lyutov      # your name
+  reviewKind: human               # this is the line that changes the badge
   reviewedAt: "2026-08-14"        # the date you finished
 ```
+
+`reviewedBy` and `reviewKind` must be set together or the pack will not load —
+a reviewer with no kind is half a claim.
 
 Then `pnpm packs:validate && DATABASE_URL=… pnpm verify`, and the subject, its
 check and its briefs enter the sitemap.
@@ -138,8 +192,44 @@ is technically true, and it is the last unmet acceptance criterion on E8.
 
 ## What E8 has to clear
 
-1. **Cohen's κ ≥ 0.6** between your grades and the model's.
-2. **Two runs on the same submission land within one band ≥85% of the time.**
+1. **Cohen's κ ≥ 0.6** between your grades and the model's. — **still open, and
+   only you can close it.**
+2. **Two runs on the same submission land within one band ≥85% of the time.** —
+   ✅ **met, measured 2026-08-14: 100% within one band, and 100% same band, over
+   16 pairs.**
+
+### On the stability figure
+
+Criterion 2 never needed a human and was blocked behind one anyway, because the
+runner refused to start without a full set of grades. It now takes
+`--stability-only`, which skips the κ half:
+
+```sh
+DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate --stability-only calibration/query-rescue.yaml
+```
+
+Measured over the five written submissions: **every criterion landed in the
+identical band on both runs**, not merely within one. Ten deep-tier calls, about
+40 seconds each.
+
+One of the ten refused — `s4-solid-but-unproven` pass 2 returned "the marker
+could not run (invalid)", which is the verifier rejecting the grade rather than
+an API error, and the runner dropped the pair rather than inventing a band for
+it. So the figure rests on 16 pairs, not 20. **A ~10% refusal rate is the more
+interesting number here than the 100%**, and it is not covered by either E8
+criterion: a learner whose submission refuses twice sees a failure, not a grade.
+Worth watching once there is volume.
+
+### Why the corpus's own `grades` are not your grades
+
+`calibration/query-rescue.yaml` ships with a `grades` block per submission. Those
+are the bands each artefact was **written to exhibit** — the authoring spec, not
+an independent judgement — and κ computed against them measures whether the
+grader recovers an intent that was deliberately encoded by the same model family
+that grades it. That is a construct check and nothing more.
+
+**Your 20 grades are still the thing E8 is waiting on.** What has changed is that
+you no longer have to write the five submissions first.
 
 ## The protocol
 
@@ -195,14 +285,19 @@ of you being wrong.
 ## Running it
 
 ```sh
-cp calibration/query-rescue.example.yaml calibration/query-rescue.yaml
-# write the five submissions and your twenty grades, then:
+# calibration/query-rescue.yaml already exists, with the five submissions
+# written. Read them, overwrite each `grades:` block with your own bands —
+# before running anything — then:
 DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/query-rescue.yaml
 ```
 
-The template carries the four criteria with all sixteen band descriptions inline,
-so you grade without switching files, and a suggested spread for the five
-submissions.
+The file carries the four criteria with all sixteen band descriptions inline, so
+you grade without switching files, and each submission notes the band it was
+*written* to exhibit so you can see where you disagree with the author. Treat
+that note as the author's intent, not as evidence.
+
+`calibration/query-rescue.example.yaml` is the empty template it was made from,
+kept for the next project's corpus.
 
 The runner checks the corpus before spending anything — an unknown or missing
 criterion id stops it, because a corpus that quietly measures 12 pairs instead of
@@ -219,4 +314,5 @@ The arithmetic is in `src/lib/evaluation/agreement.ts` and unit-tested, includin
 the two ways this measurement misleads: a corpus with no spread (κ undefined, not
 zero) and a mispaired corpus (a smaller honest `n`, never a silent mismatch).
 
-Your part is unchanged by any of it: **5 submissions and 20 hand-grades.**
+Your part is now **20 hand-grades**, and nothing else. The five submissions are
+written and the stability half is measured and met.

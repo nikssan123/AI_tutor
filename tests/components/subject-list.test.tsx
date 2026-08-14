@@ -23,6 +23,7 @@ function topic(overrides: Partial<TopicSummary> = {}): TopicSummary {
     slug: "photography-fundamentals",
     name: "Photography",
     maturity: "curated",
+    reviewKind: null,
     taxonomyParent: BRANCHES[0]!,
     evalTier: 1,
     skillCount: 12,

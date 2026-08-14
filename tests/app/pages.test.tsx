@@ -131,8 +131,16 @@ describe("/design — the drift guard (§8.5.8)", () => {
       "Failed",
       "Demonstrated",
       "Likely capable",
-      "Written and checked by hand",
-      "Experimental — help us improve it",
+      // All five states of the maturity claim, not just the strongest. The old
+      // assertion named this one label and passed the entire time the badge was
+      // *lying* — it was keyed on maturity alone, so three model-reviewed packs
+      // wore "by hand" on live indexed pages and this test was satisfied. A
+      // drift guard for a claim with two inputs has to show both of them.
+      "Written and checked by hand", // curated + human
+      "Checked by hand", // standard + human — a promoted pack, read but not written by us
+      "Checked against published curricula", // any + model
+      "Covers the subject well", // unreviewed, at any depth
+      "Experimental — help us improve it", // generated, whatever the review
       // Added with the landing-page rebuild. §8.5.8 makes this page the drift
       // guard, so a component that ships without appearing here is a component
       // nobody can review against the spec.

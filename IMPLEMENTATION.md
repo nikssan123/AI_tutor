@@ -2610,3 +2610,196 @@ doing at the same time — three closed answers clear the bar where five written
 ones are needed, and marking them costs nothing.
 
 3245 tests, 100% on all four metrics for every file in this pass.
+
+---
+
+# Delivery record — pass 28: the review, and the badge that was lying about it
+
+`HUMAN-REVIEW.md` part A, done as far as a model can do it: all seven packs read
+end to end, nine defects fixed, and the two bugs the review found *in the code
+that reports reviews* fixed first, because signing four more packs under them
+would have made both worse.
+
+## The badge was making a claim nobody had earned
+
+`MATURITY_CLAIM.curated` says "Written and checked by hand" and was keyed on
+`maturity` alone. SQL, business writing and photography are Curated, are in the
+sitemap, and carry `reviewedBy: "Claude Opus 5 (model review)"`. No hand had
+touched any of them. The seam was known — `tests/lib/content.test.ts` pinned it
+with "if the badge is ever to mean what it says, this is the seam to close" —
+and closing it was a precondition for this pass rather than a bonus: the work in
+front of me was to sign four more packs, and under the old code that would have
+put the same false sentence on four more pages.
+
+`reviewKind: "human" | "model" | null` is the fix a free string could not be.
+`maturityClaim(maturity, review)` then decides the label from both facts, and the
+rule that matters is the tone rather than the wording: **only a human sign-off
+gets `verified`**. A model review is real work and it is not a person, so it says
+what it was — "Checked against published curricula" — in neutral. That is the
+same reasoning §7.2 uses to give tier 3 `attention` instead of `verified`.
+
+**The first draft of that function had the bug in it.** It fell through to
+`return MATURITY_CLAIM[maturity]`, so a Curated pack with no reviewer went
+straight back to "Written and checked by hand". Caught by its own test, which is
+the argument for writing the property (`verified ⇒ review === "human"`) rather
+than three examples.
+
+## The gate failed open
+
+`isTopicIndexable` tested `reviewedBy !== "unreviewed"` — the absence of a
+sentinel, not the presence of a value. `reviewedBy` defaults to `null`, and
+`null !== "unreviewed"`, so **a pack that omitted its `quality` block entirely
+was indexable without ever having been reviewed.** Only a pack that explicitly
+opted out was held back, which is the gate backwards. Asking for a positive
+`reviewKind` inverts it: absence is now the closed position, and an enum has no
+spelling to get wrong.
+
+`packFromDb` parses the column rather than casting it, because `text` will hold
+anything and the safe reading of an unrecognised reviewer is that there isn't
+one. A typo written straight into the database cannot open the gate.
+
+## The defect no single reviewer could have seen
+
+**Across all 38 multiple-choice questions in the catalogue, the correct option
+was never once A, and was B 76% of the time — 6 of 6 in both home cooking and
+personal finance.** A learner who always picked B scored 76% across the product
+knowing nothing, and 100% on two packs.
+
+Nothing caught it because it is not a property any item has. Every question was
+individually correct with plausible distractors; the defect exists only in the
+aggregate, which is exactly what a validator can see and a human reading items
+one at a time cannot. It is worse here than in a quiz, because these are not
+scores — they feed BKT, which feeds the planner and the ledger. A guesser was
+being credited with knowledge.
+
+Redistributed to a 29% ceiling against a 25% chance floor, leaving alone the
+items whose option order carries meaning (`audience-pick`'s "Both"/"Neither" must
+follow what they refer to; ascending numeric options are ordered by value rather
+than by an author's habit, which is its own defence). Now enforced by
+`mcq_answer_position`, blocking, capped at 50% of a pack's MCQs in any one
+position — loose on purpose, because with four to seven MCQs per pack an even
+split is not always reachable and the point is to bound what a fixed guess is
+worth, not to mandate a shuffle.
+
+## Eight more defects, and the one that was a design problem
+
+- **Home cooking stated no temperature anywhere.** Two skill descriptions
+  promised "the temperatures that matter" and a grep across four files returned
+  no number in either scale; the reheating item's correct answer was "piping
+  hot". The numbers were in `CURRICULUM-SOURCES.md` as a *search summary* with an
+  explicit note to confirm them in a browser first, so I did — and it earned its
+  keep. FSIS states 62.8 / 71.1 / 73.9°C where the summary had 63 / 71 / 74, and
+  the page also carries the 2-hour rule, the 1-hour rule above 90°F, and fish and
+  egg temperatures the summary omitted.
+- **A project credited a skill its rubric never assessed.** `recordEvaluation`
+  moves mastery for the skill the learner submitted *for*, scored on the whole
+  rubric — so `one-vegetable-four-cuts` targeting `food-safety` meant "Not
+  poisoning anyone" could move on how evenly a carrot was diced. Its rubric's
+  `safe-technique` is knife safety. Removed, along with `salting` from
+  `sear-rest-and-prove-it` for the same reason.
+
+  The structural version of this is not fixed and should be named: **nothing
+  links a rubric criterion to a skill**, so "every targeted skill is assessed by
+  some criterion" is not checkable mechanically. It needs a schema field. Until
+  then it is a review question, and this pass answered it by reading.
+- **Personal finance depended on a skill it did not contain.**
+  `risk-and-volatility` promises "for a stated horizon and goal" and
+  `stress-testing` consumes the same; nothing taught it. `goals-and-horizon`
+  added at foundational with hard edges into both.
+- **A Python item asked for something impossible.** `names-aliasing` asked for
+  "the one-character change to line 2" that makes it print `[1, 2, 3]`. Line 2 is
+  `b = a`; the smallest fix is `b = a[:]`, three characters, and the item's own
+  answer key says "copy with a slice or list".
+- **Two contested claims stated as settled**, softened to tradeoffs. Cheap,
+  because the *items* already taught both sides — only the skill descriptions
+  asserted one. A description-to-item mismatch rather than wrong teaching.
+
+## Signing, and what it does not unlock
+
+All seven packs now carry `reviewKind: model` with their findings in their own
+`quality` block. **This does not add a single page to the sitemap**, and saying
+so plainly matters more than the sign-off: `isTopicIndexable` also requires
+`maturity: curated`, the other four are Standard, and Curated is a claim about
+how a pack was *authored* that a review does not change. The SEO channel stays at
+three subjects. Promoting a pack is a separate decision from reviewing it.
+
+## E8: one criterion of two, and a number neither criterion covers
+
+Band stability — "two runs land within one band ≥85% of the time" — **never
+needed a human and was blocked behind one anyway**, because the calibration
+runner refuses to start without a full set of hand-grades. `--stability-only`
+separates them.
+
+Measured on the real models, five submissions written for the corpus:
+
+| | |
+|---|---|
+| Within one band | **100%** |
+| Same band exactly | **100%** |
+| Pairs compared | 16 of 20 |
+| Calls | 10, ~40s each |
+
+**The interesting number is the 4 missing pairs.** One call in ten refused —
+`s4-solid-but-unproven` pass 2 returned "the marker could not run (invalid)",
+which is the verifier rejecting its own grade rather than an API failure — and
+the runner dropped the pair instead of inventing a band. A ~10% refusal rate is
+invisible to both E8 criteria and visible to a learner as a failure rather than a
+mark. Nothing here measures it; it is worth watching once there is volume.
+
+**κ is untouched and stays that way.** The corpus ships `grades`, and they are
+the bands each artefact was *written to exhibit* — the authoring spec, not a
+judgement. A model grading a model's artefacts measures self-agreement, which
+comes out flattering and says nothing about agreement with a person. What the
+five submissions do change is the size of the ask: 20 hand-grades rather than a
+day of authoring.
+
+## The spend cap was protecting the free tier from itself
+
+Running the calibration exposed a production bug that had nothing to do with
+calibration. `anonymousBudgetSpent` counts every `agent_run` with a null
+`user_id`, and **"no user id" is two different things**: a visitor on the free
+check, which §19.2's daily cap exists to bound, and an operator script — pack
+generation, a probe, this calibration — which it does not.
+
+So generating a pack in production would spend the *public* free-tool budget and
+degrade `/check` for real visitors. The run put 103 cents of `rubric_grader`
+into a day's anonymous bucket and broke a test that was reading the same rows,
+which is how it surfaced at all.
+
+`RunOrigin` is the missing dimension, recorded per run rather than inferred from
+the agent name — `rubric_grader` is learner work when a real submission is
+graded and operator work when a script runs it, so the name cannot tell you.
+**Unset means `visitor`**, which is the direction this has to fail in:
+over-counting degrades the free tier conservatively, under-counting leaves it
+unbounded. The cap query uses `is distinct from 'operator'` rather than `<>`, so
+the NULL on every pre-existing row counts rather than vanishing into
+three-valued logic.
+
+## A test that only passed on a clean database
+
+The same finding underneath. `runlog.test.ts` asserted an absolute — "today
+starts under the cap" — while counting rows it did not own, and cleaned up only
+its own agent's. 488 cents of pack-generation probes had accumulated on
+2026-08-13 from earlier sessions, so the first run that pushed the day over 500
+turned it red for everyone. Its "tomorrow" date was 2026-08-14, a real calendar
+day that a calibration run then spent into.
+
+Now scoped to a far-future day it clears first. The delta-based tests beside it
+were always right and are untouched; the block's own comment had already
+explained why deltas were necessary, and this one test had quietly not followed
+it.
+
+## Notes
+
+- The `--stability-only` output prints "κ was not measured" every time. A green
+  line above it is exactly the thing someone would read as "E8 passes".
+- `MaturityBadge`'s `review` prop is optional, and omitting it can only ever
+  produce a *weaker* claim. A badge that understates when an argument is
+  forgotten is the only acceptable direction for this one to fail in — asserted
+  as a property rather than left as a convention.
+- Every pack row seeded before this reads back with `reviewKind: null` until
+  re-seeded from YAML, so a DB-resident pack is unreviewed until it isn't. That
+  is the fail-closed default doing its job, not a regression.
+- `/design` is the drift guard (§8.5.8) and now renders all five states of the
+  claim rather than three. Its old assertion passed the whole time the badge was
+  lying, because it only checked that the string appeared somewhere.

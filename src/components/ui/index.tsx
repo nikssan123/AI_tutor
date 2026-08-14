@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
-import { MATURITY_CLAIM, type Maturity } from "@/lib/claims";
+import { maturityClaim, type Maturity } from "@/lib/claims";
+import type { ReviewKind } from "@/lib/packs/types";
 
 /**
  * §8.5.5 — the component vocabulary.
@@ -530,9 +531,20 @@ export function confidenceLevel(value: number): ConfidenceLevel {
 /**
  * §7.1 — the maturity badge shown to the learner. Honest scope is a feature, so
  * a Generated pack says "Experimental" rather than hiding behind silence.
+ *
+ * `review` is optional because omitting it can only ever show a *weaker* claim
+ * — `maturityClaim` falls back to the depth alone — and a badge that understates
+ * when an argument is forgotten is the only acceptable direction for this one to
+ * fail in.
  */
-export function MaturityBadge({ maturity }: { maturity: Maturity }) {
-  const copy = MATURITY_CLAIM[maturity];
+export function MaturityBadge({
+  maturity,
+  review = null,
+}: {
+  maturity: Maturity;
+  review?: ReviewKind | null;
+}) {
+  const copy = maturityClaim(maturity, review);
   return <Status tone={copy.tone}>{copy.label}</Status>;
 }
 

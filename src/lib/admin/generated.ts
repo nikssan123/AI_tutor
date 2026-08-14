@@ -132,6 +132,10 @@ export async function promotePack(
       maturity: "standard",
       qualityStatus: "reviewed",
       reviewedBy: reviewer,
+      // The promotion gate is a signed-in operator reading the pack in the
+      // admin UI, so this is the one write in the product that can honestly
+      // claim a human read it.
+      reviewKind: "human",
       reviewedAt: now,
       updatedAt: now,
     })

@@ -32,6 +32,11 @@ export interface TopicSummary {
   name: string;
   /** curated | standard | generated — shown honestly (§7.1). */
   maturity: DomainPack["maturity"];
+  /**
+   * Who checked it, which the badge needs alongside `maturity` to avoid
+   * claiming a hand-check nobody performed. `null` is "nobody yet".
+   */
+  reviewKind: DomainPack["quality"]["reviewKind"];
   /** §7.1's taxonomy branch; drives the subject icon without a lookup table. */
   taxonomyParent: string | null;
   evalTier: number;
@@ -105,11 +110,22 @@ function totalHours(pack: DomainPack): number {
 
 /**
  * §12.1 — a topic page is indexable only when the pack behind it is Curated and
- * human-reviewed. A Generated pack ships as a real page the product can serve,
- * but not as one we ask Google to rank.
+ * somebody has recorded a review of it. A Generated pack ships as a real page
+ * the product can serve, but not as one we ask Google to rank.
+ *
+ * **This used to fail open.** The test was `reviewedBy !== "unreviewed"`, and
+ * `reviewedBy` defaults to `null` — so a pack that never declared a `quality`
+ * block at all cleared the gate, because `null` is not that particular string.
+ * Only a pack that explicitly opted *out* was held back. Asking for a positive
+ * `reviewKind` inverts it: the default is now the closed position, and there is
+ * no spelling of "reviewed" that the enum will accept by accident.
+ *
+ * A model review opens the gate, as it does today for the three packs signed
+ * that way. What it no longer does is borrow the badge a human review earns —
+ * see `maturityClaim`.
  */
 export function isTopicIndexable(pack: DomainPack): boolean {
-  return pack.maturity === "curated" && pack.quality.reviewedBy !== "unreviewed";
+  return pack.maturity === "curated" && pack.quality.reviewKind !== null;
 }
 
 export function topicSummary(pack: DomainPack): TopicSummary {
@@ -122,6 +138,7 @@ export function topicSummary(pack: DomainPack): TopicSummary {
     slug: pack.slug,
     name: pack.name,
     maturity: pack.maturity,
+    reviewKind: pack.quality.reviewKind,
     taxonomyParent: pack.taxonomyParent,
     evalTier: tierFor(pack.evalTier),
     skillCount: pack.skills.length,

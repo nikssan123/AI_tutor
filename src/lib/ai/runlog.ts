@@ -27,9 +27,32 @@ export function periodOf(at: Date): string {
   return at.toISOString().slice(0, 7);
 }
 
+/**
+ * Why a run has no user attached, which is two different things that looked
+ * identical until this existed.
+ *
+ * `visitor` is a member of the public on a free surface — the anonymous Skill
+ * Check — and is what §19.2's daily cap is for. `operator` is us: a calibration
+ * run, a pack-generation script, a probe. Both write `user_id = null`, and
+ * before this the cap counted them together, so **generating a pack in
+ * production would spend the public free-tool budget and degrade `/check` for
+ * real visitors.** Found when a calibration run put 103 cents into a day's
+ * anonymous bucket and broke a test that was reading the same rows.
+ *
+ * Note the failure direction: unset means `visitor`, so forgetting to declare
+ * operator work over-counts and degrades the free tier conservatively. The
+ * opposite default would leave it unbounded.
+ */
+export type RunOrigin = "visitor" | "operator";
+
 export interface RunRecord {
   /** Null for anonymous work — the free check, precomputed content. */
   userId: string | null;
+  /**
+   * Only meaningful when `userId` is null; a run billed to a learner is neither.
+   * Defaults to `visitor`, which is the cautious reading.
+   */
+  origin?: RunOrigin;
   meta: CallMeta;
   status: AgentRunStatus;
   error?: string | null;
@@ -64,6 +87,9 @@ export async function recordAgentRun(
       promptVersion: String(meta.promptVersion),
       model: meta.model,
       status: record.status,
+      // Written for every run, not only unattributed ones, so the column reads
+      // the same way whoever queries it.
+      origin: record.origin ?? "visitor",
       costCents: meta.costCents,
       latencyMs: meta.latencyMs,
       error: record.error ?? null,
@@ -124,11 +150,13 @@ export async function logCall<T>(
   userId: string | null,
   result: CallResult<T>,
   now?: Date,
+  origin?: RunOrigin,
 ): Promise<CallResult<T>> {
   await recordAgentRun(
     db,
     {
       userId,
+      origin,
       meta: result,
       status: statusFor(result),
       error: result.status === "ok" ? null : result.detail,
@@ -158,6 +186,13 @@ export const SPEND_CAP_CENTS = { free: 100, pro: 1_500 } as const;
  * than a counter of its own. `RunRecord.userId` has been nullable since it was
  * written, for exactly this ("null for anonymous work — the free check"), and a
  * second place recording the same spend is a second place to be wrong.
+ *
+ * **What it got wrong until `origin` existed:** "null user" is not the same as
+ * "a visitor". Pack generation, calibration and every probe script also run
+ * unattributed, so an operator generating a pack spent the *public* budget and
+ * degraded `/check` for real visitors — a cap designed to protect the free tier
+ * being consumed by work that has nothing to do with it. `RunOrigin` is the
+ * missing dimension; this counts visitor spend only.
  */
 export const ANONYMOUS_DAILY_CAP_CENTS = 500;
 
@@ -174,7 +209,13 @@ export async function anonymousSpentToday(
     .select({ cents: sql<number>`coalesce(sum(${agentRun.costCents}), 0)` })
     .from(agentRun)
     .where(
-      sql`${agentRun.userId} is null and ${agentRun.createdAt} >= ${`${dayOf(now)}T00:00:00.000Z`}`,
+      // `is distinct from 'operator'` rather than `<> 'operator'`, because NULL
+      // is what every row written before the column existed carries and SQL's
+      // three-valued logic would drop them from a plain inequality. They are
+      // visitor spend until proven otherwise.
+      sql`${agentRun.userId} is null
+          and ${agentRun.origin} is distinct from 'operator'
+          and ${agentRun.createdAt} >= ${`${dayOf(now)}T00:00:00.000Z`}`,
     );
 
   // `sum` with `coalesce` and no `group by` always returns exactly one row, so

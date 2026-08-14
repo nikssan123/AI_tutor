@@ -36,11 +36,11 @@ items:
     difficulty: 0.25
     prompt: A blunt knife is more dangerous than a sharp one mainly because…
     options:
+      - It needs more force, so a slip carries more of it
       - It rusts faster
-      - It needs more force, so it slips less predictably
       - It cuts deeper when it slips
       - It cannot cut vegetables at all
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- mise-en-place ---------------------------------------------------------
   - slug: mise-sequence
@@ -91,10 +91,10 @@ items:
     prompt: Food added to a pan makes the pan temperature…
     options:
       - Rise, because there is more mass to heat
-      - Drop, and the more you add the further it drops
-      - Stay the same if the hob setting is unchanged
       - Drop only for frozen food
-    answerKey: { correct: 1 }
+      - Stay the same if the hob setting is unchanged
+      - Drop, and the more you add the further it drops
+    answerKey: { correct: 3 }
 
   # --- browning --------------------------------------------------------------
   - slug: browning-dry-surface
@@ -126,7 +126,24 @@ items:
       Three ways to judge whether something is cooked: time, touch, temperature.
       Rank them for a beginner and say why your first choice is first.
     answerKey:
-      concepts: [temperature-is-the-only-one-that-does-not-need-experience, touch-needs-calibration-you-have-not-built, time-depends-on-thickness-and-starting-temperature]
+      concepts: [temperature-is-the-only-one-that-does-not-need-experience, a-thermometer-reads-the-same-for-everyone, touch-needs-calibration-you-have-not-built, time-depends-on-thickness-and-starting-temperature]
+
+  # The pack promised "the temperatures that matter" in two skill descriptions
+  # and stated none anywhere — a grep across all four YAML files returned no
+  # number in either scale. This item and `safety-danger-zone` are where they
+  # now live. Figures read directly off the USDA FSIS chart (Apr 2025) and the
+  # Danger Zone page (Jun 2023), not from a summary of them; the °C values are
+  # FSIS's own 62.8 / 71.1 / 73.9 rounded to whole degrees.
+  - slug: doneness-temperatures
+    skill: doneness
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      A chicken breast, a beef steak and a batch of beef burgers. Give the
+      minimum internal temperature each one needs, and say why the burgers are
+      not the same as the steak.
+    answerKey:
+      concepts: [chicken-and-all-poultry-165f-74c, whole-cuts-of-beef-145f-63c-then-rest-3-minutes, ground-meat-160f-71c, mincing-mixes-surface-bacteria-through-the-whole-batch, a-steak-is-only-contaminated-on-the-outside-which-the-sear-reaches]
 
   - slug: doneness-thickness
     skill: doneness
@@ -144,11 +161,11 @@ items:
     difficulty: 0.35
     prompt: Where should a probe thermometer sit to read a piece of meat correctly?
     options:
-      - Just under the surface, in the crust
       - In the thickest part, away from bone
+      - Just under the surface, in the crust
       - Anywhere, the reading is uniform
       - Touching the pan, to read the hottest point
-    answerKey: { correct: 1 }
+    answerKey: { correct: 0 }
 
   # --- resting-and-carryover -------------------------------------------------
   - slug: resting-why
@@ -210,10 +227,10 @@ items:
     prompt: A sauce is too sharp after you added too much vinegar. Which is the most direct fix?
     options:
       - More salt
-      - A little fat or sweetness
       - More vinegar to "balance" it
+      - A little fat or sweetness
       - Boil it longer
-    answerKey: { correct: 1 }
+    answerKey: { correct: 2 }
 
   # --- building-a-pan-sauce --------------------------------------------------
   - slug: pan-sauce-fond
@@ -299,7 +316,21 @@ items:
       A large pot of stew is going in the fridge. Why is putting it in hot, as
       one big pot, the wrong move — and what do you do instead?
     answerKey:
-      concepts: [it-cools-too-slowly-through-the-danger-zone, and-warms-everything-else-in-the-fridge, divide-into-shallow-containers-to-cool-fast]
+      concepts: [it-cools-too-slowly-through-the-danger-zone-40-140f-4-60c, and-warms-everything-else-in-the-fridge, divide-into-shallow-containers-to-cool-fast, refrigerated-within-two-hours]
+
+  # The danger zone was named in three items and bounded in none of them, which
+  # is the same defect as the missing doneness numbers: the learner is told a
+  # range matters and never told what it is. Bounds, doubling time and the
+  # two-hour rule read directly off the FSIS "Danger Zone" page (Jun 2023).
+  - slug: safety-danger-zone
+    skill: food-safety
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      What temperature range is the "danger zone", and what is the rule for how
+      long food may sit in it?
+    answerKey:
+      concepts: [40f-to-140f-or-4c-to-60c, bacteria-double-in-as-little-as-20-minutes, no-more-than-two-hours-out-of-refrigeration, one-hour-if-it-is-above-90f-32c]
 
   - slug: safety-mcq
     skill: food-safety
@@ -308,7 +339,10 @@ items:
     prompt: Reheating leftovers, the thing that matters most is…
     options:
       - Reheating slowly to protect texture
-      - Getting all of it piping hot the whole way through
+      # Was "Getting all of it piping hot the whole way through" — the UK FSA's
+      # phrasing, where the USDA gives a number. The one item in this pack with
+      # an objectively checkable answer was being marked on a figure of speech.
+      - Getting all of it to 165°F / 74°C the whole way through
       - Only reheating once for flavour
       - Using the same pan it was cooked in
     answerKey: { correct: 1 }

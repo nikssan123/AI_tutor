@@ -1,6 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import { logCall, shouldDegrade, type SPEND_CAP_CENTS } from "@/lib/ai/runlog";
+import {
+  logCall,
+  shouldDegrade,
+  type RunOrigin,
+  type SPEND_CAP_CENTS,
+} from "@/lib/ai/runlog";
 import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
 import { gradeSubmission, type GradeInput } from "./grade";
@@ -116,6 +121,12 @@ export interface EvaluateDeps {
   client: Anthropic;
   db: Db;
   userId: string | null;
+  /**
+   * Only read when `userId` is null. A calibration run grades real submissions
+   * with nobody to bill, and without this its spend counts against §19.2's
+   * free-tier cap and degrades the anonymous check for actual visitors.
+   */
+  origin?: RunOrigin;
   plan?: keyof typeof SPEND_CAP_CENTS;
 }
 
@@ -153,6 +164,8 @@ export async function evaluateSubmission(
     deps.db,
     deps.userId,
     await gradeSubmission(deps.client, gradeArgs, { degraded }),
+    undefined,
+    deps.origin,
   );
 
   if (first.status !== "ok") {
@@ -178,6 +191,8 @@ export async function evaluateSubmission(
       { ...gradeArgs, framing: "second-pass" },
       { degraded },
     ),
+    undefined,
+    deps.origin,
   );
 
   const bandSpread =
