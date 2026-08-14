@@ -2803,3 +2803,174 @@ it.
 - `/design` is the drift guard (§8.5.8) and now renders all five states of the
   claim rather than three. Its old assertion passed the whole time the badge was
   lying, because it only checked that the string appeared somewhere.
+
+## Still open
+
+Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
+behind a deployed origin.
+
+---
+
+# Delivery record — pass 29: a page that is mostly prose, and the gate that lets it be
+
+E12's first pages, and with them the two E10 outputs that had nothing to operate
+on. §24 recorded both as "E12's to earn"; earning them meant deciding what an
+authored page *is* here, which turned out to be the whole of the work.
+
+## Where the prose lives, and why not in the database
+
+`seo_page` has existed since §15 and nothing has ever written to it. The obvious
+move was to make guides its first tenant. They are files instead, for the reason
+`packs/` are files: **§12.1 rule 5 is "no page ships without a human read", and a
+database row is not a thing you can read in a pull request.** A guide is a diff,
+and its review is a review of that diff.
+
+`seo_page` stays unwritten. It is not dead — the monthly re-score in §12.2's
+standing rules needs somewhere to record a score over time, and that is a real
+row with a real history. But writing rows nothing reads, to satisfy a schema
+comment, would be worse than leaving the table empty.
+
+## Three defences in the shape of the file
+
+Prose is the one thing on this site that is not scaled-content-proof by
+construction. A check page is a tool and a brief is a published rubric; a guide
+is an article, and articles are what §12 is written about. So the schema carries
+the defences rather than a reviewer's attention:
+
+**No number is ever typed.** A guide writes `{{topic:sql-data-analysis.hours}}`
+and the build substitutes what the pack says. Three things follow, and the third
+is the one that decided it:
+
+- a reference to a subject we do not teach fails the build, which is
+  `content/index.ts`'s rule ("a page cannot describe a skill the product does
+  not actually teach") extended to prose;
+- editing a pack updates every sentence about it, everywhere;
+- **§12.2 dimension 7 becomes mechanical.** "≥1 data point only you have"
+  becomes "how many figures did this page read out of our own packs", which
+  cannot be gamed by writing more adjectives. That dimension becomes a hard gate
+  in month 3, and scoring it by looking for digits in prose would have been
+  theatre.
+
+The vocabulary is closed — five sources, twelve fields. An open expression
+language here would be a template engine, and a template engine over prose is
+the machine that writes the pages §12 exists to stop us writing.
+
+**Citations resolve or the page does not publish.** And a declared source that
+nothing cites *costs marks*, which is the half worth stating: an uncited source
+is a bibliography, and a bibliography is what a page grows instead of an
+argument.
+
+**Links are authored inside the section that earns them.** There is no
+page-level link array, so §13.3's "rendered contextually, not as a footer link
+dump" is not a convention anybody has to remember — there is nowhere to put a
+dump.
+
+## The score refuses to score what it cannot measure
+
+§12.2 lists ten dimensions. Two of them need services this build does not have:
+a SERP API to classify search intent, and an embedding model to compare against
+the pages that currently rank.
+
+Both easy answers are dishonest. Awarding the points by default inflates every
+page by up to 25 against a bar of 75, so the bar means nothing. Awarding zero
+fails every page for a missing API key. **An unmeasured dimension is excluded
+from the denominator and named in the report**, so the number is a percentage of
+what was actually checked and the reader can see what was not. Same argument as
+§4.2 law 3, turned on our own instrumentation.
+
+What a score ≥75 buys is narrow and worth being clear about: the page cites what
+it claims, links where it should, quotes real figures and carries a working
+tool. It says nothing about whether the paragraphs are any good. §12.1 rule 5 is
+still the control for that, and this does not replace it.
+
+## Inbound links had to be derived, or the rule measures nothing
+
+§13.3 asks for ≥4 out and ≥2 in. Outbound is authored and easy. Inbound is where
+this rule usually becomes decorative, because the obvious sources are free:
+count the `/guides` index and every guide has one; let guides link to each other
+and they can ring-fence the rule between themselves.
+
+The index deliberately does not count. What counts is another guide, or **a
+subject page whose figures this guide quotes** — and that second rule is the
+interesting one, because it needs no authoring at all. A guide that says
+`{{topic:sql-data-analysis.hours}}` has demonstrated it is about SQL, so
+`/learn/sql-data-analysis` carries the link back. Nobody maintains a link table,
+and no guide can add itself to a subject page by asserting relevance.
+
+It also produced a link nobody planned: the SQL guide compares its hours to
+Python's in one FAQ, so it earns a place on `/learn/python-fundamentals` too.
+That is correct, and it was free.
+
+## The publication flag is derived, not declared
+
+§12.1 rule 4 says "`SeoPage.indexable` is a boolean you flip, not a default".
+This departs from the letter of it and keeps the intent: `isGuideIndexable` asks
+for the score, an empty problem list, *and* a recorded `reviewKind`.
+
+Pass 28 found the pack version of this gate failing open because it tested for
+the absence of a sentinel. A boolean in a YAML file has the same shape of
+problem one level up — it can be `true` while the thing it asserts never
+happened. Deriving it means the flip *is* the review.
+
+**Both guides ship as drafts.** They score 100/100 on the measured dimensions
+and they are `noindex`, out of the sitemap, and labelled as drafts on their own
+faces. §12.1 rule 5 asks for a human read, and a model reading prose it wrote
+itself is the same self-agreement problem `HUMAN-REVIEW.md` part B refuses for
+κ. One line in each file is the unlock.
+
+## Severity depends on whether a page has been signed
+
+`pnpm guides:validate` prints an unsigned guide's problems as warnings and a
+signed one's as build failures. A first guide cannot have two inbound links,
+because the guides that would provide them have not been written; a gate that
+fires during drafting is a gate people learn to route around. It bites when a
+page is about to be published, which is when it matters.
+
+## Two things kept out of `verify` on purpose
+
+`pnpm guides:sources` checks that every cited URL is reachable — §24 E12's
+"every external link returns 200". It is a separate command because `verify`
+has to give the same answer offline as it does in CI.
+
+It accepts any 2xx rather than 200 exactly: PubMed answers **203** to a
+non-browser client, which is a statement about a proxy and not about the page.
+And it reports a **403** as what it is — a publisher refusing a script, not
+necessarily a dead link — because the alternative is deleting good citations
+over bot walls. It cost one source during authoring: SAGE 403s, so the Dunlosky
+review is cited at `psychologicalscience.org`, which serves the same finding and
+answers 200.
+
+## Notes
+
+- Neither `title` nor `description` may contain a data reference. §13.3's 60-
+  and 140–160-character budgets are about what a searcher sees, and a string
+  whose length moves when a pack is edited cannot be held to one. A churning
+  SERP snippet is bad for the listing anyway.
+- The prose renderer supports exactly two marks, `[^cite]` and `*emphasis*`.
+  A full markdown pipeline invites headings and tables inside a section, and at
+  that point the template has stopped imposing a structure — which is the state
+  §12.1 rule 3 exists to prevent.
+- An unresolvable citation renders the raw `[^marker]` rather than dropping it.
+  Visibly wrong beats silently uncited, and it can only happen in a draft.
+- The `/guides` hub is withheld from the sitemap while every guide under it is a
+  draft. A hub listing only pages we are not asking anyone to rank is a thin
+  page.
+- All four figures the SQL guide quotes about itself — hours, skills, projects,
+  and Python's hours for the comparison — are read from the packs. The guide was
+  drafted before those numbers were looked up, and two of the sentences around
+  them had to change once they resolved.
+
+## Still open
+
+E12 is two pages of fifty. The substrate, the score, the link graph and the
+templates are done and the remaining work is authoring — §10 D has eight more
+questions, of which about five can be answered honestly against the packs that
+exist. §10 C (`/learn/{topic}-for-{audience}`) and §10 F (`/roadmaps/{slug}`)
+have no route yet.
+
+Both guides need Nikolay's read before either can be indexed. That is
+`HUMAN-REVIEW.md` part C, and it is about twenty minutes rather than the day
+part A asked for.
+
+Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
+behind a deployed origin.

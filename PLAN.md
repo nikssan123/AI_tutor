@@ -34,8 +34,10 @@ lands somewhere a learner can point at. **`/calendar` (§8 screen 14) is in**, a
 with it the accountability half of §2.4. **`/subjects` (§8 screen 15) is in**,
 and with it the state every earlier screen had skipped: the signed-in learner
 with no course running, who used to meet the same dead-end card on four
-destinations (§8 screen 6a). **E10 is the next epic to build**, and from here the
-remaining work is acquisition and money rather than product. **A course can now
+destinations (§8 screen 6a). **E10 is complete and E12 has started** — the
+authored-page substrate, §12.2's quality gate and the first two `/guides` pages
+are in — so from here the remaining work is acquisition and money rather than
+product. **A course can now
 end** — pause, stop, swap, and a `achieved` that is earned rather than pressed
 (§8 screen 11a) — which also makes *between courses* a state a learner can
 actually be in.
@@ -962,6 +964,23 @@ Explicitly personalized-curriculum pages: what to skip because you already know 
 `how-long-does-it-take-to-learn-python` · `how-long-does-it-take-to-learn-machine-learning` · `why-am-i-stuck-in-tutorial-hell` · `what-should-i-learn-after-python-basics` · `how-do-i-know-if-im-actually-improving` · `self-taught-vs-bootcamp` · `how-many-hours-a-week-to-learn-a-new-skill` · `portfolio-projects-that-actually-get-interviews` · `best-way-to-learn-a-skill-as-an-adult` · `why-do-i-forget-what-i-learn`
 
 Each answers in the first 60 words (AI Overview / featured-snippet shape), backs it with an interactive calculator or check, and cites learning-science sources.
+
+> **The template and the first two are built** — `why-do-i-forget-what-i-learn`
+> and `how-long-does-it-take-to-learn-sql`. Three things this list did not
+> anticipate:
+>
+> - **The 40–60 word answer is a schema rule, not a style note.** A guide whose
+>   answer falls outside the range does not load. Under 40 words it has not
+>   answered; over 60 it is truncated in the snippet it was written for.
+> - **SQL substitutes for Python as the first "how long" page**, because it is
+>   the beachhead, the only Curated pack with a reviewed check behind it, and
+>   the one `HUMAN-REVIEW.md` recommends launching on. Python keeps its place on
+>   the list and now has a page pointing at it.
+> - **Three of the ten cannot be written honestly yet.**
+>   `how-long-does-it-take-to-learn-machine-learning` has no pack behind it, and
+>   `self-taught-vs-bootcamp` and `portfolio-projects-that-actually-get-interviews`
+>   both need outcome data we do not have. Writing them anyway would be the
+>   thing §12 exists to stop.
 
 ### E. Free tools — `/tools/{tool}` (4 pages, P1)
 `learning-roadmap-generator` · `skill-gap-analyzer` · `learning-time-calculator` · `what-should-i-learn-next`
@@ -1998,9 +2017,9 @@ before picking the next thing up.**
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
-| **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD **and the share cards**. Internal-link renderer and the quality-score job remain, and both are E12's to earn |
+| **E10** SEO infrastructure | ✅ Done | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD, the share cards, and now **the internal-link renderer and the quality-score job** (`src/lib/guides/{links,quality}.ts`), which needed authored pages to operate on. Lighthouse and GSC/Bing verification wait on a deployed origin |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
-| **E12** Content production | ⬜ Not started | 3 curated packs of the 12; all 7 packs now reviewed and signed `reviewKind: model`, 9 defects fixed (pass 28) |
+| **E12** Content production | 🟡 Started — 2 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and the first two §10 D guides, both at 100/100 and both drafts until somebody reads them. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
 **E8's code is done and the loop has been watched run** — a real submission from
@@ -2052,9 +2071,45 @@ were not on the list:
   the first is in the sitemap. §2.6 calls that SERP "the crack in the wall" and
   the product had been declining to compete for it for two passes after it could.
 
-What remains on E10 is the internal-link renderer and the quality-score job.
-Both operate on authored `SeoPage` rows, and there are none — they are E12's
-work, not a gap to fill speculatively against content nobody has written.
+**E10's last two outputs are in, and building them was E12's first act.** The
+internal-link renderer and the quality-score job were held back on the honest
+grounds that they had nothing to operate on; deciding what an authored page *is*
+here is what unblocked them. Three things came out of it that are worth carrying
+forward, because they are decisions rather than code:
+
+- **The prose lives on disk, not in `seo_page`.** §12.1 rule 5 is "no page ships
+  without a human read", and a database row is not a thing you can read in a
+  pull request. A guide is a diff. The table stays empty until the monthly
+  re-score in §12.2 needs somewhere to keep a history — which is a real use for
+  it, unlike mirroring files into it to satisfy a schema comment.
+- **A guide never types a number.** It writes `{{topic:sql-data-analysis.hours}}`
+  and the build substitutes what the pack says, so a page cannot drift from the
+  course it describes and cannot describe a course we do not teach. That also
+  turns §12.2's dimension 7 — "≥1 data point only you have", a hard gate from
+  month 3 — into a count of resolved references rather than a judgement about
+  prose.
+- **The score does not score what it cannot measure.** Two of §12.2's ten
+  dimensions need a SERP API and an embedding model. They are excluded from the
+  denominator and *named in the report*, because awarding them by default would
+  inflate every page by up to 25 against a bar of 75 and awarding zero would
+  fail every page for a missing key. §4.2 law 3, turned on our own
+  instrumentation.
+
+**§13.3's "≥2 inbound" needed a source that could not be gamed.** The `/guides`
+index deliberately does not count towards it — an index links to everything it
+holds, so counting it makes the rule self-satisfying. What counts is another
+guide, or a subject page whose figures this guide quotes. The second needs no
+authoring: the data reference *is* the evidence the guide is about that subject,
+so `/learn/{topic}` grew a "questions people ask" section derived from it.
+Nobody maintains a link table, and no guide can put itself on a subject page by
+asserting relevance.
+
+**E12 is two pages of fifty, and both are drafts.** They score 100/100 on the
+measured dimensions, all six of their cited sources return 200, and they are
+`noindex` until somebody reads them — `HUMAN-REVIEW.md` part C, about twenty
+minutes. The remaining work is authoring: §10 D has eight more questions, of
+which roughly five can be answered honestly against the packs that exist, and
+§10 C and §10 F have no route yet.
 
 **E11's roadmap tool is in, and building it found two things that are bigger
 than the tool.**
@@ -2299,9 +2354,15 @@ both page tests against the rendered output, not merely observed.
 **Out:** `/check/{skill}` anonymous flow · roadmap generator with the precompute pipeline · time calculator · rate limiting + Turnstile.
 **Accept:** a check completes with no signup; a cached roadmap returns in <200ms with zero AI cost; the abuse limits actually trigger; the anonymous check result is preserved through signup.
 
-### E12 — Content production (days 24–28)
+### E12 — Content production (days 24–28) — 🟡 2 pages of 50
 **Out:** 50 pages written, scored, human-reviewed, published.
 **Accept:** every page scores ≥75 and has been read end to end by you; ≥4 internal links out and ≥2 in; every external link returns 200.
+
+Three of the four are now machine-checked rather than hoped for — the score in
+`pnpm guides:validate`, the link counts in the same run, the external links in
+`pnpm guides:sources`. The fourth cannot be, and is the only thing standing
+between the first two pages and the index: **"read end to end by you"** is a
+recorded `reviewKind: human`, and nothing else opens the gate.
 
 ### E13 — Billing, emails, launch (days 26–30)
 **Out:** Polar/Paddle subscription + webhooks + quota enforcement · per-user spend cap · daily/weekly/eval-ready emails · legal pages · the analytics dashboard from §25.

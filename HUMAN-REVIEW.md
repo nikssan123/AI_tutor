@@ -1,7 +1,8 @@
 # The human work
 
-Two things gate launch that no amount of code will clear. Both are §23 Phase-0
-MUSTs that were skipped when the build started.
+Three things gate launch that no amount of code will clear. Two are §23 Phase-0
+MUSTs that were skipped when the build started; the third (part C) arrived with
+E12's first pages and is by far the smallest.
 
 > **Updated 2026-08-14.** Part A has been done as far as a model can do it: all
 > seven packs are now reviewed end to end and signed `reviewKind: model`, with
@@ -22,8 +23,8 @@ MUSTs that were skipped when the build started.
 > **20 grades** and nothing else. Band stability — E8's other criterion — has
 > been measured and is met; see below.
 
-Neither is long. Together they are roughly **one focused day** for the SQL pack
-alone, which is enough to launch on.
+None is long. Together they are roughly **one focused day** for the SQL pack
+alone, which is enough to launch on; part C adds about twenty minutes.
 
 ---
 
@@ -316,3 +317,84 @@ zero) and a mispaired corpus (a smaller honest `n`, never a silent mismatch).
 
 Your part is now **20 hand-grades**, and nothing else. The five submissions are
 written and the stability half is measured and met.
+
+---
+
+# C. The guide read — unblocks the first two SEO pages
+
+New, and much the smallest of the three. §12.1 rule 5 is *"no page ships without
+a human read"*, and it is the only §12 defence that cannot be automated. The
+other four are: the volume is 2 pages and not 5,000, every page carries a
+working tool, the prose is hand-written, and `noindex` is the default.
+
+## What it gates
+
+`isGuideIndexable` asks for three things: a §12.2 score of ≥75, an empty problem
+list, and a recorded reviewer. **The first two are already met.** Both guides
+score 100/100 on every dimension that can be measured, have no outstanding
+problems, and all six of their cited sources return 200.
+
+So the pages exist, render, and are one line each away from the sitemap.
+
+```
+content/guides/how-long-does-it-take-to-learn-sql.yaml
+content/guides/why-do-i-forget-what-i-learn.yaml
+```
+
+## What the machine already checked — do not spend time on these
+
+`pnpm guides:validate` and `pnpm guides:sources`:
+
+every internal link resolves to a page that exists · ≥4 outbound and ≥2
+contextual inbound links · no citation without a declared source · no declared
+source that nothing cites · every `{{…}}` figure resolves against a real pack ·
+no near-duplicate of another guide · a section under 400 words · a working tool
+that is not a hub page · title ≤60 characters · description 140–160 · the direct
+answer between 40 and 60 words · every cited URL returns 2xx.
+
+Two of §12.2's ten dimensions are **not** measured and are printed as such on
+every run: search-intent match needs a SERP API, and the SERP half of the
+uniqueness check needs an embedding model. Neither is faked.
+
+## What only you can check
+
+Read each page end to end — they are about 900 words each — and ask three
+questions the score cannot:
+
+### 1. Is anything in it wrong?
+Particularly the two subject-matter claims in the SQL guide: that a pivot table
+is a `GROUP BY` and a VLOOKUP is a join with one row on one side, and that grain
+and NULL behaviour are where confident spreadsheet users get *wrong answers*
+rather than errors. Both are mine, neither is cited, and both are the kind of
+sentence a reader will judge us on.
+
+### 2. Does it sound like you?
+This is the only copy on the site that argues rather than states. If a sentence
+reads as marketing, it is one I wrote badly — say which and it comes out.
+
+### 3. Would it be useful to somebody who never signs up?
+§11's quality bar, in one line. If a page only makes sense as a funnel, it does
+not ship.
+
+## Then, if you sign
+
+```yaml
+review:
+  reviewedBy: Nikolay Lyutov
+  reviewKind: human
+  reviewedAt: "2026-08-14"
+```
+
+Then `pnpm guides:validate && DATABASE_URL=… pnpm verify`, and both pages enter
+the sitemap with `Course`-adjacent breadcrumb and `FAQPage` markup.
+
+**Signing is not required for the pages to be useful.** A draft still renders,
+still links out, and still says on its own face that nobody has read it. What
+signing changes is whether we ask Google to rank it.
+
+## Recommendation
+
+Read `why-do-i-forget-what-i-learn` first. It is the one with no subject-matter
+risk in it — the claims are learning science with citations, not SQL — so it is
+the cheaper of the two to judge, and it is the one that argues the product's
+thesis rather than describing a course.
