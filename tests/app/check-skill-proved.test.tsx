@@ -110,6 +110,21 @@ describe("a skill with enough questions behind it", () => {
     ).toBeDefined();
   });
 
+  it("offers the plan the cleared skill already seeds", async () => {
+    const items = narrow(findPack(REF.topic)!, REF).items;
+    jar.set(
+      cookieFor(REF),
+      encode({ s: 1, a: items.map((i) => ({ i: i.slug, c: 1 as const })) }),
+    );
+
+    const { container } = render(await page.default({ params: params() }));
+
+    // A skill cleared here is one the projection will exclude with a reason, so
+    // the result screen ending in "start again" was the product's own evidence
+    // going unspent.
+    expect(container.querySelector('a[href^="/start"]')).not.toBeNull();
+  });
+
   /**
    * The concentration rule, end to end: the check stops as soon as the belief
    * clears the bar rather than spending its remaining questions confirming what

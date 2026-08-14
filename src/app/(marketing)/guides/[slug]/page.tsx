@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Prose, SectionLinks, Sources } from "@/components/guide-body";
 import { ChecklistIcon, GridIcon, StepsIcon } from "@/components/icons";
 import {
+  GuideStartOffer,
   JsonLdScript,
   PageFrame,
   PageIntro,
@@ -237,6 +238,8 @@ export default async function GuidePage({
             </ul>
           </section>
         ) : null}
+
+        <GuideStartOffer />
 
         {!detail.indexable ? (
           <Meta>

@@ -4,11 +4,13 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ChecklistIcon, GridIcon, StepsIcon } from "@/components/icons";
 import {
+  CheckStartOffer,
   EvalTierNote,
   JsonLdScript,
   PageFrame,
   PageIntro,
   SectionHead,
+  TopicStartOffer,
 } from "@/components/marketing";
 import {
   BAND_COPY,
@@ -252,6 +254,8 @@ export default async function CheckPage({
           .
         </Meta>
 
+        <CheckStartOffer topicName={pack.name} />
+
         <form action={startCheck.bind(null, ref)}>
           <Button type="submit" variant="text">
             Start again
@@ -421,6 +425,11 @@ export default async function CheckPage({
             />
           </section>
         ) : null}
+
+        {/* The state a crawler and a first-time reader actually see — the one
+            above is only reachable after running the check. Both needed the
+            exit; this is the one search delivers people to. */}
+        <TopicStartOffer topicName={pack.name} />
 
         <Meta>
           Part of{" "}

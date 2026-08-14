@@ -495,6 +495,78 @@ export function ProjectStartOffer({
  * would be one component that has to keep straight which of the two claims it
  * is making, on the surface where a wrong claim is the expensive kind.
  */
+/**
+ * The exit from a guide, where the reader's subject is genuinely not known.
+ *
+ * Every other offer on this surface names a subject because its page had one.
+ * A guide has a *question* — "why am I stuck in tutorial hell" — and the two
+ * subjects it happens to quote figures from are evidence it is specific, not
+ * evidence of what the reader wants. Six of the eight guides cite both Python
+ * and SQL, so picking the most-cited one would push Python at a reader who
+ * arrived on "how long does it take to learn SQL" often enough to matter.
+ *
+ * So this one asks instead of assuming, and the gap case is the honest thing to
+ * advertise here rather than a footnote: a reader who came for a question about
+ * learning in general is the likeliest of anyone on this surface to want a
+ * subject nobody has written yet.
+ */
+export function GuideStartOffer() {
+  return (
+    <Card className="flex flex-col items-start gap-5">
+      <Title>Put this into practice</Title>
+      <Lead>
+        Reading about how to learn is the easy half. Tell us what you are
+        actually trying to get good at, and we will build the path — the skills
+        in the order they depend on each other, and marked work to prove you got
+        there.
+      </Lead>
+      <Meta tone="muted">
+        About three minutes. If we do not cover your subject yet, we will write
+        it — and say it is Experimental until somebody has checked it.
+      </Meta>
+      <Link href={CUSTOM_PATH_HREF} className={CTA_LINK}>
+        Build my path
+      </Link>
+    </Card>
+  );
+}
+
+/**
+ * The exit from a finished check, which is the highest-intent screen we have.
+ *
+ * Distinct from `TopicStartOffer` because that one promises to work out where
+ * the reader is, and this reader has just spent ten minutes proving it. Saying
+ * it again here would read as the product not having noticed.
+ *
+ * The promise it makes instead is one the plumbing already keeps: `finish` in
+ * the intake replays the anonymous check into seeded mastery (§24 E11), and the
+ * projection then excludes what came back proven, with a reason the learner can
+ * read on `/today`. That was true before this card existed and no screen said
+ * so — the ten minutes looked like they bought nothing.
+ *
+ * It says what carries rather than how, which is the rule for every sentence on
+ * this surface: the mechanism is ours, the consequence is theirs.
+ */
+export function CheckStartOffer({ topicName }: { topicName: string }) {
+  return (
+    <Card className="flex flex-col items-start gap-5">
+      <Title>Turn this into a plan</Title>
+      <Lead>
+        What you just answered comes with you. The path starts from where this
+        check put you rather than from nothing, and skips the skills you already
+        cleared — each one saying which answer of yours retired it.
+      </Lead>
+      <Meta tone="muted">
+        About three minutes to set up: what you want to do with {topicName}, and
+        how many hours a week you actually have.
+      </Meta>
+      <Link href={topicStartHref(topicName)} className={CTA_LINK}>
+        Build my path
+      </Link>
+    </Card>
+  );
+}
+
 export function TopicStartOffer({ topicName }: { topicName: string }) {
   return (
     <Card className="flex flex-col items-start gap-5">

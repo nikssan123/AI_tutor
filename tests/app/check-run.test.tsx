@@ -351,6 +351,22 @@ describe("the result", () => {
   });
 
   /**
+   * The screen ended in three sideways links and a "start again", on the page
+   * where the reader has just spent ten minutes proving they want the subject —
+   * and where their answers already seed a plan, which nothing said.
+   */
+  it("offers the plan those answers already seed", async () => {
+    seed(nineClosed());
+    const { container } = render(await page.default({ params: params() }));
+
+    const seeds = [...container.querySelectorAll('a[href^="/start"]')].map(
+      (a) => decodeURIComponent(a.getAttribute("href") ?? ""),
+    );
+    expect(seeds.length).toBeGreaterThan(0);
+    expect(seeds.some((s) => s.includes(pack.name))).toBe(true);
+  });
+
+  /**
    * The strongest claim on the page. A learner who marks themselves right on
    * every open question must still be told nothing was verified.
    */

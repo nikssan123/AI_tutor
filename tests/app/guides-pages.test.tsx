@@ -178,6 +178,22 @@ describe("/guides/{slug}", () => {
     );
   });
 
+  /**
+   * A guide's only exit was its tool, which reaches the intake in two more
+   * hops. The bottom of the page asks directly — and asks rather than guessing,
+   * because a guide's subject is the reader's, not the one it quotes figures
+   * from.
+   */
+  it("ends by asking what the reader wants to learn", async () => {
+    const { container } = render(
+      await guide.default({ params: params({ slug: "a-full" }) }),
+    );
+    const start = container.querySelector('a[href^="/start"]');
+    expect(start).not.toBeNull();
+    // No `?topic=`: the guide has no subject to put in it.
+    expect(start!.getAttribute("href")).toBe("/start");
+  });
+
   it("resolves every figure, so no reader meets a brace", async () => {
     const { container } = render(
       await guide.default({ params: params({ slug: "a-full" }) }),

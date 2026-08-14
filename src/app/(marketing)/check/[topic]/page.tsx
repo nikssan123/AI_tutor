@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import {
+  CheckStartOffer,
   EvalTierNote,
   JsonLdScript,
   PageFrame,
@@ -268,6 +269,12 @@ export default async function CheckRunPage({ params }: Params) {
             Look at a graded project
           </Link>
         </div>
+
+        {/* The ten minutes they just spent already seed a plan, and until now
+            this screen ended without saying so — three sideways links and a
+            "start again", on the one page where the reader has proved they
+            want the subject. */}
+        <CheckStartOffer topicName={pack.name} />
 
         <form action={startCheck.bind(null, ref)}>
           <Button type="submit" variant="text">

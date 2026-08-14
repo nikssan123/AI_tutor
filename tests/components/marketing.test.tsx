@@ -12,9 +12,11 @@ vi.mock("@/lib/account/session", () => ({
 
 import {
   Breadcrumbs,
+  CheckStartOffer,
   EvalTierNote,
   CustomPathOffer,
   GoalSearch,
+  GuideStartOffer,
   JsonLdScript,
   PageFrame,
   PageIntro,
@@ -361,6 +363,49 @@ describe("ProjectStartOffer", () => {
   it("promises marking against the checklist already on the page", () => {
     render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
     expect(screen.getByText(/checklist you have just read/i)).toBeDefined();
+  });
+});
+
+describe("CheckStartOffer", () => {
+  it("links to the intake holding the subject just checked", () => {
+    render(<CheckStartOffer topicName="SQL" />);
+    expect(
+      screen.getByRole("link", { name: /build my path/i }).getAttribute("href"),
+    ).toBe(topicStartHref("SQL"));
+  });
+
+  it("promises the answers carry, which is what the intake actually does", () => {
+    // `finish` replays the anonymous check into seeded mastery, and the
+    // projection then excludes what came back proven. The claim is only worth
+    // making because that plumbing predates the card.
+    render(<CheckStartOffer topicName="SQL" />);
+    expect(screen.getByText(/what you just answered comes with you/i))
+      .toBeDefined();
+  });
+
+  it("does not offer to work out where they are — they just proved it", () => {
+    // TopicStartOffer's promise, which would read here as the product not
+    // having noticed the ten minutes it just asked for.
+    render(<CheckStartOffer topicName="SQL" />);
+    expect(screen.queryByText(/work out where you already are/i)).toBeNull();
+  });
+});
+
+describe("GuideStartOffer", () => {
+  it("asks for a subject rather than assuming one", () => {
+    // Six of the eight guides quote both Python and SQL, so a guessed subject
+    // is wrong often enough to matter — the link is the bare intake.
+    render(<GuideStartOffer />);
+    expect(
+      screen.getByRole("link", { name: /build my path/i }).getAttribute("href"),
+    ).toBe(CUSTOM_PATH_HREF);
+  });
+
+  it("says an unwritten subject gets written, and stays Experimental", () => {
+    // The one offer whose reader is most likely to want a subject we lack, so
+    // §7.1's tier is the pitch here rather than a disclaimer.
+    render(<GuideStartOffer />);
+    expect(screen.getByText(/Experimental/)).toBeDefined();
   });
 });
 

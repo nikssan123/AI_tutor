@@ -963,6 +963,21 @@ describe("the reading routes have a way in (§10 B)", () => {
     expect(seeds.some((s) => s.includes(pack.name))).toBe(true);
   });
 
+  it("offers a skill check's reader the subject it belongs to", async () => {
+    // The state a crawler sees: no cookie, so the check has not been run. Every
+    // link on it went to another check, another project, or the subject page.
+    const pack = findPack("sql-data-analysis")!;
+    const { container } = render(
+      await check.default({
+        params: params({ topic: pack.slug, skill: pack.skills[0]!.slug }),
+      }),
+    );
+
+    const seeds = startLinks(container).map((href) => decodeURIComponent(href));
+    expect(seeds.length).toBeGreaterThan(0);
+    expect(seeds.some((s) => s.includes(pack.name))).toBe(true);
+  });
+
   it("offers it on an unreviewed subject too, saying so alongside", async () => {
     // A first-draft pack is still one somebody can start; the honest handling
     // is to offer it *and* keep the warning, not to quietly drop the exit.
