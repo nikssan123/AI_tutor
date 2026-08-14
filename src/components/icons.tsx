@@ -196,6 +196,26 @@ export function DatabaseIcon({ className }: IconProps) {
  * component. Anything unrecognised falls back to the neutral grid rather than
  * guessing at a metaphor.
  */
+/** A mortar and pestle, near enough: making something with your hands. */
+export function CraftIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M5 10h14l-1.4 7.2A2 2 0 0 1 15.6 19H8.4a2 2 0 0 1-2-1.8L5 10Z" />
+      <path d="M14.5 6.5 17 4" />
+    </Svg>
+  );
+}
+
+/** Two speech marks: one language, then another. */
+export function LanguageIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4 5h10v7H8l-4 3V5Z" />
+      <path d="M10 12v4a1 1 0 0 0 1 1h5l4 3v-7a1 1 0 0 0-1-1h-3" />
+    </Svg>
+  );
+}
+
 export function SubjectIcon({
   taxonomyParent,
   className,
@@ -208,6 +228,8 @@ export function SubjectIcon({
     business: PenIcon,
     creative: CameraIcon,
     technology: DatabaseIcon,
+    craft: CraftIcon,
+    language: LanguageIcon,
   };
   const Chosen = byTaxonomy[taxonomyParent ?? ""] ?? GridIcon;
   return <Chosen className={className} />;

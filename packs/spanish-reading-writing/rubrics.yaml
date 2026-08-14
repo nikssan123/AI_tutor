@@ -1,0 +1,141 @@
+# Rubrics.
+#
+# §4.2 law 2 — public before the work is done.
+#
+# **Nothing here marks pronunciation, fluency or how natural a text sounds.**
+# The first two this build cannot hear; the third is a native speaker's
+# judgement and not a checklist item. §7.2 tier 3 splits exactly there: grammar,
+# agreement, tense choice and register are technical and checkable, and whether
+# a paragraph reads well is the learner's own call.
+#
+# A learner can score Strong on every criterion here and still sound like a
+# textbook. That is an honest limit of a reading-and-writing pack, and it is
+# named on the subject page rather than buried.
+
+rubrics:
+  - slug: accuracy
+    version: 1
+    isPublic: true
+    criteria:
+      - id: agreement
+        name: Agreement holds throughout
+        description: Articles, nouns and adjectives match in gender and number, including the irregular nouns.
+        weight: 0.3
+        bands:
+          absent: Agreement errors in most noun phrases.
+          developing: Regular nouns handled; the irregular ones (día, mano, problema) slip.
+          competent: Agreement correct throughout.
+          strong: Correct, including where an adjective is separated from its noun.
+      - id: verb-forms
+        name: Verbs match their subjects
+        description: Conjugation is correct for person and number in every tense used.
+        weight: 0.3
+        bands:
+          absent: Endings largely unmarked or wrong.
+          developing: Regular verbs correct; common irregulars wrong.
+          competent: Correct across the tenses used.
+          strong: Correct, and the piece uses more than one tense deliberately.
+      - id: ser-estar
+        name: Ser and estar are chosen, not guessed
+        description: The distinction is applied correctly wherever it arises.
+        weight: 0.25
+        bands:
+          absent: Used interchangeably.
+          developing: Correct for the obvious cases, wrong for state versus characteristic.
+          competent: Correct throughout.
+          strong: Correct, and used somewhere the choice carries meaning.
+      - id: accents
+        name: Accents and spelling
+        description: Written accents are present where they change stress or meaning.
+        weight: 0.15
+        bands:
+          absent: Accents largely absent.
+          developing: Present but inconsistent, including on the pairs that change meaning.
+          competent: Correct throughout.
+          strong: Correct, including on preterite endings and question words.
+
+  - slug: reading-comprehension
+    version: 1
+    isPublic: true
+    criteria:
+      - id: main-idea
+        name: The summary captures what the text said
+        description: Who did what, and what the text is actually about.
+        weight: 0.35
+        bands:
+          absent: The summary describes a different text, or only its topic.
+          developing: The main idea is present alongside a misreading.
+          competent: Accurate on who did what and why.
+          strong: Accurate, and distinguishes what the text claims from what it reports others claiming.
+      - id: inference-evidenced
+        name: Guesses are supported from the text
+        description: Where a word or meaning was inferred, the submission says what in the sentence supported it.
+        weight: 0.3
+        bands:
+          absent: Meanings asserted with no support.
+          developing: Support given for some inferences.
+          competent: Each inference tied to evidence in the sentence.
+          strong: Tied to evidence, including one inference the learner reconsidered.
+      - id: lookup-discipline
+        name: Few enough words were looked up
+        description: >-
+          Reading is a skill, not a decoding exercise. The submission lists what
+          it looked up and why each was blocking.
+        weight: 0.2
+        bands:
+          absent: No list, or the whole text translated word by word.
+          developing: A list, with several lookups that were curiosity rather than necessity.
+          competent: A short list, each one blocking the main idea.
+          strong: Short, justified, and names a word deliberately left unlooked-up.
+      - id: register-read
+        name: The register was noticed
+        description: The submission says whether the text is formal or informal and what signalled it.
+        weight: 0.15
+        bands:
+          absent: Register not mentioned.
+          developing: Asserted with no signal named.
+          competent: Named, with at least one grammatical signal.
+          strong: Named, with signals from both address and sentence construction.
+
+  - slug: functional-writing
+    version: 1
+    isPublic: true
+    criteria:
+      - id: purpose-served
+        name: It does its job
+        description: A reader would know what is being asked and could act on it.
+        weight: 0.3
+        bands:
+          absent: The purpose is unclear from the text.
+          developing: The purpose is there, buried.
+          competent: Clear within the opening lines.
+          strong: Clear, and everything in the piece serves it.
+      - id: register-matched
+        name: The register fits the reader
+        description: Tú or usted chosen deliberately, with openings and closings to match.
+        weight: 0.25
+        bands:
+          absent: Register mixed within one piece.
+          developing: Consistent but wrong for the stated reader.
+          competent: Consistent and appropriate.
+          strong: Appropriate, using conventional openings and closings rather than translated English ones.
+      - id: connected
+        name: The sentences connect
+        description: Connectors carry the piece rather than a sequence of full stops.
+        weight: 0.25
+        bands:
+          absent: Isolated sentences in a list.
+          developing: One or two connectors, repeated.
+          competent: Varied connectors doing real work.
+          strong: Varied, including at least one contrast or concession.
+      - id: self-corrected
+        name: It was checked before it was handed in
+        description: >-
+          The submission includes what the learner found and fixed in their own
+          draft — the pass that catches more than new grammar does.
+        weight: 0.2
+        bands:
+          absent: No evidence of a checking pass.
+          developing: A claim that it was checked, with nothing shown.
+          competent: Specific corrections listed.
+          strong: Listed, grouped by the kind of error, with the pattern named.

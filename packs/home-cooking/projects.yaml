@@ -1,0 +1,78 @@
+# Graded project briefs.
+#
+# Every rubric criterion appears in the acceptance list below.
+#
+# The evidence is always a photograph *and* a written method, because half of
+# what is being marked is not visible in a picture — the temperatures, the
+# order, the points you seasoned at, the thing that went wrong.
+
+projects:
+  - slug: one-vegetable-four-cuts
+    title: Four cuts, one vegetable
+    rubric: knife-and-prep
+    evidenceType: image
+    difficulty: 0.35
+    estimatedMinutes: 60
+    isPublic: true
+    targetSkills: [knife-control, mise-en-place, food-safety]
+    brief: >-
+      Take one vegetable and cut it four ways — dice, slice, julienne, and a
+      rough chop for something that will be blended. Photograph each pile.
+
+      What is being marked is not speed or elegance. It is whether the pieces
+      within each pile match each other well enough to cook evenly, and whether
+      you can say why each cut suits the dish you named for it.
+    acceptanceCriteria:
+      - Four piles photographed separately, each with the dish it is intended for.
+      - Pieces within each pile consistent enough to finish cooking together.
+      - The size of each cut justified in terms of surface area or cooking time.
+      - A photograph or description showing the guiding hand and a stable board.
+      - A followable method, noting anything you changed as you went.
+
+  - slug: sear-rest-and-prove-it
+    title: Cook something to a target and prove you hit it
+    rubric: heat-and-doneness
+    evidenceType: image
+    difficulty: 0.55
+    estimatedMinutes: 75
+    isPublic: true
+    targetSkills: [heat-control, browning, doneness, resting-and-carryover, salting]
+    brief: >-
+      Cook one substantial thing — a piece of meat, a thick fish fillet, a
+      halloumi steak, a large mushroom — to a doneness you state *before* you
+      start.
+
+      The hard part is the proof. A photograph of a cooked thing is not evidence
+      that it was cooked to a target; a cross-section and a temperature reading
+      are. Pull it early on purpose and let carry-over take it the rest of the
+      way.
+    acceptanceCriteria:
+      - The target doneness stated before cooking, with the temperature you aimed for.
+      - An even crust matching the stated intent, with what you did to the surface and pan to get it.
+      - A cross-section photograph and a probe reading placed correctly for the cut.
+      - The heat level named at each stage and what it was for, including one point where you adjusted it.
+      - The pull temperature and the rest time, with the final reading.
+      - Every point you seasoned at, and why then.
+
+  - slug: wednesday-night
+    title: Cook from what you have, with no recipe
+    rubric: dish-from-inventory
+    evidenceType: image
+    difficulty: 0.7
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [cooking-from-what-you-have, substitution, acid-and-balance, salting, mise-en-place]
+    brief: >-
+      Photograph what is in your kitchen. Then cook a dish from it without
+      looking up a recipe, and write down what you decided as you went.
+
+      This is the project the whole pack builds towards, and the write-up matters
+      as much as the food. Cooking without a recipe is a sequence of judgements,
+      and the ones that did not work are the most interesting thing you can hand
+      in.
+    acceptanceCriteria:
+      - A photograph of the starting ingredients, and one of the finished dish.
+      - What plays each role — base, main element, acid, seasoning — and any role you deliberately left out.
+      - The order things went in, driven by cooking times, including anything cooked separately and recombined.
+      - Each point you seasoned at with its reason, including a correction made after tasting.
+      - At least one decision that went wrong, and what you did about it.

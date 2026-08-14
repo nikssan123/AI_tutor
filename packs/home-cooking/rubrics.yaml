@@ -1,0 +1,141 @@
+# Rubrics.
+#
+# §4.2 law 2 — public before the work is done.
+#
+# **Nothing here scores how the food tasted.** A photograph is evidence about a
+# dish, not the dish, and no evaluator will ever eat one — so every criterion
+# marks either something visible in the image (colour, texture, doneness, cut
+# consistency) or something checkable in the written method (temperatures,
+# sequence, seasoning points, decisions). §7.2 tier 3, and the untouchable part
+# here is not aesthetics but flavour.
+#
+# A learner can score Strong across a rubric and have made something they did
+# not enjoy. That is correct: what is being certified is control of the process.
+
+rubrics:
+  - slug: knife-and-prep
+    version: 1
+    isPublic: true
+    criteria:
+      - id: consistency
+        name: The pieces match each other
+        description: Cut sizes are close enough that they would finish cooking together.
+        weight: 0.35
+        bands:
+          absent: Sizes vary enough that some pieces would burn before others soften.
+          developing: Broadly similar with several obvious outliers.
+          competent: Consistent across the batch, with minor variation.
+          strong: Consistent, and the size chosen is justified by the cooking method named.
+      - id: appropriate-cut
+        name: The cut suits the job
+        description: The shape and size match what the dish does with them.
+        weight: 0.25
+        bands:
+          absent: A cut that will not work for the stated dish.
+          developing: Workable but not the obvious choice, unexplained.
+          competent: A sensible cut for the dish.
+          strong: Sensible, with the reason given in terms of surface area or cooking time.
+      - id: safe-technique
+        name: The technique is safe at speed
+        description: Guiding hand, blade contact and board setup are visible and correct.
+        weight: 0.25
+        bands:
+          absent: Fingers extended, or a board that slides.
+          developing: Safe but hesitant, or safe in the photograph only.
+          competent: Claw grip and stable board evident.
+          strong: Evident, and the submission names what it changed to get there.
+      - id: documented
+        name: The method is legible
+        description: The write-up says what was done, in an order someone could follow.
+        weight: 0.15
+        bands:
+          absent: No method, or a list of ingredients only.
+          developing: Steps present but out of order or incomplete.
+          competent: A followable sequence.
+          strong: Followable, and notes where it deviated from the plan and why.
+
+  - slug: heat-and-doneness
+    version: 1
+    isPublic: true
+    criteria:
+      - id: crust
+        name: The surface is what was intended
+        description: Browning is even and matches the outcome the submission said it wanted.
+        weight: 0.3
+        bands:
+          absent: Grey where a crust was intended, or burnt where colour was.
+          developing: Browned unevenly, or patchy across the surface.
+          competent: Even colour matching the stated intent.
+          strong: Even, and the submission explains what it did to the surface and pan to get it.
+      - id: doneness-evidenced
+        name: Doneness is shown, not asserted
+        description: A cross-section, a probe reading, or both — something a reader can check.
+        weight: 0.3
+        bands:
+          absent: Only a claim that it was cooked.
+          developing: A photograph that does not show the interior.
+          competent: A cross-section or a temperature reading.
+          strong: Both, and the reading is placed correctly for the cut.
+      - id: heat-decisions
+        name: Heat was chosen, not accepted
+        description: The method names the heat level at each stage and what it was for.
+        weight: 0.25
+        bands:
+          absent: No mention of heat beyond "cook".
+          developing: Heat mentioned once, for the whole dish.
+          competent: Heat named per stage with its purpose.
+          strong: Named, purposeful, and includes a point where it was adjusted in response to the pan.
+      - id: resting
+        name: Carry-over is accounted for
+        description: Where it applies, the submission says what it pulled at and what it rested to.
+        weight: 0.15
+        bands:
+          absent: Cut immediately, unremarked, where resting mattered.
+          developing: Rested, with no target stated.
+          competent: Pull temperature and rest time both stated.
+          strong: Both stated, and the final reading confirms the carry-over was anticipated.
+
+  - slug: dish-from-inventory
+    version: 1
+    isPublic: true
+    criteria:
+      - id: structure
+        name: The dish has a structure
+        description: >-
+          A base, a main element, an acid and a seasoning — the submission can
+          say what plays each role, rather than having combined what was there.
+        weight: 0.3
+        bands:
+          absent: Ingredients combined with no stated structure.
+          developing: A structure is visible but not articulated.
+          competent: Each role named and filled.
+          strong: Named, filled, and one role deliberately left out with a reason.
+      - id: sequence
+        name: Things went in in the right order
+        description: The method shows an order driven by cooking times rather than by the order they were found.
+        weight: 0.25
+        bands:
+          absent: Everything added at once.
+          developing: Roughly ordered with an obvious misstep.
+          competent: Order driven by cooking time.
+          strong: Order justified, including anything cooked separately and recombined.
+      - id: seasoning-points
+        name: Seasoning happened more than once
+        description: The write-up names each point salt or acid went in, and why then.
+        weight: 0.25
+        bands:
+          absent: Seasoned once at the end, or not mentioned.
+          developing: Two points named, without reasons.
+          competent: Each point named with its reason.
+          strong: Named, reasoned, and includes a correction made after tasting.
+      - id: decisions-visible
+        name: The decisions are in the write-up
+        description: >-
+          Cooking without a recipe is a sequence of judgements. The submission
+          records them, including the ones that did not work.
+        weight: 0.2
+        bands:
+          absent: Reads as a recipe written afterwards.
+          developing: One decision mentioned.
+          competent: Several decisions recorded as they arose.
+          strong: Recorded, including at least one that went wrong and what was done about it.

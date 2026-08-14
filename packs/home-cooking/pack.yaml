@@ -1,0 +1,229 @@
+# Home Cooking — Standard Domain Pack
+#
+# The first pack in the `craft` branch, and the one that tests whether §7.3's
+# Media workspace generalises past photography. It does, with one difference
+# worth naming: a photograph *is* the artefact in photography, and in cooking it
+# is only evidence about an artefact nobody can taste.
+#
+# **That gap decides the whole pack.** §7.2 tier 3 is "technical feedback;
+# judgement is yours", and here the untouchable part is not taste in the
+# aesthetic sense — it is flavour, which no evaluator will ever reach. So every
+# rubric criterion below marks either something visible in the photograph
+# (colour, texture, doneness, cut consistency) or something checkable in the
+# learner's written method (temperature, resting, seasoning points, sequence).
+# None marks whether the food was nice.
+#
+# **Standard, not Curated** — authored by a model, validated, unread by a human.
+
+slug: home-cooking
+name: Home Cooking
+taxonomyParent: craft
+maturity: standard
+evalTier: 3
+workspace: media
+
+evaluatorConfig:
+  model: opus
+  passes: 2
+  verifier: quote-match
+  tools: [read_image]
+
+quality:
+  status: draft
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- knife-and-prep --------------------------------------------------------
+  - slug: knife-control
+    name: Knife control
+    description: >-
+      A grip that is safe at speed, and cuts that are the same size as each
+      other — which is what makes a pan of vegetables cook evenly rather than
+      producing some burnt and some raw.
+    level: foundational
+    area: prep
+    evalTier: 3
+    estimatedHours: 3
+    canDoStatement: Produce a pile of evenly sized pieces, consistent enough that they finish cooking together
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.2, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: mise-en-place
+    name: Getting set up
+    description: >-
+      Everything prepped and within reach before the pan gets hot. The reason
+      home cooks burn garlic is almost never the garlic.
+    level: foundational
+    area: prep
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Sequence a dish so nothing waits on a knife while something else is in a hot pan
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.22, pLearn: 0.24, pSlip: 0.1, pGuess: 0.12 }
+
+  # --- heat ------------------------------------------------------------------
+  - slug: heat-control
+    name: Heat control
+    description: >-
+      Matching the heat to the outcome — a hard sear, a gentle sweat, a bare
+      simmer — and knowing what each one looks and sounds like in the pan.
+    level: core
+    area: heat
+    evalTier: 3
+    estimatedHours: 3
+    canDoStatement: Choose a heat level for a stated outcome and show the result matches it
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.18, pSlip: 0.13, pGuess: 0.08 }
+
+  - slug: browning
+    name: Browning
+    description: >-
+      Why a dry surface and a hot pan produce flavour that a wet crowded one
+      never will, and what a good crust actually looks like.
+    level: core
+    area: heat
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Produce an even brown crust and explain what you did to the surface and the pan to get it
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.1, pLearn: 0.18, pSlip: 0.13, pGuess: 0.08 }
+
+  - slug: doneness
+    name: Judging doneness
+    description: >-
+      Temperature, touch and time, and why the first is the only one that does
+      not depend on experience you do not have yet.
+    level: core
+    area: heat
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: State how you judged a thing was cooked, and show the cross-section that confirms it
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.19, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: resting-and-carryover
+    name: Resting and carry-over
+    description: >-
+      Meat keeps cooking after it leaves the heat, and cutting too early costs
+      you the juice. Pulling early on purpose is a skill, not an accident.
+    level: advanced
+    area: heat
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Pull something off the heat before its target and land on the target after resting
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.07, pLearn: 0.16, pSlip: 0.14, pGuess: 0.06 }
+
+  # --- seasoning -------------------------------------------------------------
+  - slug: salting
+    name: Salting
+    description: >-
+      Salting in layers as you cook rather than once at the end, and what
+      "season to taste" means when you are the one tasting.
+    level: core
+    area: seasoning
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Name every point you seasoned at and why, rather than salting once at the end
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: acid-and-balance
+    name: Acid and balance
+    description: >-
+      The reason a finished dish can taste flat while being correctly salted,
+      and the four levers — salt, acid, fat, sweetness — you have to fix it.
+    level: advanced
+    area: seasoning
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Diagnose a flat dish by naming which of the four levers is missing, and say what you added
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.07, pLearn: 0.16, pSlip: 0.14, pGuess: 0.06 }
+
+  # --- method ----------------------------------------------------------------
+  - slug: building-a-pan-sauce
+    name: Building a pan sauce
+    description: >-
+      The browned bits left in the pan are the dish. Deglazing, reducing, and
+      finishing off the heat.
+    level: advanced
+    area: method
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Turn the residue in a pan into a sauce that coats the back of a spoon
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.14, pGuess: 0.05 }
+
+  - slug: reading-a-recipe
+    name: Reading a recipe critically
+    description: >-
+      Which instructions are load-bearing and which are the author's habit, and
+      spotting the step that will not work in your kitchen before you start.
+    level: core
+    area: method
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Mark up a recipe separating what must be followed from what can be varied, with reasons
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.14, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: substitution
+    name: Substituting without breaking it
+    description: >-
+      What an ingredient is doing structurally — fat, acid, binder, liquid — and
+      therefore what can stand in for it.
+    level: advanced
+    area: method
+    evalTier: 3
+    estimatedHours: 2
+    canDoStatement: Replace an ingredient you do not have and say what function you were replacing
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.13, pGuess: 0.07 }
+
+  # --- kitchen ---------------------------------------------------------------
+  - slug: food-safety
+    name: Not poisoning anyone
+    description: >-
+      Cross-contamination, cooling, reheating and the temperatures that matter.
+      The one area of this subject with a right answer.
+    level: foundational
+    area: kitchen
+    evalTier: 3
+    estimatedHours: 1.5
+    canDoStatement: Name the specific risk in a handling scenario and the temperature or practice that removes it
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.18, pLearn: 0.22, pSlip: 0.1, pGuess: 0.12 }
+
+  - slug: cooking-from-what-you-have
+    name: Cooking from what you have
+    description: >-
+      Building a plausible dish from an inventory rather than a recipe, which is
+      what cooking actually is on a Wednesday.
+    level: specialist
+    area: kitchen
+    evalTier: 3
+    estimatedHours: 2.5
+    canDoStatement: Produce a coherent dish from a fixed ingredient list and justify the structure you chose
+    observableEvidence: [image, explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.14, pSlip: 0.15, pGuess: 0.05 }
+
+dependencies:
+  - { from: knife-control, to: mise-en-place, type: soft, strength: 0.6 }
+  - { from: mise-en-place, to: heat-control, type: hard }
+  - { from: knife-control, to: heat-control, type: hard }
+  - { from: heat-control, to: browning, type: hard }
+  - { from: heat-control, to: doneness, type: hard }
+  - { from: doneness, to: resting-and-carryover, type: hard }
+  - { from: browning, to: building-a-pan-sauce, type: hard }
+  - { from: heat-control, to: salting, type: soft, strength: 0.4 }
+  - { from: salting, to: acid-and-balance, type: hard }
+  - { from: mise-en-place, to: reading-a-recipe, type: soft, strength: 0.5 }
+  - { from: reading-a-recipe, to: substitution, type: hard }
+  - { from: acid-and-balance, to: substitution, type: soft, strength: 0.6 }
+  - { from: knife-control, to: food-safety, type: soft, strength: 0.3 }
+  - { from: substitution, to: cooking-from-what-you-have, type: hard }
+  - { from: acid-and-balance, to: cooking-from-what-you-have, type: hard }
+  - { from: building-a-pan-sauce, to: cooking-from-what-you-have, type: soft, strength: 0.5 }

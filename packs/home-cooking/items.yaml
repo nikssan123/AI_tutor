@@ -1,0 +1,337 @@
+# Diagnostic and retrieval item bank.
+#
+# §16.4 — production items outnumber multiple-choice at least 2:1.
+#
+# Only `correct` and `concepts` are read by anything. `micro_artifact` is
+# excluded from the check, so no skill may have one as its only item.
+#
+# No item asks whether something tasted good. Every one asks about a mechanism,
+# a temperature, a sequence, or something visible.
+
+items:
+  # --- knife-control ---------------------------------------------------------
+  - slug: knife-why-even
+    skill: knife-control
+    type: explain
+    difficulty: 0.25
+    prompt: >-
+      Why does it matter that the pieces are the same size, beyond looking tidy?
+      Answer in terms of what happens in the pan.
+    answerKey:
+      concepts: [small-pieces-finish-first-and-burn, large-ones-stay-raw, even-sizes-mean-one-doneness-for-the-whole-pan]
+
+  - slug: knife-grip
+    skill: knife-control
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Describe where your guiding hand's fingertips should be while cutting, and
+      what the knife rests against.
+    answerKey:
+      concepts: [fingertips-curled-under-into-a-claw, knuckles-guide-the-blade, blade-stays-in-contact-with-the-knuckles]
+
+  - slug: knife-mcq
+    skill: knife-control
+    type: mcq
+    difficulty: 0.25
+    prompt: A blunt knife is more dangerous than a sharp one mainly because…
+    options:
+      - It rusts faster
+      - It needs more force, so it slips less predictably
+      - It cuts deeper when it slips
+      - It cannot cut vegetables at all
+    answerKey: { correct: 1 }
+
+  # --- mise-en-place ---------------------------------------------------------
+  - slug: mise-sequence
+    skill: mise-en-place
+    type: explain
+    difficulty: 0.35
+    prompt: >-
+      A recipe has you chopping garlic while onions are already in a hot pan.
+      Explain what goes wrong and how you would reorder the work.
+    answerKey:
+      concepts: [onions-need-attention-and-will-catch, garlic-burns-in-under-a-minute, prep-everything-before-heat-goes-on]
+
+  - slug: mise-what-first
+    skill: mise-en-place
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Given a dish with something roasting, something simmering and something
+      fried at the last minute, say what you start first and why.
+    answerKey:
+      concepts: [longest-unattended-item-first, work-backwards-from-serving-time, the-quick-attended-thing-goes-last]
+
+  # --- heat-control ----------------------------------------------------------
+  - slug: heat-sweat-vs-sear
+    skill: heat-control
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Describe what a pan looks and sounds like when you are sweating onions
+      versus searing a steak, and what you are trying to achieve in each.
+    answerKey:
+      concepts: [sweat-is-low-and-quiet-with-no-colour, sear-is-high-and-loud-with-fast-browning, softening-versus-crust]
+
+  - slug: heat-crowding
+    skill: heat-control
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      Everything in a crowded pan goes grey and watery instead of brown. Explain
+      the mechanism, and give two fixes.
+    answerKey:
+      concepts: [released-moisture-cannot-evaporate-fast-enough, the-pan-drops-to-steaming-temperature, cook-in-batches-or-use-a-bigger-pan]
+
+  - slug: heat-mcq
+    skill: heat-control
+    type: mcq
+    difficulty: 0.3
+    prompt: Food added to a pan makes the pan temperature…
+    options:
+      - Rise, because there is more mass to heat
+      - Drop, and the more you add the further it drops
+      - Stay the same if the hob setting is unchanged
+      - Drop only for frozen food
+    answerKey: { correct: 1 }
+
+  # --- browning --------------------------------------------------------------
+  - slug: browning-dry-surface
+    skill: browning
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Why does patting a piece of meat dry before it hits the pan change the
+      result so much? Name what has to happen before browning can start.
+    answerKey:
+      concepts: [surface-water-must-boil-off-first, while-wet-the-surface-cannot-exceed-100c, browning-needs-a-much-higher-surface-temperature]
+
+  - slug: browning-look
+    skill: browning
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Describe what a good crust looks like, and one thing that looks similar
+      but means you went too far.
+    answerKey:
+      concepts: [even-deep-brown-across-the-surface, not-patchy, black-and-bitter-is-too-far]
+
+  # --- doneness --------------------------------------------------------------
+  - slug: doneness-how-you-know
+    skill: doneness
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Three ways to judge whether something is cooked: time, touch, temperature.
+      Rank them for a beginner and say why your first choice is first.
+    answerKey:
+      concepts: [temperature-is-the-only-one-that-does-not-need-experience, touch-needs-calibration-you-have-not-built, time-depends-on-thickness-and-starting-temperature]
+
+  - slug: doneness-thickness
+    skill: doneness
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Why is "cook for 8 minutes a side" unreliable across two different pieces
+      of the same cut? Name the two variables that matter most.
+    answerKey:
+      concepts: [thickness-not-weight-drives-cooking-time, starting-temperature-from-fridge-or-room]
+
+  - slug: doneness-mcq
+    skill: doneness
+    type: mcq
+    difficulty: 0.35
+    prompt: Where should a probe thermometer sit to read a piece of meat correctly?
+    options:
+      - Just under the surface, in the crust
+      - In the thickest part, away from bone
+      - Anywhere, the reading is uniform
+      - Touching the pan, to read the hottest point
+    answerKey: { correct: 1 }
+
+  # --- resting-and-carryover -------------------------------------------------
+  - slug: resting-why
+    skill: resting-and-carryover
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Explain what carry-over cooking is, and what it means for the temperature
+      you pull something off the heat at.
+    answerKey:
+      concepts: [the-outside-keeps-heating-the-inside-after-removal, temperature-continues-to-rise-several-degrees, pull-below-your-target-on-purpose]
+
+  - slug: resting-cutting-early
+    skill: resting-and-carryover
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      What visibly happens when you cut a roast straight off the heat, and how
+      long would you leave it instead?
+    answerKey:
+      concepts: [juice-runs-out-onto-the-board, meat-is-drier-as-a-result, rest-roughly-in-proportion-to-thickness]
+
+  # --- salting ---------------------------------------------------------------
+  - slug: salting-layers
+    skill: salting
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Why does salting in stages as you cook give a different result from adding
+      the same total amount at the end?
+    answerKey:
+      concepts: [salt-added-early-penetrates-rather-than-sitting-on-the-surface, each-component-seasoned-for-itself, less-total-salt-needed-for-the-same-effect]
+
+  - slug: salting-taste
+    skill: salting
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      "Season to taste" — describe what you actually do, step by step, when you
+      cannot yet tell whether it is enough.
+    answerKey:
+      concepts: [add-a-small-amount-and-stir, taste-and-wait-a-moment, repeat-until-the-flavour-lifts-rather-than-tasting-salty]
+
+  # --- acid-and-balance ------------------------------------------------------
+  - slug: balance-flat-dish
+    skill: acid-and-balance
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      A stew is correctly salted and still tastes flat. Name the most likely
+      missing element and two things you could add.
+    answerKey:
+      concepts: [acid-is-usually-what-is-missing, a-squeeze-of-lemon-or-a-splash-of-vinegar, add-a-little-and-taste-again]
+
+  - slug: balance-levers
+    skill: acid-and-balance
+    type: mcq
+    difficulty: 0.45
+    prompt: A sauce is too sharp after you added too much vinegar. Which is the most direct fix?
+    options:
+      - More salt
+      - A little fat or sweetness
+      - More vinegar to "balance" it
+      - Boil it longer
+    answerKey: { correct: 1 }
+
+  # --- building-a-pan-sauce --------------------------------------------------
+  - slug: pan-sauce-fond
+    skill: building-a-pan-sauce
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      What are the browned bits stuck to the pan, why do you want them, and what
+      happens when you add liquid to a hot pan containing them?
+    answerKey:
+      concepts: [fond-is-concentrated-browned-flavour, liquid-dissolves-it-off-the-base, scrape-while-it-bubbles-then-reduce]
+
+  - slug: pan-sauce-finish
+    skill: building-a-pan-sauce
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      Why is butter usually added off the heat at the end, and what goes wrong
+      if it goes in while the pan is boiling?
+    answerKey:
+      concepts: [off-heat-butter-emulsifies-into-the-sauce, boiling-splits-it-into-oil-and-solids, gives-the-gloss-and-body]
+
+  # --- reading-a-recipe ------------------------------------------------------
+  - slug: recipe-load-bearing
+    skill: reading-a-recipe
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      Take any recipe. Name two instructions that must be followed exactly and
+      two that are the author's preference, and say how you told them apart.
+    answerKey:
+      concepts: [ratios-temperatures-and-timings-that-affect-structure-are-load-bearing, garnish-and-brand-and-pan-shape-usually-are-not, ask-what-breaks-if-i-change-this]
+
+  - slug: recipe-mcq
+    skill: reading-a-recipe
+    type: mcq
+    difficulty: 0.3
+    prompt: Which instruction is most likely to be load-bearing rather than preference?
+    options:
+      - "Use a wooden spoon"
+      - "Add the eggs one at a time, beating between each"
+      - "Serve with a green salad"
+      - "Use a 24cm pan if you have one"
+    answerKey: { correct: 1 }
+
+  # --- substitution ----------------------------------------------------------
+  - slug: substitute-function
+    skill: substitution
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Before replacing an ingredient, what question do you ask about it? Work
+      through it for buttermilk in a cake.
+    answerKey:
+      concepts: [ask-what-job-it-does-here, buttermilk-is-acid-and-liquid-reacting-with-raising-agent, milk-plus-lemon-juice-covers-both-jobs]
+
+  - slug: substitute-fails
+    skill: substitution
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      Give an example of a substitution that looks reasonable and breaks the
+      dish, and say which function was missed.
+    answerKey:
+      concepts: [names-a-concrete-swap, names-the-function-lost-structure-or-acid-or-fat, says-what-visibly-went-wrong]
+
+  # --- food-safety -----------------------------------------------------------
+  - slug: safety-board
+    skill: food-safety
+    type: explain
+    difficulty: 0.3
+    prompt: >-
+      Raw chicken has been cut on a board. Say exactly what happens next before
+      that board is used for salad, and what the risk is.
+    answerKey:
+      concepts: [wash-with-hot-soapy-water-or-use-a-separate-board, cross-contamination-of-ready-to-eat-food, the-salad-will-not-be-cooked-afterwards]
+
+  - slug: safety-cooling
+    skill: food-safety
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      A large pot of stew is going in the fridge. Why is putting it in hot, as
+      one big pot, the wrong move — and what do you do instead?
+    answerKey:
+      concepts: [it-cools-too-slowly-through-the-danger-zone, and-warms-everything-else-in-the-fridge, divide-into-shallow-containers-to-cool-fast]
+
+  - slug: safety-mcq
+    skill: food-safety
+    type: mcq
+    difficulty: 0.3
+    prompt: Reheating leftovers, the thing that matters most is…
+    options:
+      - Reheating slowly to protect texture
+      - Getting all of it piping hot the whole way through
+      - Only reheating once for flavour
+      - Using the same pan it was cooked in
+    answerKey: { correct: 1 }
+
+  # --- cooking-from-what-you-have --------------------------------------------
+  - slug: inventory-structure
+    skill: cooking-from-what-you-have
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Given eggs, an onion, some rice, half a lemon and whatever is in the spice
+      drawer, describe the *structure* of a dish you would build — not a recipe.
+      Say what plays each role.
+    answerKey:
+      concepts: [names-a-base-and-a-protein-and-an-acid-and-a-seasoning, says-which-ingredient-fills-each-role, sequence-that-cooks-them-in-the-right-order]
+
+  - slug: inventory-cook
+    skill: cooking-from-what-you-have
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Cook a dish from what is in your kitchen right now, without looking up a
+      recipe. Submit a photograph and the method you followed, including what
+      you decided as you went.
+    answerKey:
+      concepts: [coherent-dish-not-a-pile, method-shows-decisions-not-just-steps, seasoning-points-named]

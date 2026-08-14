@@ -195,9 +195,11 @@ describe("loadAllPacks", () => {
     // disk fails here instead of quietly shrinking the product.
     expect(loadAllPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
+      "home-cooking",
       "personal-finance",
       "photography",
       "python-fundamentals",
+      "spanish-reading-writing",
       "sql-data-analysis",
       "statistics-data-literacy",
     ]);

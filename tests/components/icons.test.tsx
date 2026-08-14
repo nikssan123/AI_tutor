@@ -7,8 +7,10 @@ import {
   CalendarIcon,
   CameraIcon,
   ChecklistIcon,
+  CraftIcon,
   DatabaseIcon,
   GridIcon,
+  LanguageIcon,
   MasteryIcon,
   PenIcon,
   ProgressIcon,
@@ -16,6 +18,7 @@ import {
   SubjectIcon,
   TodayIcon,
 } from "@/components/icons";
+import { CATEGORIES } from "@/lib/content/categories";
 
 /**
  * The icon set's rules are the kind that rot silently — one icon added with a
@@ -38,6 +41,8 @@ const ALL = [
   ["ProgressIcon", ProgressIcon],
   ["AccountIcon", AccountIcon],
   ["ArrowIcon", ArrowIcon],
+  ["CraftIcon", CraftIcon],
+  ["LanguageIcon", LanguageIcon],
 ] as const;
 
 describe("the icon set", () => {
@@ -104,16 +109,27 @@ describe("SubjectIcon — §7.3 rule 1, adding a domain is a data change", () =>
     // generator emits. It used to key on `technical-entry` and
     // `professional-business` — values no generated pack has ever produced, so
     // every generated subject fell through to the grid.
-    const business = marks("business");
-    const creative = marks("creative");
-    const technical = marks("technology");
+    expect(marks("business")).toBe(render(<PenIcon />).container.innerHTML);
+    expect(marks("creative")).toBe(render(<CameraIcon />).container.innerHTML);
+    expect(marks("technology")).toBe(render(<DatabaseIcon />).container.innerHTML);
+    expect(marks("craft")).toBe(render(<CraftIcon />).container.innerHTML);
+    expect(marks("language")).toBe(render(<LanguageIcon />).container.innerHTML);
+  });
 
-    expect(business).toBe(render(<PenIcon />).container.innerHTML);
-    expect(creative).toBe(render(<CameraIcon />).container.innerHTML);
-    expect(technical).toBe(render(<DatabaseIcon />).container.innerHTML);
+  /**
+   * Derived from `CATEGORIES` rather than listed here, so a category added
+   * without a mark fails instead of silently drawing the neutral grid — which
+   * is what "unknown branch" is supposed to mean, and would stop meaning
+   * anything if a named category could land there too.
+   */
+  it("draws every named category distinctly, and none of them as the fallback", () => {
+    const grid = render(<GridIcon />).container.innerHTML;
+    const drawn = CATEGORIES.map((c) => marks(c.slug));
 
-    // Distinct, or the mapping is decorative rather than informative.
-    expect(new Set([business, creative, technical]).size).toBe(3);
+    for (const [i, mark] of drawn.entries()) {
+      expect(mark, CATEGORIES[i]!.slug).not.toBe(grid);
+    }
+    expect(new Set(drawn).size, "two categories share a mark").toBe(drawn.length);
   });
 
   it("falls back to the neutral grid for an unknown taxonomy", () => {

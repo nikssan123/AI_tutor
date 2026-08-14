@@ -141,7 +141,7 @@ describe("landing page (§8 screen 1)", () => {
     expect(curated.length).toBeLessThan(allTopics().length);
 
     expect(
-      screen.getByRole("heading", { name: `${allTopics().length} subjects, in three kinds` }),
+      screen.getByRole("heading", { name: `${allTopics().length} subjects, grouped by kind` }),
     ).toBeDefined();
   });
 

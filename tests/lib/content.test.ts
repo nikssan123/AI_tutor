@@ -30,9 +30,11 @@ describe("allPacks", () => {
     expect(allPacks()).toBe(allPacks());
     expect(allPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
+      "home-cooking",
       "personal-finance",
       "photography",
       "python-fundamentals",
+      "spanish-reading-writing",
       "sql-data-analysis",
       "statistics-data-literacy",
     ]);
@@ -238,8 +240,16 @@ describe("topicSummary", () => {
 
 describe("allTopics", () => {
   it("sorts by name so the listing is stable", () => {
+    /*
+     * Compared with the same comparator `allTopics` uses. This asserted against
+     * a bare `.sort()`, which orders by UTF-16 code unit — so it agreed only
+     * while no two names differed by case in their first few characters. "SQL &
+     * Data Analysis" and "Spanish: Reading & Writing" are the pair that broke
+     * it: a bare sort puts SQL first because 'Q' (81) precedes 'p' (112), and a
+     * reader looking for an alphabetical list expects Spanish first.
+     */
     const names = allTopics().map((t) => t.name);
-    expect([...names].sort()).toEqual(names);
+    expect([...names].sort((a, b) => a.localeCompare(b))).toEqual(names);
   });
 });
 

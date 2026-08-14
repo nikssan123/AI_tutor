@@ -42,6 +42,16 @@ export const CATEGORIES: Category[] = [
     name: "Creative",
     blurb: "Making things people look at, where the craft can be checked even when taste cannot.",
   },
+  {
+    slug: "craft",
+    name: "Craft & making",
+    blurb: "Skills whose result is a physical thing, judged from a photograph of it and your account of how you got there.",
+  },
+  {
+    slug: "language",
+    name: "Languages",
+    blurb: "Reading and writing another language. Speaking is not assessed here yet, and every subject in this branch says so.",
+  },
 ];
 
 /**

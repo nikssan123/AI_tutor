@@ -457,7 +457,11 @@ export default function HomePage() {
           <SectionHead
             step="04"
             label="What's here"
-            title={`${topics.length} subjects, in three kinds`}
+            /* No count of categories in the heading. "in three kinds" lasted
+               exactly as long as it took to add a fourth — the same hardcoded
+               count that made this page claim a three-subject site twice. The
+               cards below are the breadth signal; the reader counts them. */
+            title={`${topics.length} subjects, grouped by kind`}
             icon={<GridIcon />}
           />
 
