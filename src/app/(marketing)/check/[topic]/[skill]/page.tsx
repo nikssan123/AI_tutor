@@ -150,7 +150,7 @@ export default async function CheckPage({
   const now = new Date().toISOString();
   const state = replay(cookie, skills, items, now);
   const budget = budgetFor(ref, items);
-  const scope = scopeFor(ref);
+  const scope = scopeFor(pack, ref);
 
   /*
    * The running screens keep the narrow column (§8.5.9's task-screen exception)
@@ -205,6 +205,7 @@ export default async function CheckPage({
         asked={state.asked.length}
         budget={budget}
         action={submitAnswer.bind(null, ref)}
+        refusal={cookie.e}
       />,
     );
   }

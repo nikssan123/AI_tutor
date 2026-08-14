@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { anonymousBudgetSpent, logCall } from "@/lib/ai/runlog";
 import { gradeCheck } from "@/lib/session/grade";
+import { gradePhoto, IMAGE_TYPES, MAX_IMAGE_BYTES } from "./photo";
 
 /**
  * Whether an open answer in the anonymous Skill Check gets marked, and by whom.
@@ -104,5 +105,94 @@ export async function markOpenAnswer(
     // unreachable model as a correct answer would put mastery on the board
     // with nothing under it.
     return null;
+  }
+}
+
+
+/**
+ * A photograph, and what stopped it being marked when something did.
+ *
+ * The two upload failures are told apart from the four in `markOpenAnswer`
+ * deliberately. "No key today" is ours and the learner marks their own work
+ * instead; "that file is 20MB" is theirs and no amount of falling back will
+ * help — they need to be told, in a sentence that says what to do. Returning
+ * the reason rather than null is what lets the screen say the right one.
+ */
+export type PhotoRefusal = "too-big" | "wrong-type";
+
+export interface PhotoOutcome {
+  marking: Marking | null;
+  /** Set only when the file itself was the problem. */
+  refused: PhotoRefusal | null;
+}
+
+export interface PhotoAnswer {
+  question: string;
+  expected: string;
+  /** The uploaded file, straight off the form. */
+  file: File;
+  /** Anything typed alongside it. */
+  note: string;
+}
+
+/**
+ * Marks a photograph, or explains why it could not.
+ *
+ * Same spending rules as a written answer — no key, no budget, an unreadable
+ * ledger and a failed call all fall back to the learner marking themselves —
+ * with the file's own two refusals in front of them, because those are cheaper
+ * to answer and are the learner's to fix.
+ *
+ * **The image is never stored.** It is read into memory, sent with the request,
+ * and dropped when this returns. What survives is the verdict and one or two
+ * sentences of feedback.
+ */
+export async function markPhotoAnswer(
+  deps: MarkDeps,
+  answer: PhotoAnswer,
+): Promise<PhotoOutcome> {
+  if (!IMAGE_TYPES.includes(answer.file.type as (typeof IMAGE_TYPES)[number])) {
+    return { marking: null, refused: "wrong-type" };
+  }
+  if (answer.file.size > MAX_IMAGE_BYTES) {
+    return { marking: null, refused: "too-big" };
+  }
+
+  if (deps.client === null) return { marking: null, refused: null };
+
+  let db: Db;
+  try {
+    db = deps.db();
+    if (await anonymousBudgetSpent(db, deps.now)) {
+      return { marking: null, refused: null };
+    }
+  } catch {
+    return { marking: null, refused: null };
+  }
+
+  try {
+    const data = Buffer.from(await answer.file.arrayBuffer()).toString("base64");
+    const result = await logCall(
+      db,
+      null,
+      await gradePhoto(deps.client, {
+        question: answer.question,
+        expected: answer.expected,
+        mediaType: answer.file.type,
+        data,
+        note: answer.note,
+      }),
+      deps.now,
+    );
+
+    return {
+      marking:
+        result.status === "ok"
+          ? { correct: result.value.correct, feedback: result.value.feedback }
+          : null,
+      refused: null,
+    };
+  } catch {
+    return { marking: null, refused: null };
   }
 }

@@ -78,14 +78,19 @@ describe("before it starts", () => {
   });
 
   /**
-   * Not a fixture curiosity: most photography skills carry exactly one usable
-   * question today, so a one-question deep check is the ordinary case. It is
-   * also the clearest statement of the item-bank gap a visitor can see — the
-   * page promises what it can actually ask, and no more.
+   * Not a fixture curiosity: twenty skills across the catalogue have exactly
+   * one question a check can ask, so a one-question deep check is an ordinary
+   * case. It is also the clearest statement of the item-bank gap a visitor can
+   * see — the page promises what it can actually ask, and no more.
+   *
+   * Written subjects are where it bites hardest, because their work cannot be
+   * handed in here at all: a memo is §7.3's Text workspace, which the check has
+   * no way to take, so the artefact question stays out and the pool is whatever
+   * prose was written for it.
    */
   it("says 'question' when the bank holds exactly one", async () => {
-    const ref = { topic: TOPIC, skill: "focus-accuracy" };
-    expect(narrow(pack, ref).items).toHaveLength(1);
+    const ref = { topic: "business-writing", skill: "executive-summary" };
+    expect(narrow(findPack(ref.topic)!, ref).items).toHaveLength(1);
 
     render(await page.default({ params: Promise.resolve(ref) }));
     expect(screen.getByText(/Up to 1 question on this skill/)).toBeDefined();

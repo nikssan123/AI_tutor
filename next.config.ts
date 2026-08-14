@@ -8,6 +8,18 @@ const config: NextConfig = {
   },
   // §13.2 — no trailing slash, slugs immutable once indexed.
   trailingSlash: false,
+  experimental: {
+    /*
+     * §7.3's photograph, uploaded to the Skill Check.
+     *
+     * Server Actions default to a 1MB body, which every photo off a phone
+     * exceeds — the upload would fail before any of our own validation ran, and
+     * the learner would see a platform error rather than a sentence. This is
+     * `MAX_IMAGE_BYTES` plus room for the multipart wrapper; anything larger is
+     * refused by `markPhotoAnswer` with something worth reading.
+     */
+    serverActions: { bodySizeLimit: "5mb" },
+  },
   // §13.2 — `/skills/{skill}` is a permanent redirect to the check page.
   async redirects() {
     return [

@@ -2477,3 +2477,136 @@ coverage question — a longer check, a narrower one, or item selection that
 concentrates once it is nearly sure — and it is a decision rather than a defect.
 
 3193 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+
+---
+
+# Delivery record — pass 27: a check that can settle one skill, and take a photograph
+
+`src/lib/check/run.ts`, `photo.ts`, `src/components/check-screens.tsx`, the
+per-skill check at `/check/{topic}/{skill}`, and a `settled` rule in the
+diagnostic engine. Two model calls, one of them multimodal.
+
+## The measurement this started from
+
+Pass 26 left §24 E4 owing one thing: nine questions across twenty-six skills
+cannot give any single skill the three-to-five observations the BKT needs, so
+the broad check *locates* a learner and can never prove anything. The obvious
+fix — a longer check — costs 60–90 minutes and kills the conversion surface it
+sits on (§19.3).
+
+The fix that works is to stop spreading. A check that spends its whole budget on
+one skill can clear the bar; §24 E11 has had `/check/{skill}` on its output list
+since it was written; and the page for it already existed, saying "you cannot
+check this skill on its own yet".
+
+## Two rules, one of which was missing from the engine
+
+**`settled`.** A skill is done with when the belief clears `MASTERY_TARGET` or
+`MAX_PER_SKILL` questions have gone into it. `selectNextItem` filters on it and
+`isComplete` ends on it, so a check stops asking about a skill it has decided.
+The broad check's behaviour is unchanged in practice — on nine questions over
+twenty-six skills nothing ever settles — which is exactly why the rule was
+never missed.
+
+**`CheckRef`.** One subject, optionally one skill, and everything that differs
+between the two checks derives from it: the cookie, the item pool, the budget,
+the path, and whether §7.3's artefacts are on the table. One set of actions and
+one set of screens serve both. Two would be two places deciding what a marked
+answer is worth, and the copy about what counts is the copy nobody thinks to
+update twice.
+
+## The photograph
+
+`micro_artifact` items — "photograph three objects at different distances so
+exactly the middle one is sharp" — have always been excluded from the check, on
+the correct grounds that a ten-minute assessment cannot ask for a piece of work.
+On a page somebody opened to prove one skill, it is the best thing to ask, and
+the only question type in the product that produces tier-3 evidence rather than
+talk about it.
+
+- **Gated on the skill's own declared evidence.** Photography and cooking skills
+  declare `observableEvidence: [image, …]`; business writing declares
+  `[document]`. A memo is §7.3's Text workspace, which this cannot take, and
+  printing "write a memo" over a textarea would be asking for a description of
+  the work.
+- **Marked on the technique, never the taste.** §7.2's tier 3 licenses
+  "technical feedback; aesthetic judgement is yours", and every tier-3 page
+  prints that sentence. The prompt is told in as many words that whether the
+  photograph is *good* is not its business.
+- **Nothing is stored.** The file is read, sent, marked and dropped. That is
+  cheaper, it removes an entire privacy surface from an anonymous page, and it
+  is a promise the page can make in plain words — "we do not keep it".
+- **Worth more than prose.** `ARTEFACT_CONFIDENCE` is 0.7 against
+  `CHECK_CONFIDENCE`'s 0.45 — the top of tier 3's declared band, because the
+  frame is the thing itself rather than a description of it. The cookie records
+  `k` alongside `g` so a replay rebuilds the same mastery the learner was shown.
+
+**Sonnet, not Haiku**, and it is the only step of a check that is not on the
+fast tier. What the call does is look at a photograph and say whether it
+demonstrates a technique; the page then prints that we marked it, and a weaker
+eye would make that claim cheaper and less true.
+
+## What the browser found
+
+**The closed branch was swallowing artefacts.** `needsSelfMark` is false for a
+`micro_artifact` as well as for an mcq — one means "the learner cannot mark
+this", the other "nobody has to" — so whichever branch ran first caught it. A
+photograph was being graded as a wrong multiple-choice answer, silently and
+against the learner. Found by a test that expected `{c: 1, g: 1, k: 1}` and got
+`{c: 0}`.
+
+**A skill whose questions are all artefacts offers a check with nothing in it.**
+The fixture's `beta` is one, and the page was showing "Up to 0 questions" behind
+a Start button — worse than the apology it replaced. It says the true thing now
+and points at a graded project.
+
+**The grader will not be fooled by something that is not the work.** Two runs
+against the real model, both refused: a synthetic PNG ("a flat, uniformly sharp
+graphic … no plane of focus, no blur gradient") and a canvas image drawn in the
+browser ("repeated 'SHARP' text over blurred colored circles, not a photograph
+of three real objects"). Each said what a qualifying frame would show. That is
+the strongest evidence available that the feature is honest: it does not award
+credit for effort.
+
+## Numbers, measured rather than estimated
+
+| | |
+|---|---|
+| A written answer | **0.19¢**, ~2.1s (Haiku 4.5) |
+| A photograph | **1.09¢**, ~4.0s (Sonnet 5) |
+| Observations to clear the bar | 3 closed · 4–5 written · ~3 photographs |
+| Skills whose deep check can ask **one** question | **20**, across the catalogue |
+
+The last row is the thing to fix next, and it is authoring rather than code.
+
+## Notes
+
+- `serverActions.bodySizeLimit` is 5MB. The default is 1MB, which every photo
+  off a phone exceeds — the upload would have failed before any of our own
+  validation ran, and the learner would have seen a platform error instead of a
+  sentence.
+- An upload refusal is a *state*, not an error: the file was not accepted, so
+  the question has not been answered, and the same question comes back with a
+  sentence saying what to do. It clears the moment another answer arrives.
+- Nothing is resized on the way. Adding an image pipeline to a marketing route
+  to save a fraction of a cent would be the wrong trade, and the API downscales
+  anything above its working resolution itself.
+- `SKILL_CHECKS_ARE_NEVER_INDEXED` is gone. It kept two pages in step while
+  their tools differed; they no longer differ, and both are in the sitemap on
+  their pack's own gate.
+- The per-skill pages are one per skill of an indexable pack rather than a
+  chosen few. Each settles a different skill, which is the difference between
+  this and the combinatorial pages §12 rules out.
+
+## Still open
+
+Unchanged: E8's hand-graded corpus, E10's two outputs behind E12's content,
+Lighthouse and GSC/Bing behind a deployed origin.
+
+**The item bank**, now the whole of what E4 owes and visible on a page: 229
+questions across the seven packs would give every skill four, which is what a
+deep check needs to settle one. Weighting them towards closed items is worth
+doing at the same time — three closed answers clear the bar where five written
+ones are needed, and marking them costs nothing.
+
+3245 tests, 100% on all four metrics for every file in this pass.

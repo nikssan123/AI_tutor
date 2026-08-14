@@ -1,6 +1,7 @@
 import { Button, Meta, stagger, Status, Title } from "@/components/ui";
 import { MAX_ANSWER, needsSelfMark, type Marked } from "@/lib/check/session";
-import type { DiagnosticItem } from "@/lib/engine/diagnostic";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/check/photo";
+import { gradingModeFor, type DiagnosticItem } from "@/lib/engine/diagnostic";
 
 /**
  * The three screens in the middle of a running check.
@@ -43,8 +44,20 @@ export function QuestionScreen({
   asked,
   budget,
   action,
-}: Progress & { item: DiagnosticItem; action: Submit }) {
+  refusal,
+}: Progress & {
+  item: DiagnosticItem;
+  action: Submit;
+  /** An upload the learner has to fix; the question has not been answered. */
+  refusal?: "too-big" | "wrong-type" | undefined;
+}) {
   const closed = !needsSelfMark(item);
+  /*
+   * §7.3 — the one question type that asks for the work itself. It reaches this
+   * screen only on a deep check about a skill whose evidence is a photograph
+   * (`scopeFor`), so a file input is always the right control when it does.
+   */
+  const artefact = gradingModeFor(item.type) === "excluded";
 
   return (
     <>
@@ -54,14 +67,60 @@ export function QuestionScreen({
             when the grader is reachable and inside the day's budget, and marked
             by the learner when it is not. The screen after this one says which
             happened. */}
-        {closed ? " · marked automatically" : " · a written answer"}
+        {artefact
+          ? " · a photograph"
+          : closed
+            ? " · marked automatically"
+            : " · a written answer"}
       </Meta>
       <Title>{item.prompt}</Title>
+
+      {refusal ? (
+        <Status tone="problem">
+          {refusal === "too-big"
+            ? `That file is over ${Math.round(MAX_IMAGE_BYTES / 1_000_000)}MB. Export it smaller — a photo off a phone is usually fine as it is.`
+            : "That file is not an image we can read. JPEG, PNG or WebP."}
+        </Status>
+      ) : null}
 
       <form action={action} className="flex flex-col gap-5">
         <input type="hidden" name="item" value={item.slug} />
 
-        {closed ? (
+        {artefact ? (
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-2">
+              <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                Your photograph
+              </span>
+              <input
+                type="file"
+                name="photo"
+                required
+                accept={IMAGE_TYPES.join(",")}
+                className="text-[length:var(--text-label-size)] text-ink-muted file:mr-4 file:min-h-[var(--touch-min)] file:rounded-[var(--radius-control)] file:border-0 file:bg-accent file:px-5 file:font-[550] file:text-on-accent"
+              />
+            </label>
+            {/* Said before the upload rather than after it fails, because the
+                failure costs a phone user a real wait on a real connection. */}
+            <Meta>
+              JPEG, PNG or WebP, up to{" "}
+              {Math.round(MAX_IMAGE_BYTES / 1_000_000)}MB. It is marked on what
+              the frame shows and then discarded — we do not keep it.
+            </Meta>
+            <label className="flex flex-col gap-2">
+              <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                Anything you want to say about it
+              </span>
+              <textarea
+                name="response"
+                rows={3}
+                maxLength={MAX_ANSWER}
+                placeholder="Optional"
+                className="rounded-[var(--radius-control)] border border-hairline bg-surface p-4 text-ink placeholder:text-ink-faint"
+              />
+            </label>
+          </div>
+        ) : closed ? (
           <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-raised)] overflow-hidden">
             {/* The validator rejects any mcq with fewer than two options. */}
             {item.options!.map((option, i) => (

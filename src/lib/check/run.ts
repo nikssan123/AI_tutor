@@ -51,22 +51,36 @@ export function pathFor(ref: CheckRef): string {
 }
 
 /**
- * §7.3's artefacts, and why neither check asks for one yet.
+ * Whether a skill's work can be handed in here at all.
+ *
+ * A photograph can: it uploads, a multimodal model marks it against the
+ * technical criteria (§7.2 tier 3), and nothing is kept. A spreadsheet, a query
+ * or a repository cannot — those are §7.3's other workspaces, and until they
+ * exist a check that asked for one would be asking for a *description* of the
+ * work, which is a different and much weaker thing.
+ *
+ * So the gate is the skill's own declared evidence, from the pack.
+ */
+export function takesPhotos(pack: DomainPack, skillSlug: string): boolean {
+  const skill = pack.skills.find((s) => s.slug === skillSlug);
+  return skill?.observableEvidence.includes("image") === true;
+}
+
+/**
+ * §7.3's artefacts: on for a deep check about a skill whose work is a photo,
+ * off everywhere else.
  *
  * A `micro_artifact` asks for a piece of work — "photograph a scene that
  * exceeds your sensor's range", "cook a dish from what is in your kitchen". In
  * a ten-minute check across fifteen skills that is an absurd thing to ask, and
- * the engine has always excluded them. On a page somebody opened to prove one
+ * the broad check still excludes them. On a page somebody opened to prove one
  * particular skill it is the *best* thing to ask, and it is the only question
- * type that produces §7.2's tier-3 evidence rather than talk about it.
- *
- * It stays off until there is a way to answer one. A check that prints
- * "photograph a scene" over a textarea is asking for a description of a
- * photograph, which is a different and much weaker thing, and marking it as
- * though it were the work is exactly §4.2 law 3's overclaim.
+ * type in the product that produces tier-3 evidence rather than talk about it.
  */
-export function scopeFor(_ref: CheckRef): CheckScope {
-  return { artefacts: false };
+export function scopeFor(pack: DomainPack, ref: CheckRef): CheckScope {
+  return {
+    artefacts: ref.skill !== undefined && takesPhotos(pack, ref.skill),
+  };
 }
 
 /**
@@ -95,7 +109,7 @@ export function narrow(
   ref: CheckRef,
 ): { skills: DiagnosticSkill[]; items: DiagnosticItem[] } {
   const all = toDiagnostic(pack);
-  const scope = scopeFor(ref);
+  const scope = scopeFor(pack, ref);
 
   // Filtered here as well as in `selectNextItem`, because the *count* is what
   // decides the budget and what the page promises — "up to four questions" has

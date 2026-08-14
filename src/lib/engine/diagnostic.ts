@@ -1,5 +1,10 @@
 import { applyObservation, effectiveMastery, initialMastery } from "./bkt";
-import { CHECK_CONFIDENCE, evidenceTierFor, MASTERY_TARGET } from "./scoring";
+import {
+  ARTEFACT_CONFIDENCE,
+  CHECK_CONFIDENCE,
+  evidenceTierFor,
+  MASTERY_TARGET,
+} from "./scoring";
 import type { BktPriors, EvalTier, MasteryState } from "./types";
 
 /**
@@ -27,12 +32,13 @@ import type { BktPriors, EvalTier, MasteryState } from "./types";
  * was always meant to close that, and `session/grade.ts` had already built it
  * for the signed-in session.
  *
- * So an open answer now has three possible fates, and the mode is recorded
- * rather than inferred: `auto` when a closed item was checked, `graded` when
- * the model marked prose, `self` when it could not — no key, no budget, or a
- * call that failed. **The Tier 5 rule is untouched**: a self-marked answer
- * still moves nothing, and the check still says plainly which of its answers
- * counted.
+ * So an answer now has four possible fates, and the mode is recorded rather
+ * than inferred: `auto` when a closed item was checked, `graded` when the model
+ * marked prose, `artefact` when it marked a piece of work the learner made
+ * (§7.3's photograph, on the deep check), and `self` when none of those could
+ * happen — no key, no budget, or a call that failed. **The Tier 5 rule is
+ * untouched**: a self-marked answer still moves nothing, and the check still
+ * says plainly which of its answers counted.
  */
 
 /** How a response to this item can honestly be judged with no evaluator. */
@@ -80,11 +86,12 @@ export interface AskedItem {
   skillSlug: string;
   /**
    * How the answer was decided. `auto` is an equality test on a closed item,
-   * `graded` is §14.2's Assessment Agent marking prose, `self` is the learner
+   * `graded` is §14.2's Assessment Agent marking prose, `artefact` is the same
+   * agent marking a piece of work the learner made, and `self` is the learner
    * marking themselves against a revealed key — which §7.2 calls Tier 5 and
    * which therefore never moves mastery.
    */
-  mode: "auto" | "graded" | "self";
+  mode: "auto" | "graded" | "artefact" | "self";
   correct: boolean;
 }
 
@@ -258,6 +265,12 @@ export function gradeAuto(item: DiagnosticItem, response: string): boolean {
 export interface Marking {
   /** §7.2's tier for the skill, so a written answer cannot outrank its domain. */
   skillTier: EvalTier;
+  /**
+   * Whether what was marked was a piece of work rather than an answer about
+   * one. A photograph that shows the thing is direct evidence and moves the
+   * belief further — see `ARTEFACT_CONFIDENCE`.
+   */
+  artefact?: boolean;
 }
 
 export function recordResponse(
@@ -270,7 +283,13 @@ export function recordResponse(
   marking?: Marking,
 ): DiagnosticState {
   const auto = gradingModeFor(item.type) === "auto";
-  const mode = auto ? "auto" : marking ? "graded" : "self";
+  const mode = auto
+    ? "auto"
+    : marking === undefined
+      ? "self"
+      : marking.artefact === true
+        ? "artefact"
+        : "graded";
   const current = state.mastery[item.skill]!;
 
   /*
@@ -285,13 +304,14 @@ export function recordResponse(
   const observation =
     mode === "auto"
       ? { correct, confidence: AUTO_CONFIDENCE, evidenceTier: 1 as EvalTier }
-      : mode === "graded"
-        ? {
+      : mode === "self"
+        ? { correct, confidence: 0.3, evidenceTier: 5 as EvalTier }
+        : {
             correct,
-            confidence: CHECK_CONFIDENCE,
+            confidence:
+              mode === "artefact" ? ARTEFACT_CONFIDENCE : CHECK_CONFIDENCE,
             evidenceTier: evidenceTierFor(marking!.skillTier),
-          }
-        : { correct, confidence: 0.3, evidenceTier: 5 as EvalTier };
+          };
 
   const { state: next } = applyObservation(current, priors, observation, nowIso);
 

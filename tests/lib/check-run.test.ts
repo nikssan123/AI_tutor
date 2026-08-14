@@ -6,6 +6,7 @@ import {
   narrow,
   pathFor,
   scopeFor,
+  takesPhotos,
 } from "@/lib/check/run";
 import {
   DEFAULT_BUDGET,
@@ -98,9 +99,10 @@ describe("the pool a check draws from", () => {
    * and marking it as though it were the work is the overclaim. Photography
    * carries fifteen of them, so this is not a hypothetical filter.
    */
-  it("leaves out work nobody can hand in from a check", () => {
-    expect(scopeFor(deep).artefacts).toBe(false);
-    expect(scopeFor(broad).artefacts).toBe(false);
+  it("leaves work out of the broad check, whatever the skill takes", () => {
+    // Nine questions across fifteen skills cannot ask someone to go and take a
+    // photograph, so the subject check never offers one.
+    expect(scopeFor(pack(), broad).artefacts).toBe(false);
 
     const excluded = pack().items.filter(
       (i) => gradingModeFor(i.type) === "excluded",
@@ -111,11 +113,41 @@ describe("the pool a check draws from", () => {
     for (const item of excluded) expect(offered.has(item.slug)).toBe(false);
   });
 
+  /**
+   * §7.3 — a photograph can be handed in and marked; a spreadsheet, a query or
+   * a repository cannot yet. The gate is the skill's own declared evidence, so
+   * a deep check offers the work only where the work is a photo.
+   */
+  it("offers the work on a deep check only where it is a photograph", () => {
+    expect(takesPhotos(pack(), "depth-of-field")).toBe(true);
+    expect(scopeFor(pack(), deep).artefacts).toBe(true);
+    expect(
+      narrow(pack(), deep).items.some(
+        (i) => gradingModeFor(i.type) === "excluded",
+      ),
+    ).toBe(true);
+
+    // A subject whose evidence is a document or a query keeps them out.
+    const writing = findPack("business-writing")!;
+    const skill = writing.skills.find(
+      (s) => !s.observableEvidence.includes("image"),
+    )!;
+    expect(
+      scopeFor(writing, { topic: writing.slug, skill: skill.slug }).artefacts,
+    ).toBe(false);
+  });
+
   it("counts the budget off what it would actually ask", () => {
     // The number the page promises comes from here, so a pool that counted
-    // unanswerable items would promise a question the check cannot ask.
-    const items = narrow(pack(), deep).items;
-    for (const item of items) {
+    // unanswerable items would promise a question the check cannot ask. A
+    // photography skill's own work *is* answerable, so it counts; a written
+    // subject's is not, and does not.
+    const writing = findPack("business-writing")!;
+    const skill = writing.skills.find(
+      (s) => !s.observableEvidence.includes("image"),
+    )!;
+
+    for (const item of narrow(writing, { topic: writing.slug, skill: skill.slug }).items) {
       expect(gradingModeFor(item.type)).not.toBe("excluded");
     }
   });

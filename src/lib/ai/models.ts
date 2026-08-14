@@ -68,6 +68,17 @@ export const STEP_MODELS = {
    * and a two-line recall answer is not work for the standard tier.
    */
   checkGrader: "fast",
+  /**
+   * §7.2 tier 3 — "multimodal rubric grading against technical criteria only".
+   *
+   * The standard tier rather than the fast one, and it is the only step in the
+   * check that is not on Haiku. What this call does is *look at a photograph*
+   * and say whether it demonstrates the thing that was asked for; the claim the
+   * page then prints is that we marked it. A weaker eye would make that claim
+   * cheaper and less true, which is the wrong direction on the one question
+   * type that produces tier-3 evidence rather than talk about it.
+   */
+  checkPhotoGrader: "standard",
   artifactIngestor: "fast",
   rubricGrader: "deep",
   consistencyPass: "deep",
@@ -108,6 +119,7 @@ export const STEP_EFFORT = {
   consistencyPass: "medium",
   coherenceCheck: null,
   checkGrader: null,
+  checkPhotoGrader: null,
   reflectionAgent: null,
 } as const satisfies Record<
   keyof typeof STEP_MODELS,

@@ -5,8 +5,12 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAnthropic, hasApiKey } from "@/lib/ai/client";
 import { findPack } from "@/lib/content";
-import { gradeAuto, type DiagnosticItem } from "@/lib/engine/diagnostic";
-import { markOpenAnswer } from "@/lib/check/mark";
+import {
+  gradeAuto,
+  gradingModeFor,
+  type DiagnosticItem,
+} from "@/lib/engine/diagnostic";
+import { markOpenAnswer, markPhotoAnswer } from "@/lib/check/mark";
 import { cookieFor, narrow, pathFor, type CheckRef } from "@/lib/check/run";
 import {
   decode,
@@ -95,7 +99,10 @@ export async function submitAnswer(
   ref: CheckRef,
   formData: FormData,
 ): Promise<void> {
-  const cookie = await read(ref);
+  // Any previous upload refusal is dropped here rather than in each branch: the
+  // learner is answering again, so whatever the last file was wrong about is
+  // over. Only the refusal branch below puts one back.
+  const { e: _cleared, ...cookie } = await read(ref);
   const slug = String(formData.get("item") ?? "");
   const pack = findPack(ref.topic);
   const item = itemsFor(ref).find((i) => i.slug === slug);
@@ -104,6 +111,67 @@ export async function submitAnswer(
   // item — the check would rather ask again than log a fiction.
   if (pack && item) {
     const response = String(formData.get("response") ?? "");
+
+    const deps = { db: getDb, client: hasApiKey() ? getAnthropic() : null };
+    // The bar is the skill's own can-do statement — the sentence the page prints
+    // as "what counts as knowing this". Asserted rather than defaulted:
+    // `validatePack` rejects a pack whose item names a skill it does not define.
+    const expected = pack.skills.find((s) => s.slug === item.skill)!
+      .canDoStatement;
+
+    /*
+     * §7.3's photograph, checked *before* the closed branch below.
+     *
+     * `needsSelfMark` is false for a `micro_artifact` as well as for an mcq —
+     * one is "the learner cannot mark this", the other is "nobody has to" — so
+     * whichever branch comes first catches it. With the order the other way
+     * round a photograph was graded as a wrong multiple-choice answer, silently
+     * and against the learner.
+     *
+     * The file is read, sent, marked and dropped — nothing is stored, which is
+     * what lets the page say "we do not keep it".
+     *
+     * A refusal is the learner's to fix (wrong format, too large) and comes
+     * back to the same question with a sentence saying so. Everything else
+     * falls back to self-marking exactly as a written answer does.
+     */
+    if (gradingModeFor(item.type) === "excluded") {
+      const photo = formData.get("photo");
+      const outcome =
+        photo instanceof File
+          ? await markPhotoAnswer(deps, {
+              question: item.prompt,
+              expected,
+              file: photo,
+              note: response,
+            })
+          : { marking: null, refused: "wrong-type" as const };
+
+      if (outcome.refused !== null) {
+        await write(ref, { ...cookie, e: outcome.refused });
+        redirect(pathFor(ref));
+      }
+
+      await write(
+        ref,
+        outcome.marking === null
+          ? { ...cookie, p: { i: item.slug, r: response.slice(0, MAX_ANSWER) } }
+          : {
+              ...cookie,
+              a: [
+                ...cookie.a,
+                { i: item.slug, c: outcome.marking.correct ? 1 : 0, g: 1, k: 1 },
+              ],
+              m: {
+                i: item.slug,
+                c: outcome.marking.correct ? 1 : 0,
+                f: outcome.marking.feedback.slice(0, MAX_FEEDBACK),
+                r: response.slice(0, MAX_ANSWER),
+              },
+            },
+      );
+      redirect(pathFor(ref));
+    }
 
     if (!needsSelfMark(item)) {
       await write(ref, {
@@ -114,20 +182,10 @@ export async function submitAnswer(
     }
 
     const marking = await markOpenAnswer(
-      {
-        db: getDb,
-        client: hasApiKey() ? getAnthropic() : null,
-      },
+      deps,
       {
         question: item.prompt,
-        // The bar the answer is held against is the skill's own can-do
-        // statement, which is also the sentence the check page prints as "what
-        // counts as knowing this". One bar, said once.
-        //
-        // Asserted rather than defaulted: `validatePack` rejects any pack whose
-        // item names a skill it does not define, so a fallback here would be an
-        // unreachable branch standing in for a check that already happened.
-        expected: pack.skills.find((s) => s.slug === item.skill)!.canDoStatement,
+        expected,
         answer: response,
       },
     );

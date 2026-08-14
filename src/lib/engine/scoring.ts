@@ -78,6 +78,21 @@ export function evidenceTierFor(skillTier: EvalTier): EvalTier {
 export const CHECK_CONFIDENCE = 0.45;
 
 /**
+ * What a *piece of work* is worth, when a model marked it.
+ *
+ * Higher than a written answer and deliberately so: a photograph that shows the
+ * plane of focus where the learner said they would put it is the thing itself,
+ * not a description of it. §7.2 puts tier-3 media review at 0.5–0.7 and this
+ * takes the top of that band — the frame is direct evidence, and the reasons to
+ * hold back are that the marking is one pass with no verifier and that
+ * aesthetics are excluded by design, not that the evidence is weak.
+ *
+ * It is still not a graded project: that is a rubric, multiple criteria, and a
+ * verifier pass (§14.5). This is one question about one control.
+ */
+export const ARTEFACT_CONFIDENCE = 0.7;
+
+/**
  * Estimated hours still owed on a skill, discounted by how much of it the
  * learner already has.
  *

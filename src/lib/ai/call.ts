@@ -40,8 +40,14 @@ export interface StructuredCall<T> {
    * user id, or anything else that varies (§14.9.4's cache hygiene list).
    */
   system: string;
-  /** Volatile content. Strictly after the breakpoint. */
-  user: string;
+  /**
+   * Volatile content. Strictly after the breakpoint.
+   *
+   * A block array rather than a string where the call carries something that is
+   * not text — the Skill Check's photo grader sends an image beside its
+   * question. Everything else passes a string and reads the same as before.
+   */
+  user: string | Anthropic.ContentBlockParam[];
   tool: {
     name: string;
     description: string;

@@ -40,6 +40,17 @@ export interface Answer {
    * shown, in the direction nobody would check.
    */
   g?: 1;
+  /**
+   * 1 when what was marked was a piece of *work* — §7.3's photograph — rather
+   * than an answer about one.
+   *
+   * A separate fact from `g` because they answer different questions: who
+   * decided this, and what did they look at. A frame that shows the plane of
+   * focus is direct evidence and moves the belief further
+   * (`ARTEFACT_CONFIDENCE`), so a replay that lost this would rebuild a weaker
+   * mastery than the learner was shown.
+   */
+  k?: 1;
 }
 
 /** An open answer the model has marked, waiting to be read. */
@@ -62,6 +73,16 @@ export interface CheckCookie {
   p?: { i: string; r: string };
   /** An item the model has marked, awaiting the learner reading the marking. */
   m?: Marked;
+  /**
+   * The upload the learner has to fix before the question can be answered —
+   * a file that is not an image, or one too large to send.
+   *
+   * A state rather than a thrown error, because the answer is "try again with a
+   * different file" and the question has not been asked and failed; it has not
+   * been answered at all. Nothing is recorded, and the same question comes back
+   * with a sentence explaining what happened.
+   */
+  e?: "too-big" | "wrong-type";
 }
 
 export const COOKIE_PREFIX = "check_";
@@ -109,9 +130,17 @@ export function decode(raw: string | undefined): CheckCookie {
     const a: Answer[] = [];
     for (const entry of answers.slice(0, MAX_ANSWERS)) {
       if (typeof entry !== "object" || entry === null) continue;
-      const { i, c, g } = entry as { i?: unknown; c?: unknown; g?: unknown };
+      const { i, c, g, k } = entry as {
+        i?: unknown;
+        c?: unknown;
+        g?: unknown;
+        k?: unknown;
+      };
       if (typeof i === "string" && (c === 0 || c === 1)) {
-        a.push(g === 1 ? { i, c, g: 1 } : { i, c });
+        // `k` only means anything alongside `g`: a piece of work nobody marked
+        // is a piece of work the learner marked, which is Tier 5 either way.
+        if (g === 1) a.push(k === 1 ? { i, c, g: 1, k: 1 } : { i, c, g: 1 });
+        else a.push({ i, c });
       }
     }
 
@@ -123,6 +152,11 @@ export function decode(raw: string | undefined): CheckCookie {
       if (typeof i === "string" && typeof r === "string") {
         return { ...started, a, p: { i, r: r.slice(0, MAX_ANSWER) } };
       }
+    }
+
+    const refusal = (parsed as { e?: unknown }).e;
+    if (refusal === "too-big" || refusal === "wrong-type") {
+      return { ...started, a, e: refusal };
     }
 
     const marked = (parsed as { m?: unknown }).m;
@@ -234,7 +268,9 @@ export function replay(
       // The flag decides, not the item type: an open item is graded when the
       // model was there to grade it and self-marked when it was not, and only
       // the cookie knows which happened.
-      answer.g === 1 ? { skillTier: skill.evalTier } : undefined,
+      answer.g === 1
+        ? { skillTier: skill.evalTier, artefact: answer.k === 1 }
+        : undefined,
     );
   }
   return state;

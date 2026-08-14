@@ -1717,9 +1717,12 @@ This is worth being explicit about: naive live generation at 10k roadmaps/month 
 **Abuse controls:** Upstash IP rate limit · Cloudflare Turnstile on the novel-generation path · email verification for >1 novel generation/day · hard global daily spend cap on the free tier that degrades to "we'll email it to you" · block the obvious datacenter ASNs.
 
 > **The check spends now, and the cap is a day rather than an IP.** §14.2's
-> grader marks written answers in the anonymous check (see §24 E4's note), which
-> makes it the one surface in the product that spends money with nobody to bill
-> it to — about $0.0005 an answer on Haiku, inside §19.1's one-cent budget.
+> grader marks written answers in the anonymous check (see §24 E4's note), and
+> the per-skill check marks uploaded photographs — which makes it the one
+> surface in the product that spends money with nobody to bill it to. Measured:
+> **0.19¢** a written answer on Haiku, **1.09¢** a photograph on Sonnet. A
+> ten-minute subject check lands inside §19.1's one-cent budget; a deep check
+> with a photograph in it is a penny or two.
 > Upstash and Turnstile are still unbuilt. What is built is the last item in the
 > list above: a **hard global daily ceiling on the free tier**, read from the
 > `agent_run` rows the calls already write, checked before every call, and
@@ -1975,7 +1978,7 @@ before picking the next thing up.**
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD **and the share cards**. Internal-link renderer and the quality-score job remain, and both are E12's to earn |
-| **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check and the **Roadmap tool** (`src/lib/roadmap/`, `/tools/learning-roadmap-generator`) ship, both with no AI call at all. There is no cache and no rate limiting because there is no spend — see §19.2's note |
+| **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
@@ -2043,6 +2046,9 @@ than the tool.**
   Fixing it is an item-bank and budget question (more items per skill, or a
   deeper check), not a code change, and it is the next thing E4 owes.
 
+  > **Both halves are addressed now, and neither by making the check longer.**
+  > See the `/check/{skill}` note below; what follows was the first half.
+  >
   > **Half of this is fixed, and it was the half nobody had named.** The
   > diagnosis above assumed the ceiling was *how many* items a check can ask.
   > The larger constraint was **what kind**: the check could only mark closed
@@ -2060,6 +2066,40 @@ than the tool.**
   > across twenty-six skills cannot give any one skill three observations, so
   > nothing is *skipped* yet. That is now purely a budget-and-coverage question,
   > and it is the whole of what E4 still owes.
+
+**E11's `/check/{skill}` is in, and it is the answer to E4's remaining half.**
+Not by asking more questions — by asking them of *one skill*. Clearing
+`MASTERY_TARGET` takes three to five observations on a single skill, and no
+budget spread across a subject can supply that; a check that spends everything
+on one skill can. Three things came with it:
+
+- **The selector stops asking about a decided skill.** `settled` — past the bar,
+  or `MAX_PER_SKILL` questions already spent — is a hard filter now, and a check
+  ends when nothing unsettled remains. Before it, a check would ask a second
+  question about a skill it had already decided while another had none.
+- **§7.3's Media workspace exists, in the smallest form that is honest.** A
+  `micro_artifact` on a skill whose declared evidence includes an image is
+  answered by *uploading the photograph*, and a multimodal call marks it against
+  §7.2 tier 3 — the technique, never the taste. **Nothing is stored**: the file
+  is read, sent, marked and dropped, which is what lets the page say so. Written
+  subjects keep their artefacts out, because a memo is a workspace this cannot
+  take and asking for one over a textarea would be asking for a description of
+  the work.
+- **A piece of work is worth more than talk about it.** `ARTEFACT_CONFIDENCE`
+  (0.7, the top of tier 3's declared band) against `CHECK_CONFIDENCE` (0.45),
+  and the cookie records which happened so a replay cannot quietly rebuild the
+  kinder one.
+
+**Measured, on the real models:** a written answer costs **0.19¢** on Haiku and
+takes ~2s; a photograph costs **1.09¢** on Sonnet and takes ~4s. The photo
+grader is the one step of a check not on the fast tier, deliberately: it decides
+whether a frame demonstrates a technique, and the page then prints that we
+marked it.
+
+**What is still short is the item bank, and it is now visible on a page.** Twenty
+skills across the catalogue have exactly one question a check can ask, so their
+deep check asks once and honestly reports that it could not settle anything.
+That is the 229 items §24 E4 owes, not a defect in the check.
 
 **E9.6 fixed the state nobody had designed.** Every screen in E1–E9.5 was built
 for a learner with a course running. The learner without one — which is every
