@@ -114,7 +114,12 @@ describe("SiteHeader", () => {
   it("links the wordmark home", async () => {
     currentUserMock.mockResolvedValue(null);
     render(await SiteHeader());
-    expect(screen.getByText("MeritKeep").getAttribute("href")).toBe("/");
+    // By role rather than by text: the wordmark is a mark plus a name, so the
+    // text node is inside the link rather than being it. The accessible name is
+    // what a reader gets either way, and it is the thing worth pinning.
+    expect(
+      screen.getByRole("link", { name: "MeritKeep" }).getAttribute("href"),
+    ).toBe("/");
   });
 });
 

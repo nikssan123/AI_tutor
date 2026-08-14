@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    The favicon: the mark on its own ground.
+
+    An earlier version drew the mark transparent and swapped ink to near-white
+    under `prefers-color-scheme: dark`. That is right for a component inheriting
+    from a themed surface and wrong for an icon, because the two are decided by
+    different things: the media query follows the *operating system*, while the
+    surface the favicon lands on follows the *browser chrome*. Dark OS with a
+    light tab strip is an ordinary setup, and there the mark rendered near-white
+    on white and disappeared. So did opening this file directly.
+
+    Carrying its own ground removes the guess. On dark chrome the tile reads as
+    a light square; on white chrome the tile blends away and leaves ink on white,
+    which is the same picture. `og-card.tsx` already settled which ground that
+    should be: the light palette *is* the identity, and a dark variant would be
+    a second brand nobody chose.
+
+    Palette lifted from `src/lib/theme.ts` — there is no stylesheet to inherit
+    from here, so the three values are literals. Same two paths as
+    `src/components/logo.tsx`, drawn at stroke 2 rather than 1.5 because at 16px
+    the component's own weight lands on about one physical pixel.
+  -->
+  <rect width="64" height="64" rx="14" fill="#FAFAFA" />
+  <g
+    transform="translate(1.7 1.7) scale(2.5)"
+    fill="none"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4.25 19V8.75l7 7.5" stroke="#17191C" />
+    <path d="M11.25 16.25 20 5.25" stroke="#00785C" />
+  </g>
+</svg>

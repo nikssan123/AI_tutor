@@ -166,10 +166,39 @@ export function OgCardImage({ card }: { card: OgCard }) {
           right: 72,
           bottom: 56,
           display: "flex",
+          alignItems: "center",
+          gap: 12,
           fontSize: 26,
           color: light.inkFaint,
         }}
       >
+        {/*
+         * The mark, drawn rather than imported. `LogoMark` cannot be reused
+         * here: it leans on `currentColor` and `var(--accent)`, and Satori has
+         * neither. So the paths are repeated with the palette written out —
+         * the same trade this file already makes for every other colour.
+         *
+         * The stem takes `inkFaint` rather than `ink`, because this is a
+         * signature and not a title: it sits at the same weight as the name
+         * beside it. The arm keeps the full accent, since a jade that dims to
+         * match a signature is no longer the colour that means verified.
+         */}
+        <svg width={30} height={30} viewBox="0 0 24 24" fill="none">
+          <path
+            d="M4.25 19V8.75l7 7.5"
+            stroke={light.inkFaint}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M11.25 16.25 20 5.25"
+            stroke={light.accent}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
         {ORGANISATION_NAME}
       </div>
     </div>

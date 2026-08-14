@@ -9,6 +9,7 @@ import {
   ProgressIcon,
   TodayIcon,
 } from "@/components/icons";
+import { Wordmark } from "@/components/logo";
 import { cx } from "@/components/ui";
 
 /**
@@ -61,11 +62,8 @@ export function isCurrent(pathname: string, href: string): boolean {
 
 function Brand() {
   return (
-    <Link
-      href="/today"
-      className="text-[length:var(--text-label-size)] font-[650] tracking-[-0.02em] text-ink"
-    >
-      MeritKeep
+    <Link href="/today">
+      <Wordmark />
     </Link>
   );
 }

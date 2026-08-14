@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wordmark } from "@/components/logo";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
 import { Card, cx, DisplayTitle, Lead, Meta, Status, Title } from "@/components/ui";
 import { currentUser } from "@/lib/account/session";
@@ -162,11 +163,8 @@ export async function SiteHeader() {
   return (
     <header className="border-b border-hairline">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-5">
-        <Link
-          href="/"
-          className="text-[length:var(--text-label-size)] font-[650] tracking-[-0.02em] text-ink"
-        >
-          MeritKeep
+        <Link href="/">
+          <Wordmark />
         </Link>
         {/* §8.5.5 — three destinations, flat, no nesting. */}
         <nav aria-label="Main" className="flex items-center gap-6">
