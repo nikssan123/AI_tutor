@@ -19,6 +19,7 @@ import { DEFAULT_DESTINATION } from "@/lib/account/next-url";
 import { evalTierClaim } from "@/lib/claims";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
+import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
 import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
 import type { RubricCriterion } from "@/lib/packs/types";
@@ -427,11 +428,88 @@ export function CustomPathOffer({ topic }: { topic: string }) {
         a person has reviewed it, so you always know which you are looking at.
       </Meta>
 
-      <Link
-        href={customPathHref(topic)}
-        className="min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90"
-      >
+      <Link href={customPathHref(topic)} className={CTA_LINK}>
         Build my path
+      </Link>
+    </Card>
+  );
+}
+
+/**
+ * The primary action on a marketing page, which there is now more than one of.
+ *
+ * Extracted rather than copied a third time. The three offers below and above
+ * are the whole conversion surface, and a hover state or a touch target that
+ * held on two of them would be the kind of difference nobody notices until the
+ * one page it is missing from is the one being measured.
+ */
+const CTA_LINK =
+  "min-h-[var(--touch-min)] inline-flex items-center rounded-[var(--radius-control)] bg-accent px-5 font-[550] text-on-accent transition-opacity duration-[var(--dur-fast)] hover:opacity-90";
+
+/**
+ * What a graded brief says once the reader has finished the rubric.
+ *
+ * The page's argument peaks at the checklist — every criterion, every band,
+ * published before the work — and then used to stop, leaving breadcrumbs back
+ * to the subject as the only way on. This is the sentence that follows it, and
+ * it names the exchange in the reader's terms: they have just read the standard
+ * they would be held to, so the offer is to be held to it.
+ *
+ * It says what setting up costs, for the same reason `CustomPathOffer` lists
+ * its three questions rather than promising vaguely: the honest version of
+ * "start this project" includes the intake standing between them and it.
+ */
+export function ProjectStartOffer({
+  title,
+  topicName,
+}: {
+  title: string;
+  topicName: string;
+}) {
+  return (
+    <Card className="flex flex-col items-start gap-5">
+      <Title>Want this one marked?</Title>
+      <Lead>
+        We build the path that gets you to it — the skills above, in the order
+        they depend on each other — and this brief is what you hand in at the
+        end, marked against the checklist you have just read and nothing else.
+      </Lead>
+      <Meta tone="muted">
+        Setting it up takes about three minutes: what you want to do with{" "}
+        {topicName}, where you are starting from, and how many hours a week you
+        actually have.
+      </Meta>
+      <Link href={projectStartHref(title, topicName)} className={CTA_LINK}>
+        Start this project
+      </Link>
+    </Card>
+  );
+}
+
+/**
+ * The same exit from a subject page.
+ *
+ * Distinct from `CustomPathOffer` because the two say opposite things: that one
+ * answers "we do not have this yet, we will build it", and this one answers "we
+ * have this, here is how you begin". A single component parameterised over both
+ * would be one component that has to keep straight which of the two claims it
+ * is making, on the surface where a wrong claim is the expensive kind.
+ */
+export function TopicStartOffer({ topicName }: { topicName: string }) {
+  return (
+    <Card className="flex flex-col items-start gap-5">
+      <Title>Start on {topicName}</Title>
+      <Lead>
+        Every skill above, ordered by what depends on what, with the projects
+        above that as the evidence you actually did it. We work out where you
+        already are first, so the path skips what you can do.
+      </Lead>
+      <Meta tone="muted">
+        About three minutes to set up. Nothing is marked until you hand
+        something in.
+      </Meta>
+      <Link href={topicStartHref(topicName)} className={CTA_LINK}>
+        Start this path
       </Link>
     </Card>
   );

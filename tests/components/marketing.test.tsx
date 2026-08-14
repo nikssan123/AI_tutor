@@ -18,14 +18,17 @@ import {
   JsonLdScript,
   PageFrame,
   PageIntro,
+  ProjectStartOffer,
   RubricLadder,
   SectionHead,
   SiteFooter,
   SiteHeader,
+  TopicStartOffer,
 } from "@/components/marketing";
 import { StepsIcon } from "@/components/icons";
 import { goalSearchScript } from "@/lib/goal-search-script";
 import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
+import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
 import type { RubricCriterion } from "@/lib/packs/types";
 
 afterEach(cleanup);
@@ -329,6 +332,55 @@ describe("CustomPathOffer", () => {
     // The offer is the one place overclaiming would be easiest and worst.
     render(<CustomPathOffer topic="basket weaving" />);
     expect(screen.getByText("Experimental")).toBeDefined();
+  });
+});
+
+describe("ProjectStartOffer", () => {
+  it("links to the intake carrying both the subject and the brief", () => {
+    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+
+    const href = screen
+      .getByRole("link", { name: /start this project/i })
+      .getAttribute("href");
+
+    expect(href).toBe(projectStartHref("Sales dashboard", "SQL"));
+    // Built from the helper above rather than spelled out here, but still
+    // checked for the two things that make it worth carrying at all.
+    expect(decodeURIComponent(href ?? "")).toContain("Sales dashboard");
+    expect(decodeURIComponent(href ?? "")).toContain("SQL");
+  });
+
+  it("says what setting up costs rather than promising a click", () => {
+    // The brief promises marking against a published rubric; an offer that hid
+    // the intake behind "start now" would be the page's one dishonest sentence.
+    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+    expect(screen.getByText(/three minutes/i)).toBeDefined();
+    expect(screen.getByText(/how many hours a week/i)).toBeDefined();
+  });
+
+  it("promises marking against the checklist already on the page", () => {
+    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+    expect(screen.getByText(/checklist you have just read/i)).toBeDefined();
+  });
+});
+
+describe("TopicStartOffer", () => {
+  it("names the subject and links to the intake holding it", () => {
+    render(<TopicStartOffer topicName="SQL" />);
+
+    expect(screen.getByRole("heading").textContent).toContain("SQL");
+    expect(
+      screen.getByRole("link", { name: /start this path/i }).getAttribute("href"),
+    ).toBe(topicStartHref("SQL"));
+  });
+
+  it("does not claim the subject is missing, the way CustomPathOffer does", () => {
+    // The two offers say opposite things and sit one route apart. This subject
+    // exists — telling its own page's reader we would build it is the mistake
+    // keeping them as separate components exists to prevent.
+    render(<TopicStartOffer topicName="SQL" />);
+    expect(screen.queryByText(/we.ll build it/i)).toBeNull();
+    expect(screen.queryByText("Experimental")).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ import {
   JsonLdScript,
   PageFrame,
   PageIntro,
+  ProjectStartOffer,
   RubricLadder,
   SectionHead,
 } from "@/components/marketing";
@@ -195,6 +196,11 @@ export default async function ProjectPage({
             ))}
           </ul>
         </section>
+
+        <ProjectStartOffer
+          title={project.title}
+          topicName={project.topicName}
+        />
 
         <Meta>
           Part of{" "}

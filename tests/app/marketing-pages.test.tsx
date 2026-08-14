@@ -920,6 +920,63 @@ describe("/projects/[slug] — §4.2 law 2", () => {
 });
 
 /**
+ * The two routes search delivers strangers to can be signed up from.
+ *
+ * Both were dead ends. `/projects` and `/learn` are the highest-priority
+ * entries in the sitemap after the home page, and every link on the pages
+ * beneath them went sideways — `/check/*`, `/projects/*`, `/guides/*` — while
+ * the only `/start` links on the whole marketing surface were two on the home
+ * page and one on `/learn`'s *empty results* card. A reader could arrive from
+ * Google, read the full rubric, agree with all of it, and have nowhere to go.
+ *
+ * Asserted by route rather than by component because the components had tests
+ * and the pages were still dead ends: what was missing was the call site.
+ */
+describe("the reading routes have a way in (§10 B)", () => {
+  const startLinks = (container: HTMLElement): string[] =>
+    [...container.querySelectorAll('a[href^="/start"]')].map(
+      (a) => a.getAttribute("href") ?? "",
+    );
+
+  it("offers a graded brief's reader the project itself", async () => {
+    const brief = allProjects()[0]!;
+    const { container } = render(
+      await project.default({ params: params({ slug: brief.slug }) }),
+    );
+
+    const seeds = startLinks(container).map((href) => decodeURIComponent(href));
+    expect(seeds.length).toBeGreaterThan(0);
+    // The brief and its subject both travel, so the intake opens on what they
+    // were actually reading rather than on a blank "what do you want to learn".
+    expect(seeds.some((s) => s.includes(brief.title))).toBe(true);
+    expect(seeds.some((s) => s.includes(brief.topicName))).toBe(true);
+  });
+
+  it("offers a subject page's reader that subject", async () => {
+    const pack = findPack("sql-data-analysis")!;
+    const { container } = render(
+      await topic.default({ params: params({ topic: pack.slug }) }),
+    );
+
+    const seeds = startLinks(container).map((href) => decodeURIComponent(href));
+    expect(seeds.length).toBeGreaterThan(0);
+    expect(seeds.some((s) => s.includes(pack.name))).toBe(true);
+  });
+
+  it("offers it on an unreviewed subject too, saying so alongside", async () => {
+    // A first-draft pack is still one somebody can start; the honest handling
+    // is to offer it *and* keep the warning, not to quietly drop the exit.
+    const unreviewed = allTopics().find((t) => !t.indexable)!;
+    const { container } = render(
+      await topic.default({ params: params({ topic: unreviewed.slug }) }),
+    );
+
+    expect(startLinks(container).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Nobody has reviewed this subject/)).toBeDefined();
+  });
+});
+
+/**
  * §8.5.6's marketing amendment, asserted across every route it covers.
  *
  * `rise` runs off a clock that starts when the document does, so anything below

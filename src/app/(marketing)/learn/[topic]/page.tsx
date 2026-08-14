@@ -13,6 +13,7 @@ import {
   PageFrame,
   PageIntro,
   SectionHead,
+  TopicStartOffer,
 } from "@/components/marketing";
 import {
   LinkCard,
@@ -270,6 +271,8 @@ export default async function TopicPage({
             </ul>
           </section>
         ) : null}
+
+        <TopicStartOffer topicName={pack.name} />
 
         {!summary.indexable ? (
           <Meta>
