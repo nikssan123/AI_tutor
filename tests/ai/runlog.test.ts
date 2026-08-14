@@ -455,6 +455,21 @@ live("the AgentRun log", () => {
       await clearAnonymousRunsOn(CAP_DAY);
       await clearAnonymousRunsOn(CAP_NEXT_DAY);
 
+      /*
+       * Asserted, not assumed. The sibling tests above measure deltas against a
+       * `before` baseline, which is the pattern that cannot rot — but a
+       * *threshold* is not a delta: proving the cap flips from false to true
+       * needs the absolute total controlled, and no baseline gives you that.
+       *
+       * So the precondition is checked instead of trusted. If anything ever
+       * writes anonymous spend to this day, this line fails saying exactly that,
+       * rather than the assertion below failing as a mystery — which is how the
+       * original bug presented when 488 cents of pack-generation probes
+       * accumulated under the old fixed date.
+       */
+      expect(await anonymousSpentToday(db, CAP_DAY)).toBe(0);
+      expect(await anonymousSpentToday(db, CAP_NEXT_DAY)).toBe(0);
+
       expect(await anonymousBudgetSpent(db, CAP_DAY)).toBe(false);
       await anonRun(ANONYMOUS_DAILY_CAP_CENTS, CAP_DAY);
       expect(await anonymousBudgetSpent(db, CAP_DAY)).toBe(true);
