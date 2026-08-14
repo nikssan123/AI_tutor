@@ -119,6 +119,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.7,
     },
+    // Legal pages are not content marketing and §12.1's gate does not apply to
+    // them — they are pages a person may reasonably search for by name. Low
+    // priority, rarely changed, and linked from every page's footer.
+    { url: canonical("/terms"), changeFrequency: "yearly", priority: 0.2 },
+    { url: canonical("/privacy"), changeFrequency: "yearly", priority: 0.2 },
   ];
 
   const base = [...hubs, ...packPages(), ...guidePages()];

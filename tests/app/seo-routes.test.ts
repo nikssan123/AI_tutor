@@ -63,8 +63,12 @@ describe("robots.txt", () => {
   });
 });
 
-/** The ungated pages: the three hubs and the free tool (§10 E). */
-const HUBS = 4;
+/**
+ * The ungated pages: the three hubs, the free tool (§10 E), and the two legal
+ * pages. §12.1's gate does not apply to the last two — they are not content
+ * marketing, they are pages a person may reasonably search for by name.
+ */
+const HUBS = 6;
 
 describe("sitemap.xml", () => {
   /**
