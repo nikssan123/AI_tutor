@@ -122,9 +122,41 @@ describe("landing page (§8 screen 1)", () => {
       /01 · How it works/,
       /02 · Any subject/,
       /03 · What marking looks like/,
-      /04 · Written by hand/,
+      /04 · What's here/,
+      /05 · Written by hand/,
     ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
+    }
+  });
+
+  /**
+   * The page listed only the three hand-written subjects, so it implied a
+   * three-subject site the moment the catalogue grew past them — the exact
+   * failure the "any subject" band was introduced to fix, reappearing because
+   * the only band that listed anything listed a subset.
+   */
+  it("says how many subjects exist, not how many were hand-written", () => {
+    render(<HomePage />);
+    const curated = allTopics().filter((t) => t.maturity === "curated");
+    expect(curated.length).toBeLessThan(allTopics().length);
+
+    expect(
+      screen.getByRole("heading", { name: `${allTopics().length} subjects, in three kinds` }),
+    ).toBeDefined();
+  });
+
+  it("names every category the catalogue actually spans", async () => {
+    const { groupByCategory } = await import("@/lib/content/categories");
+    render(<HomePage />);
+
+    for (const { category, topics } of groupByCategory(allTopics())) {
+      expect(screen.getByText(category.name), category.slug).toBeDefined();
+      expect(
+        screen.getAllByText(
+          `${topics.length} subject${topics.length === 1 ? "" : "s"}`,
+        ).length,
+        category.slug,
+      ).toBeGreaterThan(0);
     }
   });
 

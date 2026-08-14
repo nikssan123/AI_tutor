@@ -32,6 +32,7 @@ import {
   MIN_ITEMS_PER_SKILL,
 } from "@/lib/contracts/pack";
 import { organisation, website } from "@/lib/seo/jsonld";
+import { groupByCategory } from "@/lib/content/categories";
 import { marketingMetadata } from "@/lib/seo/metadata";
 
 /**
@@ -89,6 +90,17 @@ import { marketingMetadata } from "@/lib/seo/metadata";
  * The three curated subjects keep their band and lose their billing: they are
  * no longer "what you can learn", they are the ones a person wrote by hand,
  * and their badge now says so beside the tier note.
+ *
+ * Seventh cut, and it is the same mistake caught a second time. The catalogue
+ * grew past the three hand-written subjects, and because the only band listing
+ * anything showed exactly those three, the page went straight back to implying
+ * a three-subject site — the failure the sixth cut restructured the whole page
+ * to fix. Counting subjects on this page was always going to age badly.
+ *
+ * So band 04 now says what *kinds* of subject exist and how many, and the
+ * hand-written band moves to 05 and keeps its narrower claim. The shape comes
+ * from `groupByCategory`, so a new pack changes this page by existing rather
+ * than by anyone remembering to come back here.
  *
  * §13.1 — statically rendered, revalidated daily.
  */
@@ -160,9 +172,14 @@ const WRITTEN = [
 export default function HomePage() {
   const topics = allTopics();
   const featured = featuredProject();
-  // §7.1 — only a Curated pack was written and checked by a person. Band 04
+  // §7.1 — only a Curated pack was written and checked by a person. Band 05
   // makes exactly that claim, so it may only show these.
   const handWritten = topics.filter((t) => t.maturity === "curated");
+  // Band 04 says what kinds of subject exist and how many; band 05 shows the
+  // deep end. Two bands because they are two claims — "there is a range here"
+  // and "some of it was written by hand" — and §8.5.7 allows length but not a
+  // band carrying two ideas.
+  const categories = groupByCategory(topics);
 
   // Suggestions come from real pack content, so the autocomplete can never
   // promise a subject the product does not actually teach. Picking one goes
@@ -420,7 +437,48 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── 04 The hand-written subjects ───────────────────────────────── */}
+        {/* ── 04 The shape of the catalogue ──────────────────────────────── */}
+        {/*
+         * A band of its own, and not a list of subjects.
+         *
+         * Band 05 shows the three hand-written subjects, which is the right
+         * thing for it to show and the wrong thing for a reader to count: the
+         * page went back to implying a three-subject site the moment the
+         * catalogue grew past them, which is the exact failure 02 exists to
+         * prevent.
+         *
+         * So this says what *kinds* of thing are here and how many, and sends
+         * anyone who wants the actual list to /learn. §8.5.1 bans browse as a
+         * fixture on this page; three cards naming three branches is a shape,
+         * not a browse surface, and it is the smallest honest answer to "is
+         * there anything here for me".
+         */}
+        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-24">
+          <SectionHead
+            step="04"
+            label="What's here"
+            title={`${topics.length} subjects, in three kinds`}
+            icon={<GridIcon />}
+          />
+
+          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-3">
+            {categories.map(({ category, topics: inGroup }, i) => (
+              <li key={category.slug} className="rise" style={stagger(i)}>
+                <LinkCard href="/learn" className="gap-3 p-6">
+                  <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                    {category.name}
+                  </span>
+                  <Meta>{category.blurb}</Meta>
+                  <Meta className="mt-auto">
+                    {inGroup.length} subject{inGroup.length === 1 ? "" : "s"}
+                  </Meta>
+                </LinkCard>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* ── 05 The hand-written subjects ───────────────────────────────── */}
         {/*
          * These three used to head the page as "What you can learn today",
          * which is the sentence that made a site offering any subject look
@@ -431,7 +489,7 @@ export default function HomePage() {
          */}
         <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-24">
           <SectionHead
-            step="04"
+            step="05"
             label="Written by hand"
             title="The ones we wrote and checked ourselves"
             icon={<GridIcon />}
