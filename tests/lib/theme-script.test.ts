@@ -8,6 +8,7 @@ import {
   type ThemeChoice,
   themeInitScript,
   themeToggleScript,
+  themeOf,
   toThemeChoice,
 } from "@/lib/theme-script";
 
@@ -194,6 +195,23 @@ describe("toThemeChoice", () => {
     expect(toThemeChoice("")).toBe("system");
     expect(toThemeChoice(null)).toBe("system");
     expect(toThemeChoice(undefined)).toBe("system");
+  });
+});
+
+describe("themeOf", () => {
+  it("reads the column Better Auth does not put on its type", () => {
+    expect(themeOf({ email: "a@b.co", theme: "dark" })).toBe("dark");
+    expect(themeOf({ theme: "light" })).toBe("light");
+  });
+
+  it("degrades to System rather than throwing inside a send", () => {
+    // Every caller is an email callback. A thrown error here would turn a
+    // missing column into a failed password reset.
+    expect(themeOf({ email: "a@b.co" })).toBe("system");
+    expect(themeOf({ theme: 7 })).toBe("system");
+    expect(themeOf(null)).toBe("system");
+    expect(themeOf(undefined)).toBe("system");
+    expect(themeOf("dark")).toBe("system");
   });
 });
 

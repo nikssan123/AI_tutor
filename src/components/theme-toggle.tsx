@@ -8,6 +8,7 @@ import {
   setThemeChoice,
   subscribeToTheme,
 } from "@/lib/theme-store";
+import type { ThemeChoice } from "@/lib/theme-script";
 import { cx } from "@/components/ui";
 
 /**
@@ -18,7 +19,19 @@ import { cx } from "@/components/ui";
  * as a floating widget in primary chrome: theme switching is a once-a-year
  * action and should not occupy permanent space.
  */
-export function ThemeToggle() {
+export function ThemeToggle({
+  /**
+   * Told about the new choice after it has been applied — `/account` passes a
+   * Server Action that writes it to the row the email renderer reads.
+   *
+   * A prop rather than an import, because this component is also rendered in
+   * places with no session to write to, and because a component that reaches
+   * for a Server Action itself cannot be rendered in a test without one.
+   */
+  onChoose,
+}: {
+  onChoose?: (choice: ThemeChoice) => void | Promise<void>;
+} = {}) {
   const choice = React.useSyncExternalStore(
     subscribeToTheme,
     getThemeSnapshot,
@@ -29,6 +42,12 @@ export function ThemeToggle() {
     // Radix reports a deselect as an empty string; a theme is never unset.
     if (next !== "light" && next !== "dark" && next !== "system") return;
     setThemeChoice(next);
+
+    // Not awaited, and its failure is swallowed on purpose. The theme is
+    // already applied by the line above; a network hiccup here costs one
+    // email rendered in the wrong palette, and is not worth an error the
+    // person cannot act on next to a control that visibly worked.
+    void Promise.resolve(onChoose?.(next)).catch(() => {});
   }
 
   return (

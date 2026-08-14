@@ -8,6 +8,8 @@ import {
   verifyEmailMessage,
 } from "@/lib/email/templates";
 import { LOCALES, type Locale } from "@/lib/i18n/locales";
+import { dark, light } from "@/lib/theme";
+import type { ThemeChoice } from "@/lib/theme-script";
 
 /**
  * The templates are pure, so these are cheap. They are worth having anyway:
@@ -275,4 +277,47 @@ describe("locale", () => {
       expect(builders.verifyCode(locale).text).toContain("123456");
     }
   });
+});
+
+/**
+ * The theme reaches the frame from every one of the four, which is the only
+ * thing these templates do with it.
+ */
+describe("the reader's theme", () => {
+  const builders = {
+    verifyCode: (theme: ThemeChoice) =>
+      verifyCodeMessage({ to: "a@b.co", code: "123456", expiresIn: 600, theme }),
+    verifyEmail: (theme: ThemeChoice) =>
+      verifyEmailMessage({ to: "a@b.co", url: "https://x.test/v", expiresIn: 60, theme }),
+    resetPassword: (theme: ThemeChoice) =>
+      resetPasswordMessage({ to: "a@b.co", url: "https://x.test/r", expiresIn: 60, theme }),
+    changeEmail: (theme: ThemeChoice) =>
+      changeEmailMessage({
+        to: "old@b.co",
+        newEmail: "new@b.co",
+        url: "https://x.test/c",
+        expiresIn: 60,
+        theme,
+      }),
+  };
+
+  it.each(Object.keys(builders) as (keyof typeof builders)[])(
+    "%s honours a dark account",
+    (name) => {
+      expect(builders[name]("dark").html).toContain(`background:${dark.ground}`);
+      expect(builders[name]("light").html).toContain(
+        `background:${light.ground}`,
+      );
+    },
+  );
+
+  it.each(Object.keys(builders) as (keyof typeof builders)[])(
+    "%s defaults to System when the caller knows nothing",
+    (name) => {
+      // Every one of these can be sent to an address with no account behind it.
+      expect(builders[name]("system").html).toContain(
+        "@media (prefers-color-scheme:dark)",
+      );
+    },
+  );
 });

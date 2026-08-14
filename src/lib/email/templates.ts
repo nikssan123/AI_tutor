@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
+import type { ThemeChoice } from "@/lib/theme-script";
 import { copyFor } from "./copy";
 import { fill, humanDuration, renderMessage, type EmailMessage } from "./render";
 
@@ -14,6 +15,10 @@ import { fill, humanDuration, renderMessage, type EmailMessage } from "./render"
  * an address that may not have an account, a confirmation code sent seconds
  * after sign-up — can genuinely fail to know it. Defaulting is right there;
  * blocking a password reset to look up a language is not.
+ *
+ * `theme` arrives the same way and for the same reason — `user.theme`, read at
+ * send time — and defaults the same way, to "system", which asks the reader's
+ * client rather than assuming a white page.
  *
  * §18.1 names Resend + React Email. React Email is a build-time JSX renderer
  * and these are four messages with one button each, so it would add a
@@ -41,6 +46,7 @@ export function verifyCodeMessage(input: {
   code: string;
   expiresIn: number;
   locale?: Locale;
+  theme?: ThemeChoice;
 }): EmailMessage {
   const locale = input.locale ?? DEFAULT_LOCALE;
   const copy = copyFor(locale);
@@ -51,6 +57,7 @@ export function verifyCodeMessage(input: {
 
   return renderMessage({
     to: input.to,
+    theme: input.theme,
     subject: fill(copy.system.verifyCode.subject, values),
     locale,
     content: {
@@ -73,6 +80,7 @@ export function verifyEmailMessage(input: {
   url: string;
   expiresIn: number;
   locale?: Locale;
+  theme?: ThemeChoice;
 }): EmailMessage {
   const locale = input.locale ?? DEFAULT_LOCALE;
   const copy = copyFor(locale);
@@ -83,6 +91,7 @@ export function verifyEmailMessage(input: {
 
   return renderMessage({
     to: input.to,
+    theme: input.theme,
     subject: fill(copy.system.verifyEmail.subject, values),
     locale,
     content: {
@@ -99,6 +108,7 @@ export function resetPasswordMessage(input: {
   url: string;
   expiresIn: number;
   locale?: Locale;
+  theme?: ThemeChoice;
 }): EmailMessage {
   const locale = input.locale ?? DEFAULT_LOCALE;
   const copy = copyFor(locale);
@@ -109,6 +119,7 @@ export function resetPasswordMessage(input: {
 
   return renderMessage({
     to: input.to,
+    theme: input.theme,
     subject: fill(copy.system.resetPassword.subject, values),
     locale,
     content: {
@@ -135,6 +146,7 @@ export function changeEmailMessage(input: {
   url: string;
   expiresIn: number;
   locale?: Locale;
+  theme?: ThemeChoice;
 }): EmailMessage {
   const locale = input.locale ?? DEFAULT_LOCALE;
   const copy = copyFor(locale);
@@ -147,6 +159,7 @@ export function changeEmailMessage(input: {
 
   return renderMessage({
     to: input.to,
+    theme: input.theme,
     subject: fill(copy.system.changeEmail.subject, values),
     locale,
     content: {

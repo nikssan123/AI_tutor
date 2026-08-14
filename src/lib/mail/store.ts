@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import { mailMessage, mailThread, user } from "@/db/schema";
 import { DEFAULT_LOCALE, resolveLocale, type Locale } from "@/lib/i18n/locales";
 import type { ThreadKind } from "@/lib/email/catalog";
+import { toThemeChoice, type ThemeChoice } from "@/lib/theme-script";
 
 /**
  * Reading and writing the correspondence.
@@ -214,16 +215,28 @@ export async function listMessages(
 export async function accountFor(
   db: Db,
   email: string,
-): Promise<{ id: string; name: string; locale: Locale } | undefined> {
+): Promise<
+  { id: string; name: string; locale: Locale; theme: ThemeChoice } | undefined
+> {
   const [row] = await db
-    .select({ id: user.id, name: user.name, locale: user.locale })
+    .select({
+      id: user.id,
+      name: user.name,
+      locale: user.locale,
+      theme: user.theme,
+    })
     .from(user)
     .where(eq(user.email, normalizeAddress(email)))
     .limit(1);
 
   return row === undefined
     ? undefined
-    : { id: row.id, name: row.name, locale: resolveLocale(row.locale) };
+    : {
+        id: row.id,
+        name: row.name,
+        locale: resolveLocale(row.locale),
+        theme: toThemeChoice(row.theme),
+      };
 }
 
 export interface NewThread {

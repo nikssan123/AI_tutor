@@ -84,6 +84,7 @@ live("against a real database", () => {
       name: "Ana Ivanova",
       email: "ana@mail-store.local",
       locale: "bg",
+      theme: "dark",
     });
   });
 
@@ -152,8 +153,22 @@ live("against a real database", () => {
         id: LEARNER,
         name: "Ana Ivanova",
         locale: "bg",
+        // Carried because the mail frame needs it, and because a support reply
+        // is composed from the operator's browser, not the reader's.
+        theme: "dark",
       });
       expect(await accountFor(db, "nobody@mail-store.local")).toBeUndefined();
+    });
+
+    it("reads a nonsense theme as System, as the renderer expects", async () => {
+      await db
+        .update(user)
+        .set({ theme: "chartreuse" })
+        .where(eq(user.id, LEARNER));
+
+      expect((await accountFor(db, "ana@mail-store.local"))?.theme).toBe(
+        "system",
+      );
     });
   });
 

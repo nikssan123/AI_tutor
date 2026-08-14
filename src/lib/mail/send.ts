@@ -16,6 +16,7 @@ import {
   type OperatorTemplate,
 } from "@/lib/email/catalog";
 import { sendMessage } from "@/lib/email";
+import type { ThemeChoice } from "@/lib/theme-script";
 import {
   accountFor,
   appendMessage,
@@ -184,16 +185,22 @@ export async function sendTemplatedEmail(
   }
 
   /**
-   * The language, decided before the thread exists because the thread's
-   * subject is written in it.
+   * The learner's account, and from it the language — decided before the thread
+   * exists because the thread's subject is written in it.
    *
    * Three sources in order of authority: what the operator picked on this
    * send, what the thread has been using, and — for a first message — the
    * language the learner chose for the product. `||` rather than `??` because
    * a `<select>` that was left alone posts an empty string, and an empty
    * string is an absent answer rather than a request for English.
+   *
+   * The read used to be skipped for a reply, since a thread already knows its
+   * language. It is unconditional now because the frame also needs the reader's
+   * appearance choice, and that is *not* on the thread: an operator switches a
+   * thread's language and it stays switched, but the palette belongs to the
+   * reader and follows them, so a copy on the thread could only go stale.
    */
-  const account = existing === undefined ? await accountFor(db, to) : undefined;
+  const account = await accountFor(db, to);
   const locale: Locale = resolveLocale(
     input.locale || existing?.locale || account?.locale,
   );
@@ -210,7 +217,12 @@ export async function sendTemplatedEmail(
       locale,
     }));
 
-  return dispatch(db, operator, { template, thread, locale, input, to }, env);
+  return dispatch(
+    db,
+    operator,
+    { template, thread, locale, theme: account?.theme ?? "system", input, to },
+    env,
+  );
 }
 
 /** The half that talks to the transport, once everything has been checked. */
@@ -221,12 +233,14 @@ async function dispatch(
     template: OperatorTemplate;
     thread: ThreadRow;
     locale: Locale;
+    /** The recipient's, resolved above. `"system"` when they have no account. */
+    theme: ThemeChoice;
     input: SendInput;
     to: string;
   },
   env: EnvLike,
 ): Promise<SendResult> {
-  const { template, thread, locale, to } = context;
+  const { template, thread, locale, theme, to } = context;
   const from = supportFrom(env);
   const headers = threadHeaders(await listMessages(db, thread.id));
 
@@ -234,6 +248,7 @@ async function dispatch(
     template,
     to,
     locale,
+    theme,
     variables: context.input.variables,
     sender: operator.name,
     threadSubject: thread.subject,

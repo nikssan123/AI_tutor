@@ -3,6 +3,7 @@ import { desc, eq, inArray, like } from "drizzle-orm";
 import { createClient } from "@/db";
 import { adminAudit, mailThread, user } from "@/db/schema";
 import { MemoryTransport, setTransport } from "@/lib/email";
+import { dark, light } from "@/lib/theme";
 import { changeThreadStatus, sendTemplatedEmail } from "@/lib/mail/send";
 import {
   appendMessage,
@@ -59,6 +60,7 @@ live("sendTemplatedEmail", () => {
         name: "Ana Ivanova",
         email: "ana@mail-send.local",
         locale: "bg",
+        theme: "dark",
       },
     ]);
 
@@ -126,6 +128,67 @@ live("sendTemplatedEmail", () => {
 
     expect(transport.sent[0]?.html).toContain('<html lang="bg">');
     expect((await getThread(db, result.threadId!))?.locale).toBe("bg");
+  });
+
+  it("paints it in the learner's theme, not the operator's", async () => {
+    // The one send composed from someone else's browser: the cookie in the tab
+    // this runs in belongs to the admin, so the palette comes off the row.
+    await sendTemplatedEmail(
+      db,
+      ADMIN,
+      { to: "ana@mail-send.local", templateId: "welcome", variables: { name: "Ana" } },
+      ENV,
+    );
+
+    expect(transport.sent[0]?.html).toContain(`background:${dark.ground}`);
+  });
+
+  it("keeps following the learner's theme on a reply into an old thread", async () => {
+    // The read used to be skipped once a thread existed, because a thread knows
+    // its own language. It does not know the reader's palette, and the reader
+    // can change theirs between the first message and the answer.
+    const first = await sendTemplatedEmail(
+      db,
+      ADMIN,
+      { to: "ana@mail-send.local", templateId: "welcome", variables: { name: "Ana" } },
+      ENV,
+    );
+
+    await db
+      .update(user)
+      .set({ theme: "light" })
+      .where(eq(user.id, LEARNER));
+    transport.clear();
+
+    await sendTemplatedEmail(
+      db,
+      ADMIN,
+      {
+        threadId: first.threadId,
+        templateId: "reply",
+        variables: { name: "Ana", message: "Here you go." },
+      },
+      ENV,
+    );
+
+    expect(transport.sent[0]?.html).toContain(`background:${light.ground}`);
+  });
+
+  it("falls back to System for a stranger with no account", async () => {
+    await sendTemplatedEmail(
+      db,
+      ADMIN,
+      {
+        to: "nobody@mail-send.local",
+        templateId: "welcome",
+        variables: { name: "Nobody" },
+      },
+      ENV,
+    );
+
+    expect(transport.sent[0]?.html).toContain(
+      "@media (prefers-color-scheme:dark)",
+    );
   });
 
   it("lets the operator override the language, and remembers it", async () => {

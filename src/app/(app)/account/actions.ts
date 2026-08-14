@@ -2,10 +2,13 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { getDb, schema } from "@/db";
 import { getAuth, MIN_PASSWORD_LENGTH, VERIFY_CALLBACK } from "@/lib/auth";
 import { accountError, accountOk, explain } from "@/lib/account/errors";
 import { parseProfileForm } from "@/lib/account/profile";
 import { requireUser } from "@/lib/account/session";
+import { toThemeChoice } from "@/lib/theme-script";
 
 /**
  * Everything `/account` can do, as Server Actions.
@@ -176,6 +179,32 @@ export async function resendVerificationAction(): Promise<void> {
   }
 
   redirect(`${VERIFY_CALLBACK}?sent=1`);
+}
+
+/**
+ * Copies the appearance choice onto the account, so the mail we send matches
+ * the product the person set it in.
+ *
+ * The toggle has already applied the theme, written `localStorage` and written
+ * the cookie by the time this runs — none of which is undone if this fails.
+ * That ordering is the whole design: the visible half is synchronous and
+ * local, and this is a note to the server about a message it will compose
+ * hours later, in a job with no browser attached. So it never reports an
+ * error, never redirects, and never revalidates: there is nothing on screen
+ * for it to correct.
+ *
+ * Written with Drizzle rather than `updateUser`, because `theme` is marked
+ * `input: false` in `src/lib/auth.ts` — the column is not something a request
+ * body gets to set, and `toThemeChoice` is the gate that keeps a value the
+ * renderer has no palette for out of the row.
+ */
+export async function rememberThemeAction(choice: string): Promise<void> {
+  const user = await requireUser();
+
+  await getDb()
+    .update(schema.user)
+    .set({ theme: toThemeChoice(choice), updatedAt: new Date() })
+    .where(eq(schema.user.id, user.id));
 }
 
 export async function linkGoogleAction(): Promise<void> {

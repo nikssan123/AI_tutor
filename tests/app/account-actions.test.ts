@@ -46,6 +46,25 @@ vi.mock("@/lib/account/session", () => ({
   requireUser: () => requireUserMock(),
 }));
 
+/**
+ * One action writes a row directly instead of going through Better Auth, so it
+ * needs a database. The real schema comes through `importOriginal` — Drizzle's
+ * `eq` wants actual columns, and stubbing them would test the stub.
+ */
+const setMock = vi.fn();
+const whereMock = vi.fn();
+vi.mock("@/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/db")>()),
+  getDb: () => ({
+    update: () => ({
+      set: (values: unknown) => {
+        setMock(values);
+        return { where: (clause: unknown) => whereMock(clause) };
+      },
+    }),
+  }),
+}));
+
 const actions = await import("@/app/(app)/account/actions");
 const { requestResetAction } = await import(
   "@/app/(app)/forgot-password/actions"
@@ -504,5 +523,52 @@ describe("resetPasswordAction", () => {
 
     const error = await resetPasswordAction(form(good)).catch((e) => e);
     expect(landed(error).message).toMatch(/expired/i);
+  });
+});
+
+/**
+ * The one action with no screen behind it.
+ *
+ * It exists so a message composed hours later, in a job with no browser
+ * attached, is painted in the theme the person actually set.
+ */
+describe("rememberThemeAction", () => {
+  beforeEach(() => {
+    requireUserMock.mockResolvedValue(USER);
+  });
+
+  it("writes the choice onto the account", async () => {
+    await actions.rememberThemeAction("dark");
+
+    expect(setMock).toHaveBeenCalledWith(
+      expect.objectContaining({ theme: "dark" }),
+    );
+    expect(whereMock).toHaveBeenCalledOnce();
+  });
+
+  it("normalises anything that is not a theme to System", async () => {
+    // The column is read by a renderer that has a palette for three values.
+    // `toThemeChoice` is the gate; nothing else stands between a request body
+    // and the row.
+    for (const value of ["", "midnight", "DARK", "<script>"]) {
+      setMock.mockClear();
+      await actions.rememberThemeAction(value);
+      expect(setMock).toHaveBeenCalledWith(
+        expect.objectContaining({ theme: "system" }),
+      );
+    }
+  });
+
+  it("refuses to write anything for a caller with no session", async () => {
+    requireUserMock.mockRejectedValue(new Error("no session"));
+    setMock.mockClear();
+
+    await expect(actions.rememberThemeAction("dark")).rejects.toThrow();
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it("touches updatedAt, so the row does not look untouched since sign-up", async () => {
+    await actions.rememberThemeAction("light");
+    expect(setMock.mock.calls[0]![0]).toHaveProperty("updatedAt");
   });
 });

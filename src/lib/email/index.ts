@@ -5,7 +5,13 @@ import type { EmailMessage } from "./render";
 export * from "./templates";
 export * from "./addresses";
 export * from "./catalog";
-export { renderHtml, renderMessage, renderText, type Content } from "./render";
+export {
+  renderHtml,
+  renderMessage,
+  renderText,
+  type Content,
+  type FrameOptions,
+} from "./render";
 export { COPY, copyFor, DEFAULT_COPY, type EmailStrings } from "./copy";
 
 /**

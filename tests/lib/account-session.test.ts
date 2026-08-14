@@ -34,6 +34,7 @@ const SIGNED_IN = {
     handle: "learner",
     locale: "bg",
     timezone: "Europe/Sofia",
+    theme: "dark",
     plan: "pro",
     role: "admin",
   },

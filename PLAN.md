@@ -793,7 +793,15 @@ WCAG 2.2 AA in **both** themes: 4.5:1 for body text, 3:1 for large text and for 
 
 - **OG / social preview images** — platforms don't respect viewer theme; ship the light version only
 - **Favicon** — one mark that reads on both light and dark browser chrome
-- **Emails** — dark-mode email client support is inconsistent and partially broken; design one version that survives both
+
+~~**Emails**~~ — this said "dark-mode email client support is inconsistent and
+partially broken; design one version that survives both", and it was solving the
+wrong problem. Detection is unreliable, but we do not have to detect: the
+account already holds the choice, so `user.theme` is written into the message
+inline and needs no client support at all. Only the readers still on System
+depend on `prefers-color-scheme`, and being ignored there leaves them on the
+light frame, which is the right answer for someone who never expressed one.
+Emails are themed. See `src/lib/email/render.ts`.
 
 ### Testing
 

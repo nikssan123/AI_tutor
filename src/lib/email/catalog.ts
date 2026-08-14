@@ -1,6 +1,7 @@
 import { canonical } from "@/lib/site";
 import type { EnvLike } from "@/lib/env-types";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
+import type { ThemeChoice } from "@/lib/theme-script";
 import { copyFor } from "./copy";
 import { fill, renderMessage, type EmailMessage } from "./render";
 
@@ -169,6 +170,15 @@ export interface OperatorRenderInput {
   template: OperatorTemplate;
   to: string;
   locale: Locale;
+  /**
+   * The **recipient's** appearance choice, not the operator's.
+   *
+   * Worth stating because this is the one send composed from someone else's
+   * browser: the cookie and the `localStorage` entry in the tab this call runs
+   * in belong to the admin, and theming a learner's mail from them would be
+   * exactly backwards. It comes from their account row, like the locale above.
+   */
+  theme?: ThemeChoice;
   /** What the operator typed, keyed by variable name. */
   variables: Record<string, string | undefined>;
   /** The acting operator, as the reader should see them. */
@@ -217,6 +227,8 @@ export function renderOperatorMessage(
     to: input.to,
     subject: fill(entry.subject, values),
     locale,
+    theme: input.theme,
+    env: input.env,
     content: {
       heading: fill(entry.heading, values),
       body: entry.body.map((line) => fill(line, values)),

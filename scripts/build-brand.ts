@@ -79,6 +79,32 @@ for (const job of jobs) {
   }
 }
 
+/*
+ * The email mark, which has to be a raster served from a public URL.
+ *
+ * `src/lib/email/render.ts` draws it at 24px and points at `/brand/mark-*.png`,
+ * so these go to `public/` rather than to `assets/` — everything above is a
+ * source asset something else consumes at build time, and these two are fetched
+ * by a stranger's mail client at read time. 96 is 4× the drawn size, which is
+ * the ratio a retina phone wants, and two strokes at 96px is under a kilobyte.
+ *
+ * Two files rather than one because a PNG cannot inherit ink: the frame picks
+ * the variant for an explicit theme, and swaps between them with a
+ * `prefers-color-scheme` rule when the reader is on System.
+ */
+const emailMarks = join(root, "public", "brand");
+mkdirSync(emailMarks, { recursive: true });
+
+for (const [name, palette] of [
+  ["mark-light.png", light],
+  ["mark-dark.png", dark],
+] as const) {
+  await sharp(Buffer.from(markSvg(96, palette.ink, palette.accent, 2.25)))
+    .png({ compressionLevel: 9 })
+    .toFile(join(emailMarks, name));
+  written.push(`public/brand/${name}`);
+}
+
 // The iOS home-screen icon. 180 is the size current iPhones ask for, and the
 // file convention wants a real raster: `apple-icon.svg` is not supported.
 const appleSrc = tileSvg(1024, 0);

@@ -70,6 +70,21 @@ export function toThemeChoice(value: string | null | undefined): ThemeChoice {
   return value === "dark" || value === "light" ? value : "system";
 }
 
+/**
+ * The choice on a Better Auth user object, for the code that sends mail.
+ *
+ * `unknown` for the same reason `localeOf` takes it: `theme` is an
+ * `additionalFields` column, present at runtime on every user handed to an
+ * email callback and absent from the type those callbacks declare. Reading it
+ * defensively degrades to "system" — a message that asks the reader's client —
+ * rather than throwing inside a password reset.
+ */
+export function themeOf(subject: unknown): ThemeChoice {
+  if (typeof subject !== "object" || subject === null) return "system";
+  const value = (subject as { theme?: unknown }).theme;
+  return toThemeChoice(typeof value === "string" ? value : undefined);
+}
+
 /** Reads the stored choice. Returns "system" when nothing has been chosen. */
 export function readThemeChoice(
   storage: Pick<Storage, "getItem"> | undefined,

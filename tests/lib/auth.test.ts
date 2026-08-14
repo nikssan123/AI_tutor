@@ -13,6 +13,7 @@ import {
   VERIFICATION_TTL_SECONDS,
 } from "@/lib/auth";
 import { MemoryTransport, setTransport } from "@/lib/email";
+import { dark, light } from "@/lib/theme";
 
 /**
  * Thin-adapter tests. They cannot prove Better Auth works — that is the
@@ -118,15 +119,25 @@ describe("createAuth", () => {
       "plan",
       "role",
       "stripeCustomerId",
+      "theme",
       "timezone",
     ]);
   });
 
-  it("defaults locale, timezone and plan rather than leaving them null", () => {
+  it("defaults locale, timezone, theme and plan rather than leaving them null", () => {
     const fields = createAuth().options.user?.additionalFields ?? {};
     expect(fields.locale?.defaultValue).toBe("en");
     expect(fields.timezone?.defaultValue).toBe("UTC");
+    expect(fields.theme?.defaultValue).toBe("system");
     expect(fields.plan?.defaultValue).toBe("free");
+  });
+
+  it("does not let a sign-up payload set the theme", () => {
+    // Same reason `role` and `plan` are closed: the column is read by the email
+    // renderer, which has a palette for exactly three values. `input: false`
+    // keeps a request body from putting a fourth in it.
+    const fields = createAuth().options.user?.additionalFields ?? {};
+    expect(fields.theme?.input).toBe(false);
   });
 
   it("refuses client input on the fields that grant access or cost money", () => {
@@ -281,6 +292,34 @@ describe("what actually lands in the inbox", () => {
     const [sent] = transport.sent;
     expect(sent?.to).toBe("learner@example.com");
     expect(sent?.text).toContain("new@example.com");
+  });
+
+  it("paints the mail in the theme on the account, not the requester's", async () => {
+    // A reset can be asked for from a machine the account holder is not
+    // sitting at, so the browser making the request is the last thing that
+    // should pick the palette. It comes off the row instead.
+    // Cast because Better Auth's callback type does not declare the
+    // `additionalFields` columns, even though they are on the object at
+    // runtime. That gap is the whole reason `themeOf` reads defensively.
+    await options().emailAndPassword!.sendResetPassword!({
+      user: { ...user, theme: "dark" } as unknown as typeof user,
+      url: "https://x.test/reset?token=t",
+      token: "t",
+    });
+
+    expect(transport.sent[0]?.html).toContain(`background:${dark.ground}`);
+  });
+
+  it("leaves an untouched account on System, which the client resolves", async () => {
+    await options().emailVerification!.sendVerificationEmail!({
+      user,
+      url: "https://x.test/verify?token=t",
+      token: "t",
+    });
+
+    const html = transport.sent[0]?.html ?? "";
+    expect(html).toContain("@media (prefers-color-scheme:dark)");
+    expect(html).toContain(`background:${light.ground}`);
   });
 
   it("does not fail the auth flow when the mail cannot be sent", async () => {

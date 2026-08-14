@@ -60,6 +60,40 @@ describe("ThemeToggle (app routes)", () => {
     render(<ThemeToggle />);
     expect(screen.getByRole("radiogroup", { name: "Appearance" })).toBeDefined();
   });
+
+  it("tells the account about the choice, so the emails match", async () => {
+    const onChoose = vi.fn();
+    render(<ThemeToggle onChoose={onChoose} />);
+    fireEvent.click(screen.getByRole("radio", { name: "dark" }));
+
+    await vi.waitFor(() => expect(onChoose).toHaveBeenCalledWith("dark"));
+  });
+
+  it("does not report a deselect as a choice", () => {
+    const onChoose = vi.fn();
+    render(<ThemeToggle onChoose={onChoose} />);
+    fireEvent.click(screen.getByRole("radio", { name: "system" }));
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+
+  it("applies the theme even when the server never hears about it", async () => {
+    // The visible half is local and synchronous; this is a note about a message
+    // we will compose hours from now. A failure costs one email in the wrong
+    // palette, and is not worth an error beside a control that visibly worked.
+    render(<ThemeToggle onChoose={() => Promise.reject(new Error("offline"))} />);
+    fireEvent.click(screen.getByRole("radio", { name: "dark" }));
+
+    await vi.waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe("dark");
+    });
+  });
+
+  it("works with no listener at all", () => {
+    // It is also rendered where there is no session to write to.
+    render(<ThemeToggle />);
+    fireEvent.click(screen.getByRole("radio", { name: "light" }));
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
+  });
 });
 
 describe("ThemeToggleStatic (marketing routes)", () => {

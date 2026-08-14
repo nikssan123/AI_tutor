@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOCALES } from "@/lib/i18n/locales";
+import { dark, light } from "@/lib/theme";
+import type { ThemeChoice } from "@/lib/theme-script";
 import {
   missingVariables,
   renderOperatorMessage,
@@ -216,5 +218,37 @@ describe("threadSubjectFor", () => {
     expect(
       threadSubjectFor(templateById("checkIn")!, { goal: "SQL" }, "de"),
     ).toBe("Wie läuft es mit SQL?");
+  });
+});
+
+describe("the recipient's theme", () => {
+  const send = (theme?: ThemeChoice) =>
+    renderOperatorMessage({
+      template: templateById("welcome")!,
+      to: "a@b.co",
+      locale: "en",
+      theme,
+      variables: { name: "Ana" },
+      sender: "N",
+      env: ENV,
+    });
+
+  it("paints outreach in the theme the reader set, not the operator's", () => {
+    // This is the one send composed from someone else's browser. A cookie read
+    // here would carry the admin's preference into a learner's inbox.
+    expect(send("dark").html).toContain(`background:${dark.ground}`);
+    expect(send("light").html).toContain(`background:${light.ground}`);
+  });
+
+  it("falls back to System for an address with no account", () => {
+    // Outreach routinely goes to people who have never signed in.
+    expect(send().html).toContain("@media (prefers-color-scheme:dark)");
+  });
+
+  it("builds the mark's URL from the same env as the button's", () => {
+    // Both come from `canonical`, so a preview and a send cannot disagree
+    // about which origin the message points at.
+    expect(send().html).toContain("https://meritkeep.com/brand/mark-light.png");
+    expect(send().html).toContain("https://meritkeep.com/today");
   });
 });

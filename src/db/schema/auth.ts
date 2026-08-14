@@ -26,6 +26,21 @@ export const user = pgTable(
     handle: text("handle"),
     locale: text("locale").notNull().default("en"),
     timezone: text("timezone").notNull().default("UTC"),
+
+    /**
+     * The appearance choice, kept here for the same reason `locale` is: it is
+     * read at *send* time, in a job or a callback that has no browser attached
+     * to it.
+     *
+     * The toggle already writes `localStorage` and a cookie, and both are
+     * enough for the page the person is looking at. Neither survives the trip
+     * to an email — a password reset is composed from whatever request asked
+     * for it, and an operator's support reply is composed from the operator's
+     * browser, so a cookie would theme a stranger's mail with the wrong
+     * person's preference. `"system"` is not a missing answer; it is the
+     * answer, and it means the mail hands the decision to the reader's client.
+     */
+    theme: text("theme").notNull().default("system"),
     plan: text("plan").notNull().default("free"),
     stripeCustomerId: text("stripe_customer_id"),
 

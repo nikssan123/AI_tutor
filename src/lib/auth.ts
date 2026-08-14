@@ -8,6 +8,7 @@ import type { EnvLike } from "@/lib/env-types";
 import { siteUrl } from "@/lib/site";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-shared";
 import { localeOf, resolveLocale, type Locale } from "@/lib/i18n/locales";
+import { themeOf, toThemeChoice, type ThemeChoice } from "@/lib/theme-script";
 import {
   changeEmailMessage,
   deliver,
@@ -82,26 +83,29 @@ export function googleEnabled(env: EnvLike = process.env): boolean {
 }
 
 /**
- * The language a confirmation code is written in, looked up by address.
+ * How a confirmation code should be written and painted, looked up by address.
  *
- * Every other email callback is handed the user object and can read
- * `user.locale` off it; the OTP plugin is handed an address and a code, and
+ * Every other email callback is handed the user object and can read `locale`
+ * and `theme` off it; the OTP plugin is handed an address and a code, and
  * nothing else. So this is a query — one indexed read, on a path that is
  * already sending an email, to avoid greeting a Bulgarian in English seconds
- * after they chose Bulgarian at sign-up.
+ * after they chose Bulgarian at sign-up, or firing a white rectangle at
+ * someone who set the product to dark an hour ago.
  *
- * An address with no account resolves to English rather than failing. That case
- * is reachable: the plugin will happily send a code to an address that has not
- * been registered yet.
+ * An address with no account resolves to English and System rather than
+ * failing. That case is reachable: the plugin will happily send a code to an
+ * address that has not been registered yet.
  */
-export async function localeForEmail(email: string): Promise<Locale> {
+export async function mailPrefsFor(
+  email: string,
+): Promise<{ locale: Locale; theme: ThemeChoice }> {
   const [row] = await getDb()
-    .select({ locale: schema.user.locale })
+    .select({ locale: schema.user.locale, theme: schema.user.theme })
     .from(schema.user)
     .where(eq(schema.user.email, email))
     .limit(1);
 
-  return resolveLocale(row?.locale);
+  return { locale: resolveLocale(row?.locale), theme: toThemeChoice(row?.theme) };
 }
 
 /**
@@ -116,12 +120,14 @@ export async function sendSignUpCode(data: {
   email: string;
   otp: string;
 }): Promise<void> {
+  const prefs = await mailPrefsFor(data.email);
   await deliver(
     verifyCodeMessage({
       to: data.email,
       code: data.otp,
       expiresIn: OTP_TTL_SECONDS,
-      locale: await localeForEmail(data.email),
+      locale: prefs.locale,
+      theme: prefs.theme,
     }),
   );
 }
@@ -180,7 +186,13 @@ export function createAuth(env: EnvLike = process.env) {
             // `user.locale` at send time, not on whatever the browser
             // requesting the reset happens to be set to. The person reading
             // this is in their inbox, not on our site.
+            //
+            // `user.theme` is on the row for the same reason and reads the
+            // same way. A reset can be asked for from a machine the account
+            // holder is not sitting at, so the browser making the request is
+            // the last thing that should pick the palette.
             locale: localeOf(user),
+            theme: themeOf(user),
           }),
         ).then(() => undefined),
       resetPasswordTokenExpiresIn: RESET_TTL_SECONDS,
@@ -202,6 +214,7 @@ export function createAuth(env: EnvLike = process.env) {
             url,
             expiresIn: VERIFICATION_TTL_SECONDS,
             locale: localeOf(user),
+            theme: themeOf(user),
           }),
         ).then(() => undefined),
       /**
@@ -242,6 +255,19 @@ export function createAuth(env: EnvLike = process.env) {
         handle: { type: "string", required: false },
         locale: { type: "string", required: false, defaultValue: "en" },
         timezone: { type: "string", required: false, defaultValue: "UTC" },
+        /**
+         * Declared so the email callbacks above can read it off the user they
+         * are handed; `input: false` because it is not something a sign-up
+         * payload gets to set. The one writer is `rememberThemeAction`, which
+         * normalises through `toThemeChoice` before it touches the row, so the
+         * column cannot hold a value the renderer has no palette for.
+         */
+        theme: {
+          type: "string",
+          required: false,
+          defaultValue: "system",
+          input: false,
+        },
         plan: {
           type: "string",
           required: false,
@@ -276,6 +302,7 @@ export function createAuth(env: EnvLike = process.env) {
               url,
               expiresIn: VERIFICATION_TTL_SECONDS,
               locale: localeOf(user),
+              theme: themeOf(user),
             }),
           ).then(() => undefined),
       },
