@@ -2017,5 +2017,9 @@ only page that knows how far along it is.
 - The three notes ("once a course is running, this is where…") stay per screen.
   The offer is the same everywhere; what the learner came to that screen for is
   not.
+- `tests/goals/standing.test.ts` joins the `db` project in `vitest.config.ts`.
+  It creates goals and seeds a pack, and left in the parallel project it raced
+  the files that count active goals — the exact bug that comment describes,
+  reproduced once in four full runs before the file was moved.
 
-2711 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+2708 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.

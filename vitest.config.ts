@@ -8,6 +8,7 @@ const DATABASE_TESTS = [
   "tests/calendar/store.test.ts",
   "tests/curriculum/store.test.ts",
   "tests/db/connection.test.ts",
+  "tests/goals/standing.test.ts",
   "tests/lib/admin-console.test.ts",
   "tests/lib/admin-generated.test.ts",
   "tests/lib/auth.test.ts",
@@ -48,9 +49,9 @@ export default defineConfig({
      * around as the file list changes, so it is fixed by serialising the files
      * that share the resource instead of by loosening what they assert.
      *
-     * Only these ten files pay for it; the ~67 pure-unit files still run in
-     * parallel, which is why the suite stays at roughly its old wall time
-     * rather than the ~3x of turning parallelism off everywhere.
+     * Only the files listed above pay for it; the rest of the suite still runs
+     * in parallel, which is why it stays at roughly its old wall time rather
+     * than the ~3x of turning parallelism off everywhere.
      */
     projects: [
       {
