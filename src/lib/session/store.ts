@@ -234,6 +234,14 @@ export async function recordResponse(
  * `blockIndex` — and therefore every recorded response — pointing at the block
  * it was actually about.
  *
+ * **Do not turn this into an insert without moving the responses too.**
+ * `BlockResponse.blockIndex` is a position in this array, not an id, so
+ * splicing a block in at position 2 silently re-points every answer after it at
+ * the wrong question — a learner's history rewrites itself, and nothing fails.
+ * Inserting mid-session means rewriting every stored response's index in the
+ * same transaction, which is why the one caller that needed more blocks got
+ * them on the end instead.
+ *
  * Returns the session unchanged when there is nothing to add, so a caller does
  * not have to special-case an empty list to avoid a pointless write.
  */
