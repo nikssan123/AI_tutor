@@ -34,7 +34,6 @@ describe("allPacks", () => {
       "personal-finance",
       "photography",
       "python-fundamentals",
-      "spanish-reading-writing",
       "sql-data-analysis",
       "statistics-data-literacy",
     ]);

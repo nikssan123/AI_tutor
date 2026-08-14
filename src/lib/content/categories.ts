@@ -47,12 +47,22 @@ export const CATEGORIES: Category[] = [
     name: "Craft & making",
     blurb: "Skills whose result is a physical thing, judged from a photograph of it and your account of how you got there.",
   },
-  {
-    slug: "language",
-    name: "Languages",
-    blurb: "Reading and writing another language. Speaking is not assessed here yet, and every subject in this branch says so.",
-  },
 ];
+
+/**
+ * **Languages are deliberately not a category, and this is a decision rather
+ * than a gap.** Nikolay's call, and it holds up against §3: language learning
+ * is the one branch with strong, well-funded incumbents that learners already
+ * like, and §6.1 puts this product's whole advantage in grading work that
+ * nobody else grades. Competing with Duolingo on drill quality is a fight on
+ * their ground, and the half of a language that would actually differentiate —
+ * speaking — is the half §7.3 cannot reach until the Conversation workspace
+ * ships.
+ *
+ * A learner who asks for Spanish is still served: §7.1's Generated tier writes
+ * it on request and it lands under "Everything else". What we do not do is
+ * author one by hand or put a front door on it.
+ */
 
 /**
  * The bucket for a branch no category claims.

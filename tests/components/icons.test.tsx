@@ -10,7 +10,6 @@ import {
   CraftIcon,
   DatabaseIcon,
   GridIcon,
-  LanguageIcon,
   MasteryIcon,
   PenIcon,
   ProgressIcon,
@@ -42,7 +41,6 @@ const ALL = [
   ["AccountIcon", AccountIcon],
   ["ArrowIcon", ArrowIcon],
   ["CraftIcon", CraftIcon],
-  ["LanguageIcon", LanguageIcon],
 ] as const;
 
 describe("the icon set", () => {
@@ -113,7 +111,6 @@ describe("SubjectIcon — §7.3 rule 1, adding a domain is a data change", () =>
     expect(marks("creative")).toBe(render(<CameraIcon />).container.innerHTML);
     expect(marks("technology")).toBe(render(<DatabaseIcon />).container.innerHTML);
     expect(marks("craft")).toBe(render(<CraftIcon />).container.innerHTML);
-    expect(marks("language")).toBe(render(<LanguageIcon />).container.innerHTML);
   });
 
   /**

@@ -190,12 +190,6 @@ export function DatabaseIcon({ className }: IconProps) {
   );
 }
 
-/**
- * §7.1's taxonomy decides the icon, so adding a Domain Pack stays a data change
- * (§7.3 rule 1) — a new subject picks up the right mark without touching a
- * component. Anything unrecognised falls back to the neutral grid rather than
- * guessing at a metaphor.
- */
 /** A mortar and pestle, near enough: making something with your hands. */
 export function CraftIcon({ className }: IconProps) {
   return (
@@ -206,16 +200,12 @@ export function CraftIcon({ className }: IconProps) {
   );
 }
 
-/** Two speech marks: one language, then another. */
-export function LanguageIcon({ className }: IconProps) {
-  return (
-    <Svg className={className}>
-      <path d="M4 5h10v7H8l-4 3V5Z" />
-      <path d="M10 12v4a1 1 0 0 0 1 1h5l4 3v-7a1 1 0 0 0-1-1h-3" />
-    </Svg>
-  );
-}
-
+/**
+ * §7.1's taxonomy decides the icon, so adding a Domain Pack stays a data change
+ * (§7.3 rule 1) — a new subject picks up the right mark without touching a
+ * component. Anything unrecognised falls back to the neutral grid rather than
+ * guessing at a metaphor.
+ */
 export function SubjectIcon({
   taxonomyParent,
   className,
@@ -229,7 +219,6 @@ export function SubjectIcon({
     creative: CameraIcon,
     technology: DatabaseIcon,
     craft: CraftIcon,
-    language: LanguageIcon,
   };
   const Chosen = byTaxonomy[taxonomyParent ?? ""] ?? GridIcon;
   return <Chosen className={className} />;
