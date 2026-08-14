@@ -2323,3 +2323,157 @@ carry-in it enables has still only been exercised in tests — the first real
 browser run of check → signup → path is worth watching.
 
 3163 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+
+---
+
+# Delivery record — pass 26: the free check marks what you wrote
+
+`src/lib/check/mark.ts`, the anonymous check's fifth screen, the anonymous daily
+spend cap in `runlog.ts`, and a `graded` mode through the diagnostic engine and
+its cookie. **The first model call this product makes for someone who has not
+signed up.**
+
+## The constraint nobody had named
+
+Pass 25 found that a Skill Check can never lift a skill to the bar the planner
+skips at, and diagnosed it as a budget problem: nine questions across
+twenty-six skills cannot give any one skill the three observations the BKT
+needs. That is true and it was not the binding constraint.
+
+Measured across the seven packs:
+
+| | |
+|---|---|
+| Skills with **at least one** auto-markable item | 15–35% |
+| Skills with three | **none, in any pack** |
+| Photography, as a learner met it | **4 of 15 skills** could be reported on |
+
+The check could only mark closed items. Everything else — `explain`,
+`short_text`, `code_read` — was shown, answered, and then handed back to the
+learner to mark against a revealed key, which §7.2 calls Tier 5 and which
+therefore moves nothing. So eleven photography skills had nothing the check
+could say about them, whatever the budget.
+
+That was the right call when `diagnostic.ts` was written: its header says so, and
+says why — "built to run with no LLM in the path… shippable before
+`ANTHROPIC_API_KEY` exists". It stopped being true some time around E7.
+
+## The piece was already built
+
+§14.2 routes free-text grading to Haiku ("Assessment Agent: Haiku 4.5 *only* to
+grade free-text"), §19.1 budgets the check at about a cent, and `STEP_MODELS`
+has carried a `checkGrader` row on the fast tier since the routing table was
+written. `session/grade.ts` had built the call for the signed-in session two
+passes before — prompt at v2, tool schema, Zod contract, and the calibration
+constants beside it.
+
+So the work was not a grader. It was **the decision around the call**, and the
+honest recording of which decision was taken.
+
+## Four ways an answer does not get marked, all landing in one place
+
+No API key · no budget left today · a blank answer · a call that failed. Each
+falls back to the reveal-and-self-mark screen this check shipped with, and that
+is what made this safe to add without a flag or a degraded-mode banner: **the
+fallback is not a broken version of the feature, it is the honest older one.**
+The result screen already distinguishes what was marked from what was
+self-marked, because it always had to.
+
+A blank answer is marked wrong without asking anyone, and the sentence saying so
+is the only feedback in the product no model wrote. Nine blank submissions is
+the cheapest abuse of this surface there is, and it now costs nothing.
+
+## The mode is recorded, not inferred
+
+`Answer` in the check cookie gained a `g` flag, and this is the load-bearing
+part rather than a detail. The same item can go either way in the same product,
+and mastery is **replayed** from the cookie on every request rather than stored.
+Without the flag a replay would reconstruct a *kinder* mastery than the learner
+was shown — silently, and in the direction nobody would check. `AskedItem.mode`
+is `auto | graded | self` all the way through the engine, and `summarise`'s
+`assessed` widened from "a closed item decided it" to "something other than the
+learner decided it".
+
+**The Tier 5 rule is untouched.** A self-marked answer still moves nothing, and
+a graded one is capped by `evidenceTierFor` at Tier 2 — or at the skill's own
+tier when the domain is weaker, so a Tier 3 photography skill stays Tier 3
+however well the learner writes about it. That is why `DiagnosticSkill` now
+carries `evalTier`: the cap needs the domain, and the engine had never needed to
+know it before.
+
+## Where the cap lives
+
+The check is the one surface that spends with nobody to bill it to, so
+§14.9.7's "checked *before* every call" needed something to check.
+
+It reads the **`agent_run` rows the calls already write**. `RunRecord.userId`
+has been nullable since it was written, with the comment "null for anonymous
+work — the free check", so the ledger was already there and a second counter
+would have been a second place to be wrong. `ANONYMOUS_DAILY_CAP_CENTS` is 500 —
+about 100,000 marked answers at Haiku prices.
+
+Per day and global rather than per IP: a per-IP limit needs shared state this
+build does not have and still would not bound the total. **If the ledger cannot
+be read, nothing is spent** — a cap that cannot be read is not a cap, and
+failing towards self-marking fails towards the cheaper claim.
+
+`getDb` is passed as a *factory* rather than a connection for the same reason:
+`getDb()` throws where `DATABASE_URL` is unset, and this is a marketing route
+that otherwise touches no database. Calling it eagerly took the whole check down
+in the unit suite, which is exactly the environment a marketing-only deployment
+would look like.
+
+## What the browser found that the suite could not
+
+Run against the real model, on the real dev server:
+
+1. **It works, and the feedback quotes the learner.** "Counted as right", then
+   the grader repeating the reader's own phrase back at them. That is §8 screen
+   9's "must feel like a senior person reviewed your work" at check scale, for a
+   visitor with no account.
+2. **The same photography check went from 4 marked skills to 9 of 15.**
+3. **The submit button still said "Show me a good answer"** — the self-mark
+   framing, promising a screen that is now the fallback rather than the rule.
+   The button cannot know which it will get; it says "Answer", and the meta line
+   above it says "a written answer" rather than promising who will mark it.
+
+## A latent bug the cookie work exposed
+
+The stored response was bounded at 4,000 characters — which is over a browser's
+~4KB cookie limit on its own once base64 has added a third. An oversized cookie
+is dropped **silently**, so a learner who wrote at length would have had the
+check reset itself mid-run. The bound is 1,200 now, the textarea carries the
+same `maxLength`, and the truncation is something they are told about rather
+than something that happens to them.
+
+## Notes
+
+- The intro no longer counts markable questions ("5 of the 33…"). It was true of
+  closed items and is now true of nearly all of them, and a number that has to
+  be re-explained the moment a marker is unavailable is worse than the rule it
+  stood for. The rule — marking your own work never counts as proof — is
+  unchanged and still on the page.
+- `CHECK_CONFIDENCE`, `WRITTEN_ANSWER_TIER` and `evidenceTierFor` moved from
+  `session/grade.ts` into `engine/scoring.ts`. The engine cannot import a module
+  that pulls in the Anthropic client, and two copies of "what is a written
+  answer worth" would drift in the flattering direction.
+- The marking screen sits *ahead* of the result screen: a graded answer can be
+  the one that finishes the check, and showing the result over the top of it
+  would throw away the only per-answer feedback a free visitor gets.
+- `tests/app/check-marking.test.tsx` is its own file because its premise is the
+  opposite of `check-run.test.tsx`'s. That suite runs with no key — the fallback
+  every marketing-only environment takes — and this one runs with a marker that
+  answers.
+
+## Still open
+
+Unchanged: §24 E8's hand-graded corpus, E10's two outputs behind E12's content,
+Lighthouse and GSC/Bing behind a deployed origin.
+
+**E4's remaining half**, now the whole of what it owes: nine questions across
+twenty-six skills still cannot give any single skill three observations, so
+nothing is *skipped* on the strength of a check yet. That is a budget-and-
+coverage question — a longer check, a narrower one, or item selection that
+concentrates once it is nearly sure — and it is a decision rather than a defect.
+
+3193 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.

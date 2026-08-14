@@ -32,20 +32,32 @@ import { subjectInProse } from "@/lib/subject-name";
 import {
   cookieName,
   decode,
+  MAX_ANSWER,
   needsSelfMark,
   readableAnswerKey,
   replay,
   toDiagnostic,
 } from "@/lib/check/session";
-import { startCheck, submitAnswer, submitSelfMark } from "./actions";
+import {
+  continueAfterMarking,
+  startCheck,
+  submitAnswer,
+  submitSelfMark,
+} from "./actions";
 
 /**
  * §24 E4 — the Skill Check, running.
  *
- * One route, four states: intro, question, self-mark, result. Every transition
- * is a plain form POST to a Server Action, which Next progressively enhances —
- * so the whole thing works with JavaScript disabled and adds nothing to the
- * marketing bundle (§8.5.8, §13.3).
+ * One route, five states: intro, question, marking, self-mark, result. Every
+ * transition is a plain form POST to a Server Action, which Next progressively
+ * enhances — so the whole thing works with JavaScript disabled and adds nothing
+ * to the marketing bundle (§8.5.8, §13.3).
+ *
+ * *Marking* and *self-mark* are the same moment answered two ways: §14.2's
+ * Assessment Agent marked the written answer, or it could not and the learner
+ * marks it themselves. The second was the only one that existed for six passes
+ * and is still what a missing key, an exhausted daily budget or a failed call
+ * degrades to (`lib/check/mark.ts`).
  *
  * Indexable on the same gate as the subject page it belongs to. §12.1's bar is
  * usefulness to a stranger arriving from search, and this page clears it: the
@@ -125,7 +137,6 @@ export default async function CheckRunPage({ params }: Params) {
 
   /* ── Intro ───────────────────────────────────────────────────────────── */
   if (!cookie.s) {
-    const closed = items.filter((i) => i.type === "mcq").length;
     return shell(
       <>
         <div className="rise flex items-center gap-4">
@@ -144,10 +155,19 @@ export default async function CheckRunPage({ params }: Params) {
           style={stagger(2)}
         >
           <Title>What it can and cannot tell you</Title>
+          {/*
+            No count of markable questions here any more. It used to say "5 of
+            the 33 can be marked automatically", which was true of closed items
+            and is now true of nearly all of them — and a number that has to be
+            re-explained the moment a marker is unavailable is worse than the
+            rule it stands for. The rule is the last sentence, and it has not
+            changed.
+          */}
           <Meta>
-            {closed} of the {items.length} questions in this subject can be
-            marked automatically, and those count. You mark the rest yourself
-            against a model answer. That is useful practice, but{" "}
+            Written answers are marked against what the skill asks for, and
+            those count. If we can&rsquo;t mark one, you&rsquo;ll mark it
+            yourself against a model answer, and the result says which is which.
+            That is useful practice, but{" "}
             <strong>marking your own work never counts as proof</strong>. For
             that, you hand in a project.
           </Meta>
@@ -164,6 +184,46 @@ export default async function CheckRunPage({ params }: Params) {
       // Only on the intro. It is the state a crawler is served, and it is the
       // only state where the three facts the markup states are on the screen.
       [quiz(topicSummary(pack), DEFAULT_BUDGET, CHECK_MINUTES)],
+    );
+  }
+
+  /* ── Marked, and waiting to be read ──────────────────────────────────── */
+  /*
+   * Ahead of the result deliberately. A graded answer can be the one that
+   * finishes the check, and showing the result over the top of it would throw
+   * away the only per-answer feedback a visitor gets for free.
+   */
+  if (cookie.m) {
+    const marked = items.find((i) => i.slug === cookie.m!.i);
+    if (!marked) redirect(`/check/${topic}`);
+    const right = cookie.m.c === 1;
+
+    return shell(
+      <>
+        <Meta>
+          Question {state.asked.length} of {DEFAULT_BUDGET} · marked
+        </Meta>
+        <Title>{marked.prompt}</Title>
+
+        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]">
+          <Meta>What you wrote</Meta>
+          <p className="whitespace-pre-wrap m-0">{cookie.m.r}</p>
+        </div>
+
+        <div className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-accent-weak p-6">
+          <Status tone={right ? "verified" : "attention"}>
+            {right ? "Counted as right" : "Not right yet"}
+          </Status>
+          {/* §8.5.4 — --ink-faint is under the small-text bar on this fill. */}
+          <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] leading-[var(--text-body-line)] text-ink">
+            {cookie.m.f}
+          </p>
+        </div>
+
+        <form action={continueAfterMarking.bind(null, topic)}>
+          <Button type="submit">Next question</Button>
+        </form>
+      </>,
     );
   }
 
@@ -298,7 +358,11 @@ export default async function CheckRunPage({ params }: Params) {
     <>
       <Meta>
         Question {state.asked.length + 1} of {DEFAULT_BUDGET}
-        {closed ? " · marked automatically" : " · you will mark this one yourself"}
+        {/* Neither promise is safe before the fact: an open answer is marked
+            when the grader is reachable and inside the day's budget, and marked
+            by the learner when it is not. The screen after this one says which
+            happened. */}
+        {closed ? " · marked automatically" : " · a written answer"}
       </Meta>
       <Title>{item.prompt}</Title>
 
@@ -331,6 +395,11 @@ export default async function CheckRunPage({ params }: Params) {
           <textarea
             name="response"
             rows={6}
+            /* The same bound the cookie enforces (`MAX_ANSWER`). Without it a
+               long answer is truncated after the fact, or — before that bound
+               was tightened — silently dropped the whole cookie and reset the
+               check. Told up front instead. */
+            maxLength={MAX_ANSWER}
             placeholder="Your answer"
             className="rounded-[var(--radius-control)] border border-hairline bg-surface p-4 text-ink placeholder:text-ink-faint"
           />
@@ -338,7 +407,11 @@ export default async function CheckRunPage({ params }: Params) {
 
         <div>
           <Button type="submit">
-            {closed ? "Answer" : "Show me a good answer"}
+            {/* "Show me a good answer" for an open item, until the grader
+                existed. It promised the reveal-and-self-mark screen, which is
+                now the fallback rather than the rule — and the button cannot
+                know which it will get. One word covers both. */}
+            Answer
           </Button>
         </div>
       </form>

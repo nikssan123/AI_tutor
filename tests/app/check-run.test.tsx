@@ -81,16 +81,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("the intro", () => {
-  it("states plainly how much of the subject it can actually mark", async () => {
+  /**
+   * The count this used to assert ("5 of the 33 questions can be marked
+   * automatically") was true while only closed items could be marked. §14.2's
+   * grader marks written answers now, and a number that has to be re-explained
+   * the moment a marker is unavailable is worse than the rule it stood for.
+   * The rule is what the page still states, and it has not moved.
+   */
+  it("states plainly what counts and what does not", async () => {
     render(await page.default({ params: params() }));
 
-    const closed = pack.items.filter((i) => i.type === "mcq").length;
     expect(
-      screen.getByText(
-        (t) =>
-          t.includes(`${closed} of the ${pack.items.length} questions`) &&
-          t.includes("marked automatically"),
-      ),
+      screen.getByText((t) => t.includes("If we can’t mark one, you’ll mark it")),
     ).toBeDefined();
     expect(
       screen.getByText(/marking your own work never counts as proof/),
@@ -201,7 +203,13 @@ describe("answering", () => {
     expect(stored().a).toEqual([{ i: closedItem.slug, c: 0 }]);
   });
 
-  it("parks an open answer for self-marking rather than grading it", async () => {
+  /**
+   * With no API key configured — which is this suite, and any environment
+   * serving the public site alone — an open answer falls back to the behaviour
+   * the check shipped with. Nothing is recorded until the learner has said how
+   * it went, and §7.2 will refuse to count it when they do.
+   */
+  it("parks an open answer for self-marking when nothing can mark it", async () => {
     seed({ s: 1, a: [] });
 
     await run(() =>
@@ -213,6 +221,7 @@ describe("answering", () => {
 
     expect(stored().a).toEqual([]);
     expect(stored().p).toEqual({ i: openItem.slug, r: "my attempt" });
+    expect(stored().m).toBeUndefined();
   });
 
   it("drops a submission for an item that is not in the pack", async () => {
@@ -236,7 +245,7 @@ describe("answering", () => {
   });
 
   /** Reached once the closed items are used up, which is most of the check. */
-  it("shows an open question as a free-text box, flagged as self-marked", async () => {
+  it("shows an open question as a free-text box, promising nothing about who marks it", async () => {
     seed({
       s: 1,
       a: pack.items
@@ -245,11 +254,14 @@ describe("answering", () => {
     });
     const { container } = render(await page.default({ params: params() }));
 
-    expect(screen.getByText(/you will mark this one yourself/)).toBeDefined();
+    // Neither promise is safe before the fact — the grader may or may not be
+    // reachable and inside the day's budget when the answer arrives.
+    expect(screen.getByText(/a written answer/)).toBeDefined();
+    expect(screen.queryByText(/marked automatically/)).toBeNull();
     expect(container.querySelector('textarea[name="response"]')).toBeDefined();
     expect(container.querySelector('input[type="radio"]')).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Show me a good answer" }),
+      screen.getByRole("button", { name: "Answer" }),
     ).toBeDefined();
   });
 

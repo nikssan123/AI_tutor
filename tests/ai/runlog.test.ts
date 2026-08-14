@@ -3,6 +3,10 @@ import { eq } from "drizzle-orm";
 import { createClient } from "@/db";
 import { agentRun, spendLedger, user } from "@/db/schema";
 import {
+  ANONYMOUS_DAILY_CAP_CENTS,
+  anonymousBudgetSpent,
+  anonymousSpentToday,
+  dayOf,
   logCall,
   periodOf,
   recordAgentRun,
@@ -317,6 +321,70 @@ live("the AgentRun log", () => {
 
     it("treats a learner with no spend at all as under the cap", async () => {
       expect(await shouldDegrade(db, await newUser(), "free", NOW)).toBe(false);
+    });
+  });
+
+  /**
+   * §19.2's "hard global daily spend cap on the free tier", for the anonymous
+   * Skill Check — the one surface that spends with nobody to bill it to.
+   *
+   * Asserted as *deltas* against whatever is already in the table. The rows it
+   * counts have no user to scope them to, so a fixed total would be a fact
+   * about the order the suite happened to run in.
+   */
+  describe("the anonymous daily cap", () => {
+    const ANON_AGENT = "anon_cap_probe";
+
+    const anonRun = async (costCents: number, at: Date) =>
+      recordAgentRun(
+        db,
+        {
+          userId: null,
+          meta: meta({ costCents, promptName: ANON_AGENT }),
+          status: "ok",
+        },
+        at,
+      );
+
+    afterAll(async () => {
+      await db.delete(agentRun).where(eq(agentRun.agentName, ANON_AGENT));
+    });
+
+    it("counts what the free tier spent today, and only today", async () => {
+      const before = await anonymousSpentToday(db, NOW);
+      await anonRun(3, NOW);
+      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 3, 5);
+
+      // Yesterday's spend is yesterday's problem.
+      await anonRun(7, new Date("2026-08-12T09:00:00.000Z"));
+      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 3, 5);
+    });
+
+    it("counts nothing that belongs to a learner", async () => {
+      const before = await anonymousSpentToday(db, NOW);
+      await recordAgentRun(
+        db,
+        {
+          userId: await newUser(),
+          meta: meta({ costCents: 50, promptName: ANON_AGENT }),
+          status: "ok",
+        },
+        NOW,
+      );
+
+      // A signed-in learner has their own cap; this one is about the free tier.
+      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before, 5);
+    });
+
+    it("stops the free tier once the day's ceiling is reached", async () => {
+      expect(await anonymousBudgetSpent(db, NOW)).toBe(false);
+      await anonRun(ANONYMOUS_DAILY_CAP_CENTS, NOW);
+      expect(await anonymousBudgetSpent(db, NOW)).toBe(true);
+
+      // And the next day starts clear — the ceiling is a day, not a total.
+      const tomorrow = new Date("2026-08-14T09:00:00.000Z");
+      expect(dayOf(tomorrow)).not.toBe(dayOf(NOW));
+      expect(await anonymousBudgetSpent(db, tomorrow)).toBe(false);
     });
   });
 });

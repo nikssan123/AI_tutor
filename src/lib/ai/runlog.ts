@@ -141,6 +141,61 @@ export async function logCall<T>(
 /** §14.9.7 limit 1 — the caps, in cents, checked *before* every call. */
 export const SPEND_CAP_CENTS = { free: 100, pro: 1_500 } as const;
 
+/**
+ * §19.2's "hard global daily spend cap on the free tier", for the one surface
+ * that spends money with nobody to bill it to: the anonymous Skill Check.
+ *
+ * Per *day* and global rather than per user and monthly, because there is no
+ * user — and per IP, which is what §19.2 reaches for first, needs shared state
+ * this build does not have and would still not bound the total. A ceiling on
+ * the whole free tier does bound it, which is the property §14.9.7 actually
+ * asks for: "never silently overspend".
+ *
+ * 500¢ is about 100,000 marked answers at Haiku prices — far above any honest
+ * day's traffic at this stage and far below a bill worth waking up to.
+ *
+ * **It reads the `agent_run` rows that were already being written**, rather
+ * than a counter of its own. `RunRecord.userId` has been nullable since it was
+ * written, for exactly this ("null for anonymous work — the free check"), and a
+ * second place recording the same spend is a second place to be wrong.
+ */
+export const ANONYMOUS_DAILY_CAP_CENTS = 500;
+
+/** UTC day, matching the key the planner already writes its dates under. */
+export function dayOf(at: Date): string {
+  return at.toISOString().slice(0, 10);
+}
+
+export async function anonymousSpentToday(
+  db: Db,
+  now: Date = new Date(),
+): Promise<number> {
+  const rows = await db
+    .select({ cents: sql<number>`coalesce(sum(${agentRun.costCents}), 0)` })
+    .from(agentRun)
+    .where(
+      sql`${agentRun.userId} is null and ${agentRun.createdAt} >= ${`${dayOf(now)}T00:00:00.000Z`}`,
+    );
+
+  // `sum` with `coalesce` and no `group by` always returns exactly one row, so
+  // there is no empty case to defend against.
+  return Number(rows[0]!.cents);
+}
+
+/**
+ * Checked *before* the call, like every other cap in §14.9.7 — and the caller's
+ * job when it returns true is to degrade rather than to refuse. On the check
+ * that degradation is the behaviour this product shipped with for six passes:
+ * the learner marks their own answer, and it does not count. Nothing breaks,
+ * and nothing quietly claims to have been marked when it was not.
+ */
+export async function anonymousBudgetSpent(
+  db: Db,
+  now: Date = new Date(),
+): Promise<boolean> {
+  return (await anonymousSpentToday(db, now)) >= ANONYMOUS_DAILY_CAP_CENTS;
+}
+
 export async function spentThisPeriod(
   db: Db,
   userId: string,

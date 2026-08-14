@@ -1,7 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { callStructured, type CallResult } from "@/lib/ai/call";
-import type { EvalTier } from "@/lib/engine";
 
 /**
  * §14.2 — "Assessment Agent: Haiku 4.5 *only* to grade free-text."
@@ -79,23 +78,6 @@ export interface GradeRequest {
   expected: string;
   answer: string;
 }
-
-/**
- * §7.2, as arithmetic. A written answer caps out at Tier 2, and a skill whose
- * own tier is weaker than that keeps its own tier — evidence cannot be stronger
- * than the domain allows.
- */
-export const WRITTEN_ANSWER_TIER = 2;
-
-export function evidenceTierFor(skillTier: EvalTier): EvalTier {
-  return Math.max(WRITTEN_ANSWER_TIER, skillTier) as EvalTier;
-}
-
-/**
- * §16.2's `c`. A recall question is production, but small production: it moves
- * the belief, and it does not move it as far as an evaluated artefact would.
- */
-export const CHECK_CONFIDENCE = 0.45;
 
 export async function gradeCheck(
   client: Anthropic,

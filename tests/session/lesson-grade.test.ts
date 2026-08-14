@@ -9,13 +9,12 @@ import {
   styleHashFor,
   type LessonRequest,
 } from "@/lib/session/lesson";
+import { gradeCheck, GRADER_PROMPT } from "@/lib/session/grade";
 import {
   CHECK_CONFIDENCE,
   evidenceTierFor,
-  gradeCheck,
-  GRADER_PROMPT,
   WRITTEN_ANSWER_TIER,
-} from "@/lib/session/grade";
+} from "@/lib/engine/scoring";
 import { MODELS } from "@/lib/ai/models";
 import { LessonContent } from "@/lib/contracts/session";
 

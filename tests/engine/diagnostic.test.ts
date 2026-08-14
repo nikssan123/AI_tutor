@@ -31,8 +31,8 @@ const NOW = "2026-08-13T09:00:00.000Z";
 const priors = { pInit: 0.2, pLearn: 0.2, pSlip: 0.1, pGuess: 0.2 };
 
 const skills: DiagnosticSkill[] = [
-  { slug: "alpha", name: "Alpha", priors },
-  { slug: "beta", name: "Beta", priors },
+  { slug: "alpha", name: "Alpha", priors, evalTier: 2 },
+  { slug: "beta", name: "Beta", priors, evalTier: 2 },
 ];
 
 const item = (over: Partial<DiagnosticItem> & { slug: string }): DiagnosticItem => ({
@@ -138,7 +138,7 @@ describe("selectNextItem — deterministic and information-seeking", () => {
   });
 
   it("prefers an item pitched near the current estimate", () => {
-    const state = startDiagnostic([{ slug: "alpha", name: "Alpha", priors }]);
+    const state = startDiagnostic([{ slug: "alpha", name: "Alpha", priors, evalTier: 2 }]);
     const items = [
       item({ slug: "far", difficulty: 0.95 }),
       item({ slug: "near", difficulty: 0.2 }),
@@ -166,7 +166,7 @@ describe("selectNextItem — deterministic and information-seeking", () => {
   });
 
   it("weights a more discriminating item higher, all else equal", () => {
-    const state = startDiagnostic([{ slug: "alpha", name: "Alpha", priors }]);
+    const state = startDiagnostic([{ slug: "alpha", name: "Alpha", priors, evalTier: 2 }]);
     const items = [
       item({ slug: "a-blunt", discrimination: 0.5 }),
       item({ slug: "b-sharp", discrimination: 2 }),
@@ -332,6 +332,7 @@ describe("against the real packs", () => {
         slug: s.slug,
         name: s.name,
         priors: s.bktPriors,
+        evalTier: s.evalTier,
       }));
       const priorsBySkill = new Map(packSkills.map((s) => [s.slug, s.priors]));
       const items: DiagnosticItem[] = pack.items.map((i) => ({

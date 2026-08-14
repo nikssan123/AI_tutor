@@ -5,7 +5,9 @@ import {
   cookieName,
   decode,
   encode,
+  MAX_ANSWER,
   MAX_ANSWERS,
+  MAX_FEEDBACK,
   needsSelfMark,
   readableAnswerKey,
   replay,
@@ -21,7 +23,9 @@ import type { DiagnosticItem, DiagnosticSkill } from "@/lib/engine/diagnostic";
 const NOW = "2026-08-13T09:00:00.000Z";
 const priors = { pInit: 0.2, pLearn: 0.2, pSlip: 0.1, pGuess: 0.2 };
 
-const skills: DiagnosticSkill[] = [{ slug: "alpha", name: "Alpha", priors }];
+const skills: DiagnosticSkill[] = [
+  { slug: "alpha", name: "Alpha", priors, evalTier: 2 },
+];
 
 const items: DiagnosticItem[] = [
   {
@@ -142,9 +146,17 @@ describe("decode — never throws, whatever arrives", () => {
     expect(decode(raw).p).toEqual({ i: "open", r: "my answer" });
   });
 
-  it("truncates an oversized pending response", () => {
+  /**
+   * The bound is 1,200 rather than the 4,000 it was, and the difference is not
+   * tidiness: a cookie over about 4KB is dropped by the browser *silently*, so
+   * a learner who wrote at length used to have the whole check reset itself
+   * mid-run. The textarea now carries the same `maxLength`, so the truncation
+   * is something they are told about rather than something that happens to
+   * them.
+   */
+  it("truncates an oversized pending response to what a cookie can hold", () => {
     const raw = encode({ a: [], p: { i: "open", r: "x".repeat(9000) } });
-    expect(decode(raw).p!.r).toHaveLength(4000);
+    expect(decode(raw).p!.r).toHaveLength(MAX_ANSWER);
   });
 
   it.each([
@@ -156,6 +168,55 @@ describe("decode — never throws, whatever arrives", () => {
       JSON.stringify({ a: [], [key]: value }),
     ).toString("base64url");
     expect(decode(raw).p).toBeUndefined();
+  });
+
+  /**
+   * The marking is the same untrusted input the pending answer is, and it goes
+   * on screen as a verdict — which is the one thing on this page a forged
+   * cookie could use to tell a visitor they passed. It survives decoding only
+   * when every field is the shape it should be.
+   */
+  it("keeps a well-formed marking, bounded on both strings", () => {
+    const raw = encode({
+      a: [],
+      m: { i: "open", c: 1, f: "f".repeat(2_000), r: "r".repeat(9_000) },
+    });
+    const marked = decode(raw).m!;
+
+    expect(marked.i).toBe("open");
+    expect(marked.c).toBe(1);
+    expect(marked.f).toHaveLength(MAX_FEEDBACK);
+    expect(marked.r).toHaveLength(MAX_ANSWER);
+  });
+
+  it.each([
+    ["a non-object", "nope"],
+    ["a missing slug", { c: 1, f: "ok", r: "ok" }],
+    ["a missing verdict", { i: "open", f: "ok", r: "ok" }],
+    ["a verdict that is not 0 or 1", { i: "open", c: 2, f: "ok", r: "ok" }],
+    ["missing feedback", { i: "open", c: 1, r: "ok" }],
+    ["missing the answer it marked", { i: "open", c: 1, f: "ok" }],
+  ])("drops a marking that is %s", (_name, value) => {
+    const raw = Buffer.from(JSON.stringify({ a: [], m: value })).toString(
+      "base64url",
+    );
+    expect(decode(raw).m).toBeUndefined();
+  });
+
+  /**
+   * §7.2's rule, at the point the cookie is read: the flag that says a model
+   * marked an answer is only honoured when it is exactly 1, because everything
+   * downstream treats it as licence to move mastery.
+   */
+  it("only honours the graded flag when it is exactly 1", () => {
+    const forged = Buffer.from(
+      JSON.stringify({ a: [{ i: "closed", c: 1, g: true }] }),
+    ).toString("base64url");
+
+    expect(decode(forged).a).toEqual([{ i: "closed", c: 1 }]);
+    expect(decode(encode({ a: [{ i: "closed", c: 1, g: 1 }] })).a).toEqual([
+      { i: "closed", c: 1, g: 1 },
+    ]);
   });
 
   it("only honours the started flag when it is exactly 1", () => {

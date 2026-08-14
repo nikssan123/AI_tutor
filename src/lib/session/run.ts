@@ -1,15 +1,11 @@
 import type { Db } from "@/db";
 import type { CallResult } from "@/lib/ai/call";
 import { applyObservation } from "@/lib/engine/bkt";
+import { CHECK_CONFIDENCE, evidenceTierFor } from "@/lib/engine/scoring";
 import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
 import type { BlockResponse } from "@/lib/contracts/session";
 import { upsertMastery } from "@/lib/goals/store";
-import {
-  CHECK_CONFIDENCE,
-  evidenceTierFor,
-  type CheckGrade,
-  type GradeRequest,
-} from "./grade";
+import type { CheckGrade, GradeRequest } from "./grade";
 import {
   recordMasteryUpdate,
   recordMisconception,

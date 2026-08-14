@@ -1,22 +1,38 @@
 import { applyObservation, effectiveMastery, initialMastery } from "./bkt";
-import type { BktPriors, MasteryState } from "./types";
+import { CHECK_CONFIDENCE, evidenceTierFor } from "./scoring";
+import type { BktPriors, EvalTier, MasteryState } from "./types";
 
 /**
- * §24 E4 — the adaptive Skill Check, built to run with no LLM in the path.
+ * §24 E4 — the adaptive Skill Check.
  *
- * The whole check is deterministic: item selection is a pure function of the
- * current posterior, grading of closed items is an equality test, and every
- * mastery move goes through the same `applyObservation` the planner uses. That
- * is what makes it shippable before `ANTHROPIC_API_KEY` exists.
+ * **The decisions are still deterministic and always will be.** Item selection
+ * is a pure function of the current posterior, closed grading is an equality
+ * test, and every mastery move goes through the same `applyObservation` the
+ * planner uses. §14.1's rule holds exactly: the model is a sensor, never the
+ * decision.
  *
- * The honest consequence, stated here because it shapes everything below: a
- * machine with no evaluator can only *verify* a closed item. Production items —
- * "explain this", "write this", "photograph this" — are still worth answering,
- * and the check still shows them, but the learner marks their own answer
- * against a revealed key. §7.2 calls that Tier 5, and §7.2's hard rule is that
- * a Tier 5 observation never raises mastery. So it does not. The check reports
- * what it could actually verify and says plainly what it could not, which is
- * the same promise the rest of the product makes.
+ * What changed is what the sensor can see. This module was written to run with
+ * no LLM in the path at all — shippable before `ANTHROPIC_API_KEY` existed —
+ * and the honest consequence was that a machine with no evaluator can only
+ * verify a *closed* item. Production items ("explain this", "write this") were
+ * shown, answered, and then marked by the learner against a revealed key, which
+ * §7.2 calls Tier 5 and therefore never moved mastery.
+ *
+ * That was the right call while it was true and it stopped being true. Measured
+ * across the seven packs: **only 15–35% of skills carry even one closed item,
+ * and no skill anywhere carries three** — so a check that can only verify
+ * closed items reports on four to seven skills of a twenty-six-skill subject
+ * and cannot lift any of them to the bar the planner skips at. §14.2's
+ * Assessment Agent ("Haiku 4.5 *only* to grade free-text") is the piece that
+ * was always meant to close that, and `session/grade.ts` had already built it
+ * for the signed-in session.
+ *
+ * So an open answer now has three possible fates, and the mode is recorded
+ * rather than inferred: `auto` when a closed item was checked, `graded` when
+ * the model marked prose, `self` when it could not — no key, no budget, or a
+ * call that failed. **The Tier 5 rule is untouched**: a self-marked answer
+ * still moves nothing, and the check still says plainly which of its answers
+ * counted.
  */
 
 /** How a response to this item can honestly be judged with no evaluator. */
@@ -50,12 +66,25 @@ export interface DiagnosticSkill {
   slug: string;
   name: string;
   priors: BktPriors;
+  /**
+   * §7.2's tier for the skill itself, so a marked written answer cannot claim
+   * more than the domain allows: `evidenceTierFor` caps a written answer at
+   * Tier 2, and a Tier 3 photography skill stays Tier 3 however well the
+   * learner writes about it.
+   */
+  evalTier: EvalTier;
 }
 
 export interface AskedItem {
   itemSlug: string;
   skillSlug: string;
-  mode: "auto" | "self";
+  /**
+   * How the answer was decided. `auto` is an equality test on a closed item,
+   * `graded` is §14.2's Assessment Agent marking prose, `self` is the learner
+   * marking themselves against a revealed key — which §7.2 calls Tier 5 and
+   * which therefore never moves mastery.
+   */
+  mode: "auto" | "graded" | "self";
   correct: boolean;
 }
 
@@ -173,28 +202,54 @@ export function gradeAuto(item: DiagnosticItem, response: string): boolean {
   return typeof correct === "number" && String(correct) === response;
 }
 
+/**
+ * What decided an open answer, when something other than the learner did.
+ *
+ * Passed in rather than inferred, because the same item can be marked either
+ * way in the same product: §14.2's Assessment Agent marks it when it is
+ * reachable and within budget, and the learner marks it themselves when it is
+ * not. The cookie records which happened, so a replay reconstructs the mastery
+ * the learner was actually shown rather than a second, kinder version of it.
+ */
+export interface Marking {
+  /** §7.2's tier for the skill, so a written answer cannot outrank its domain. */
+  skillTier: EvalTier;
+}
+
 export function recordResponse(
   state: DiagnosticState,
   item: DiagnosticItem,
   correct: boolean,
   priors: BktPriors,
   nowIso: string,
+  /** Set only when a model marked this answer; absent means the learner did. */
+  marking?: Marking,
 ): DiagnosticState {
-  const mode = gradingModeFor(item.type) === "auto" ? "auto" : "self";
+  const auto = gradingModeFor(item.type) === "auto";
+  const mode = auto ? "auto" : marking ? "graded" : "self";
   const current = state.mastery[item.skill]!;
 
-  const { state: next } = applyObservation(
-    current,
-    priors,
-    {
-      correct,
-      confidence: mode === "auto" ? AUTO_CONFIDENCE : 0.3,
-      // §7.2 — a self-marked answer is self-report. Tier 5. The BKT refuses to
-      // raise mastery on it, which is enforced there rather than trusted here.
-      evidenceTier: mode === "auto" ? 1 : 5,
-    },
-    nowIso,
-  );
+  /*
+   * Three ways of deciding one answer, and three honest weights.
+   *
+   * `auto` is a closed item, checked — recognition rather than production, so
+   * 0.7 rather than 1. `graded` is prose a model marked: production, and worth
+   * the same as the session's own recall grading, which is where
+   * `CHECK_CONFIDENCE` is set. `self` is the learner marking themselves, which
+   * §7.2 calls Tier 5 and the BKT therefore refuses to let raise anything.
+   */
+  const observation =
+    mode === "auto"
+      ? { correct, confidence: AUTO_CONFIDENCE, evidenceTier: 1 as EvalTier }
+      : mode === "graded"
+        ? {
+            correct,
+            confidence: CHECK_CONFIDENCE,
+            evidenceTier: evidenceTierFor(marking!.skillTier),
+          }
+        : { correct, confidence: 0.3, evidenceTier: 5 as EvalTier };
+
+  const { state: next } = applyObservation(current, priors, observation, nowIso);
 
   return {
     mastery: { ...state.mastery, [item.skill]: next },
@@ -221,7 +276,7 @@ export interface SkillVerdict {
   skillSlug: string;
   name: string;
   band: VerdictBand;
-  /** True only when a closed item actually decided it. */
+  /** True when something other than the learner decided it. */
   assessed: boolean;
   mastery: number;
   answered: number;
@@ -229,7 +284,7 @@ export interface SkillVerdict {
 
 export interface DiagnosticSummary {
   verdicts: SkillVerdict[];
-  /** Skills a closed item genuinely decided. */
+  /** Skills something other than the learner genuinely decided. */
   assessedCount: number;
   /** Answered, self-marked, and deliberately not counted (§7.2). */
   selfMarkedCount: number;
@@ -245,9 +300,11 @@ export function bandFor(mastery: number, assessed: boolean): VerdictBand {
 
 /**
  * The result screen's data. `assessed` is deliberately narrow: it is true only
- * where a closed item decided the skill, so the summary can distinguish "we
- * checked this" from "you told us how it went" without the two blurring into a
- * single reassuring number.
+ * where *we* decided the skill — a closed item checked, or an open answer a
+ * model marked — so the summary can distinguish "we checked this" from "you
+ * told us how it went" without the two blurring into a single reassuring
+ * number. A self-marked answer stays out of it however confident the learner
+ * was, which is the same rule §7.2 applies to the mastery it also cannot move.
  */
 export function summarise(
   state: DiagnosticState,
@@ -256,7 +313,7 @@ export function summarise(
 ): DiagnosticSummary {
   const verdicts = skills.map((skill) => {
     const answers = state.asked.filter((a) => a.skillSlug === skill.slug);
-    const assessed = answers.some((a) => a.mode === "auto");
+    const assessed = answers.some((a) => a.mode !== "self");
     const mastery = effectiveMastery(state.mastery[skill.slug]!, nowIso);
 
     return {

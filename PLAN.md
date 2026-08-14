@@ -1716,6 +1716,18 @@ This is worth being explicit about: naive live generation at 10k roadmaps/month 
 
 **Abuse controls:** Upstash IP rate limit · Cloudflare Turnstile on the novel-generation path · email verification for >1 novel generation/day · hard global daily spend cap on the free tier that degrades to "we'll email it to you" · block the obvious datacenter ASNs.
 
+> **The check spends now, and the cap is a day rather than an IP.** §14.2's
+> grader marks written answers in the anonymous check (see §24 E4's note), which
+> makes it the one surface in the product that spends money with nobody to bill
+> it to — about $0.0005 an answer on Haiku, inside §19.1's one-cent budget.
+> Upstash and Turnstile are still unbuilt. What is built is the last item in the
+> list above: a **hard global daily ceiling on the free tier**, read from the
+> `agent_run` rows the calls already write, checked before every call, and
+> degrading to the behaviour the check shipped with — the learner marks their
+> own answer, and §7.2 refuses to count it. A per-IP limit needs shared state
+> this build does not have and would still not bound the total; a ceiling on the
+> day does bound it, which is the property §14.9.7 actually asks for.
+>
 > **Built — and there is no cache, because there is nothing to cache.** This
 > section is right about the economics and wrong about the mechanism. By the
 > time the tool was reachable, every piece of a roadmap already existed as pack
@@ -2030,6 +2042,24 @@ than the tool.**
   was skipped and why" has nothing to list unless a learner has *graded work*.
   Fixing it is an item-bank and budget question (more items per skill, or a
   deeper check), not a code change, and it is the next thing E4 owes.
+
+  > **Half of this is fixed, and it was the half nobody had named.** The
+  > diagnosis above assumed the ceiling was *how many* items a check can ask.
+  > The larger constraint was **what kind**: the check could only mark closed
+  > items, and across the seven packs only 15–35% of skills carry even one. So a
+  > photography check reported on **4 skills of 15** — not because nine
+  > questions is too few, but because eleven of those skills had nothing it could
+  > mark.
+  >
+  > §14.2's Assessment Agent ("Haiku 4.5 *only* to grade free-text") is what
+  > closes that, and `session/grade.ts` had already built it for the signed-in
+  > session. Wiring it into the anonymous check took the same run from 4 marked
+  > skills to **9 of 15**, measured in a browser against the real model.
+  >
+  > What is still owed is the original diagnosis, unchanged: nine questions
+  > across twenty-six skills cannot give any one skill three observations, so
+  > nothing is *skipped* yet. That is now purely a budget-and-coverage question,
+  > and it is the whole of what E4 still owes.
 
 **E9.6 fixed the state nobody had designed.** Every screen in E1–E9.5 was built
 for a learner with a course running. The learner without one — which is every

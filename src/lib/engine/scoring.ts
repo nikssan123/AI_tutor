@@ -8,6 +8,7 @@ import {
 } from "./graph";
 import type {
   EngineSkill,
+  EvalTier,
   MasteryState,
   PlannerInput,
   ScoreComponents,
@@ -45,6 +46,36 @@ export const MASTERY_TARGET = 0.85;
 
 /** §16.1 step 3 — the deadline override multiplier. */
 export const DEADLINE_CRITICALITY_MULTIPLIER = 2.0;
+
+/**
+ * What a written answer is worth, and how far it can be trusted.
+ *
+ * These lived in `session/grade.ts` while a session was the only place a model
+ * marked prose. The anonymous Skill Check now does it too, and the engine that
+ * applies the observation cannot import a module that pulls in the Anthropic
+ * client — so the calibration lives here, beside the other numbers §16 sets,
+ * and both graders read it. Two copies of "what is a written answer worth"
+ * would drift, and the direction they would drift in is flattering.
+ */
+
+/**
+ * §7.2, as arithmetic. Tier 1's claim is "verified: this works" and it is
+ * earned by executing something; explaining a join in prose is not running one.
+ * So a written answer caps at Tier 2 — and a skill whose own domain is weaker
+ * keeps its own tier, because evidence cannot be stronger than the domain
+ * allows.
+ */
+export const WRITTEN_ANSWER_TIER = 2;
+
+export function evidenceTierFor(skillTier: EvalTier): EvalTier {
+  return Math.max(WRITTEN_ANSWER_TIER, skillTier) as EvalTier;
+}
+
+/**
+ * §16.2's `c`. A recall question is production, but small production: it moves
+ * the belief, and it does not move it as far as an evaluated artefact would.
+ */
+export const CHECK_CONFIDENCE = 0.45;
 
 /**
  * Estimated hours still owed on a skill, discounted by how much of it the

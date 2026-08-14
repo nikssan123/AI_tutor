@@ -29,6 +29,29 @@ export interface Answer {
   i: string;
   /** 1 correct, 0 not. */
   c: 0 | 1;
+  /**
+   * 1 when §14.2's Assessment Agent marked this open answer; absent when the
+   * learner marked it themselves.
+   *
+   * Recorded rather than re-derived, because the same item can go either way in
+   * the same product — the model marks it when it is reachable and inside the
+   * day's budget, and the learner marks it when it is not. Without this flag a
+   * replay would reconstruct a *different* mastery than the one the learner was
+   * shown, in the direction nobody would check.
+   */
+  g?: 1;
+}
+
+/** An open answer the model has marked, waiting to be read. */
+export interface Marked {
+  /** Item slug. */
+  i: string;
+  /** 1 correct, 0 not. */
+  c: 0 | 1;
+  /** The grader's feedback, addressed to the learner. */
+  f: string;
+  /** What they wrote, shown back beside the marking as the self-mark screen does. */
+  r: string;
 }
 
 export interface CheckCookie {
@@ -37,11 +60,26 @@ export interface CheckCookie {
   a: Answer[];
   /** An item answered but not yet self-marked, awaiting the revealed key. */
   p?: { i: string; r: string };
+  /** An item the model has marked, awaiting the learner reading the marking. */
+  m?: Marked;
 }
 
 export const COOKIE_PREFIX = "check_";
 /** Cookies cap around 4KB; nine answers is nowhere near it, but bound it anyway. */
 export const MAX_ANSWERS = 40;
+/** One or two sentences is what the grader is asked for; this is the ceiling. */
+export const MAX_FEEDBACK = 600;
+/**
+ * How much of a written answer is kept, and enforced on the textarea too.
+ *
+ * A cookie is capped at about 4KB by every browser, and one that exceeds it is
+ * dropped **silently** — which on this surface means the check resets itself
+ * mid-run for the one learner who wrote at length. The bound was 4,000
+ * characters, which is over the limit on its own once base64 has added a third.
+ * 1,200 is generous for a two-minute recall answer and leaves room for the
+ * marking beside it.
+ */
+export const MAX_ANSWER = 1_200;
 
 export function cookieName(topic: string): string {
   return `${COOKIE_PREFIX}${topic.replace(/[^a-z0-9-]/gi, "")}`;
@@ -71,8 +109,10 @@ export function decode(raw: string | undefined): CheckCookie {
     const a: Answer[] = [];
     for (const entry of answers.slice(0, MAX_ANSWERS)) {
       if (typeof entry !== "object" || entry === null) continue;
-      const { i, c } = entry as { i?: unknown; c?: unknown };
-      if (typeof i === "string" && (c === 0 || c === 1)) a.push({ i, c });
+      const { i, c, g } = entry as { i?: unknown; c?: unknown; g?: unknown };
+      if (typeof i === "string" && (c === 0 || c === 1)) {
+        a.push(g === 1 ? { i, c, g: 1 } : { i, c });
+      }
     }
 
     const started = (parsed as { s?: unknown }).s === 1 ? ({ s: 1 } as const) : {};
@@ -81,7 +121,29 @@ export function decode(raw: string | undefined): CheckCookie {
     if (typeof pending === "object" && pending !== null) {
       const { i, r } = pending as { i?: unknown; r?: unknown };
       if (typeof i === "string" && typeof r === "string") {
-        return { ...started, a, p: { i, r: r.slice(0, 4000) } };
+        return { ...started, a, p: { i, r: r.slice(0, MAX_ANSWER) } };
+      }
+    }
+
+    const marked = (parsed as { m?: unknown }).m;
+    if (typeof marked === "object" && marked !== null) {
+      const { i, c, f, r } = marked as {
+        i?: unknown;
+        c?: unknown;
+        f?: unknown;
+        r?: unknown;
+      };
+      if (
+        typeof i === "string" &&
+        (c === 0 || c === 1) &&
+        typeof f === "string" &&
+        typeof r === "string"
+      ) {
+        return {
+          ...started,
+          a,
+          m: { i, c, f: f.slice(0, MAX_FEEDBACK), r: r.slice(0, MAX_ANSWER) },
+        };
       }
     }
 
@@ -129,6 +191,7 @@ export function toDiagnostic(pack: DomainPack): {
       slug: s.slug,
       name: s.name,
       priors: s.bktPriors,
+      evalTier: s.evalTier,
     })),
     items: pack.items.map((i) => ({
       slug: i.slug,
@@ -155,18 +218,23 @@ export function replay(
   nowIso: string,
 ): DiagnosticState {
   const bySlug = new Map(items.map((i) => [i.slug, i]));
-  const priors = new Map(skills.map((s) => [s.slug, s.priors]));
+  const bySkill = new Map(skills.map((s) => [s.slug, s]));
 
   let state = startDiagnostic(skills);
   for (const answer of cookie.a) {
     const item = bySlug.get(answer.i);
-    if (!item || !priors.has(item.skill)) continue;
+    const skill = item ? bySkill.get(item.skill) : undefined;
+    if (!item || !skill) continue;
     state = recordResponse(
       state,
       item,
       answer.c === 1,
-      priors.get(item.skill)!,
+      skill.priors,
       nowIso,
+      // The flag decides, not the item type: an open item is graded when the
+      // model was there to grade it and self-marked when it was not, and only
+      // the cookie knows which happened.
+      answer.g === 1 ? { skillTier: skill.evalTier } : undefined,
     );
   }
   return state;

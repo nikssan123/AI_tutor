@@ -2,12 +2,17 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getDb } from "@/db";
+import { getAnthropic, hasApiKey } from "@/lib/ai/client";
 import { findPack } from "@/lib/content";
 import { gradeAuto, type DiagnosticItem } from "@/lib/engine/diagnostic";
+import { markOpenAnswer } from "@/lib/check/mark";
 import {
   cookieName,
   decode,
   encode,
+  MAX_ANSWER,
+  MAX_FEEDBACK,
   needsSelfMark,
   type CheckCookie,
 } from "@/lib/check/session";
@@ -78,9 +83,17 @@ export async function startCheck(topic: string): Promise<void> {
 }
 
 /**
- * One answer. A closed item is graded here; an open one is parked as `pending`
- * so the next screen can reveal the key and let the learner mark themselves,
- * which the engine records as Tier 5 and therefore never counts as mastery.
+ * One answer.
+ *
+ * A closed item is decided here by equality. An open one goes to §14.2's
+ * Assessment Agent — and when that cannot happen (no key, no budget, a failed
+ * call) it falls back to what this check has always done: park the answer, show
+ * the learner the key, and let them mark themselves, which §7.2 makes Tier 5
+ * and which therefore never counts as mastery.
+ *
+ * The two outcomes are deliberately different states rather than one with a
+ * flag. A marked answer is *recorded* and shows the marking; a parked one is
+ * not recorded at all until the learner has said how it went.
  */
 export async function submitAnswer(
   topic: string,
@@ -88,26 +101,69 @@ export async function submitAnswer(
 ): Promise<void> {
   const cookie = await read(topic);
   const slug = String(formData.get("item") ?? "");
+  const pack = findPack(topic);
   const item = itemsFor(topic).find((i) => i.slug === slug);
 
   // A stale or forged form is dropped rather than recorded against the wrong
   // item — the check would rather ask again than log a fiction.
-  if (item) {
+  if (pack && item) {
     const response = String(formData.get("response") ?? "");
+
+    if (!needsSelfMark(item)) {
+      await write(topic, {
+        ...cookie,
+        a: [...cookie.a, { i: item.slug, c: gradeAuto(item, response) ? 1 : 0 }],
+      });
+      redirect(`/check/${topic}`);
+    }
+
+    const marking = await markOpenAnswer(
+      {
+        db: getDb,
+        client: hasApiKey() ? getAnthropic() : null,
+      },
+      {
+        question: item.prompt,
+        // The bar the answer is held against is the skill's own can-do
+        // statement, which is also the sentence the check page prints as "what
+        // counts as knowing this". One bar, said once.
+        //
+        // Asserted rather than defaulted: `validatePack` rejects any pack whose
+        // item names a skill it does not define, so a fallback here would be an
+        // unreachable branch standing in for a check that already happened.
+        expected: pack.skills.find((s) => s.slug === item.skill)!.canDoStatement,
+        answer: response,
+      },
+    );
+
     await write(
       topic,
-      needsSelfMark(item)
-        ? { ...cookie, p: { i: item.slug, r: response } }
+      marking === null
+        ? { ...cookie, p: { i: item.slug, r: response.slice(0, MAX_ANSWER) } }
         : {
             ...cookie,
             a: [
               ...cookie.a,
-              { i: item.slug, c: gradeAuto(item, response) ? 1 : 0 },
+              { i: item.slug, c: marking.correct ? 1 : 0, g: 1 },
             ],
+            m: {
+              i: item.slug,
+              c: marking.correct ? 1 : 0,
+              f: marking.feedback.slice(0, MAX_FEEDBACK),
+              r: response.slice(0, MAX_ANSWER),
+            },
           },
     );
   }
 
+  redirect(`/check/${topic}`);
+}
+
+/** Clears the marking the learner has just read, and asks the next question. */
+export async function continueAfterMarking(topic: string): Promise<void> {
+  const cookie = await read(topic);
+  const { m, ...rest } = cookie;
+  if (m) await write(topic, rest);
   redirect(`/check/${topic}`);
 }
 
