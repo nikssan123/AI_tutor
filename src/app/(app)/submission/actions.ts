@@ -10,6 +10,9 @@ import { normaliseArtefact } from "@/lib/evaluation";
 import { createSubmission } from "@/lib/submissions/store";
 import { projectForBlock } from "@/lib/submissions/project";
 import { EVENTS, inngest } from "@/lib/inngest/client";
+import { entitlementsForUser } from "@/lib/billing/store";
+import { consumeEvaluation } from "@/lib/billing/quota";
+import { capture } from "@/lib/observability";
 
 /**
  * Handing work in — §24 E8's front door.
@@ -49,6 +52,36 @@ export async function submitWorkAction(formData: FormData): Promise<void> {
     String(formData.get("work") ?? ""),
   );
   if (text.length === 0) redirect(`${returnTo}?error=empty`);
+
+  /*
+   * §14.9.7 limit 2 — "blocked with an upgrade prompt. This is the product's
+   * meter (§20.1)."
+   *
+   * Claimed here, before the row and before the job, for two reasons. The
+   * learner finds out at the moment they press the button rather than after
+   * forty-five seconds of waiting for a grade that was never coming; and a
+   * submission that will not be marked never becomes a queued row that has to
+   * be explained later.
+   */
+  const { entitlements } = await entitlementsForUser(
+    db,
+    session.user.id,
+    session.user.plan,
+  );
+  const quota = await consumeEvaluation(
+    db,
+    session.user.id,
+    entitlements.evaluationsPerMonth,
+  );
+
+  if (!quota.ok) {
+    capture("quota_reached", {
+      quota_type: "evaluation",
+      used: quota.used,
+      limit: quota.limit,
+    });
+    redirect(`${returnTo}?error=quota`);
+  }
 
   const submissionId = await createSubmission(db, {
     userId: session.user.id,

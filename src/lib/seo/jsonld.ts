@@ -167,6 +167,52 @@ export function webApplication(input: {
 }
 
 /**
+ * The price ladder, for `/pricing`.
+ *
+ * An `AggregateOffer` rather than one `Offer` per plan, because that is what a
+ * page showing several prices for the same product actually is — and because
+ * `lowPrice`/`highPrice` are the two numbers a rich result will quote, so they
+ * had better be the two on the page.
+ *
+ * The same rule this file opens with applies: every offer here is rendered
+ * visibly on the page it marks up. The caller passes the array it drew, so
+ * there is no second list to drift.
+ */
+export function priceOffers(input: {
+  name: string;
+  description: string;
+  path: string;
+  currency: string;
+  /** Every purchasable price on the page, in minor units. */
+  amountsCents: readonly number[];
+}): JsonLd {
+  const amounts = [...input.amountsCents].sort((a, b) => a - b);
+  const money = (cents: number) => (cents / 100).toFixed(2);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: input.name,
+    description: input.description,
+    url: canonical(input.path),
+    applicationCategory: "EducationalApplication",
+    // There is a free tier, and saying so is both true and the thing a visitor
+    // most wants to know before clicking.
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: input.currency.toUpperCase(),
+      // The free plan is the floor, and it is a real offer rather than a
+      // marketing asterisk.
+      lowPrice: "0.00",
+      highPrice: money(amounts[amounts.length - 1] ?? 0),
+      offerCount: amounts.length + 1,
+    },
+    provider: { "@type": "Organization", name: ORGANISATION_NAME },
+  };
+}
+
+/**
  * §13.3 — `FAQPage`, "where a real FAQ exists".
  *
  * The caller passes the same array the page renders below the fold, so the

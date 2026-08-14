@@ -483,13 +483,37 @@ thing the citations and the pack figures already carry most of.
 
 ---
 
-# D. Email copy in German and Spanish — twenty minutes, and it is not urgent
+# D. Email copy in German and Spanish — now about forty minutes, and half of it *is* urgent
+
+> **Amended by E13 (billing).** This item used to be nine strings per language,
+> twenty minutes, and explicitly not urgent. It is now **fifteen** strings per
+> language, and the six new ones are different in kind from the rest:
+> `src/lib/email/copy/*.ts` gained a `billing` block — trial started, trial
+> ending tomorrow, trial converted, payment failed, cancelled, referral
+> rewarded.
+>
+> **These six gate revenue in `de`, `es` and `bg`.** Every other email in this
+> product costs the reader nothing if it reads slightly oddly. A renewal notice
+> does: `trialEnding` is the message that stops a €3 trial becoming a
+> chargeback (PLAN-MONETIZATION §13 risk 3), and a chargeback costs the fee
+> plus a fixed penalty on top of the refund. A German reader who does not
+> clearly understand that tomorrow they will be charged €24.99 is a dispute
+> waiting to happen.
+>
+> **English ships regardless. A locale without reviewed billing copy should not
+> be opened for paid signups.** That is a smaller ask than it sounds: `en` is
+> the launch locale and the other three are not open yet.
+>
+> Priority order if you only have twenty minutes: `billing.trialEnding`, then
+> `billing.cancelled`, then `billing.paymentFailed`. The first is the one that
+> costs money.
 
 ## What it gates
 
-Nothing, technically. `/admin/mail` and the four transactional messages work in
-all four languages today, and a learner whose `user.locale` is `de` already
-receives German.
+Nothing, technically, for the **auth and operator** messages below.
+`/admin/mail` and the four transactional messages work in all four languages
+today, and a learner whose `user.locale` is `de` already receives German. The
+billing block above is the exception, and the note explains why.
 
 What it gates is **whether we should be proud of it**. Bulgarian in
 `src/lib/email/copy/bg.ts` was written by you and reads like a person; German
@@ -525,6 +549,18 @@ Nine strings per language are worth real attention. In `de.ts` and `es.ts`:
    "you have not been doing your homework" is entirely register.
 3. **`system.resetPassword.footer`** — the security sentence. It has to be
    unambiguous that nothing has happened yet.
+
+And, added by E13, the three that carry money:
+
+4. **`billing.trialEnding`** — the whole message. It must be impossible to read
+   and still be surprised tomorrow. The English leads with the price in the
+   heading on purpose; check the translation has not buried it in a clause.
+5. **`billing.cancelled`** — the heading is "you still have Pro until {endsOn}".
+   Somebody who has just cancelled is looking for confirmation they have not
+   lost anything today, and a translation that reads as "your access has ended"
+   turns a calm exit into a support ticket.
+6. **`billing.paymentFailed`** — "nothing stops in the meantime" is the load-
+   bearing sentence. It has to sound like reassurance rather than a warning.
 
 Everything else is short and mechanical.
 

@@ -65,6 +65,82 @@ export const de: EmailStrings = {
     },
   },
 
+  billing: {
+    trialStarted: {
+      subject: "Ihre 4 Tage Pro beginnen jetzt · {brand}",
+      heading: "Sie sind auf Pro",
+      body: [
+        "Für die nächsten vier Tage ist alles freigeschaltet: der vollständige Lehrplan, der Tutor und {evaluations} bewertete Projekte.",
+        "Am {renewsOn} werden daraus {price} pro Monat. Kündigen Sie vorher, zahlen Sie nichts über die bereits gezahlten {trialPrice} hinaus.",
+        "Am schnellsten finden Sie heraus, ob das bei Ihnen funktioniert, indem Sie etwas einreichen. Alles andere hier ist kein Nachweis.",
+      ],
+      action: "Etwas einreichen",
+      footer:
+        "Sie können jederzeit mit zwei Klicks in Ihrem Konto kündigen.",
+    },
+
+    trialEnding: {
+      subject: "Ihre Testphase verlängert sich morgen · {brand}",
+      heading: "Morgen werden daraus {price} pro Monat",
+      body: [
+        "Ihre vier Tage Pro enden am {renewsOn}, und das Abonnement beginnt dann mit {price} pro Monat.",
+        "Wenn Sie das möchten, brauchen Sie nichts zu tun.",
+        "Wenn nicht, kündigen Sie jetzt — Pro behalten Sie trotzdem bis zum {renewsOn}.",
+      ],
+      action: "Behalten oder kündigen",
+      footer:
+        "Uns ist eine Kündigung lieber als ein Versehen. Diese E-Mail gibt es, damit es keine Überraschung wird.",
+    },
+
+    trialConverted: {
+      subject: "Sie sind auf Pro · {brand}",
+      heading: "Sie sind auf Pro",
+      body: [
+        "Aus Ihrer Testphase ist ein Abonnement für {price} pro Monat geworden. Die nächste Zahlung ist am {renewsOn} fällig.",
+        "Das sind {evaluations} bewertete Projekte pro Monat, geprüft nach denselben offenen Kriterien, mit Belegen direkt aus Ihrer eigenen Arbeit.",
+      ],
+      action: "Weitermachen, wo Sie aufgehört haben",
+      footer: "Rechnungen und Zahlungsdaten finden Sie in Ihrem Konto.",
+    },
+
+    paymentFailed: {
+      subject: "Ihre Zahlung ist fehlgeschlagen · {brand}",
+      heading: "Diese Zahlung ging nicht durch",
+      body: [
+        "Ihre Karte wurde abgelehnt — meist liegt das an einem Ablaufdatum und nicht an etwas Ernstem.",
+        "Wir versuchen es in den nächsten Tagen erneut. In der Zwischenzeit läuft alles weiter; Sie behalten alles, bis das geklärt ist.",
+      ],
+      action: "Karte aktualisieren",
+      footer:
+        "Klappt es nach ein paar Wochen immer noch nicht, wechselt das Konto zu Free — verloren geht dabei nichts.",
+    },
+
+    cancelled: {
+      subject: "Gekündigt — Pro behalten Sie bis zum {endsOn} · {brand}",
+      heading: "Sie haben Pro noch bis zum {endsOn}",
+      body: [
+        "Es wird nichts mehr abgebucht. Bis zum {endsOn} funktioniert alles weiter, danach wechselt das Konto zu Free.",
+        "Ihr Kompetenznachweis bleibt unverändert bestehen. Alles, was bewertet wurde, gehört weiterhin Ihnen.",
+        "Danke, dass Sie uns den Grund genannt haben — nur so wird das hier besser.",
+      ],
+      action: "Es sich anders überlegen",
+      footer:
+        "Kommen Sie zurück, wann Sie möchten. Ihre Nachweise warten auf Sie.",
+    },
+
+    referralRewarded: {
+      subject: "{friend} ist dabei — hier sind Ihre {days} Tage · {brand}",
+      heading: "{days} Tage Pro, auf uns",
+      body: [
+        "{friend} hat ein Abonnement abgeschlossen, also liegen die versprochenen {days} Tage Pro ab heute auf Ihrem Konto.",
+        "Nichts zu aktivieren, nichts zu zahlen. Sie laufen einfach bis zum {endsOn}.",
+      ],
+      action: "Jetzt nutzen",
+      footer:
+        "Laden Sie jemanden weiteren ein, und dasselbe passiert noch einmal.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Willkommen bei {brand}, {name}",

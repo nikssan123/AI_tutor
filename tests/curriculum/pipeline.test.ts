@@ -616,6 +616,81 @@ describe("generateValidatedCurriculum", () => {
     expect(body.model).toBe("claude-sonnet-5");
   });
 
+  it("degrades a plan without the deep tier even under its cap (E13)", async () => {
+    // `degradesGeneration` short-circuits before the ledger is read at all: a
+    // Learner is entitled to standard models, however little they have spent.
+    const chain = {
+      then: (resolve: (v: unknown) => unknown) => resolve(undefined),
+      onConflictDoUpdate: async () => undefined,
+    };
+    let ledgerReads = 0;
+    const unspent = {
+      transaction: async (fn: (tx: unknown) => Promise<void>) => {
+        await fn({ insert: () => ({ values: () => chain }) });
+      },
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => {
+              ledgerReads += 1;
+              return [{ costCents: 0 }];
+            },
+          }),
+        }),
+      }),
+    } as never;
+
+    const good = draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]);
+    const { client, create } = modelReturning([good]);
+
+    await generateValidatedCurriculum(
+      { client, db: unspent, userId: "u1", plan: "learner", spotCheck: clean },
+      architectInput,
+    );
+
+    expect((create.mock.calls[0]![0] as { model: string }).model).toBe(
+      "claude-sonnet-5",
+    );
+    expect(ledgerReads).toBe(0);
+  });
+
+  it("still consults the ledger for a plan that pays for the deep tier", async () => {
+    // The other side of the same `||`: a Pro learner is not short-circuited, so
+    // the month's spend is what decides. (The architect step itself is Sonnet
+    // either way — §14.9.3 only gives the deep tier to the validator — so what
+    // is observable here is whether the cap was read at all.)
+    const chain = {
+      then: (resolve: (v: unknown) => unknown) => resolve(undefined),
+      onConflictDoUpdate: async () => undefined,
+    };
+    let ledgerReads = 0;
+    const unspent = {
+      transaction: async (fn: (tx: unknown) => Promise<void>) => {
+        await fn({ insert: () => ({ values: () => chain }) });
+      },
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => {
+              ledgerReads += 1;
+              return [{ costCents: 0 }];
+            },
+          }),
+        }),
+      }),
+    } as never;
+
+    const good = draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]);
+    const { client } = modelReturning([good]);
+
+    await generateValidatedCurriculum(
+      { client, db: unspent, userId: "u1", plan: "pro", spotCheck: clean },
+      architectInput,
+    );
+
+    expect(ledgerReads).toBeGreaterThan(0);
+  });
+
   it("falls back when a repair still does not pass", async () => {
     // Repairable *and* unrepairable failures together: the prerequisite gets
     // inserted, the invented skill does not, so the recheck fails anyway.

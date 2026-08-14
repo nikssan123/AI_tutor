@@ -1,11 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import {
-  logCall,
-  shouldDegrade,
-  type RunOrigin,
-  type SPEND_CAP_CENTS,
-} from "@/lib/ai/runlog";
+import { logCall, shouldDegrade, type RunOrigin } from "@/lib/ai/runlog";
+import type { PlanId } from "@/lib/billing/catalog";
 import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
 import { gradeSubmission, type GradeInput } from "./grade";
@@ -127,7 +123,7 @@ export interface EvaluateDeps {
    * free-tier cap and degrades the anonymous check for actual visitors.
    */
   origin?: RunOrigin;
-  plan?: keyof typeof SPEND_CAP_CENTS;
+  plan?: PlanId;
 }
 
 export interface EvaluateInput {
@@ -149,6 +145,13 @@ export async function evaluateSubmission(
     return { result: null, reason: "There was nothing in what you handed in." };
   }
 
+  // The month's ceiling only — deliberately **not** `degradesGeneration`.
+  //
+  // A cheaper plan buys fewer evaluations, never worse ones. Marking on a
+  // weaker model for a Learner would sell a worse verdict to a cheaper
+  // customer, and the verdict is the product's whole claim (§4.2 law 1, §14.5).
+  // It would also fork §21's calibration corpus by plan and make the κ
+  // measurement meaningless. See `degradesGeneration` in the catalog.
   const degraded =
     deps.userId !== null && deps.plan !== undefined
       ? await shouldDegrade(deps.db, deps.userId, deps.plan)

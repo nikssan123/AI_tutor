@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { BrowseResult } from "@/lib/admin/browse";
 import { findTable, listTables, REDACTED } from "@/lib/admin/tables";
+import { PLANS } from "@/lib/admin/users";
 
 /**
  * The data browser.
@@ -313,13 +314,16 @@ describe("/admin/data/[table]", () => {
 
       // Twice over: the column header, and the row's own disclosure.
       expect(screen.getAllByText("Actions")).toHaveLength(2);
-      expect(screen.getByRole("button", { name: "Move to pro" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "Set plan" })).toBeDefined();
       expect(
         screen.getByRole("button", { name: "Sign out everywhere" }),
       ).toBeDefined();
     });
 
-    it("offers the plan the account is not on", async () => {
+    it("offers every plan, not just the other one", async () => {
+      // `PLANS.find(c => c !== plan)` was only correct while there were two.
+      // With four it picks whichever comes first and quietly moves a Pro
+      // learner to Free.
       browseTableMock.mockResolvedValue(
         browseResult({
           rows: [{ id: "u1", email: "a@b.c", plan: "pro", role: "user" }],
@@ -327,7 +331,10 @@ describe("/admin/data/[table]", () => {
       );
       await renderPage();
 
-      expect(screen.getByRole("button", { name: "Move to free" })).toBeDefined();
+      const select = screen.getByRole("combobox") as HTMLSelectElement;
+      expect([...select.options].map((o) => o.value)).toEqual([...PLANS]);
+      // It opens on the plan the account is actually on.
+      expect(select.value).toBe("pro");
     });
 
     it("makes delete ask for the email to be typed", async () => {

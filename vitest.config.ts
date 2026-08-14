@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 const DATABASE_TESTS = [
   "tests/ai/runlog.test.ts",
   "tests/app/api-routes.test.ts",
+  "tests/billing/quota.test.ts",
+  "tests/billing/store.test.ts",
+  "tests/billing/stripe-webhook.test.ts",
   "tests/calendar/store.test.ts",
   "tests/curriculum/store.test.ts",
   "tests/db/connection.test.ts",
@@ -22,6 +25,7 @@ const DATABASE_TESTS = [
   "tests/packs/build.test.ts",
   "tests/packs/read.test.ts",
   "tests/packs/seed.test.ts",
+  "tests/referral/store.test.ts",
   "tests/session/store.test.ts",
   "tests/submissions/store.test.ts",
 ];

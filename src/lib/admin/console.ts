@@ -1,7 +1,8 @@
 import { and, count, desc, eq, gte, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { agentRun, learningGoal, spendLedger, user } from "@/db/schema";
-import { periodOf, SPEND_CAP_CENTS } from "@/lib/ai/runlog";
+import { periodOf } from "@/lib/ai/runlog";
+import { PLAN_IDS, SPEND_CAP_CENTS } from "@/lib/billing/catalog";
 
 /**
  * The read model behind `/admin`.
@@ -68,7 +69,16 @@ export async function spendSnapshot(
   // The `::real` casts are required, not stylistic: postgres-js sends bound
   // parameters untyped, so without them the `case` arms come back as `text` and
   // Postgres rejects the comparison with "operator does not exist: real >= text".
-  const cap = sql`case ${user.plan} when 'pro' then ${SPEND_CAP_CENTS.pro}::real else ${SPEND_CAP_CENTS.free}::real end`;
+  //
+  // Built from the catalog rather than written out, so a fifth plan cannot be
+  // added with a ceiling this query does not know about — the two-arm `case`
+  // this replaced reported every Learner and every trial at the free cap.
+  const cap = sql`case ${user.plan} ${sql.join(
+    PLAN_IDS.map(
+      (id) => sql`when ${id} then ${SPEND_CAP_CENTS[id]}::real`,
+    ),
+    sql` `,
+  )} else ${SPEND_CAP_CENTS.free}::real end`;
 
   const [capped] = await db
     .select({ n: count() })

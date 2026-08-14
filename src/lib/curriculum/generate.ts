@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import { logCall, shouldDegrade, type SPEND_CAP_CENTS } from "@/lib/ai/runlog";
+import { logCall, shouldDegrade } from "@/lib/ai/runlog";
+import { degradesGeneration, type PlanId } from "@/lib/billing/catalog";
 import type {
   CurriculumDraft,
   ValidatorReport,
@@ -42,7 +43,7 @@ export interface GenerateDeps {
   db: Db;
   /** Null for anonymous work; the run is still logged, nobody is billed. */
   userId: string | null;
-  plan?: keyof typeof SPEND_CAP_CENTS;
+  plan?: PlanId;
   /** Overridable so tests need no model; defaults to the Opus adversarial pass. */
   spotCheck?: SpotChecker;
   projects?: CanonicalProject[];
@@ -64,9 +65,14 @@ export async function generateValidatedCurriculum(
   });
 
   // §14.9.7 limit 1 — "checked *before* every call", not after the bill lands.
+  // Two reasons to drop a tier, and either is enough: the month's ceiling, or a
+  // plan that does not include the deep tier at all (`degradesGeneration`).
+  // A curriculum is a plan the learner can see, reject and regenerate, which is
+  // why generation is degradable by price and marking is not.
   const degraded =
     deps.userId !== null && deps.plan !== undefined
-      ? await shouldDegrade(deps.db, deps.userId, deps.plan)
+      ? degradesGeneration(deps.plan) ||
+        (await shouldDegrade(deps.db, deps.userId, deps.plan))
       : false;
 
   let attempts = 0;

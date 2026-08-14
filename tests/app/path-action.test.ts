@@ -24,6 +24,18 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
+// The action resolves the learner's plan before generating, so the spend cap
+// applies to the call (§14.9.7 limit 1 — it used to be hardcoded to "free").
+// Stubbed rather than given a fake `db`, because what this file tests is the
+// generation flow, not the entitlement resolver.
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: async () => ({
+    planId: "free",
+    entitlements: { evaluationsPerMonth: 1, premiumModels: false },
+    spendCapCents: 100,
+    source: "plan",
+  }),
+}));
 // These exercise the disk half of `resolvePack` with the real `findPack`. The
 // database half has nothing to find and no stub db to find it with, so a miss
 // on disk is a miss outright — which is what "not a real pack" means here.

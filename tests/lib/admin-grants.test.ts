@@ -99,16 +99,36 @@ describe("grantStatements", () => {
   });
 
   describe("with writes enabled", () => {
-    it("never grants update on user.role", () => {
-      // Keeps `pnpm admin:grant` the only path to admin even when the console
-      // can write. Without it, write mode is a self-service promotion.
+    it("never grants update on user.role or user.plan", () => {
+      // `role` keeps `pnpm admin:grant` the only path to admin even when the
+      // console can write — without it, write mode is a self-service promotion.
+      // `plan` is the same argument one step down: a console that can set it
+      // hands out paid plans, and it is a derived cache of `subscription`
+      // anyway, so a direct write desynchronises it from the row that owns it.
       const line = statements(true).find(
         (l) => l.startsWith("grant update") && l.includes('on "user"'),
       )!;
 
       expect(line).toBeDefined();
       expect(line).not.toContain('"role"');
-      expect(line).toContain('"plan"');
+      expect(line).not.toContain('"plan"');
+      // Still writable: the columns the account holder owns.
+      expect(line).toContain('"locale"');
+      expect(line).toContain('"timezone"');
+    });
+
+    it("never grants update on what Stripe owns", () => {
+      // A hand-edited status makes the product disagree with the processor
+      // while the money keeps flowing the other way, and the next webhook
+      // delivery overwrites the edit regardless.
+      const line = statements(true).find(
+        (l) => l.startsWith("grant update") && l.includes('on "subscription"'),
+      )!;
+
+      expect(line).toBeDefined();
+      expect(line).not.toContain('"status"');
+      expect(line).not.toContain('"amount_cents"');
+      expect(line).toContain('"cancel_at_period_end"');
     });
 
     it("grants a plain update where no column is protected", () => {

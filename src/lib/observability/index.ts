@@ -42,6 +42,33 @@ export type AnalyticsEvent =
   | "evaluation_disputed"
   | "mastery_threshold_crossed"
   | "plan_adapted"
+  /*
+   * Monetization (§25.1).
+   *
+   * Named in the plan since it was written and absent from this union until
+   * E13, because until E13 nothing could fire them. `quota_reached` is the
+   * exception and is the one that matters most before there is any revenue: it
+   * is the paywall actually being met, and §17.3's free→paid criterion is
+   * unreadable without it.
+   */
+  | "paywall_viewed"
+  | "checkout_started"
+  | "subscription_created"
+  | "quota_reached"
+  | "subscription_cancelled"
+  | "subscription_reactivated"
+  /*
+   * Referral (E14). `share_clicked` is §25.1's, under Acquisition; the rest are
+   * this product's own funnel, one per state the `referral` row moves through,
+   * so "invites sent" and "invites that produced a paying learner" are
+   * different numbers rather than the same number told twice.
+   */
+  | "share_clicked"
+  | "referral_link_created"
+  | "referral_visit"
+  | "referral_signup"
+  | "referral_qualified"
+  | "referral_rewarded"
   // Quality and cost
   | "agent_run"
   | "evaluation_verifier_failed"

@@ -6,3 +6,4 @@ export * from "./assessment";
 export * from "./ops";
 export * from "./seo";
 export * from "./mail";
+export * from "./billing";

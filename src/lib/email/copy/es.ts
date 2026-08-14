@@ -68,6 +68,79 @@ export const es: EmailStrings = {
     },
   },
 
+  billing: {
+    trialStarted: {
+      subject: "Tus 4 días de Pro empiezan ahora · {brand}",
+      heading: "Ya estás en Pro",
+      body: [
+        "Durante los próximos cuatro días tienes todo abierto: el plan completo, el tutor y {evaluations} proyectos corregidos.",
+        "El {renewsOn} pasa a costar {price} al mes. Cancela antes y no pagas nada más que los {trialPrice} que ya pagaste.",
+        "La forma más rápida de saber si esto te funciona es entregar algo. Lo demás aquí no es evidencia.",
+      ],
+      action: "Entregar algo",
+      footer: "Puedes cancelar en dos clics desde tu cuenta, cuando quieras.",
+    },
+
+    trialEnding: {
+      subject: "Tu prueba se renueva mañana · {brand}",
+      heading: "Mañana esto pasa a {price} al mes",
+      body: [
+        "Tus cuatro días de Pro terminan el {renewsOn}, y entonces empieza la suscripción de {price} al mes.",
+        "Si es lo que quieres, no tienes que hacer nada.",
+        "Si no lo es, cancela ahora y conservas Pro hasta el {renewsOn} igualmente.",
+      ],
+      action: "Conservar o cancelar",
+      footer:
+        "Preferimos que canceles a que se te pase. Este correo existe para que nunca sea una sorpresa.",
+    },
+
+    trialConverted: {
+      subject: "Ya estás en Pro · {brand}",
+      heading: "Ya estás en Pro",
+      body: [
+        "Tu prueba se ha convertido en una suscripción de {price} al mes. El próximo cobro es el {renewsOn}.",
+        "Son {evaluations} proyectos corregidos al mes, evaluados con los mismos criterios públicos y citando la evidencia de tu propio trabajo.",
+      ],
+      action: "Seguir donde lo dejaste",
+      footer: "Las facturas y los datos de pago están en tu cuenta.",
+    },
+
+    paymentFailed: {
+      subject: "No pudimos cobrar tu pago · {brand}",
+      heading: "Ese pago no se completó",
+      body: [
+        "Tu tarjeta fue rechazada, que suele ser una fecha de caducidad y no algo de lo que preocuparse.",
+        "Lo intentaremos otra vez en los próximos días. Mientras tanto no se detiene nada: conservas todo hasta que se resuelva.",
+      ],
+      action: "Actualizar la tarjeta",
+      footer:
+        "Si en un par de semanas sigue sin funcionar, la cuenta pasa a Free y no se pierde nada.",
+    },
+
+    cancelled: {
+      subject: "Cancelado — conservas Pro hasta el {endsOn} · {brand}",
+      heading: "Conservas Pro hasta el {endsOn}",
+      body: [
+        "No se cobrará nada más. Todo sigue funcionando hasta el {endsOn}, y después la cuenta pasa a Free.",
+        "Tu registro de competencias se queda exactamente donde está. Todo lo que te han corregido sigue siendo tuyo.",
+        "Gracias por decirnos el motivo: es la única forma de que esto mejore.",
+      ],
+      action: "Cambiar de idea",
+      footer: "Vuelve cuando quieras. Tu evidencia te estará esperando.",
+    },
+
+    referralRewarded: {
+      subject: "{friend} se ha unido — aquí tienes tus {days} días · {brand}",
+      heading: "{days} días de Pro, invita la casa",
+      body: [
+        "{friend} se ha suscrito, así que los {days} días de Pro que te prometimos están en tu cuenta desde hoy.",
+        "Nada que activar y nada que pagar. Simplemente corren hasta el {endsOn}.",
+      ],
+      action: "Aprovecharlos",
+      footer: "Invita a alguien más y vuelve a pasar lo mismo.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Te damos la bienvenida a {brand}, {name}",

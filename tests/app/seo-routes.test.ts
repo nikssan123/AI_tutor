@@ -64,11 +64,12 @@ describe("robots.txt", () => {
 });
 
 /**
- * The ungated pages: the three hubs, the free tool (§10 E), and the two legal
- * pages. §12.1's gate does not apply to the last two — they are not content
- * marketing, they are pages a person may reasonably search for by name.
+ * The ungated pages: the three hubs, the free tool (§10 E), `/pricing`, and the
+ * two legal pages. §12.1's gate does not apply to the last three — they are not
+ * content marketing, they are pages a person may reasonably search for by name,
+ * and "what does it cost" is the most searched of them.
  */
-const HUBS = 6;
+const HUBS = 7;
 
 describe("sitemap.xml", () => {
   /**

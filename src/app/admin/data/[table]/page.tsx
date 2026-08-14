@@ -223,20 +223,42 @@ function UserActions({
   plan: string;
   role: string;
 }) {
-  const other = PLANS.find((candidate) => candidate !== plan)!;
-
   return (
     <details className="min-w-56">
       <summary className="cursor-pointer text-accent">Actions</summary>
       <div className="mt-3 flex flex-col gap-3">
-        <form action={setPlanAction}>
+        {/*
+          A select rather than a "move to the other one" button.
+          `PLANS.find(c => c !== plan)` was only ever correct because there were
+          exactly two plans; with four it picks whichever happens to come first
+          and quietly moves a Pro learner to Free.
+
+          Note what this still is: a change to the cached `user.plan` column
+          with no invoice behind it. `setUserPlan` says "Stripe is unchanged"
+          for that reason, and the supported way to give somebody a plan they
+          did not buy is a `plan_grant` row that carries an end date.
+        */}
+        <form action={setPlanAction} className="flex flex-col gap-2">
           <input type="hidden" name="userId" value={userId} />
-          <input type="hidden" name="plan" value={other} />
+          <label className="flex items-center gap-2">
+            <span className="sr-only">Plan</span>
+            <select
+              name="plan"
+              defaultValue={plan}
+              className="rounded-[var(--radius-control)] border border-hairline bg-ground px-2 py-1"
+            >
+              {PLANS.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {candidate}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="submit"
-            className="text-accent underline-offset-4 hover:underline"
+            className="text-accent underline-offset-4 hover:underline self-start"
           >
-            Move to {other}
+            Set plan
           </button>
         </form>
 

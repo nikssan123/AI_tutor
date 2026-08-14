@@ -86,6 +86,89 @@ export const en = {
    * arrive from a mailbox a human reads — which is the only reason they are
    * worth sending at all.
    */
+  /**
+   * The six messages money sends (PLAN-MONETIZATION §10).
+   *
+   * Different from the auth block above in one way that matters: these are the
+   * only emails in the product that can cost the reader something by being
+   * ignored. So every one of them states the amount, the date and the way out —
+   * `trialEnding` most of all, because §13 risk 3 counts a renewal somebody did
+   * not expect as the trial's main danger, and a chargeback costs the fee plus
+   * a fixed penalty on top of the refund.
+   */
+  billing: {
+    trialStarted: {
+      subject: "Your 4 days of Pro start now · {brand}",
+      heading: "You're on Pro",
+      body: [
+        "Everything is unlocked for the next four days: the full curriculum, the tutor, and {evaluations} graded projects.",
+        "On {renewsOn} it becomes {price} a month. Cancel before then and you pay nothing more than the {trialPrice} you already have.",
+        "The fastest way to find out whether this works on you is to hand something in. Nothing else here is evidence.",
+      ],
+      action: "Hand something in",
+      footer: "You can cancel in two clicks from your account, any time.",
+    },
+
+    trialEnding: {
+      subject: "Your trial renews tomorrow · {brand}",
+      heading: "Tomorrow, this becomes {price} a month",
+      body: [
+        "Your four days of Pro end on {renewsOn}, and the subscription starts then at {price} a month.",
+        "If that is what you want, there is nothing to do.",
+        "If it is not, cancel now and you keep Pro until {renewsOn} anyway.",
+      ],
+      action: "Keep or cancel",
+      footer:
+        "We would rather you cancelled than forgot. This email exists so it is never a surprise.",
+    },
+
+    trialConverted: {
+      subject: "You're on Pro · {brand}",
+      heading: "You're on Pro",
+      body: [
+        "Your trial has become a subscription at {price} a month. The next payment is on {renewsOn}.",
+        "That is {evaluations} graded projects a month, marked against the same public rubrics, with the evidence quoted back from your own work.",
+      ],
+      action: "Pick up where you left off",
+      footer: "Invoices and payment details live in your account.",
+    },
+
+    paymentFailed: {
+      subject: "We couldn't take your payment · {brand}",
+      heading: "That payment didn't go through",
+      body: [
+        "Your card was declined, which is usually an expiry date rather than anything worth worrying about.",
+        "We'll try again over the next few days. Nothing stops in the meantime — you keep everything while we sort it out.",
+      ],
+      action: "Update your card",
+      footer:
+        "If it still hasn't worked in a couple of weeks, the account drops to Free and nothing is lost.",
+    },
+
+    cancelled: {
+      subject: "Cancelled — you keep Pro until {endsOn} · {brand}",
+      heading: "You still have Pro until {endsOn}",
+      body: [
+        "Nothing more will be charged. Everything keeps working until {endsOn}, and after that the account moves to Free.",
+        "Your mastery ledger stays exactly where it is. Everything you have had marked is still yours to point at.",
+        "Thank you for telling us why — it is the only way this gets better.",
+      ],
+      action: "Change your mind",
+      footer: "Come back whenever. Your evidence will be waiting.",
+    },
+
+    referralRewarded: {
+      subject: "{friend} joined — here's your {days} days · {brand}",
+      heading: "{days} days of Pro, on us",
+      body: [
+        "{friend} subscribed, so the {days} days of Pro we promised you are on your account from today.",
+        "Nothing to activate and nothing to pay. It simply runs until {endsOn}.",
+      ],
+      action: "Use them",
+      footer: "Invite someone else and the same thing happens again.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Welcome to {brand}, {name}",

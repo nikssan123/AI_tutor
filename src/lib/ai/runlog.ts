@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { agentRun, spendLedger } from "@/db/schema";
+import { SPEND_CAP_CENTS, type PlanId } from "@/lib/billing/catalog";
 import { capture } from "@/lib/observability";
 import type { CallMeta, CallResult } from "./call";
 
@@ -166,8 +167,15 @@ export async function logCall<T>(
   return result;
 }
 
-/** §14.9.7 limit 1 — the caps, in cents, checked *before* every call. */
-export const SPEND_CAP_CENTS = { free: 100, pro: 1_500 } as const;
+/**
+ * §14.9.7 limit 1 — the caps, in cents, checked *before* every call.
+ *
+ * Re-exported rather than defined: since E13 the numbers live in
+ * `src/lib/billing/catalog.ts` beside the plans they belong to, so that a tier
+ * cannot be added with a quota and no ceiling. This export stays because four
+ * call sites already import it from here and the indirection costs nothing.
+ */
+export { SPEND_CAP_CENTS } from "@/lib/billing/catalog";
 
 /**
  * §19.2's "hard global daily spend cap on the free tier", for the one surface
@@ -265,7 +273,7 @@ export async function spentThisPeriod(
 export async function shouldDegrade(
   db: Db,
   userId: string,
-  plan: keyof typeof SPEND_CAP_CENTS,
+  plan: PlanId,
   now?: Date,
 ): Promise<boolean> {
   return (await spentThisPeriod(db, userId, now)) >= SPEND_CAP_CENTS[plan];

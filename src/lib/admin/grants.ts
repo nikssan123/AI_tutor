@@ -23,7 +23,19 @@ export const PROTECTED_UPDATE_COLUMNS: Readonly<
   // Keeps `pnpm admin:grant` the only way to become an admin. Without this a
   // write-mode console is a self-service promotion path, which is the exact
   // thing `src/lib/admin/grant.ts` refuses to build a button for.
-  user: ["role"],
+  //
+  // `plan` is here for the same reason one step down: a console that can set it
+  // is a console that hands out paid plans, and the supported way to give
+  // somebody a plan they did not buy is a `plan_grant` row with a reason on it.
+  // It is also a derived cache of `subscription` (PLAN-MONETIZATION §4), so a
+  // direct write desynchronises it from the row that owns it.
+  user: ["role", "plan"],
+
+  // The subscription is what Stripe says it is. Editing `status` here would
+  // make the product disagree with the processor while the money kept flowing
+  // the other way — and the webhook would overwrite the edit at the next
+  // delivery anyway, so the only thing a hand-edit buys is confusion.
+  subscription: ["status", "plan_id", "amount_cents", "currency"],
 };
 
 /**

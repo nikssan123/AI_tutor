@@ -91,14 +91,29 @@ describe("the ping function — E1's durability proof", () => {
  */
 let submissionRows: unknown[] = [{ userId: "u1" }];
 
-vi.mock("@/db", () => ({
-  getDb: () => ({
-    db: true,
-    select: () => ({
-      from: () => ({ where: () => ({ limit: async () => submissionRows }) }),
+/**
+ * The submission lookup ends in `.limit()`; the entitlement lookup adds an
+ * `.orderBy()` before it and, for grants, resolves straight off `.where()`.
+ * Both shapes are `await`-able at the point they stop, which is what lets one
+ * fake serve all three without knowing which query it is answering.
+ */
+vi.mock("@/db", () => {
+  const rows = () => {
+    const result: Record<string, unknown> = {
+      limit: async () => submissionRows,
+      orderBy: () => ({ limit: async () => [] }),
+      then: (resolve: (value: unknown[]) => unknown) => resolve([]),
+    };
+    return result;
+  };
+
+  return {
+    getDb: () => ({
+      db: true,
+      select: () => ({ from: () => ({ where: rows }) }),
     }),
-  }),
-}));
+  };
+});
 vi.mock("@/lib/content/resolve", () => ({
   resolvePack: async () => packStub,
 }));

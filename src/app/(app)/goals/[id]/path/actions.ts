@@ -12,6 +12,7 @@ import { activeGoal, masteryFor, setGoalDepth } from "@/lib/goals/store";
 import { CourseDepthSpec } from "@/lib/contracts/goal";
 import { projectSkills } from "@/lib/goals/projection";
 import { generateValidatedCurriculum } from "@/lib/curriculum/generate";
+import { entitlementsForUser } from "@/lib/billing/store";
 import { saveCurriculum } from "@/lib/curriculum/store";
 
 /**
@@ -80,10 +81,13 @@ export async function buildPathAction(goalId: string): Promise<void> {
       client: getAnthropic(),
       db,
       userId: session.user.id,
-      // Everyone is on the free cap until E13 brings billing. The cap being
-      // real from the start is the point — §14.9.7's failure mode is a single
-      // bug producing a 100× day, and that does not wait for a pricing page.
-      plan: "free",
+      // E13 brought billing, so this is the real plan rather than the "everyone
+      // is on the free cap" placeholder it replaced. The cap was already real
+      // before there was a pricing page, which was the point: §14.9.7's failure
+      // mode is a single bug producing a 100× day.
+      plan: (
+        await entitlementsForUser(db, session.user.id, session.user.plan)
+      ).planId,
       projects: pack.projects.map((p) => ({
         rubricId: p.rubric,
         title: p.title,

@@ -4,6 +4,7 @@ import {
   course,
   howTo,
   organisation,
+  priceOffers,
   quiz,
   serialise,
   website,
@@ -173,5 +174,50 @@ describe("serialise", () => {
     ]) {
       expect(() => JSON.parse(serialise(...blocks))).not.toThrow();
     }
+  });
+});
+
+describe("priceOffers", () => {
+  const base = {
+    name: "MeritKeep",
+    description: "Learning, marked.",
+    path: "/pricing",
+    currency: "usd",
+  };
+
+  it("quotes the cheapest and dearest things on the page", () => {
+    const block = priceOffers({ ...base, amountsCents: [2_499, 300, 19_900] });
+    const offers = block.offers as Record<string, unknown>;
+
+    expect(offers["@type"]).toBe("AggregateOffer");
+    expect(offers.priceCurrency).toBe("USD");
+    expect(offers.highPrice).toBe("199.00");
+    // The free plan is the floor, and it is a real offer rather than an
+    // asterisk.
+    expect(offers.lowPrice).toBe("0.00");
+    expect(offers.offerCount).toBe(4);
+  });
+
+  it("survives a page with nothing purchasable on it", () => {
+    // Not a page this product ships, but the arithmetic must not produce
+    // `undefined` in markup a crawler reads.
+    const offers = priceOffers({ ...base, amountsCents: [] }).offers as Record<
+      string,
+      unknown
+    >;
+    expect(offers.highPrice).toBe("0.00");
+    expect(offers.offerCount).toBe(1);
+  });
+
+  it("does not mutate the array it was handed", () => {
+    const amounts = [19_900, 300];
+    priceOffers({ ...base, amountsCents: amounts });
+    expect(amounts).toEqual([19_900, 300]);
+  });
+
+  it("says the product is free to start, because it is", () => {
+    expect(
+      priceOffers({ ...base, amountsCents: [2_499] }).isAccessibleForFree,
+    ).toBe(true);
   });
 });

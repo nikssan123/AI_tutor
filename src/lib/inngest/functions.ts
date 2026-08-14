@@ -7,6 +7,7 @@ import { generatePack } from "@/lib/packs/generate";
 import { seedPack } from "@/lib/packs/seed";
 import { finishBuild } from "@/lib/packs/build";
 import { evaluateSubmission } from "@/lib/evaluation";
+import { entitlementsForUser } from "@/lib/billing/store";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
 import { resolvePack } from "@/lib/content/resolve";
 import { masteryFor } from "@/lib/goals/store";
@@ -212,8 +213,18 @@ export const evaluate = inngest.createFunction(
         };
       }
 
+      // §14.9.7 limit 1 had never applied to marking: this call passed no
+      // `plan`, so `shouldDegrade` was skipped on the most expensive operation
+      // in the product — two deep-tier calls at §20.2's measured $0.45 — and it
+      // was the only AI call site outside the cap. E13 is where that closes.
+      // No `user.plan` argument: that column is a cache of the two tables this
+      // reads anyway, and a worker has no session to have loaded it from. With
+      // neither a subscription nor a grant the resolver answers `free`, which is
+      // the correct answer for someone who has neither.
+      const { planId } = await entitlementsForUser(db, stored.userId, undefined);
+
       const outcome = await evaluateSubmission(
-        { client: getAnthropic(), db, userId: stored.userId },
+        { client: getAnthropic(), db, userId: stored.userId, plan: planId },
         {
           project,
           criteria: rubric.criteria,

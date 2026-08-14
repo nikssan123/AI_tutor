@@ -358,3 +358,27 @@ describe("getAuth", () => {
     expect(getAuth()).not.toBe(first);
   });
 });
+
+describe("the referral attribution hook (§9.1)", () => {
+  it("runs after a user is created, on every sign-up route", () => {
+    // Not in the sign-up action: that handles email sign-up only, so a Google
+    // sign-in would never pass through it and every social referral would be
+    // lost silently. One hook catches both.
+    const after = createAuth().options.databaseHooks?.user?.create?.after;
+    expect(after).toBeTypeOf("function");
+  });
+
+  it("delegates to `attributeSignup` and never rejects", async () => {
+    // The body lives in `@/lib/referral/signup` so it can be tested without
+    // standing up an auth instance; what is asserted here is the wiring, and
+    // that a hook failure cannot fail a sign-up.
+    const after = createAuth().options.databaseHooks!.user!.create!.after!;
+
+    await expect(
+      after({
+        id: "auth-hook-user",
+        email: "nobody@auth-hook.local",
+      } as never),
+    ).resolves.toBeUndefined();
+  });
+});

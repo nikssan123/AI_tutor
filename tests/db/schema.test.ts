@@ -28,8 +28,8 @@ function allTables(): Array<[string, Parameters<typeof getTableConfig>[0]]> {
 describe("every table is well-formed", () => {
   const tables = allTables();
 
-  it("finds all 45 tables", () => {
-    expect(tables.length).toBe(45);
+  it("finds all 51 tables", () => {
+    expect(tables.length).toBe(51);
   });
 
   it.each(allTables())("%s has columns and a snake_case name", (name, table) => {
@@ -283,6 +283,63 @@ describe("spend_ledger — the per-user cap (§14.9.7)", () => {
     expect(names).toContain("evaluations_used");
     expect(names).toContain("degraded");
     expect(names).toContain("period");
+  });
+});
+
+describe("billing — the constraints that carry the money (E13)", () => {
+  const unique = (table: Parameters<typeof getTableConfig>[0]) =>
+    getTableConfig(table)
+      .indexes.filter((i) => i.config.unique)
+      .flatMap((i) => (i.config.columns ?? []).map((c) => (c as { name: string }).name));
+
+  it("makes a replayed Stripe webhook impossible to file twice", () => {
+    // The unique index *is* the idempotency mechanism: the handler inserts
+    // before it acts, so a replay fails the insert and stops. A lookup and an
+    // insert can interleave; a constraint cannot.
+    expect(unique(schema.billingEvent)).toContain("stripe_event_id");
+  });
+
+  it("keeps one subscription row per Stripe subscription", () => {
+    // `customer.subscription.updated` arrives more than once, and the handler
+    // upserts on this column.
+    expect(unique(schema.subscription)).toContain("stripe_subscription_id");
+  });
+
+  it("makes 'one referral per person' a database constraint", () => {
+    // The single rule the whole abuse story rests on. A check in application
+    // code can be raced by two concurrent signups; this cannot.
+    expect(unique(schema.referral)).toContain("referee_id");
+  });
+
+  it("gives each account one referral code", () => {
+    const columns = unique(schema.referralCode);
+    expect(columns).toContain("code");
+    expect(columns).toContain("user_id");
+  });
+
+  it("cannot record a cancellation without a reason", () => {
+    // §25.1 marks the exit reason mandatory, in bold. This is what mandatory
+    // means when the survey is the only structured signal about why people go.
+    const reason = getTableConfig(schema.cancellationSurvey).columns.find(
+      (c) => c.name === "reason",
+    )!;
+    expect(reason.notNull).toBe(true);
+  });
+
+  it("lets a grant be revoked independently of its dates", () => {
+    // The refund path depends on revocation beating the window.
+    const names = getTableConfig(schema.planGrant).columns.map((c) => c.name);
+    expect(names).toContain("revoked_at");
+    expect(names).toContain("ends_at");
+  });
+
+  it("stores signup signals hashed, never raw", () => {
+    // PLAN-LOCALIZATION §5.2 — no IP value in any log or database row. A fraud
+    // heuristic needs equality, which a hash preserves, not the address.
+    const names = getTableConfig(schema.referral).columns.map((c) => c.name);
+    expect(names).toContain("signup_ip_hash");
+    expect(names).toContain("signup_ua_hash");
+    expect(names).not.toContain("signup_ip");
   });
 });
 

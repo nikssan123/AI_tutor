@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { nextCookies } from "better-auth/next-js";
 import { eq } from "drizzle-orm";
+import { attributeSignup } from "@/lib/referral/signup";
 import { getDb, schema } from "@/db";
 import type { EnvLike } from "@/lib/env-types";
 import { siteUrl } from "@/lib/site";
@@ -306,6 +307,24 @@ export function createAuth(env: EnvLike = process.env) {
             }),
           ).then(() => undefined),
       },
+    },
+
+    /**
+     * §9.1 — where a referral is actually recorded.
+     *
+     * **Not in the sign-up action.** `src/app/(app)/sign-up/actions.ts` handles
+     * email sign-up only; a Google sign-in never passes through it, so
+     * attribution written there would silently lose every social signup — and
+     * would look like it worked, because the email path is the one anybody
+     * tests by hand. One hook catches every route into an account.
+     *
+     * It never throws. A referral that cannot be recorded is a missed reward;
+     * a hook that throws is a signup that failed, and nobody trades the second
+     * for the first. The cookie is read here rather than passed in because this
+     * is the only place that runs for both paths.
+     */
+    databaseHooks: {
+      user: { create: { after: (created) => attributeSignup(created, env) } },
     },
 
     account: {

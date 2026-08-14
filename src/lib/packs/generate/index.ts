@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import { logCall, shouldDegrade, type SPEND_CAP_CENTS } from "@/lib/ai/runlog";
+import { logCall, shouldDegrade } from "@/lib/ai/runlog";
+import { degradesGeneration, type PlanId } from "@/lib/billing/catalog";
 import type { DraftItem, PackGraphDraft } from "@/lib/contracts/pack";
 import type { DomainPack } from "../types";
 import type { ValidationReport } from "../validate";
@@ -54,7 +55,7 @@ export interface PackGenerateDeps {
   db: Db;
   /** Null for system-initiated work; the run is still logged, nobody is billed. */
   userId: string | null;
-  plan?: keyof typeof SPEND_CAP_CENTS;
+  plan?: PlanId;
 }
 
 export interface PackGenerateInput {
@@ -100,9 +101,12 @@ export async function generatePack(
   input: PackGenerateInput,
 ): Promise<PackOutcome> {
   // §14.9.7 limit 1 — checked before the first call, not after the bill lands.
+  // As in `curriculum/generate.ts`: the month's ceiling, or a plan without the
+  // deep tier. Authoring a pack is generation, so price may degrade it.
   const degraded =
     deps.userId !== null && deps.plan !== undefined
-      ? await shouldDegrade(deps.db, deps.userId, deps.plan)
+      ? degradesGeneration(deps.plan) ||
+        (await shouldDegrade(deps.db, deps.userId, deps.plan))
       : false;
 
   let attempts = 0;

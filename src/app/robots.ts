@@ -14,6 +14,9 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: [
         "/api/",
+        // A referral link is one person's invitation, not a page. Indexing it
+        // would put somebody's code in the SERP and attribute strangers to them.
+        "/r/",
         "/today",
         "/session",
         "/goals",

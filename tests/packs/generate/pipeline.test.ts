@@ -470,4 +470,58 @@ describe("generatePack", () => {
     );
     expect(models.every((m) => m !== "claude-opus-5")).toBe(true);
   });
+
+  it("degrades a plan without the deep tier without reading the ledger (E13)", async () => {
+    // `degradesGeneration` short-circuits the `||`: a Learner gets standard
+    // models however little they have spent, so the cap is never consulted.
+    let ledgerReads = 0;
+    const unspent = {
+      transaction: (db as unknown as { transaction: unknown }).transaction,
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => {
+              ledgerReads += 1;
+              return [{ costCents: 0 }];
+            },
+          }),
+        }),
+      }),
+    } as never;
+
+    const { client, create } = modelReturning(happyPath());
+    await generatePack(
+      { client, db: unspent, userId: "u1", plan: "learner" },
+      { slug: "rust", subject: "Rust", rawGoal: null },
+    );
+
+    expect(create.mock.calls.every((c) => c[0].model !== "claude-opus-5")).toBe(
+      true,
+    );
+    expect(ledgerReads).toBe(0);
+  });
+
+  it("keeps authoring on the deep tier for a plan that pays for it", async () => {
+    // The other side of the same `||`, and the one that matters: §14.9.3 gives
+    // `packAuthor` the deep tier because every later step reads the graph and
+    // cannot correct it.
+    const unspent = {
+      transaction: (db as unknown as { transaction: unknown }).transaction,
+      select: () => ({
+        from: () => ({
+          where: () => ({ limit: async () => [{ costCents: 0 }] }),
+        }),
+      }),
+    } as never;
+
+    const { client, create } = modelReturning(happyPath());
+    await generatePack(
+      { client, db: unspent, userId: "u1", plan: "pro" },
+      { slug: "rust", subject: "Rust", rawGoal: null },
+    );
+
+    expect(create.mock.calls.some((c) => c[0].model === "claude-opus-5")).toBe(
+      true,
+    );
+  });
 });

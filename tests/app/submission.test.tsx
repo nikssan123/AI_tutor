@@ -21,6 +21,14 @@ const createSubmissionMock = vi.fn(async () => "sub-1");
 const sendMock = vi.fn(async () => undefined);
 const submissionMock = vi.fn(async () => undefined as unknown);
 const evaluationMock = vi.fn(async () => undefined as unknown);
+const entitlementsMock = vi.fn(async () => ({
+  planId: "pro" as const,
+  entitlements: { evaluationsPerMonth: 10, premiumModels: true },
+  spendCapCents: 1_500,
+  source: "plan" as const,
+}));
+const consumeMock = vi.fn(async () => ({ ok: true, used: 1, limit: 10 }));
+const captureMock = vi.fn();
 
 const pack = findPack("photography")!;
 
@@ -48,6 +56,16 @@ vi.mock("@/lib/submissions/store", async (importOriginal) => ({
 vi.mock("@/lib/inngest/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/inngest/client")>()),
   inngest: { send: sendMock },
+}));
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: (...a: unknown[]) => entitlementsMock(...(a as [])),
+}));
+vi.mock("@/lib/billing/quota", () => ({
+  consumeEvaluation: (...a: unknown[]) => consumeMock(...(a as [])),
+}));
+vi.mock("@/lib/observability", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/observability")>()),
+  capture: (...a: unknown[]) => captureMock(...(a as [])),
 }));
 
 const { default: SubmissionPage } = await import(
@@ -209,6 +227,58 @@ describe("handing work in", () => {
     await expect(
       submitWorkAction(form({ skill: "not-a-skill", work: "x" })),
     ).rejects.toThrow("REDIRECT:/today");
+  });
+
+  describe("the evaluation quota (§14.9.7 limit 2)", () => {
+    it("claims one against the plan's monthly allowance", async () => {
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }),
+        ),
+      ).rejects.toThrow("REDIRECT:/submission/sub-1");
+
+      // The limit comes from the resolved plan, not from a constant here.
+      expect(consumeMock).toHaveBeenCalledWith(expect.anything(), "u1", 10);
+    });
+
+    it("refuses the hand-in when the month is spent", async () => {
+      consumeMock.mockResolvedValueOnce({ ok: false, used: 1, limit: 1 });
+
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low", returnTo: "/session/s1" }),
+        ),
+      ).rejects.toThrow("REDIRECT:/session/s1?error=quota");
+    });
+
+    it("files nothing and queues nothing when it refuses", async () => {
+      // The point of claiming before the row: a submission that will not be
+      // marked never becomes a queued row somebody has to explain later, and
+      // the learner is told at the button rather than after 45 seconds.
+      consumeMock.mockResolvedValueOnce({ ok: false, used: 1, limit: 1 });
+
+      await expect(
+        submitWorkAction(form({ skill: skill.slug, work: "the horizon sits low" })),
+      ).rejects.toThrow("REDIRECT:/today?error=quota");
+
+      expect(createSubmissionMock).not.toHaveBeenCalled();
+      expect(sendMock).not.toHaveBeenCalled();
+    });
+
+    it("records the paywall being met", async () => {
+      // §17.3's free→paid criterion is unreadable without this event.
+      consumeMock.mockResolvedValueOnce({ ok: false, used: 3, limit: 3 });
+
+      await expect(
+        submitWorkAction(form({ skill: skill.slug, work: "the horizon sits low" })),
+      ).rejects.toThrow("REDIRECT:/today?error=quota");
+
+      expect(captureMock).toHaveBeenCalledWith("quota_reached", {
+        quota_type: "evaluation",
+        used: 3,
+        limit: 3,
+      });
+    });
   });
 });
 

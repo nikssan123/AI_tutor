@@ -111,6 +111,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: canonical("/"), changeFrequency: "weekly", priority: 1 },
     { url: canonical("/learn"), changeFrequency: "weekly", priority: 0.9 },
     { url: canonical("/projects"), changeFrequency: "weekly", priority: 0.9 },
+    // What it costs is a question people search for by name, and the page
+    // answers it in full rather than asking for an email first.
+    { url: canonical("/pricing"), changeFrequency: "monthly", priority: 0.8 },
     // The bare tool only. Every `?subject=…&hours=…` view of it is `noindex`
     // and canonicals here, which is the same faceted-nav rule `/learn?q=`
     // follows — and the reason there is no page per subject per pace.

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { session, user } from "@/db/schema";
 import { ADMIN_ROLE } from "./guard";
+import { PLAN_IDS, type PlanId } from "@/lib/billing/catalog";
 import { recordAudit } from "./audit";
 
 /**
@@ -26,8 +27,15 @@ import { recordAudit } from "./audit";
  * not merely a missing button.
  */
 
-export const PLANS = ["free", "pro"] as const;
-export type Plan = (typeof PLANS)[number];
+/**
+ * Re-exported from the billing catalog rather than declared here.
+ *
+ * This was `["free", "pro"]` until E13, and the console's quick action picked
+ * "the other one" with `PLANS.find(c => c !== plan)` — correct only while there
+ * were exactly two. Keeping one list means a fifth plan cannot appear in the
+ * catalog and be invisible to the operator screen.
+ */
+export { PLAN_IDS as PLANS, type PlanId as Plan };
 
 export interface Actor {
   userId: string;
@@ -39,8 +47,8 @@ export interface ActionResult {
   message: string;
 }
 
-export function isPlan(value: string): value is Plan {
-  return (PLANS as readonly string[]).includes(value);
+export function isPlan(value: string): value is PlanId {
+  return (PLAN_IDS as readonly string[]).includes(value);
 }
 
 interface TargetUser {
