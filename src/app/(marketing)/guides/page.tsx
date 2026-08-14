@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JsonLdScript, PageFrame, PageIntro } from "@/components/marketing";
-import { LinkCard, Meta, revealAt } from "@/components/ui";
+import { LinkCard, Meta, Status, revealAt } from "@/components/ui";
+import { guideClaim } from "@/lib/claims";
 import { allGuideSummaries } from "@/lib/guides";
 import { breadcrumbs } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
@@ -51,7 +52,13 @@ export default function GuidesPage() {
                 <span className="max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
                   {guide.answer}
                 </span>
-                {!guide.indexable ? <Meta>Draft — not published yet</Meta> : null}
+                {/* Who read it, always — not only when the answer is
+                    unflattering. A badge that appears solely on drafts reads as
+                    a warning; one that is always there reads as provenance,
+                    which is what it is. Same argument as `MaturityBadge`. */}
+                <Status tone={guideClaim(guide.review).tone}>
+                  {guideClaim(guide.review).label}
+                </Status>
               </LinkCard>
             </li>
           ))}

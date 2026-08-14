@@ -1,8 +1,8 @@
 # The human work
 
-Three things gate launch that no amount of code will clear. Two are §23 Phase-0
-MUSTs that were skipped when the build started; the third (part C) arrived with
-E12's first pages and is by far the smallest.
+Two things gate launch that no amount of code will clear, both §23 Phase-0 MUSTs
+skipped when the build started. Part C used to be a third; it is now an optional
+read, for the reason given there.
 
 > **Updated 2026-08-14.** Part A has been done as far as a model can do it: all
 > seven packs are now reviewed end to end and signed `reviewKind: model`, with
@@ -24,8 +24,8 @@ E12's first pages and is by far the smallest.
 > been measured and is met; see below.
 
 None is long. Together they are roughly **one focused day** for the SQL pack
-alone, which is enough to launch on; part C adds twenty minutes for the two
-pages worth publishing first.
+alone, which is enough to launch on. Part C is no longer one of the gates — it
+is twenty optional minutes.
 
 ---
 
@@ -321,19 +321,35 @@ written and the stability half is measured and met.
 
 ---
 
-# C. The guide read — unblocks the first eight SEO pages
+# C. The guide read — optional now, and here is why
 
-New, and much the smallest of the three. §12.1 rule 5 is *"no page ships without
-a human read"*, and it is the only §12 defence that cannot be automated. The
-other four are: the volume is 8 pages and not 5,000, every page carries a
-working tool, the prose is hand-written, and `noindex` is the default.
+> **Changed 2026-08-15, after Nikolay said he is not versed enough in these
+> topics to verify them.** That is the same constraint part A hit, and it gets
+> the same answer: the pages are signed `reviewKind: model`, which publishes
+> them under a badge that says exactly what happened — **"Sources checked, not
+> expert-reviewed"**, never "Read and checked by hand". Nothing below is
+> blocking any more. It is the list of things a reader *could* usefully
+> challenge, kept because a model signing off its own prose is the weakest link
+> in the chain and should be labelled as such rather than quietly forgotten.
+
+§12.1 rule 5 is *"no page ships without a human read"*, and it is the only §12
+defence that cannot be automated. The other four all hold: the volume is 8 pages
+and not 5,000, every page carries a working tool, the prose is hand-written, and
+`noindex` is the default until something opens the gate.
+
+**What a model signature does and does not attest to.** It attests to the
+checkable half, and every part of it was checked: each citation resolves to a
+live source that says what the sentence claims, each figure is read from a pack
+rather than typed, no claim dangles, and the judgements that are ours are marked
+as ours in the prose. It does not attest that a subject expert agrees with the
+argument. Those are different claims and the badge distinguishes them.
 
 ## What it gates
 
 `isGuideIndexable` asks for three things: a §12.2 score of ≥75, an empty problem
-list, and a recorded reviewer. **The first two are already met.** All eight
-guides score 100/100 on every dimension that can be measured, have no
-outstanding problems, and all twenty-five of their cited sources return 200.
+list, and a recorded reviewer. **All three are now met.** All eight guides score
+100/100 on every dimension that can be measured, have no outstanding problems,
+and all twenty-six of their cited sources return 200.
 
 So the pages exist, render, and are one line each away from the sitemap.
 
@@ -349,7 +365,9 @@ content/guides/what-should-i-learn-after-python-basics.yaml
 ```
 
 They are listed in the order worth reading them, which is cheapest-to-judge
-first — see the recommendation at the end.
+first — see the recommendation at the end. Reading one and changing its
+`reviewKind` to `human` with your name upgrades that page's badge to "Read and
+checked by hand"; leaving it alone costs nothing and the page stays live.
 
 ## What the machine already checked — do not spend time on these
 
@@ -369,12 +387,22 @@ uniqueness check needs an embedding model. Neither is faked.
 ## What only you can check
 
 Read each page end to end — they are about 900 words each — and ask three
-questions the score cannot:
+questions the score cannot. **None of this blocks anything**; the pages are
+live either way.
 
-### 1. Is anything in it wrong?
-The learning-science claims all carry citations you can follow. The
-**subject-matter** claims do not, and those are the ones a reader will judge us
-on. Four are worth your attention specifically:
+Two of the three are ones you *can* answer without knowing the subject, which is
+the point worth making: correctness is the question you said you cannot judge,
+and it is only one of the three.
+
+### 1. Is anything in it wrong? — the one you said you cannot judge
+Fair, and the pages are built so that most of this does not rest on you. Every
+learning-science claim carries a citation you can follow to a live source, and
+every figure about our own courses is read out of the pack rather than typed, so
+it cannot be wrong without the course being wrong.
+
+What is left is the **subject-matter** judgement, which no citation covers. If
+you ever want a second opinion on one of these, this is the list to hand over —
+to a SQL person and a Python person, ten minutes each:
 
 | Guide | The uncited claim |
 |---|---|
@@ -396,13 +424,16 @@ direction is well supported and the specific number is a judgement, presented as
 one ("about two"). If you think it discourages people who would have been fine
 on one hour, that is a fair objection and the sentence should change.
 
-### 2. Does it sound like you?
-This is the only copy on the site that argues rather than states. If a sentence
-reads as marketing, it is one I wrote badly — say which and it comes out.
+### 2. Does it sound like you? — you are the only person who can answer this
+This is the only copy on the site that argues rather than states, and voice is
+not a thing a model can check itself for. If a sentence reads as marketing, it
+is one I wrote badly — say which and it comes out. **This is the most valuable
+twenty minutes you could spend on these pages**, and it needs no SQL at all.
 
-### 3. Would it be useful to somebody who never signs up?
+### 3. Would it be useful to somebody who never signs up? — also yours
 §11's quality bar, in one line. If a page only makes sense as a funnel, it does
-not ship.
+not ship. Again: no subject knowledge required, only judgement about whether the
+page earns the reader's time.
 
 ## Then, if you sign
 
@@ -445,9 +476,10 @@ signing changes is whether we ask Google to rank it.
 8. `what-should-i-learn-after-python-basics` — the strongest uncited claim on
    the site. Read it last and read it hardest.
 
-If you only have twenty minutes, do 1 and 2. **Two indexed pages that are
-certainly right beat eight that are probably right**, and the rest keep in the
-repository as drafts indefinitely at no cost.
+If you only have twenty minutes, spend them on **question 2 across all eight**
+rather than on question 1 for any of them. Voice is the thing only you can fix
+and the thing a model is worst at noticing about itself; correctness is the
+thing the citations and the pack figures already carry most of.
 
 ---
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   EVAL_TIER_CLAIM,
   evalTierClaim,
+  GUIDE_CLAIM,
+  guideClaim,
   maturityClaim,
   MATURITY_CLAIM,
 } from "@/lib/claims";
@@ -111,6 +113,38 @@ describe("maturityClaim", () => {
       expect(maturityClaim(maturity)).toEqual(maturityClaim(maturity, null));
       expect(maturityClaim(maturity).tone).not.toBe("verified");
     }
+  });
+});
+
+describe("guideClaim", () => {
+  it("gives a hand-read guide the strong claim, and only that one", () => {
+    expect(guideClaim("human")).toEqual(GUIDE_CLAIM.human);
+    expect(guideClaim("human").tone).toBe("verified");
+    for (const review of ["model", null] as const) {
+      expect(guideClaim(review).tone, String(review)).not.toBe("verified");
+    }
+  });
+
+  /**
+   * The property that matters, and the same one `maturityClaim` is held to: a
+   * product arguing that a model's opinion is not proof cannot render a model's
+   * opinion in the same green as a person's.
+   */
+  it("only ever says 'by hand' when a hand was involved", () => {
+    for (const review of ["model", null] as const) {
+      expect(guideClaim(review).label, String(review)).not.toMatch(/by hand/i);
+    }
+  });
+
+  /** A model review is real work, and it is not a subject expert reading it. */
+  it("says what a model review actually was, in both halves", () => {
+    expect(guideClaim("model").label).toMatch(/sources checked/i);
+    expect(guideClaim("model").label).toMatch(/not expert-reviewed/i);
+  });
+
+  it("calls an unreviewed guide a draft rather than staying silent", () => {
+    expect(guideClaim(null)).toEqual(GUIDE_CLAIM.none);
+    expect(guideClaim(null).tone).toBe("attention");
   });
 });
 

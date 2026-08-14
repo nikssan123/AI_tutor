@@ -84,6 +84,34 @@ export function maturityClaim(
 }
 
 /**
+ * §12.1 rule 5 — "no page ships without a human read" — for the one page type
+ * that is mostly prose.
+ *
+ * A guide has no `maturity`: there is no such thing as a generated one, because
+ * §12.1 rule 3 bans generated prose outright. So the only question is who read
+ * it, and the answers are the same three the packs have, with the same rule
+ * about which tone each earns.
+ *
+ * The middle case is the one that matters, and it is the honest resolution of a
+ * real constraint rather than a loophole. A model review of a guide is a
+ * genuine check — every citation resolves to a live source, every figure is
+ * read from a pack, no claim is left dangling — and it is emphatically *not* a
+ * subject expert reading the argument. So the label says which of those two
+ * happened, and the tone stays `neutral`, for exactly the reason
+ * `CHECKED_AGAINST_SOURCES` does: a product arguing that a model's opinion is
+ * not proof cannot render a model's opinion in the same green as a person's.
+ */
+export const GUIDE_CLAIM: Record<"human" | "model" | "none", Claim> = {
+  human: { tone: "verified", label: "Read and checked by hand" },
+  model: { tone: "neutral", label: "Sources checked, not expert-reviewed" },
+  none: { tone: "attention", label: "Draft — nobody has read it yet" },
+};
+
+export function guideClaim(review: ReviewKind | null): Claim {
+  return GUIDE_CLAIM[review ?? "none"];
+}
+
+/**
  * §7.2 — what the evaluator can actually honour at each tier, in the words a
  * learner reads before they commit, not after they are disappointed.
  */

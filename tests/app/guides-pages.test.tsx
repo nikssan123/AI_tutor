@@ -127,12 +127,17 @@ describe("the prose renderer", () => {
 });
 
 describe("/guides", () => {
-  it("lists every guide, and says which ones are not published", () => {
+  /**
+   * The badge is shown in every state, not only the unflattering one. A badge
+   * that appears solely on drafts reads as a warning; one that is always there
+   * reads as provenance, which is what it is.
+   */
+  it("lists every guide, and says of each one who read it", () => {
     render(index.default());
     expect(screen.getByText("Does rereading actually work?")).toBeDefined();
     expect(screen.getByText("What should I learn next?")).toBeDefined();
-    // One draft in the fixture corpus, one published.
-    expect(screen.getAllByText("Draft — not published yet")).toHaveLength(1);
+    expect(screen.getByText("Read and checked by hand")).toBeDefined();
+    expect(screen.getByText("Draft — nobody has read it yet")).toBeDefined();
   });
 
   it("says nothing about freshness when it has nothing to list", () => {
@@ -231,11 +236,16 @@ describe("/guides/{slug}", () => {
 
   it("says plainly when nobody has read the page yet", async () => {
     render(await guide.default({ params: params({ slug: "b-thin" }) }));
-    expect(screen.getByText(/treat it as a first draft/)).toBeDefined();
+    expect(screen.getByText("Draft — nobody has read it yet")).toBeDefined();
   });
 
-  it("drops that line once somebody has", async () => {
+  /**
+   * §12.1 rule 5 is the one §12 defence that cannot be automated, so the page
+   * states which kind of read it got rather than going quiet once it passes.
+   */
+  it("states the stronger claim once somebody has, rather than going silent", async () => {
     render(await guide.default({ params: params({ slug: "a-full" }) }));
+    expect(screen.getByText("Read and checked by hand")).toBeDefined();
     expect(screen.queryByText(/treat it as a first draft/)).toBeNull();
   });
 

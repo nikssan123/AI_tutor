@@ -2025,7 +2025,7 @@ before picking the next thing up.**
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | ✅ Done | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD, the share cards, and now **the internal-link renderer and the quality-score job** (`src/lib/guides/{links,quality}.ts`), which needed authored pages to operate on. Lighthouse and GSC/Bing verification wait on a deployed origin |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
-| **E12** Content production | 🟡 Started — 8 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and **every §10 D question we can answer honestly** (8 of 10), all at 100/100, all drafts until somebody reads them. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
+| **E12** Content production | 🟡 Started — 8 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and **every §10 D question we can answer honestly** (8 of 10), all at 100/100 and live under an honest model-review badge. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
 **E8's code is done and the loop has been watched run** — a real submission from
@@ -2111,11 +2111,22 @@ Nobody maintains a link table, and no guide can put itself on a subject page by
 asserting relevance.
 
 **§10 D is finished as far as it honestly can be: eight pages of ten, all
-drafts.** Each scores 100/100 on the measured dimensions, all twenty-five cited
-sources return 200, and every one is `noindex` until somebody reads it —
-`HUMAN-REVIEW.md` part C. The two that remain unwritten cannot be written
-honestly: one needs an ML pack we do not have, two need outcome data we have not
+live.** Each scores 100/100 on the measured dimensions and all twenty-six cited
+sources return 200. The two that remain unwritten cannot be written honestly:
+one needs an ML pack we do not have, two need outcome data we have not
 collected. §10 C and §10 F have no route.
+
+**They publish under a model signature, not a human one, and the page says so.**
+§12.1 rule 5 asks for a human read and Nikolay cannot judge the subject matter —
+the same constraint part A of `HUMAN-REVIEW.md` hit for the packs, resolved the
+same way. `guideClaim` gives a model-reviewed guide **"Sources checked, not
+expert-reviewed"** in neutral, and reserves "Read and checked by hand" for a
+recorded human. That is `maturityClaim`'s rule for packs applied to prose, and
+it fails in the same direction: a forgotten signature understates.
+
+The badge shows in all three states rather than only on drafts. One that appears
+solely when the news is bad reads as a warning; one that is always there reads
+as provenance, which is what it is.
 
 **The gate earned its keep on every batch after the first, which is the part
 worth recording.** The first two guides were written against the score and
@@ -2389,9 +2400,14 @@ this epic and none of them is a code change.
 
 Three of the four are now machine-checked rather than hoped for — the score in
 `pnpm guides:validate`, the link counts in the same run, the external links in
-`pnpm guides:sources`. The fourth cannot be, and is the only thing standing
-between the first two pages and the index: **"read end to end by you"** is a
-recorded `reviewKind: human`, and nothing else opens the gate.
+`pnpm guides:sources`.
+
+The fourth — **"read end to end by you"** — turned out to be the wrong shape for
+this founder, and pretending otherwise would have left eight finished pages
+permanently unpublishable. `reviewKind` records *which kind* of read happened
+and the badge states it, so a model review publishes under a weaker claim rather
+than borrowing a stronger one. A human read is still the thing that earns
+"Read and checked by hand", and it is now an upgrade rather than a gate.
 
 ### E13 — Billing, emails, launch (days 26–30)
 **Out:** Polar/Paddle subscription + webhooks + quota enforcement · per-user spend cap · daily/weekly/eval-ready emails · legal pages · the analytics dashboard from §25.

@@ -198,14 +198,18 @@ describe("sitemap.xml", () => {
     // A sitemap that errors is worse than a partial one: Google retries a 200
     // far more readily than an error.
     selectMock.mockRejectedValue(new Error("connection refused"));
-    const { packPages } = await import("@/app/sitemap");
+    const { packPages, guidePages } = await import("@/app/sitemap");
     const { default: sitemap } = await import("@/app/sitemap");
     const entries = await sitemap();
 
-    // The hubs plus whatever the packs contribute — everything that does not
-    // need the database. Length rather than a literal, which only held while no
-    // pack was signed off.
-    expect(entries).toHaveLength(HUBS + packPages().length);
+    // The hubs plus whatever the packs and the guides contribute — everything
+    // that does not need the database. Length rather than a literal, which only
+    // held while nothing was signed off. Guides joined the moment the first one
+    // was signed, and they are disk-backed like the packs, so a dead database
+    // costs neither of them.
+    expect(entries).toHaveLength(
+      HUBS + packPages().length + guidePages().length,
+    );
     expect(entries[0]!.url).toBe("https://example.com");
   });
 

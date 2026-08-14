@@ -3059,3 +3059,130 @@ probably right.
 
 Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
 behind a deployed origin.
+
+---
+
+# Delivery record — pass 30: a footer, two legal pages, and a gate that was the wrong shape
+
+Three things, and the third is the one with a lesson in it.
+
+## The guides hub was orphaned, and I built the rule that says so
+
+`/guides` had exactly one inbound link in the entire product: the breadcrumb on
+a guide page. You could only find the index if you were already past it. Nothing
+on the landing page, nothing in the header, and a footer that was two lines of
+copy and a theme toggle.
+
+That is worth recording as an error rather than a gap, because I spent the
+previous pass enforcing §13.3's "≥4 out, ≥2 in" on the guides themselves and
+left their own hub out of it. The rule was applied to the content and not to the
+container.
+
+The footer is the fix, and it is deliberately six links. §8 screen 1 gives the
+landing page exactly one job and the header still carries only the two
+destinations a browsing visitor wants; guides are an entry point *from search*
+rather than a browse destination, so a site-wide footer link is what they need
+and a hero slot is not. A test pins the count so it cannot grow into a
+directory.
+
+## Legal pages, written against the code rather than a template
+
+§24 E13 lists them as unbuilt. Writing them against the codebase rather than
+adapting a template cut two claims that a template would have made:
+
+- **Self-serve data export and account deletion do not exist.** §13 describes
+  both. Neither is built, so the page promises a person doing it by hand and
+  says so in those words. This is the one page type where implying a feature is
+  not a description but a *promise*, and somebody now has to honour it.
+- **No third-party analytics receives anything.** `resolveSinks` builds three
+  `NoopSink`s. True today, and exactly the sort of sentence that stops being
+  true quietly, so it is pinned in a test.
+
+The terms page leads with what a mark is *not* — not a qualification, not a
+certification, capable of being wrong — because that is §4.2 law 3 in the
+document where overclaiming is most expensive.
+
+## The human-read gate was the wrong shape, and the fix is not to lower it
+
+§12.1 rule 5 says "no page ships without a human read", and `isGuideIndexable`
+enforced it. Then the founder said, reasonably, that he is not versed enough in
+learning science or SQL to verify the claims — which is the *same constraint*
+part A of `HUMAN-REVIEW.md` hit for the packs, and which I had failed to
+anticipate for the guides despite having written that document.
+
+Left alone, eight finished pages scoring 100/100 would have sat unpublishable
+forever, waiting on a review that was never going to happen. The wrong fixes
+were both available and both tempting: drop the gate, or sign them `human` and
+say nothing.
+
+The right one already existed. Pass 28 solved this for packs — a model review is
+real work, it is recorded as what it was, and it earns a *weaker badge*.
+`guideClaim` is `maturityClaim`'s rule applied to prose:
+
+| `reviewKind` | Tone | Label |
+|---|---|---|
+| `human` | verified | Read and checked by hand |
+| `model` | **neutral** | Sources checked, not expert-reviewed |
+| `null` | attention | Draft — nobody has read it yet |
+
+The tone is where an overclaim actually lands, so a model review never gets the
+same green a person's does — the identical argument §7.2 uses to give tier 3
+`attention`. And the label names both halves of what a model signature honestly
+attests to: the citations, figures and dangling claims *were* checked, and no
+subject expert read the argument.
+
+**The badge shows in all three states, not only on drafts.** One that appears
+solely when the news is bad reads as a warning; one that is always there reads
+as provenance.
+
+What signing does not do is end the conversation. `HUMAN-REVIEW.md` part C is
+rewritten from a blocker into an optional read, and it now points out something
+that was buried before: of its three questions, only the first needs subject
+knowledge. *Does it sound like you* and *would this be useful to somebody who
+never signs up* are answerable by the founder alone, and they are the ones a
+model is worst at judging about its own prose.
+
+## Two claims softened on the way
+
+Signing prose means reading it as though somebody will check it, which caught
+two sentences that should not have shipped:
+
+- **"names-and-references is the skill most Python courses skip"** — an
+  empirical claim about other people's courses that I have not measured. Rewritten
+  to describe what *our* course says, which is checkable.
+- **"grain and NULL behaviour are where confident spreadsheet users get wrong
+  answers rather than errors"** — half opinion, half documented behaviour. The
+  NULL half now cites the Postgres comparison-operator docs and the sentence
+  says which half is ours.
+
+## Notes
+
+- Three sessions were writing to this tree at once and two of us ran `vitest`
+  simultaneously, which corrupted a coverage tempfile and produced spurious
+  failures in `admin-browse`, `runlog` and `mail/*` — all passing in isolation.
+  `vitest.config.ts` serialises the DB-backed files *within* one process; it
+  cannot help across two. Ping before a coverage run.
+- `git add <path>` stages a whole file, so a shared file with two sessions'
+  uncommitted work in it cannot be committed by either without sweeping the
+  other's in. Both of us caught it independently on `marketing.tsx`. Non-
+  interactive partial staging needs `git apply --cached` on an extracted hunk.
+- The support address on both legal pages is read from the same env var
+  outgoing mail reads, so the page cannot promise one inbox while the product
+  writes from another.
+
+## Still open
+
+E12 is eight pages of fifty and §10 D is done. §10 C
+(`/learn/{topic}-for-{audience}`) and §10 F (`/roadmaps/{slug}`) have no route,
+and §10 C is the higher-value of the two — it is ranked third in §9.1 against
+guides' fourth, it demos the thesis directly, and it is derivable from the skill
+graph rather than being prose somebody has to write.
+
+**§2.6's week-1 keyword verification has still never been done**, and §10 says
+plainly that every page on that list must be volume-verified and dropped if all
+three top results are DR>60 or volume is under ~150/mo. Eight pages now target
+unverified demand. It needs a Google Ads account and about an hour, and it is
+the cheapest thing on this list that could change what we do next.
+
+Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
+behind a deployed origin.

@@ -1,0 +1,156 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { LEGAL_UPDATED, supportAddress } from "@/components/legal";
+import { SiteFooter } from "@/components/marketing";
+import Privacy, { generateMetadata as privacyMeta } from "@/app/(marketing)/privacy/page";
+import Terms, { generateMetadata as termsMeta } from "@/app/(marketing)/terms/page";
+
+/**
+ * The footer and the two legal pages.
+ *
+ * The assertions that matter are the ones about *not* claiming things. A
+ * privacy page describing a data-export button that does not exist is the same
+ * failure as a marketing page describing a feature that does not exist, except
+ * that it is also a promise — so the tests pin the absence.
+ */
+
+beforeEach(() => {
+  process.env.NEXT_PUBLIC_SITE_URL = "https://example.com";
+});
+
+afterEach(() => {
+  cleanup();
+  delete process.env.NEXT_PUBLIC_SITE_URL;
+  delete process.env.EMAIL_SUPPORT_FROM;
+});
+
+describe("the footer", () => {
+  it("gives the guides hub the site-wide link it never had", () => {
+    render(<SiteFooter />);
+    // Before this, the only link to /guides anywhere was the breadcrumb on a
+    // guide — so the index was reachable only from past it.
+    expect(screen.getByRole("link", { name: "Guides" }).getAttribute("href")).toBe(
+      "/guides",
+    );
+  });
+
+  it("links both legal pages", () => {
+    render(<SiteFooter />);
+    expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe(
+      "/terms",
+    );
+    expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe(
+      "/privacy",
+    );
+  });
+
+  it("carries the tool and the two hubs the header already has", () => {
+    render(<SiteFooter />);
+    for (const [name, href] of [
+      ["Subjects", "/learn"],
+      ["Graded projects", "/projects"],
+      ["Roadmap tool", "/tools/learning-roadmap-generator"],
+    ] as const) {
+      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
+  });
+
+  /** §8.5.1 — the footer is chrome, not a directory. */
+  it("stays a short list rather than becoming a sitemap", () => {
+    const { container } = render(<SiteFooter />);
+    expect(container.querySelectorAll("a")).toHaveLength(6);
+  });
+
+  it("keeps the promise copy and the theme control", () => {
+    render(<SiteFooter />);
+    expect(screen.getByText(/Nothing counts as proof/)).toBeDefined();
+    expect(screen.getByText("MeritKeep")).toBeDefined();
+  });
+});
+
+describe("the support address", () => {
+  it("comes from the same place outgoing mail comes from", () => {
+    process.env.EMAIL_SUPPORT_FROM = "Help <help@example.org>";
+    expect(supportAddress()).toBe("help@example.org");
+  });
+
+  it("falls back to the default when nothing is configured", () => {
+    expect(supportAddress()).toBe("support@meritkeep.com");
+  });
+});
+
+describe("/privacy", () => {
+  it("names every third party that actually receives something", () => {
+    render(<Privacy />);
+    for (const party of ["Anthropic", "Resend", "Google", "Inngest"]) {
+      expect(screen.getByText(party)).toBeDefined();
+    }
+  });
+
+  /**
+   * `resolveSinks` builds three `NoopSink`s. Until one of them is a real SDK
+   * this sentence is true, and it is the sort of sentence that silently stops
+   * being true — hence the test.
+   */
+  it("says no analytics receives anything, because none does", () => {
+    render(<Privacy />);
+    expect(
+      screen.getByText(/No third-party analytics currently receives anything/),
+    ).toBeDefined();
+  });
+
+  /** §13's self-serve export and delete are not built. The page must not imply them. */
+  it("promises a person, not a button, for export and deletion", () => {
+    const { container } = render(<Privacy />);
+    expect(container.textContent).toContain("There is no self-serve button");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("lists the three cookies that exist and no more", () => {
+    render(<Privacy />);
+    expect(screen.getByText("Sign-in.")).toBeDefined();
+    expect(screen.getByText("Theme.")).toBeDefined();
+    expect(screen.getByText("Skill check progress.")).toBeDefined();
+  });
+
+  it("is indexable and canonical to itself", () => {
+    const meta = privacyMeta();
+    expect(meta.robots).toBeUndefined();
+    expect(meta.alternates!.canonical).toBe("https://example.com/privacy");
+  });
+
+  it("dates itself", () => {
+    render(<Privacy />);
+    expect(screen.getByText(new RegExp(LEGAL_UPDATED))).toBeDefined();
+  });
+});
+
+describe("/terms", () => {
+  /** §4.2 law 3, in the one document where overclaiming is most expensive. */
+  it("refuses the words a certificate mill would use", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).toContain(
+      "It is not a qualification, a certification, or an accreditation",
+    );
+    expect(container.textContent).toContain("It can be wrong.");
+  });
+
+  it("says the work stays the learner's", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).toContain("It stays yours.");
+  });
+
+  /** Billing is not built. Terms describing a subscription would be fiction. */
+  it("says there is no money rather than describing a plan that does not exist", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).toContain("There is none yet");
+    expect(container.textContent).not.toMatch(/per month|subscription fee/i);
+  });
+
+  it("is indexable and canonical to itself", () => {
+    const meta = termsMeta();
+    expect(meta.robots).toBeUndefined();
+    expect(meta.alternates!.canonical).toBe("https://example.com/terms");
+  });
+});

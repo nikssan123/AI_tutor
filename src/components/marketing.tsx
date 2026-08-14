@@ -20,8 +20,9 @@ import { evalTierClaim } from "@/lib/claims";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
-import { serialise, type JsonLd } from "@/lib/seo/jsonld";
+import { ORGANISATION_NAME, serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
+import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import type { RubricCriterion } from "@/lib/packs/types";
 
 /**
@@ -206,22 +207,85 @@ export async function SiteHeader() {
   );
 }
 
+/**
+ * §13.3's internal-link rule, applied to the site rather than to a page.
+ *
+ * The footer exists because two page types had no site-wide link at all: the
+ * guides hub, which could only be reached from a breadcrumb *on a guide* — so
+ * you could only find the index if you were already past it — and the legal
+ * pages, which every visitor is entitled to find without hunting.
+ *
+ * It is deliberately short. §8.5.1 bans a link dump and §8 screen 1 gives the
+ * landing page exactly one job, so the header still carries only the two
+ * destinations a browsing visitor wants. Everything else lives down here, which
+ * is where people look for it.
+ */
+const FOOTER_LINKS: Array<{ title: string; links: Array<[string, string]> }> = [
+  {
+    title: "Explore",
+    links: [
+      ["Subjects", "/learn"],
+      ["Graded projects", "/projects"],
+      ["Guides", "/guides"],
+      ["Roadmap tool", ROADMAP_TOOL_PATH],
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      ["Terms", "/terms"],
+      ["Privacy", "/privacy"],
+    ],
+  },
+];
+
 export function SiteFooter() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex max-w-md flex-col gap-3">
-          {/* The headline already makes the "prove you learned it" point, so
-              the footer carries the second half of the promise instead of
-              restating the first. */}
-          <Meta>
-            Every checklist on this site is the one your work is really marked
-            against, and you can read it before you start.
-          </Meta>
-          <Meta>Nothing counts as proof until your work has been marked.</Meta>
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
+        <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex max-w-md flex-col gap-3">
+            {/* The headline already makes the "prove you learned it" point, so
+                the footer carries the second half of the promise instead of
+                restating the first. */}
+            <Meta>
+              Every checklist on this site is the one your work is really marked
+              against, and you can read it before you start.
+            </Meta>
+            <Meta>Nothing counts as proof until your work has been marked.</Meta>
+          </div>
+
+          <nav
+            aria-label="Footer"
+            className="flex flex-wrap gap-x-16 gap-y-8"
+          >
+            {FOOTER_LINKS.map((group) => (
+              <div key={group.title} className="flex flex-col gap-3">
+                <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+                  {group.title}
+                </span>
+                <ul className="flex list-none flex-col gap-2 p-0 m-0">
+                  {group.links.map(([label, href]) => (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
         </div>
-        {/* §8.5.4 — a small control in the footer, never floating chrome. */}
-        <ThemeToggleStatic />
+
+        <div className="flex items-center justify-between border-t border-hairline pt-6">
+          <Meta>{ORGANISATION_NAME}</Meta>
+          {/* §8.5.4 — a small control in the footer, never floating chrome. */}
+          <ThemeToggleStatic />
+        </div>
       </div>
     </footer>
   );

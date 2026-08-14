@@ -10,7 +10,8 @@ import {
   PageIntro,
   SectionHead,
 } from "@/components/marketing";
-import { ButtonLink, LinkCard, Meta, revealAt } from "@/components/ui";
+import { ButtonLink, LinkCard, Meta, Status, revealAt } from "@/components/ui";
+import { guideClaim } from "@/lib/claims";
 import { allGuides, guideDetail } from "@/lib/guides";
 import { breadcrumbs, faqPage } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
@@ -79,6 +80,7 @@ export default async function GuidePage({
       .replace(/^-|-$/g, "");
 
   const related = allGuides().filter((g) => g.slug !== guide.slug);
+  const claim = guideClaim(guide.review.reviewKind);
 
   return (
     <>
@@ -99,7 +101,12 @@ export default async function GuidePage({
           lead={guide.answer}
           facts={
             <>
-              <Meta>{guide.sections.length} sections</Meta>
+              {/* Provenance sits in the facts row rather than in a line at the
+                  bottom, and it is shown in all three states. A badge that
+                  appears only on drafts reads as a warning; one that is always
+                  there reads as what it is. Same argument as `MaturityBadge`
+                  on a subject, and the same rule about which tone it earns. */}
+              <Status tone={claim.tone}>{claim.label}</Status>
               <Meta>{guide.sources.length} sources, all cited</Meta>
               <Meta>No signup</Meta>
             </>
@@ -241,12 +248,7 @@ export default async function GuidePage({
 
         <GuideStartOffer />
 
-        {!detail.indexable ? (
-          <Meta>
-            Nobody has read this page end to end yet, so treat it as a first
-            draft.
-          </Meta>
-        ) : null}
+
       </PageFrame>
     </>
   );

@@ -149,6 +149,13 @@ sources:
     note: >-
       The review that ranked ten study techniques by evidence. The summary is
       free; the full monograph is paywalled, and the summary is honestly enough.
+  - id: nulls
+    url: https://www.postgresql.org/docs/current/functions-comparison.html
+    title: "PostgreSQL, Comparison Functions and Operators"
+    note: >-
+      The primary source for what NULL does to a comparison, which is the single
+      most expensive surprise for anyone arriving from spreadsheets. Two screens
+      long and it settles arguments.
   - id: explain
     url: https://www.postgresql.org/docs/current/using-explain.html
     title: "PostgreSQL, Using EXPLAIN"
@@ -172,10 +179,12 @@ faqs:
       that interaction is where the time goes.
   - question: Do I need to learn SQL if I already use Excel well?
     answer: >-
-      The concepts transfer better than people expect — a pivot table is a GROUP
-      BY, and a VLOOKUP is a join with one row on one side. What does not
-      transfer is grain and NULL behaviour, which is where confident spreadsheet
-      users get wrong answers rather than errors.
+      The concepts transfer better than people expect — a pivot table is close
+      to a GROUP BY, and a VLOOKUP to a join with one row on one side. What does
+      not transfer is grain, and NULL: comparing anything to NULL yields neither
+      true nor false, so a filter can silently drop rows rather than
+      complain.[^nulls] That is our reading of where spreadsheet users trip, and
+      the NULL half of it is documented behaviour rather than opinion.
   - question: How do I know when I have actually finished?
     answer: >-
       When you can hand in work that clears the published checklist for it.
@@ -185,6 +194,16 @@ faqs:
       declare.
 
 review:
-  reviewedBy: null
-  reviewKind: null
-  reviewedAt: null
+  # Reviewed as far as a model can review its own prose, which is not the same
+  # as a subject expert reading the argument — see `guideClaim`. What this
+  # signature attests to is checkable and was checked: every citation resolves
+  # to a live source that says what the sentence claims it says, every figure is
+  # read from a pack rather than typed, no claim is left dangling, and the
+  # uncited judgements are marked as ours in the prose.
+  #
+  # `reviewKind: model` earns the badge "Sources checked, not expert-reviewed",
+  # never "Read and checked by hand". Changing it to `human` with your name is
+  # the only edit that upgrades that.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-15"

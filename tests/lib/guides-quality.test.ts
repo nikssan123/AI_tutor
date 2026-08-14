@@ -516,6 +516,7 @@ describe("the module a route talks to", () => {
         question: "Does rereading actually work?",
         answer: expect.stringContaining("Not as well as it feels"),
         indexable: true,
+        review: "human",
         outboundCount: 4,
       },
       {
@@ -524,6 +525,7 @@ describe("the module a route talks to", () => {
         question: "What should I learn next?",
         answer: expect.stringContaining("Whatever your current work"),
         indexable: false,
+        review: null,
         outboundCount: 3,
       },
     ]);

@@ -90,6 +90,12 @@ export interface GuideSummary {
   question: string;
   answer: string;
   indexable: boolean;
+  /**
+   * Who read it, which is a different question from whether it is indexed and
+   * has to be carried separately. `indexable` is a decision; this is the fact
+   * the decision was made from, and it is what the page states out loud.
+   */
+  review: Guide["review"]["reviewKind"];
   outboundCount: number;
 }
 
@@ -106,6 +112,7 @@ export function allGuideSummaries(): GuideSummary[] {
         question: resolved.h1,
         answer: resolved.answer,
         indexable: isGuideIndexable(guide, report),
+        review: guide.review.reviewKind,
         outboundCount: new Set(outboundLinks(guide).map((l) => l.to)).size,
       };
     })

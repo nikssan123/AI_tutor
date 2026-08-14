@@ -77,11 +77,12 @@ sections:
 
 
       Its prerequisites are defining functions and understanding names and
-      references — which is itself the skill most Python courses skip, because
-      it is about a model of what a name *is* rather than about syntax you can
-      demonstrate on a slide. Of
-      {{topic:python-fundamentals.skills}} skills in this course, that pair is
-      where the most confident-sounding beginners actually come apart.
+      references, and that second one is the interesting half: it is about a
+      model of what a name *is* rather than about syntax you can demonstrate on
+      a slide. Our course treats it as a `core` skill with its own can-do
+      statement — *predict whether a change through one name is visible through
+      another* — and of {{topic:python-fundamentals.skills}} skills, it is the
+      one whose absence explains the most downstream confusion.
     links:
       - to: /check/python-fundamentals/mutable-default-arguments
         type: check_for
@@ -163,6 +164,16 @@ faqs:
       cannot debug is the state that interviews are unusually good at finding.
 
 review:
-  reviewedBy: null
-  reviewKind: null
-  reviewedAt: null
+  # Reviewed as far as a model can review its own prose, which is not the same
+  # as a subject expert reading the argument — see `guideClaim`. What this
+  # signature attests to is checkable and was checked: every citation resolves
+  # to a live source that says what the sentence claims it says, every figure is
+  # read from a pack rather than typed, no claim is left dangling, and the
+  # uncited judgements are marked as ours in the prose.
+  #
+  # `reviewKind: model` earns the badge "Sources checked, not expert-reviewed",
+  # never "Read and checked by hand". Changing it to `human` with your name is
+  # the only edit that upgrades that.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-15"
