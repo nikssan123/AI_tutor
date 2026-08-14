@@ -1,4 +1,6 @@
+import { DEFAULT_COURSE_DEPTH } from "./types";
 import type {
+  CourseDepth,
   EngineSkill,
   RetrievalCandidate,
   ScoredSkill,
@@ -21,11 +23,30 @@ export const MAX_RETRIEVAL_MINUTES = 8;
 /** §14.9.2 — sum(explain.estMinutes) <= 0.5 * sessionMinutes. */
 export const MAX_EXPLAIN_RATIO = 0.5;
 
-/** §16.1 — every 4th session produces a gradeable artefact. */
-export const APPLY_SESSION_INTERVAL = 4;
+/**
+ * §16.1 — every 4th session produces a gradeable artefact, and depth moves the
+ * number in both directions for the same reason.
+ *
+ * A sprint has fewer sessions to spend, so waiting until the fourth to produce
+ * anything gradeable means a short course can end having moved mastery once.
+ * A mastery course tightens it too, because at that depth the artefact *is* the
+ * point. Standard keeps §16.1's original 4.
+ */
+export const APPLY_SESSION_INTERVALS: Record<CourseDepth, number> = {
+  sprint: 3,
+  standard: 4,
+  mastery: 3,
+};
 
-export function isApplySession(sessionIndex: number): boolean {
-  return sessionIndex > 0 && sessionIndex % APPLY_SESSION_INTERVAL === 0;
+export function applyIntervalFor(depth: CourseDepth): number {
+  return APPLY_SESSION_INTERVALS[depth];
+}
+
+export function isApplySession(
+  sessionIndex: number,
+  depth: CourseDepth = DEFAULT_COURSE_DEPTH,
+): boolean {
+  return sessionIndex > 0 && sessionIndex % applyIntervalFor(depth) === 0;
 }
 
 export interface ComposeInput {
@@ -35,6 +56,8 @@ export interface ComposeInput {
   skillsById: Map<string, EngineSkill>;
   retrievalQueue: RetrievalCandidate[];
   now: string;
+  /** Sets the artefact cadence. Omitted means `standard`. */
+  depth?: CourseDepth | undefined;
 }
 
 export interface ComposeResult {
@@ -191,7 +214,7 @@ export function composeSession(input: ComposeInput): ComposeResult {
   }
 
   // 2b. The main activity.
-  if (isApplySession(input.sessionIndex)) {
+  if (isApplySession(input.sessionIndex, input.depth ?? DEFAULT_COURSE_DEPTH)) {
     // §16.1 — "Every 4th session is an `apply` session producing a gradeable
     // artefact. Hard rule, enforced in code — this is what makes mastery move."
     const reflectMinutes = remaining >= 15 ? 5 : 0;

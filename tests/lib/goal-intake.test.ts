@@ -45,6 +45,11 @@ describe("parseGoalForm", () => {
         motivation: "",
         constraints: [],
         existingAssets: [],
+        // The form has no depth control, so the schema's default lands here.
+        // A goal created before the dial existed reads back the same way, which
+        // is what makes `standard` the only safe default: it is the behaviour
+        // every existing goal was already planned under.
+        depth: "standard",
         // Nothing was inferred, so there is nothing left to clarify. The Goal
         // Analyzer will produce values below this and ask again.
         clarity: STATED_CLARITY,

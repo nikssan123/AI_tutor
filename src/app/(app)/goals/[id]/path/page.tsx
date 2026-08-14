@@ -92,7 +92,12 @@ export default async function PathPage({ params }: Props) {
   const now = new Date().toISOString();
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, session.user.id, goal.packSlug);
-  const projection = projectSkills({ graph, mastery, now });
+  const projection = projectSkills({
+    graph,
+    mastery,
+    now,
+    depth: goal.spec.depth,
+  });
   const stored = await currentCurriculum(db, goal.id);
 
   const names = new Map(graph.skills.map((s) => [s.id, s.name]));

@@ -67,7 +67,12 @@ export async function todayFor(
   const nowIso = now.toISOString();
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, userId, goal.packSlug);
-  const projection = projectSkills({ graph, mastery, now: nowIso });
+  const projection = projectSkills({
+    graph,
+    mastery,
+    now: nowIso,
+    depth: goal.spec.depth,
+  });
   const areaOf = new Map(pack.skills.map((s) => [s.slug, s.area]));
 
   // Everything the planner was handed as an empty array until E7 wrote it.
@@ -98,6 +103,7 @@ export async function todayFor(
       deadline: goal.spec.deadline,
     },
     sessionIndex,
+    depth: goal.spec.depth,
   });
 
   return {

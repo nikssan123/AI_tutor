@@ -81,6 +81,7 @@ const spec: GoalSpec = {
   motivation: "",
   constraints: [],
   existingAssets: [],
+  depth: "standard",
   clarity: 1,
 };
 

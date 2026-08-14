@@ -1,6 +1,13 @@
 import { effectiveMastery } from "@/lib/engine/bkt";
 import { MASTERY_TARGET, remainingHoursFor } from "@/lib/engine/scoring";
-import type { EngineSkill, EngineSkillGraph, MasteryState } from "@/lib/engine";
+import { buildIndex, hardClosure } from "@/lib/engine/graph";
+import {
+  DEFAULT_COURSE_DEPTH,
+  DEPTH_LEVELS,
+  type CourseDepth,
+  type EngineSkillGraph,
+  type MasteryState,
+} from "@/lib/engine";
 import type { SkillProjection } from "@/lib/contracts/goal";
 
 /**
@@ -26,16 +33,35 @@ export interface ProjectionInput {
   mastery: MasteryState[];
   /** ISO-8601. Injected rather than read, so a projection is reproducible. */
   now: string;
+  /** How much of the pack this goal is for. Omitted means `standard`. */
+  depth?: CourseDepth | undefined;
 }
 
 /**
- * Skills the pack itself declares as depth beyond the core path. They stay in
- * the graph and stay learnable; they are simply not counted against the
- * estimate, because promising someone the specialist tail is how a 20-hour goal
- * becomes a 60-hour one.
+ * The skills a depth setting makes required, before anything the learner has
+ * already proved is taken out.
+ *
+ * Two steps, and the second is the one that matters. First, keep the levels the
+ * depth is for — a sprint is the foundations and the core, and stops. Then close
+ * that set under hard prerequisites, so nothing kept depends on something
+ * dropped. Without the closure, a sprint could require a skill whose hard
+ * prerequisite is optional, and §16.1's eligibility filter would never unlock
+ * it: the course would quietly dead-end.
+ *
+ * Everything outside the returned set stays in the graph and stays learnable.
+ * It is optional, not deleted — that is the difference between "you can come
+ * back to this" and "we decided you don't need it".
  */
-function isOptional(skill: EngineSkill): boolean {
-  return skill.level === "specialist";
+export function keptSkillIds(
+  graph: EngineSkillGraph,
+  depth: CourseDepth = DEFAULT_COURSE_DEPTH,
+): Set<string> {
+  const levels = new Set(DEPTH_LEVELS[depth]);
+  const seed = graph.skills
+    .filter((skill) => levels.has(skill.level))
+    .map((skill) => skill.id);
+
+  return hardClosure(buildIndex(graph), seed);
 }
 
 /**
@@ -52,9 +78,18 @@ function isOptional(skill: EngineSkill): boolean {
  * This is the set that does not move, so it is the one a finished course can be
  * measured against. Exported for `isAchieved`, which is the only caller that
  * needs the course rather than the remainder.
+ *
+ * **Pass the goal's own depth.** A sprint that is measured against the standard
+ * course set can never be achieved: the learner would claim every skill their
+ * course contains and still be told they are not finished, because the yardstick
+ * counted skills their course never required.
  */
-export function courseSkillIds(graph: EngineSkillGraph): string[] {
-  return graph.skills.filter((s) => !isOptional(s)).map((s) => s.id);
+export function courseSkillIds(
+  graph: EngineSkillGraph,
+  depth: CourseDepth = DEFAULT_COURSE_DEPTH,
+): string[] {
+  const kept = keptSkillIds(graph, depth);
+  return graph.skills.filter((s) => kept.has(s.id)).map((s) => s.id);
 }
 
 /** "Write a SQL query…" → "write a SQL query…", for mid-sentence use. */
@@ -64,6 +99,7 @@ function lowerFirst(text: string): string {
 
 export function projectSkills(input: ProjectionInput): SkillProjection {
   const byId = new Map(input.mastery.map((m) => [m.skillId, m]));
+  const kept = keptSkillIds(input.graph, input.depth ?? DEFAULT_COURSE_DEPTH);
 
   const requiredSkillIds: string[] = [];
   const optionalSkillIds: string[] = [];
@@ -88,7 +124,7 @@ export function projectSkills(input: ProjectionInput): SkillProjection {
       continue;
     }
 
-    if (isOptional(skill)) {
+    if (!kept.has(skill.id)) {
       optionalSkillIds.push(skill.id);
       continue;
     }

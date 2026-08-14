@@ -4,6 +4,7 @@ import {
   detectCycle,
   distancesToGoal,
   goalCriticality,
+  hardClosure,
   prerequisitesOf,
   requiredClosure,
 } from "@/lib/engine/graph";
@@ -192,5 +193,45 @@ describe("requiredClosure", () => {
     );
     const closure = requiredClosure(buildIndex(g), ["goal"]);
     expect(closure.has("extra")).toBe(false);
+  });
+});
+
+describe("hardClosure", () => {
+  const mixed = graph(
+    [skill("hard-prereq"), skill("soft-prereq"), skill("target")],
+    [
+      dependency("hard-prereq", "target", "hard"),
+      dependency("soft-prereq", "target", "soft", 0.8),
+    ],
+  );
+
+  it("follows hard edges and stops at soft ones", () => {
+    const closure = hardClosure(buildIndex(mixed), ["target"]);
+    expect([...closure].sort()).toEqual(["hard-prereq", "target"]);
+  });
+
+  it("includes the seed itself", () => {
+    const closure = hardClosure(buildIndex(mixed), ["hard-prereq"]);
+    expect([...closure]).toEqual(["hard-prereq"]);
+  });
+
+  it("walks a whole hard chain, not just one hop", () => {
+    const closure = hardClosure(buildIndex(chain), ["windows"]);
+    expect([...closure].sort()).toEqual(["basics", "joins", "windows"]);
+  });
+
+  /**
+   * The difference from `requiredClosure`, which is the reason both exist:
+   * that one answers "what is on the path at all", this one answers "what
+   * cannot be skipped".
+   */
+  it("is narrower than the all-edge closure", () => {
+    const index = buildIndex(mixed);
+    expect(requiredClosure(index, ["target"]).has("soft-prereq")).toBe(true);
+    expect(hardClosure(index, ["target"]).has("soft-prereq")).toBe(false);
+  });
+
+  it("is empty for a seed that is not in the graph", () => {
+    expect(hardClosure(buildIndex(mixed), ["nonexistent"]).size).toBe(0);
   });
 });

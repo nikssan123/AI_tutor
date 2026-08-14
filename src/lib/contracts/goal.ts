@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COURSE_DEPTHS, DEFAULT_COURSE_DEPTH } from "@/lib/engine/types";
 
 /**
  * §14.9.2 step contracts 1 and 3 — `GoalSpec` and `SkillProjection`.
@@ -37,6 +38,13 @@ export type StatedLevel = z.infer<typeof StatedLevel>;
 export const MIN_WEEKLY_HOURS = 0.5;
 export const MAX_WEEKLY_HOURS = 40;
 
+/**
+ * The stored form of `CourseDepth`. The tuple lives in the engine because the
+ * engine is the layer everything else imports, and duplicating the three
+ * strings here is how they would drift apart.
+ */
+export const CourseDepthSpec = z.enum(COURSE_DEPTHS);
+
 export const GoalSpec = z.object({
   /** Exactly what the learner typed, stored verbatim and never rewritten. */
   rawGoal: z.string().min(1).max(500),
@@ -47,6 +55,12 @@ export const GoalSpec = z.object({
   statedLevel: StatedLevel,
   weeklyHours: z.number().min(MIN_WEEKLY_HOURS).max(MAX_WEEKLY_HOURS),
   deadline: z.iso.date().nullable(),
+  /**
+   * How much of the pack this goal is for. Defaulted rather than required, so
+   * every goal written before the dial existed reads back as `standard` — the
+   * behaviour it was actually planned under.
+   */
+  depth: CourseDepthSpec.default(DEFAULT_COURSE_DEPTH),
   motivation: z.string().max(500),
   constraints: z.array(z.string().max(200)).max(20),
   existingAssets: z.array(z.string().max(200)).max(20),

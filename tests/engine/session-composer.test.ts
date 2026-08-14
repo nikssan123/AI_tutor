@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { CourseDepth } from "@/lib/engine";
 import {
-  APPLY_SESSION_INTERVAL,
+  APPLY_SESSION_INTERVALS,
   composeSession,
   explainRatio,
   isApplySession,
@@ -41,12 +42,47 @@ function skillMap(...skills: EngineSkill[]): Map<string, EngineSkill> {
 
 describe("isApplySession", () => {
   it("fires on every fourth session and never on session zero", () => {
-    expect(APPLY_SESSION_INTERVAL).toBe(4);
+    expect(APPLY_SESSION_INTERVALS.standard).toBe(4);
     expect(isApplySession(0)).toBe(false);
     expect(isApplySession(1)).toBe(false);
     expect(isApplySession(4)).toBe(true);
     expect(isApplySession(8)).toBe(true);
     expect(isApplySession(9)).toBe(false);
+  });
+
+  it("defaults to the standard cadence when no depth is given", () => {
+    for (const index of [3, 4, 6, 8, 9, 12]) {
+      expect(isApplySession(index)).toBe(isApplySession(index, "standard"));
+    }
+  });
+
+  it("asks a sprint for an artefact every third session instead", () => {
+    expect(APPLY_SESSION_INTERVALS.sprint).toBe(3);
+    expect(isApplySession(0, "sprint")).toBe(false);
+    expect(isApplySession(3, "sprint")).toBe(true);
+    expect(isApplySession(4, "sprint")).toBe(false);
+    expect(isApplySession(9, "sprint")).toBe(true);
+  });
+
+  it("tightens the cadence at mastery depth too", () => {
+    expect(APPLY_SESSION_INTERVALS.mastery).toBe(3);
+    expect(isApplySession(3, "mastery")).toBe(true);
+    expect(isApplySession(4, "mastery")).toBe(false);
+  });
+
+  /**
+   * The reason the sprint interval is shorter rather than longer. A 12-session
+   * sprint at the standard cadence produces three artefacts; at its own it
+   * produces four, and the artefact is the only thing that moves mastery on
+   * evidence rather than on recall.
+   */
+  it("gives a short course more gradeable work, not less", () => {
+    const artefacts = (depth: CourseDepth) =>
+      Array.from({ length: 12 }, (_, i) => i + 1).filter((i) =>
+        isApplySession(i, depth),
+      ).length;
+
+    expect(artefacts("sprint")).toBeGreaterThan(artefacts("standard"));
   });
 });
 

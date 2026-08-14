@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { projectSkills } from "@/lib/goals/projection";
+import { courseSkillIds, projectSkills } from "@/lib/goals/projection";
 import { MASTERY_TARGET, remainingHoursFor } from "@/lib/engine/scoring";
 import type {
+  CourseDepth,
   EngineSkill,
   EngineSkillGraph,
   MasteryState,
@@ -200,5 +201,202 @@ describe("what the projection refuses to read", () => {
     });
 
     expect(result.requiredSkillIds).toEqual(["zeta", "alpha", "mid"]);
+  });
+});
+
+/**
+ * The depth dial (§16.1, PLAN-ADAPTATION).
+ *
+ * Depth decides *scope* and nothing else. The assertions worth having are the
+ * two that keep it honest: the specialist tail moves between required and
+ * optional as the dial turns, and the mastery bar does not move with it.
+ */
+describe("course depth", () => {
+  const layered = (): EngineSkillGraph =>
+    graphOf(
+      skill("basics", { level: "foundational", estimatedHours: 2 }),
+      skill("joins", { level: "core", estimatedHours: 4 }),
+      skill("windows", { level: "advanced", estimatedHours: 8 }),
+      skill("tuning", { level: "specialist", estimatedHours: 16 }),
+    );
+
+  it("defaults to standard — everything but the specialist tail", () => {
+    const graph = layered();
+    const implied = projectSkills({ graph, mastery: [], now: NOW });
+    const explicit = projectSkills({
+      graph,
+      mastery: [],
+      now: NOW,
+      depth: "standard",
+    });
+
+    expect(implied).toEqual(explicit);
+    expect(implied.requiredSkillIds).toEqual(["basics", "joins", "windows"]);
+    expect(implied.optionalSkillIds).toEqual(["tuning"]);
+  });
+
+  it("keeps a sprint to the foundations and the core", () => {
+    const result = projectSkills({
+      graph: layered(),
+      mastery: [],
+      now: NOW,
+      depth: "sprint",
+    });
+
+    expect(result.requiredSkillIds).toEqual(["basics", "joins"]);
+    expect(result.optionalSkillIds).toEqual(["windows", "tuning"]);
+    // 2 + 4, not 2 + 4 + 8 — the estimate is the promise, so it has to shrink
+    // with the scope or a sprint would quote a standard course's hours.
+    expect(result.estimatedHours).toBe(6);
+  });
+
+  it("requires the specialist tail at mastery depth", () => {
+    const result = projectSkills({
+      graph: layered(),
+      mastery: [],
+      now: NOW,
+      depth: "mastery",
+    });
+
+    expect(result.requiredSkillIds).toEqual([
+      "basics",
+      "joins",
+      "windows",
+      "tuning",
+    ]);
+    expect(result.optionalSkillIds).toEqual([]);
+  });
+
+  it("orders the three depths by the work they ask for", () => {
+    const graph = layered();
+    const hours = (depth: CourseDepth) =>
+      projectSkills({ graph, mastery: [], now: NOW, depth }).estimatedHours;
+
+    expect(hours("sprint")).toBeLessThan(hours("standard"));
+    expect(hours("standard")).toBeLessThan(hours("mastery"));
+  });
+
+  /**
+   * The safety net. A pack whose levels do not line up with its edges — which
+   * no curated pack does and a generated one is free to produce — must not be
+   * able to strand a required skill behind an optional prerequisite, because
+   * §16.1's eligibility filter would never unlock it and the course would
+   * silently dead-end.
+   */
+  it("pulls back a hard prerequisite the depth would otherwise drop", () => {
+    const graph: EngineSkillGraph = {
+      skills: [
+        skill("odd", { level: "advanced" }),
+        skill("core-thing", { level: "core" }),
+      ],
+      dependencies: [
+        {
+          fromSkillId: "odd",
+          toSkillId: "core-thing",
+          type: "hard",
+          strength: 1,
+        },
+      ],
+    };
+
+    const result = projectSkills({ graph, mastery: [], now: NOW, depth: "sprint" });
+
+    expect(result.requiredSkillIds).toEqual(["odd", "core-thing"]);
+    expect(result.optionalSkillIds).toEqual([]);
+  });
+
+  it("does not pull back a merely soft prerequisite", () => {
+    const graph: EngineSkillGraph = {
+      skills: [
+        skill("nice-to-have", { level: "advanced" }),
+        skill("core-thing", { level: "core" }),
+      ],
+      dependencies: [
+        {
+          fromSkillId: "nice-to-have",
+          toSkillId: "core-thing",
+          type: "soft",
+          strength: 0.8,
+        },
+      ],
+    };
+
+    const result = projectSkills({ graph, mastery: [], now: NOW, depth: "sprint" });
+
+    expect(result.requiredSkillIds).toEqual(["core-thing"]);
+    expect(result.optionalSkillIds).toEqual(["nice-to-have"]);
+  });
+
+  /**
+   * The invariant the whole design rests on. Depth changes how many skills a
+   * course contains; it never changes what claiming one of them means. If this
+   * fails, two learners' Proof Pages have stopped being comparable.
+   */
+  it("does not move the bar a skill is claimed at", () => {
+    const graph = layered();
+    const justUnder = mastery("joins", { mastery: MASTERY_TARGET - 0.01 });
+    const atBar = mastery("joins", { mastery: MASTERY_TARGET });
+
+    for (const depth of ["sprint", "standard", "mastery"] as const) {
+      expect(
+        projectSkills({ graph, mastery: [justUnder], now: NOW, depth })
+          .excludedSkillIds,
+      ).toEqual([]);
+      expect(
+        projectSkills({ graph, mastery: [atBar], now: NOW, depth })
+          .excludedSkillIds,
+      ).toEqual(["joins"]);
+    }
+  });
+
+  it("still refuses to skip an optional skill on no evidence", () => {
+    const result = projectSkills({
+      graph: layered(),
+      mastery: [mastery("tuning", { evidenceCount: 0 })],
+      now: NOW,
+      depth: "mastery",
+    });
+
+    expect(result.excludedSkillIds).toEqual([]);
+    expect(result.requiredSkillIds).toContain("tuning");
+  });
+});
+
+describe("courseSkillIds", () => {
+  const graph = (): EngineSkillGraph =>
+    graphOf(
+      skill("basics", { level: "foundational" }),
+      skill("windows", { level: "advanced" }),
+      skill("tuning", { level: "specialist" }),
+    );
+
+  it("measures a course against its own depth", () => {
+    expect(courseSkillIds(graph(), "sprint")).toEqual(["basics"]);
+    expect(courseSkillIds(graph(), "standard")).toEqual(["basics", "windows"]);
+    expect(courseSkillIds(graph(), "mastery")).toEqual([
+      "basics",
+      "windows",
+      "tuning",
+    ]);
+  });
+
+  it("defaults to standard", () => {
+    expect(courseSkillIds(graph())).toEqual(courseSkillIds(graph(), "standard"));
+  });
+
+  /**
+   * A sprint has to be finishable. Measured against the standard set it never
+   * would be — the learner would claim everything their course asked for and
+   * still be counted short.
+   */
+  it("counts only what the learner's own course required", () => {
+    const sprint = projectSkills({
+      graph: graph(),
+      mastery: [],
+      now: NOW,
+      depth: "sprint",
+    });
+
+    expect(courseSkillIds(graph(), "sprint")).toEqual(sprint.requiredSkillIds);
   });
 });

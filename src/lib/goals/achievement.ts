@@ -52,8 +52,12 @@ export async function markAchievedIfComplete(
     now: nowIso,
   });
 
+  // Measured against *this goal's* depth. A sprint whose yardstick was the
+  // standard course set could never finish: the learner would claim every skill
+  // their course asked for and still be counted short by the advanced skills it
+  // deliberately made optional.
   const complete = isAchieved({
-    courseSkillIds: courseSkillIds(toEngineGraph(pack)),
+    courseSkillIds: courseSkillIds(toEngineGraph(pack), goal.spec.depth),
     claimed: new Set(ledger.canDo.map((entry) => entry.skillSlug)),
   });
   if (!complete) return false;

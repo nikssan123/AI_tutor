@@ -39,6 +39,7 @@ const spec = (): GoalSpec => ({
   motivation: "a trip in October",
   constraints: [],
   existingAssets: [],
+  depth: "standard",
   clarity: 1,
 });
 

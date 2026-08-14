@@ -65,6 +65,7 @@ export function prerequisitesOf(
 export function distancesToGoal(
   index: GraphIndex,
   goalSkillIds: string[],
+  type?: DependencyType,
 ): Map<string, number> {
   const distance = new Map<string, number>();
 
@@ -84,7 +85,7 @@ export function distancesToGoal(
     head += 1;
     const currentDistance = distance.get(current)!;
 
-    for (const edge of prerequisitesOf(index, current)) {
+    for (const edge of prerequisitesOf(index, current, type)) {
       if (distance.has(edge.fromSkillId)) continue;
       distance.set(edge.fromSkillId, currentDistance + 1);
       queue.push(edge.fromSkillId);
@@ -165,4 +166,25 @@ export function requiredClosure(
   goalSkillIds: string[],
 ): Set<string> {
   return new Set(distancesToGoal(index, goalSkillIds).keys());
+}
+
+/**
+ * The same walk, restricted to `hard` edges: everything the seed set cannot be
+ * learned without.
+ *
+ * This is what keeps a depth setting from producing an unlearnable course. The
+ * eligibility filter (§16.1 step 1) gates on every hard prerequisite reaching
+ * mastery ≥ 0.7, so a required skill whose hard prerequisite was dropped for
+ * being "too advanced" is one the learner can never become eligible for — the
+ * path would simply stop, with no screen able to say why.
+ *
+ * No curated pack has a hard edge running from a higher level to a lower one,
+ * so for those this only ever returns the seed. It earns its place on generated
+ * packs, where `level` is model-assigned and nothing guarantees the ordering.
+ */
+export function hardClosure(
+  index: GraphIndex,
+  seedSkillIds: string[],
+): Set<string> {
+  return new Set(distancesToGoal(index, seedSkillIds, "hard").keys());
 }

@@ -5,6 +5,7 @@ import {
   selectRetrievalItems,
 } from "./session-composer";
 import { buildCompressionMessage, buildReason } from "./reason";
+import { DEFAULT_COURSE_DEPTH } from "./types";
 import type { EngineSkill, PlannedSession, PlannerInput } from "./types";
 
 /**
@@ -22,6 +23,8 @@ export function plan(input: PlannerInput): PlannedSession {
     input.graph.skills.map((s) => [s.id, s]),
   );
 
+  const depth = input.depth ?? DEFAULT_COURSE_DEPTH;
+
   const composed = composeSession({
     sessionIndex: input.sessionIndex,
     availableMinutes: input.constraints.availableMinutes,
@@ -29,6 +32,7 @@ export function plan(input: PlannerInput): PlannedSession {
     skillsById,
     retrievalQueue: input.retrievalQueue,
     now: input.now,
+    depth,
   });
 
   const retrievalCount = selectRetrievalItems(
@@ -45,7 +49,7 @@ export function plan(input: PlannerInput): PlannedSession {
           top,
           skill: topSkill,
           minutes: composed.totalMinutes,
-          isApplySession: isApplySession(input.sessionIndex),
+          isApplySession: isApplySession(input.sessionIndex, depth),
           backingOff: composed.backingOff,
           retrievalCount: Math.min(
             retrievalCount,

@@ -231,6 +231,7 @@ export async function digestFor(
     graph: toEngineGraph(pack),
     mastery,
     now: now.toISOString(),
+    depth: goal.spec.depth,
   });
 
   return {

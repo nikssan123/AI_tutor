@@ -15,6 +15,38 @@ export type SkillLevel = "foundational" | "core" | "advanced" | "specialist";
 
 export type DependencyType = "hard" | "soft";
 
+/**
+ * How much of a pack a goal is for. Set at intake, changeable afterwards.
+ *
+ * Depth moves two things: **scope** — which levels count as required — and the
+ * **artefact cadence**, because someone in a hurry needs to produce gradeable
+ * work sooner, not later.
+ *
+ * It deliberately does *not* move `MASTERY_TARGET`. Lowering the bar for a
+ * sprint would be the obvious way to make a short course finish faster, and it
+ * would make two learners' ledgers incomparable — a skill claimed at 0.7 and
+ * the same skill claimed at 0.85 would print identically on a Proof Page.
+ * §4.2 law 1 is that nothing is claimed without evidence, and evidence that
+ * means different things per learner is not evidence. **A sprint claims fewer
+ * skills, never weaker ones.**
+ */
+export const COURSE_DEPTHS = ["sprint", "standard", "mastery"] as const;
+export type CourseDepth = (typeof COURSE_DEPTHS)[number];
+
+/** What a goal gets when nobody chose — today's behaviour, unchanged. */
+export const DEFAULT_COURSE_DEPTH: CourseDepth = "standard";
+
+/**
+ * The levels each depth is *for*, before the hard-prerequisite closure adds
+ * back anything they depend on. `mastery` lists every level, so its closure is
+ * a no-op and the specialist tail is required rather than optional.
+ */
+export const DEPTH_LEVELS: Record<CourseDepth, readonly SkillLevel[]> = {
+  sprint: ["foundational", "core"],
+  standard: ["foundational", "core", "advanced"],
+  mastery: ["foundational", "core", "advanced", "specialist"],
+};
+
 /** §16.2 — four parameters per skill, expert-seeded, refit from data later. */
 export interface BktPriors {
   /** Probability the learner already knows the skill before any evidence. */
@@ -128,6 +160,8 @@ export interface PlannerInput {
   constraints: LearnerConstraints;
   /** Sequence number of the session being planned, 1-based (§16.1 step 4). */
   sessionIndex: number;
+  /** The goal's depth. Omitted means `standard`, which is §16.1 as written. */
+  depth?: CourseDepth | undefined;
 }
 
 /** §14.9.2 — SessionBlock, as a discriminated union. */

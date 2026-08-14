@@ -36,7 +36,12 @@ export async function buildPathAction(goalId: string): Promise<void> {
   const now = new Date().toISOString();
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, session.user.id, goal.packSlug);
-  const projection = projectSkills({ graph, mastery, now });
+  const projection = projectSkills({
+    graph,
+    mastery,
+    now,
+    depth: goal.spec.depth,
+  });
 
   const outcome = await generateValidatedCurriculum(
     {
