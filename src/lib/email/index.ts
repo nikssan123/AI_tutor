@@ -1,7 +1,12 @@
 import type { EnvLike } from "@/lib/env-types";
-import type { EmailMessage } from "./templates";
+import { systemFrom } from "./addresses";
+import type { EmailMessage } from "./render";
 
 export * from "./templates";
+export * from "./addresses";
+export * from "./catalog";
+export { renderHtml, renderMessage, renderText, type Content } from "./render";
+export { COPY, copyFor, DEFAULT_COPY, type EmailStrings } from "./copy";
 
 /**
  * Transactional email, wired the same way observability is (§14.8): the
@@ -16,7 +21,8 @@ export * from "./templates";
 
 export interface EmailTransport {
   readonly name: string;
-  send(message: EmailMessage): Promise<void>;
+  /** The provider's id for the sent message, when it gives one back. */
+  send(message: EmailMessage): Promise<string | undefined>;
 }
 
 /** Records messages instead of sending them. Used by tests. */
@@ -24,9 +30,9 @@ export class MemoryTransport implements EmailTransport {
   readonly name = "memory";
   readonly sent: EmailMessage[] = [];
 
-  send(message: EmailMessage): Promise<void> {
+  send(message: EmailMessage): Promise<string | undefined> {
     this.sent.push(message);
-    return Promise.resolve();
+    return Promise.resolve(`memory-${this.sent.length}`);
   }
 
   clear(): void {
@@ -38,22 +44,28 @@ export class MemoryTransport implements EmailTransport {
  * The no-key fallback: print the whole message, body included.
  *
  * Printing the body rather than "would have sent an email" is the entire point.
- * Every flow this module serves — verify, reset, change email — is a link the
- * developer needs to click, and a local environment where sign-up sends nothing
- * and says nothing is one where nobody exercises verification until production
- * does it for them.
+ * Every auth flow this module serves — verify, reset, change email — is a link
+ * the developer needs to click, and a local environment where sign-up sends
+ * nothing and says nothing is one where nobody exercises verification until
+ * production does it for them. The same is true of `/admin/mail`: a support
+ * reply that vanishes silently in development is one whose wording nobody ever
+ * proofreads.
  */
 export class LogTransport implements EmailTransport {
   readonly name = "log";
 
   constructor(private readonly write: (line: string) => void = console.info) {}
 
-  send(message: EmailMessage): Promise<void> {
+  send(message: EmailMessage): Promise<string | undefined> {
     this.write(
       [
         "",
         "──────── email (no RESEND_API_KEY — not sent) ────────",
         `To:      ${message.to}`,
+        ...(message.from === undefined ? [] : [`From:    ${message.from}`]),
+        ...(message.replyTo === undefined
+          ? []
+          : [`ReplyTo: ${message.replyTo}`]),
         `Subject: ${message.subject}`,
         "",
         message.text,
@@ -61,7 +73,7 @@ export class LogTransport implements EmailTransport {
         "",
       ].join("\n"),
     );
-    return Promise.resolve();
+    return Promise.resolve(undefined);
   }
 }
 
@@ -74,7 +86,7 @@ export class ResendTransport implements EmailTransport {
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<string | undefined> {
     const response = await this.fetchImpl("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -82,11 +94,15 @@ export class ResendTransport implements EmailTransport {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        from: this.from,
+        // Per-message `from` wins, so support mail comes from the mailbox a
+        // person actually watches while auth mail keeps the configured default.
+        from: message.from ?? this.from,
         to: [message.to],
         subject: message.subject,
         text: message.text,
         html: message.html,
+        ...(message.replyTo === undefined ? {} : { reply_to: message.replyTo }),
+        ...(message.headers === undefined ? {} : { headers: message.headers }),
       }),
     });
 
@@ -99,6 +115,13 @@ export class ResendTransport implements EmailTransport {
         `Resend rejected the message (${response.status}): ${detail || "no response body"}`,
       );
     }
+
+    // The id is what a later bounce webhook is keyed on, so it is worth
+    // keeping — but a response we cannot parse is not worth failing a send
+    // that the API has already accepted.
+    const body: unknown = await response.json().catch(() => null);
+    const id = (body as { id?: unknown } | null)?.id;
+    return typeof id === "string" ? id : undefined;
   }
 }
 
@@ -116,11 +139,11 @@ export function resolveTransport(
     // here would turn a missing variable into a silent failure to deliver
     // exactly the mail people need — password resets.
     throw new Error(
-      "RESEND_API_KEY is set but EMAIL_FROM is not. Set EMAIL_FROM to an address on a domain verified with Resend, e.g. \"MeritKeep <hello@yourdomain.com>\".",
+      'RESEND_API_KEY is set but EMAIL_FROM is not. Set EMAIL_FROM to an address on a domain verified with Resend, e.g. "MeritKeep <hello@meritkeep.com>".',
     );
   }
 
-  return new ResendTransport(apiKey, from, fetchImpl);
+  return new ResendTransport(apiKey, systemFrom(env), fetchImpl);
 }
 
 let transport: EmailTransport | undefined;
@@ -133,6 +156,30 @@ export function getTransport(): EmailTransport {
 /** Test seam, and the way a script swaps in a recorder. */
 export function setTransport(next: EmailTransport | undefined): void {
   transport = next;
+}
+
+/** What a caller that has something to record needs to know about a send. */
+export type SendOutcome =
+  | { ok: true; id: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Send, and hand back what happened.
+ *
+ * Used by `/admin/mail`, where the outcome is written to a row an operator
+ * reads: a support reply that failed silently is a person who thinks they have
+ * been answered and has not been. `deliver` below is the opposite contract, for
+ * the opposite situation.
+ */
+export async function sendMessage(
+  message: EmailMessage,
+): Promise<SendOutcome> {
+  try {
+    const id = await getTransport().send(message);
+    return { ok: true, id: id ?? null };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**
@@ -150,14 +197,12 @@ export function setTransport(next: EmailTransport | undefined): void {
  * debuggable report a user can file.
  */
 export async function deliver(message: EmailMessage): Promise<boolean> {
-  try {
-    await getTransport().send(message);
-    return true;
-  } catch (error) {
-    console.error(
-      `[email] failed to send "${message.subject}" to ${message.to}:`,
-      error,
-    );
-    return false;
-  }
+  const outcome = await sendMessage(message);
+  if (outcome.ok) return true;
+
+  console.error(
+    `[email] failed to send "${message.subject}" to ${message.to}:`,
+    outcome.error,
+  );
+  return false;
 }

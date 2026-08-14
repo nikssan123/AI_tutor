@@ -7,6 +7,7 @@ import {
   verifyCodeMessage,
   verifyEmailMessage,
 } from "@/lib/email/templates";
+import { LOCALES, type Locale } from "@/lib/i18n/locales";
 
 /**
  * The templates are pure, so these are cheap. They are worth having anyway:
@@ -208,5 +209,70 @@ describe("html safety", () => {
     });
     expect(message.html).toContain("a=1&amp;b=&quot;2&quot;");
     expect(message.html).not.toMatch(/href="[^"]*"2"/);
+  });
+});
+
+/**
+ * The same four messages, in the reader's language.
+ *
+ * PLAN-LOCALIZATION §2 keys transactional mail on `user.locale` at send time.
+ * These assertions are what stops that being true of the subject line only.
+ */
+describe("locale", () => {
+  const builders = {
+    verifyCode: (locale?: Locale) =>
+      verifyCodeMessage({ to: "a@b.co", code: "123456", expiresIn: 600, locale }),
+    verifyEmail: (locale?: Locale) =>
+      verifyEmailMessage({ to: "a@b.co", url: "https://x.test/v", expiresIn: 3600, locale }),
+    resetPassword: (locale?: Locale) =>
+      resetPasswordMessage({ to: "a@b.co", url: "https://x.test/r", expiresIn: 3600, locale }),
+    changeEmail: (locale?: Locale) =>
+      changeEmailMessage({
+        to: "old@b.co",
+        newEmail: "new@b.co",
+        url: "https://x.test/c",
+        expiresIn: 3600,
+        locale,
+      }),
+  };
+
+  const names = Object.keys(builders) as (keyof typeof builders)[];
+
+  it.each(names)("%s defaults to English", (name) => {
+    // Two callers genuinely cannot know the language — a reset for an address
+    // with no account, a code sent seconds after sign-up — so defaulting is
+    // right, and blocking a password reset to look one up is not.
+    expect(builders[name]().html).toContain('<html lang="en">');
+  });
+
+  it.each(LOCALES)("every message renders in %s", (locale) => {
+    for (const name of names) {
+      const message = builders[name](locale);
+
+      expect(message.html).toContain(`<html lang="${locale}">`);
+      expect(message.subject).toContain("MeritKeep");
+      // Nothing may reach an inbox with a hole in it.
+      expect(message.text).not.toMatch(/\{\w+\}/);
+      expect(message.subject).not.toMatch(/\{\w+\}/);
+    }
+  });
+
+  it("says how long a link lasts in the reader's language", () => {
+    expect(builders.resetPassword("de").text).toContain("1 Stunde");
+    expect(builders.verifyEmail("bg").text).toContain("1 час");
+    expect(builders.verifyCode("es").text).toContain("10 minutos");
+  });
+
+  it("still names both addresses when changing an email in another language", () => {
+    const message = builders.changeEmail("bg");
+    expect(message.text).toContain("old@b.co");
+    expect(message.text).toContain("new@b.co");
+  });
+
+  it("keeps the code out of the subject in every language", () => {
+    for (const locale of LOCALES) {
+      expect(builders.verifyCode(locale).subject).not.toContain("123456");
+      expect(builders.verifyCode(locale).text).toContain("123456");
+    }
   });
 });

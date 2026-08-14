@@ -14,6 +14,12 @@ export const DEFAULT_ROLE = "user";
 export interface AdminIdentity {
   userId: string;
   email: string;
+  /**
+   * The operator's own name, which is not decoration: it is the signature on
+   * every message `/admin/mail` sends, and a support reply signed "MeritKeep"
+   * reads as a form letter where one signed by a person reads as an answer.
+   */
+  name: string;
   role: string;
 }
 
@@ -51,7 +57,11 @@ export const requireAdmin = cache(async (): Promise<AdminIdentity> => {
   if (!session) redirect("/sign-in");
 
   const [row] = await getDb()
-    .select({ role: schema.user.role, email: schema.user.email })
+    .select({
+      role: schema.user.role,
+      email: schema.user.email,
+      name: schema.user.name,
+    })
     .from(schema.user)
     .where(eq(schema.user.id, session.user.id))
     .limit(1);
@@ -60,5 +70,10 @@ export const requireAdmin = cache(async (): Promise<AdminIdentity> => {
   // deleted user holding a live cookie. Treated exactly like a non-admin.
   if (!row || !isAdminRole(row.role)) notFound();
 
-  return { userId: session.user.id, email: row.email, role: row.role };
+  return {
+    userId: session.user.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+  };
 });

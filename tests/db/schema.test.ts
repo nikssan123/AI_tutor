@@ -28,8 +28,8 @@ function allTables(): Array<[string, Parameters<typeof getTableConfig>[0]]> {
 describe("every table is well-formed", () => {
   const tables = allTables();
 
-  it("finds all 43 tables", () => {
-    expect(tables.length).toBe(43);
+  it("finds all 45 tables", () => {
+    expect(tables.length).toBe(45);
   });
 
   it.each(allTables())("%s has columns and a snake_case name", (name, table) => {

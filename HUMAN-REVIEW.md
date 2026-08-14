@@ -430,3 +430,65 @@ signing changes is whether we ask Google to rank it.
 If you only have twenty minutes, do 1 and 2. Two indexed pages that are
 certainly right beat five that are probably right, and the rest keep in the
 repository as drafts indefinitely at no cost.
+
+---
+
+# D. Email copy in German and Spanish — twenty minutes, and it is not urgent
+
+## What it gates
+
+Nothing, technically. `/admin/mail` and the four transactional messages work in
+all four languages today, and a learner whose `user.locale` is `de` already
+receives German.
+
+What it gates is **whether we should be proud of it**. Bulgarian in
+`src/lib/email/copy/bg.ts` was written by you and reads like a person; German
+and Spanish are careful machine-assisted drafts that no native speaker has read.
+PLAN-LOCALIZATION decision 12 permits exactly this — "machine translation is
+fine for the product UI pre-review, never indexable" — and email is never
+indexable, so the rule is satisfied. But a password-reset email is one of the
+few things a stranger reads *closely*, and a sentence that is grammatical and
+slightly off is a worse first impression than one that is obviously translated.
+
+## What the machine already checks — do not spend time on these
+
+`tests/lib/email-copy.test.ts` already fails the build if:
+
+- a locale is missing any string (that one is a type error, not even a test);
+- a `{placeholder}` present in English is missing from a translation, so no
+  German reader can be told a link expires without being told when;
+- any string other than a deliberately empty heading is blank;
+- a "translation" is byte-identical to the English.
+
+So the failure modes left are all matters of register and idiom, which is
+precisely what a person is for.
+
+## What only you can check
+
+Nine strings per language are worth real attention. In `de.ts` and `es.ts`:
+
+1. **`operator.welcome.body[1]`** — the sentence that states what MeritKeep is.
+   It is the hardest sentence in the product to translate and the one most
+   likely to read as a machine's paraphrase.
+2. **`operator.checkIn`** — the whole thing. It is a message to someone who
+   went quiet, and the line between "we noticed, tell us what happened" and
+   "you have not been doing your homework" is entirely register.
+3. **`system.resetPassword.footer`** — the security sentence. It has to be
+   unambiguous that nothing has happened yet.
+
+Everything else is short and mechanical.
+
+## The two decisions already made, which a reviewer should either keep or overturn
+
+- **German uses "Sie" throughout.** A German learning product could defensibly
+  use "du". The choice matters less than the consistency; if a reviewer prefers
+  "du", it has to change in all nine strings at once.
+- **Spanish uses "tú", and avoids gendered adjectives.** `welcome` says "Te
+  damos la bienvenida" rather than "Bienvenido" because we do not collect the
+  reader's gender and should not guess it.
+
+## Recommendation
+
+Do this when you have a native speaker to hand and not before — there is no
+deadline, and no German or Spanish learner exists yet. Bulgarian is the locale
+that will matter first, and Bulgarian is already right.

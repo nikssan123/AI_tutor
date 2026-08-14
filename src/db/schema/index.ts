@@ -5,3 +5,4 @@ export * from "./curriculum";
 export * from "./assessment";
 export * from "./ops";
 export * from "./seo";
+export * from "./mail";

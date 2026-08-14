@@ -2,10 +2,12 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { nextCookies } from "better-auth/next-js";
+import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EnvLike } from "@/lib/env-types";
 import { siteUrl } from "@/lib/site";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-shared";
+import { localeOf, resolveLocale, type Locale } from "@/lib/i18n/locales";
 import {
   changeEmailMessage,
   deliver,
@@ -80,6 +82,29 @@ export function googleEnabled(env: EnvLike = process.env): boolean {
 }
 
 /**
+ * The language a confirmation code is written in, looked up by address.
+ *
+ * Every other email callback is handed the user object and can read
+ * `user.locale` off it; the OTP plugin is handed an address and a code, and
+ * nothing else. So this is a query — one indexed read, on a path that is
+ * already sending an email, to avoid greeting a Bulgarian in English seconds
+ * after they chose Bulgarian at sign-up.
+ *
+ * An address with no account resolves to English rather than failing. That case
+ * is reachable: the plugin will happily send a code to an address that has not
+ * been registered yet.
+ */
+export async function localeForEmail(email: string): Promise<Locale> {
+  const [row] = await getDb()
+    .select({ locale: schema.user.locale })
+    .from(schema.user)
+    .where(eq(schema.user.email, email))
+    .limit(1);
+
+  return resolveLocale(row?.locale);
+}
+
+/**
  * The sign-up confirmation code, on its way out.
  *
  * A named export rather than an inline callback because the plugin keeps its
@@ -87,17 +112,18 @@ export function googleEnabled(env: EnvLike = process.env): boolean {
  * not the options it was built from — so this is the only handle a test can get
  * on what actually lands in someone's inbox.
  */
-export function sendSignUpCode(data: {
+export async function sendSignUpCode(data: {
   email: string;
   otp: string;
 }): Promise<void> {
-  return deliver(
+  await deliver(
     verifyCodeMessage({
       to: data.email,
       code: data.otp,
       expiresIn: OTP_TTL_SECONDS,
+      locale: await localeForEmail(data.email),
     }),
-  ).then(() => undefined);
+  );
 }
 
 function socialProviders(env: EnvLike) {
@@ -150,6 +176,11 @@ export function createAuth(env: EnvLike = process.env) {
             to: user.email,
             url,
             expiresIn: RESET_TTL_SECONDS,
+            // PLAN-LOCALIZATION §2: transactional mail is keyed on
+            // `user.locale` at send time, not on whatever the browser
+            // requesting the reset happens to be set to. The person reading
+            // this is in their inbox, not on our site.
+            locale: localeOf(user),
           }),
         ).then(() => undefined),
       resetPasswordTokenExpiresIn: RESET_TTL_SECONDS,
@@ -170,6 +201,7 @@ export function createAuth(env: EnvLike = process.env) {
             to: user.email,
             url,
             expiresIn: VERIFICATION_TTL_SECONDS,
+            locale: localeOf(user),
           }),
         ).then(() => undefined),
       /**
@@ -243,6 +275,7 @@ export function createAuth(env: EnvLike = process.env) {
               newEmail,
               url,
               expiresIn: VERIFICATION_TTL_SECONDS,
+              locale: localeOf(user),
             }),
           ).then(() => undefined),
       },
