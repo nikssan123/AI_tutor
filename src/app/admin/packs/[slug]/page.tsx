@@ -7,14 +7,13 @@ import { toEngineGraph, validatePack } from "@/lib/packs/validate";
 import { layoutGraph } from "@/lib/packs/layout";
 import {
   Card,
-  DisplayTitle,
   MaturityBadge,
   Meta,
   Row,
   RowList,
   Status,
-  Title,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "Pack",
@@ -62,19 +61,22 @@ export default async function PackPage({
   const svgHeight = layout.depth * GAP_Y + GAP_Y;
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
-      <header className="flex flex-col gap-3">
-        <DisplayTitle>{pack.name}</DisplayTitle>
-        <div className="flex flex-wrap items-center gap-6">
-          <MaturityBadge maturity={pack.maturity} />
-          <Status tone={report.passed ? "verified" : "problem"}>
-            {report.passed ? "Validation passing" : "Validation failing"}
-          </Status>
-          <Meta>
-            Tier {pack.evalTier} · {pack.workspace} workspace
-          </Meta>
-        </div>
-      </header>
+    <AppFrame>
+      <AppHeader
+        eyebrow="Pack"
+        title={pack.name}
+        facts={
+          <>
+            <MaturityBadge maturity={pack.maturity} />
+            <Status tone={report.passed ? "verified" : "problem"}>
+              {report.passed ? "Validation passing" : "Validation failing"}
+            </Status>
+            <Meta>
+              Tier {pack.evalTier} · {pack.workspace} workspace
+            </Meta>
+          </>
+        }
+      />
 
       <Card className="flex flex-wrap gap-x-10 gap-y-3">
         {[
@@ -94,8 +96,8 @@ export default async function PackPage({
         ))}
       </Card>
 
-      <section className="flex flex-col gap-4">
-        <Title>Skill graph</Title>
+      <section className="flex flex-col gap-6">
+        <SectionHead label="The graph" title="Skill graph" />
         <Meta>
           Laid out by depth, so every skill sits below all of its prerequisites.
           Solid edges are hard prerequisites; dashed are soft.
@@ -156,8 +158,8 @@ export default async function PackPage({
         </Card>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <Title>Validation</Title>
+      <section className="flex flex-col gap-6">
+        <SectionHead label="Every check" title="Validation" />
         <RowList>
           {report.issues.map((issue, i) => (
             <Row key={`${issue.check}-${i}`}>
@@ -180,6 +182,6 @@ export default async function PackPage({
           ) : null}
         </RowList>
       </section>
-    </main>
+    </AppFrame>
   );
 }

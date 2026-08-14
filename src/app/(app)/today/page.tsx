@@ -15,6 +15,7 @@ import {
   Button,
   Card,
   EmptyState,
+  HeroBand,
   Lead,
   Meta,
   stagger,
@@ -194,73 +195,72 @@ export default async function TodayPage({ searchParams }: Props) {
       />
 
       {/*
-       * The session card is the one thing on this screen, so it is the only
-       * thing at full width and the only thing carrying the accent field. The
-       * bands under it are the context you read *after* deciding to start.
+       * The session band is the one thing on this screen, so it is the only
+       * thing carrying the accent field. The bands under it are the context you
+       * read *after* deciding to start.
        */}
-      <Card className="rise p-0 overflow-hidden" style={stagger(1)}>
-        <div className="flex flex-col gap-6 p-7">
-          {/* The planner's own `reason`, template-filled from the components
-              that actually decided the choice (§16.1). It is the single most
-              important sentence on the screen, so it gets the accent field and
-              the largest type in the card rather than sitting in the same grey
-              as everything else. */}
-          <div className="rounded-[var(--radius-card)] bg-accent-weak px-6 py-5">
-            <Title className="text-ink">{planned.reason}</Title>
-          </div>
+      <HeroBand
+        className="rise"
+        style={stagger(1)}
+        /* The planner's own `reason`, template-filled from the components that
+           actually decided the choice (§16.1). It is the single most important
+           sentence on the screen, so it gets the accent field and the largest
+           type in the band rather than sitting in the same grey as everything
+           else. */
+        field={<Title className="text-ink">{planned.reason}</Title>}
+        footer={
+          <>
+            {/* A form, not a link: starting a session writes rows. The action
+                hands back the session already in progress if there is one, so a
+                second click cannot split a learner's answers across two. */}
+            {planned.blocks.length > 0 ? (
+              <form action={startSessionAction}>
+                <Button type="submit">
+                  {openSessionId ? "Carry on" : "Start session"}
+                </Button>
+              </form>
+            ) : (
+              <Meta>Nothing to start today.</Meta>
+            )}
+            <Link
+              href={`/today?minutes=${SHORTER}`}
+              className="text-accent font-[550] hover:underline underline-offset-4"
+            >
+              I have less time
+            </Link>
+          </>
+        }
+      >
+        {planned.backingOff ? (
+          <Status tone="attention">
+            Backing off — a worked example today, nothing to hand in
+          </Status>
+        ) : null}
 
-          {planned.backingOff ? (
-            <Status tone="attention">
-              Backing off — a worked example today, nothing to hand in
-            </Status>
-          ) : null}
-
-          {planned.blocks.length > 0 ? (
-            <ul className="flex list-none flex-col gap-0 p-0 m-0 overflow-hidden rounded-[var(--radius-control)] bg-raised">
-              {planned.blocks.map((block, i) => (
-                <li
-                  key={`${block.type}-${i}`}
-                  className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-3.5 last:border-b-0"
-                  style={stagger(i + 2)}
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
-                      {BLOCK_LABEL[block.type]}
-                    </span>
-                    <span className="min-w-0">
-                      {blockDetail(block, skillNames)}
-                    </span>
+        {planned.blocks.length > 0 ? (
+          <ul className="flex list-none flex-col gap-0 p-0 m-0 overflow-hidden rounded-[var(--radius-control)] bg-raised">
+            {planned.blocks.map((block, i) => (
+              <li
+                key={`${block.type}-${i}`}
+                className="rise flex items-center justify-between gap-4 border-b border-hairline px-5 py-3.5 last:border-b-0"
+                style={stagger(i + 2)}
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
+                    {BLOCK_LABEL[block.type]}
                   </span>
-                  <Meta className="shrink-0">{block.estMinutes} min</Meta>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState message="Nothing is unlocked right now — every skill on your path is either done or waiting on a prerequisite." />
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
-          {/* A form, not a link: starting a session writes rows. The action
-              hands back the session already in progress if there is one, so a
-              second click cannot split a learner's answers across two. */}
-          {planned.blocks.length > 0 ? (
-            <form action={startSessionAction}>
-              <Button type="submit">
-                {openSessionId ? "Carry on" : "Start session"}
-              </Button>
-            </form>
-          ) : (
-            <Meta>Nothing to start today.</Meta>
-          )}
-          <Link
-            href={`/today?minutes=${SHORTER}`}
-            className="text-accent font-[550] hover:underline underline-offset-4"
-          >
-            I have less time
-          </Link>
-        </div>
-      </Card>
+                  <span className="min-w-0">
+                    {blockDetail(block, skillNames)}
+                  </span>
+                </span>
+                <Meta className="shrink-0">{block.estMinutes} min</Meta>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState message="Nothing is unlocked right now — every skill on your path is either done or waiting on a prerequisite." />
+        )}
+      </HeroBand>
 
       {planned.compression ? (
         <Card className="rise flex flex-col gap-2" style={stagger(3)}>

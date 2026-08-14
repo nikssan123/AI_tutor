@@ -16,6 +16,7 @@ import {
   Card,
   cx,
   Figure,
+  HeroBand,
   Lead,
   Meta,
   Row,
@@ -101,7 +102,9 @@ export default async function CalendarPage({ searchParams }: Props) {
     const standing = await standingFor(getDb(), session.user.id);
 
     return (
-      <AppFrame width="narrow">
+      /* Wide, like the populated calendar and like `/today`. See `/progress`
+         for why an empty screen keeps its route's width. */
+      <AppFrame>
         <AppHeader
           title="Your calendar"
           lead="When the work lands, what comes back to you, and what you have already done. Nothing to date until a course is running."
@@ -142,36 +145,39 @@ export default async function CalendarPage({ searchParams }: Props) {
 
       {/* ── The commitment ───────────────────────────────────────────────── */}
       {/*
-       * The hero band, and the only figure on the screen. §2.4's accountability
-       * claim in one number — and measured in weeks against the learner's own
-       * commitment, so three hours a week done properly is a kept week rather
-       * than four missed days.
+       * The hero band, in the shape `/today` uses, and the only figure on the
+       * screen. §2.4's accountability claim in one number — and measured in
+       * weeks against the learner's own commitment, so three hours a week done
+       * properly is a kept week rather than four missed days.
        */}
-      <Card
-        className="rise flex flex-wrap items-center justify-between gap-6 bg-accent-weak"
+      <HeroBand
+        className="rise"
         style={stagger(1)}
-      >
-        {commitment.weeksKept > 0 ? (
-          <Figure
-            value={commitment.weeksKept}
-            unit={commitment.weeksKept === 1 ? "week" : "weeks"}
-            caption="running, in which you did what you said you would."
-          />
-        ) : (
-          <Figure
-            value={commitment.thisWeekHours}
-            unit={commitment.thisWeekHours === 1 ? "hour" : "hours"}
-            caption={`in the last seven days, of the ${hours(commitment.weeklyHours)} you set aside.`}
-          />
-        )}
-        {commitment.keptThisWeek ? (
-          <Status tone="verified">This week is already done</Status>
-        ) : (
-          // Not "you are behind": the week is not over, and §8 screen 6 spends
-          // a whole interaction refusing to build guilt mechanics.
-          <Status tone="neutral">{hours(toGo)} to go this week</Status>
-        )}
-      </Card>
+        field={
+          <>
+            {commitment.weeksKept > 0 ? (
+              <Figure
+                value={commitment.weeksKept}
+                unit={commitment.weeksKept === 1 ? "week" : "weeks"}
+                caption="running, in which you did what you said you would."
+              />
+            ) : (
+              <Figure
+                value={commitment.thisWeekHours}
+                unit={commitment.thisWeekHours === 1 ? "hour" : "hours"}
+                caption={`in the last seven days, of the ${hours(commitment.weeklyHours)} you set aside.`}
+              />
+            )}
+            {commitment.keptThisWeek ? (
+              <Status tone="verified">This week is already done</Status>
+            ) : (
+              // Not "you are behind": the week is not over, and §8 screen 6
+              // spends a whole interaction refusing to build guilt mechanics.
+              <Status tone="neutral">{hours(toGo)} to go this week</Status>
+            )}
+          </>
+        }
+      />
 
       {/* ── The month ────────────────────────────────────────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(2)}>

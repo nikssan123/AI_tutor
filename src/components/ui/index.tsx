@@ -153,7 +153,12 @@ export function Figure({
           </span>
         ) : null}
       </span>
-      <Meta>{caption}</Meta>
+      {/* `muted`, always. A figure's home is the accent field inside a
+          `HeroBand`, and `--ink-faint` on `--accent-weak` measures 4.15:1 in
+          light — over the 3:1 large-text bar, under the 4.5:1 one this 13px
+          caption is held to (§8.5.4). One tone rather than a prop, because the
+          caller cannot be relied on to know which field it landed on. */}
+      <Meta tone="muted">{caption}</Meta>
     </div>
   );
 }
@@ -174,6 +179,55 @@ export function Card({
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * The one thing a screen is about, said once, at the top of it.
+ *
+ * `/today` worked this out first and nothing else copied it: a plain surface
+ * card, the sentence that matters inset on the accent field, whatever supports
+ * it underneath, and the actions on a bar ruled off at the bottom. The other
+ * hero bands — `/progress`, `/calendar`, the marked-work verdict — tinted the
+ * *whole* card `bg-accent-weak` instead, which reads as a different product:
+ * a flat coloured slab against a card with a lit panel in it.
+ *
+ * One component, so "the hero band" is a thing the design has rather than a
+ * shape each screen re-derives. The field is the accent panel; `children` is
+ * the body under it; `footer` is the ruled bar, and only appears when there is
+ * something to put on it.
+ *
+ * `justify-between` on the field is what lets the second half of a claim — the
+ * status it carries, the confidence it is worth — sit against it rather than
+ * under it. With one child it simply sits left.
+ */
+export function HeroBand({
+  field,
+  footer,
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
+  /** What goes on the accent panel. The loudest thing on the screen. */
+  field: React.ReactNode;
+  /** The ruled action bar. Omitted entirely when there is nothing to do. */
+  footer?: React.ReactNode;
+}) {
+  return (
+    <Card className={cx("p-0 overflow-hidden", className)} {...props}>
+      <div className="flex flex-col gap-6 p-7">
+        <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 rounded-[var(--radius-card)] bg-accent-weak px-6 py-5">
+          {field}
+        </div>
+        {children}
+      </div>
+
+      {footer ? (
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline px-7 py-5">
+          {footer}
+        </div>
+      ) : null}
+    </Card>
   );
 }
 

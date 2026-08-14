@@ -77,16 +77,24 @@ describe("/admin/packs — the index's own logic", () => {
     expect(names).toEqual(["Alpha", "Beta"]);
   });
 
+  // The count and the verdict are two facts on the header's rule rather than
+  // one run-on sentence, so they are asserted apart. The verdict is a `Status`
+  // — §8.5.5's dot plus a word — which is why it reads as a label rather than
+  // as a clause.
   it("counts how many are failing", async () => {
     loadAllPacksMock.mockReturnValue([passing(), failing()]);
     render(await PacksIndexPage());
-    expect(screen.getByText(/2 packs on disk · 1 failing validation/)).toBeDefined();
+    expect(screen.getByText(/2 packs on disk/)).toBeDefined();
+    expect(screen.getByText(/1 failing validation/)).toBeDefined();
+    expect(screen.queryByText(/All passing/)).toBeNull();
   });
 
   it("says so plainly when everything passes", async () => {
     loadAllPacksMock.mockReturnValue([passing(), passing()]);
     render(await PacksIndexPage());
-    expect(screen.getByText(/2 packs on disk · all passing/)).toBeDefined();
+    expect(screen.getByText(/2 packs on disk/)).toBeDefined();
+    expect(screen.getByText(/All passing/)).toBeDefined();
+    expect(screen.queryByText(/failing validation/)).toBeNull();
   });
 
   it("uses the singular for a single pack", async () => {

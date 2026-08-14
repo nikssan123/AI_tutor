@@ -22,6 +22,7 @@ import {
   DisplayTitle,
   EmptyState,
   Figure,
+  HeroBand,
   HeroTitle,
   Lead,
   LinkCard,
@@ -169,6 +170,64 @@ export default function DesignPage() {
           <Figure value={12} unit="things" caption="you can do so far. 8 to go." />
           <Figure value={3} unit="hours" caption="logged of the 5 you set aside." />
         </Card>
+      </Section>
+
+      <Section
+        title="Hero band"
+        note="The one thing a screen is about. A surface card with the claim inset on the accent field, whatever supports it underneath, and the actions on a ruled bar. One per screen — the accent field is what makes it the loudest thing, and two of them make it neither."
+      >
+        <div className="flex flex-col gap-6">
+          {/* Both shapes it takes in the product: a claim with work under it
+              and something to press, and a figure that is the whole band. */}
+          <HeroBand
+            field={<Title className="text-ink">Ratios, before the joins that need them</Title>}
+            footer={
+              /* `ButtonLink`, like the link-card example below: a reference
+                 page must not render a live `<button>` that does nothing, and
+                 §8.5.5's one-filled-button rule is guarded by a test that
+                 counts them — the catalogue demonstrates the rule rather than
+                 spending its allowance twice. */
+              <>
+                <ButtonLink href="/design">Start session</ButtonLink>
+                <span className="font-[550] text-accent">I have less time</span>
+              </>
+            }
+          >
+            <RowList className="bg-raised">
+              <Row>
+                <span className="flex items-center gap-3">
+                  <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
+                    Read
+                  </span>
+                  Aperture and depth of field
+                </span>
+                <Meta>8 min</Meta>
+              </Row>
+              <Row>
+                <span className="flex items-center gap-3">
+                  <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
+                    Do
+                  </span>
+                  Shoot the same frame at three stops
+                </span>
+                <Meta>20 min</Meta>
+              </Row>
+            </RowList>
+          </HeroBand>
+
+          <HeroBand
+            field={
+              <>
+                <Figure
+                  value={3}
+                  unit="hours"
+                  caption="logged of the 5 you set aside, across 2 sessions."
+                />
+                <Status tone="attention">Short of what you planned</Status>
+              </>
+            }
+          />
+        </div>
       </Section>
 
       <Section

@@ -5,15 +5,14 @@ import { requireAdmin } from "@/lib/admin/guard";
 import { consoleSnapshot, type RunStatusCount } from "@/lib/admin/console";
 import {
   Card,
-  DisplayTitle,
   EmptyState,
   Meta,
   Row,
   RowList,
   stagger,
   Status,
-  Title,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -40,7 +39,15 @@ export function toneForStatus(status: string) {
   return status === "refusal" ? "attention" : ("problem" as const);
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+/**
+ * Deliberately not the kit's `Figure`, and named apart from it so nobody
+ * reaches for the wrong one: `Figure` is display-size and there is one per
+ * scroll band, because it states something a learner earned. These are
+ * instrument readings — three to a row, at title size — which is a shape the
+ * learner-facing screens are not allowed to have and an operator console
+ * cannot work without.
+ */
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
       <Meta>{label}</Meta>
@@ -63,36 +70,45 @@ export default async function AdminPage() {
   );
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
-      <header className="flex flex-col gap-3">
-        <DisplayTitle>Console</DisplayTitle>
-        <Meta>
-          Read-only. Every number below is a live query, taken{" "}
-          <time dateTime={snapshot.generatedAt.toISOString()}>
-            {snapshot.generatedAt.toISOString().replace("T", " ").slice(0, 16)}
-          </time>{" "}
-          UTC.
-        </Meta>
-      </header>
+    /* The same shell the learner-facing screens use. This page used to
+       hand-roll a `max-w-5xl` main with its own padding and demote every band
+       heading to a bare `Title`, which is the exact shape §8.5.9 diagnoses:
+       an operator console is still the product, and it drifted the moment it
+       stopped sharing a frame with everything else. */
+    <AppFrame>
+      <AppHeader
+        eyebrow="Operations"
+        title="Console"
+        lead="Read-only. Every number below is a live query."
+        facts={
+          <Meta>
+            Taken{" "}
+            <time dateTime={snapshot.generatedAt.toISOString()}>
+              {snapshot.generatedAt.toISOString().replace("T", " ").slice(0, 16)}
+            </time>{" "}
+            UTC
+          </Meta>
+        }
+      />
 
-      <section className="flex flex-col gap-4">
-        <Title>Spend</Title>
+      <section className="rise flex flex-col gap-6" style={stagger(1)}>
+        <SectionHead label="Cost" title="Spend" />
         <Meta>
           Includes anonymous runs, which the per-learner ledger excludes — the
           free check costs real money and is where a spike shows first.
         </Meta>
         <Card className="flex flex-wrap gap-x-12 gap-y-4">
-          <Figure label="Today" value={formatCents(spend.todayCents)} />
-          <Figure label="Month to date" value={formatCents(spend.monthCents)} />
-          <Figure
+          <Stat label="Today" value={formatCents(spend.todayCents)} />
+          <Stat label="Month to date" value={formatCents(spend.monthCents)} />
+          <Stat
             label="Learners at their cap"
             value={String(spend.cappedLearners)}
           />
         </Card>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <Title>Runs, last 24 hours</Title>
+      <section className="rise flex flex-col gap-6" style={stagger(2)}>
+        <SectionHead label="Last 24 hours" title="Runs" />
         {totalRuns === 0 ? (
           <Card>
             <EmptyState message="No model calls in the last 24 hours." />
@@ -135,21 +151,25 @@ export default async function AdminPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-4">
-        <Title>Learners</Title>
+      <section className="rise flex flex-col gap-6" style={stagger(3)}>
+        <SectionHead
+          label="Who is here"
+          title="Learners"
+          action={
+            <Link
+              href="/admin/packs"
+              className="font-[550] text-accent underline-offset-4 hover:underline"
+            >
+              Review the domain packs
+            </Link>
+          }
+        />
         <Card className="flex flex-wrap gap-x-12 gap-y-4">
-          <Figure label="Total" value={String(learners.total)} />
-          <Figure label="New this week" value={String(learners.newThisWeek)} />
-          <Figure label="Active goals" value={String(learners.activeGoals)} />
+          <Stat label="Total" value={String(learners.total)} />
+          <Stat label="New this week" value={String(learners.newThisWeek)} />
+          <Stat label="Active goals" value={String(learners.activeGoals)} />
         </Card>
       </section>
-
-      <Link
-        href="/admin/packs"
-        className="text-[length:var(--text-label-size)] text-accent hover:underline"
-      >
-        Review the domain packs →
-      </Link>
-    </main>
+    </AppFrame>
   );
 }

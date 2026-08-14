@@ -138,7 +138,9 @@ export default async function MasteryPage({ searchParams }: Props) {
     const standing = await standingFor(getDb(), session.user.id);
 
     return (
-      <AppFrame width="narrow">
+      /* Wide, like the populated ledger and like `/today`. See `/progress` for
+         why an empty screen keeps its route's width. */
+      <AppFrame>
         <AppHeader
           title="What you can do"
           lead="The record of what you have proved. It fills up as work gets marked."

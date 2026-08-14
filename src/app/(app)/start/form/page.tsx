@@ -8,13 +8,11 @@ import { SubjectIcon } from "@/components/icons";
 import {
   Button,
   Card,
-  DisplayTitle,
-  Lead,
   Meta,
   stagger,
   Status,
 } from "@/components/ui";
-import { AppFrame } from "@/components/app-shell";
+import { AppFrame, AppHeader } from "@/components/app-shell";
 import { createGoalAction } from "../actions";
 
 /**
@@ -104,14 +102,10 @@ export default async function StartPage({ searchParams }: Props) {
     /* §8.5.9 — a task screen, so it keeps the narrow column. A goal form read
        across 1024px would be worse, not better. */
     <AppFrame width="narrow">
-      <div className="rise flex flex-col gap-5">
-        <DisplayTitle>What do you want to get good at?</DisplayTitle>
-        <Lead>
-          Pick a subject and tell us how much time you actually have. We&rsquo;ll
-          work out what to do first — and what to skip because you can already do
-          it.
-        </Lead>
-      </div>
+      <AppHeader
+        title="What do you want to get good at?"
+        lead="Pick a subject and tell us how much time you actually have. We’ll work out what to do first — and what to skip because you can already do it."
+      />
 
       {error ? <Status tone="problem">{error}</Status> : null}
 

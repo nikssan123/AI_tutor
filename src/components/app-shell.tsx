@@ -37,17 +37,31 @@ import {
  */
 export function AppFrame({
   width = "wide",
+  flush = false,
   className,
   children,
 }: {
   width?: "wide" | "narrow";
+  /**
+   * Drops the bottom padding, for the one screen that pins a control to the
+   * bottom of the viewport itself (`/start`'s composer). Anything rendered
+   * after a pinned bar extends the page past it, so the reserved space that
+   * clears the mobile nav everywhere else becomes a strip of dead page
+   * underneath — and the bar stops feeling pinned exactly when you scroll far
+   * enough to reach it.
+   *
+   * A prop rather than a `className` override: two competing `pb-*` utilities
+   * resolve by the order Tailwind emitted them, not the order they are written.
+   */
+  flush?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
     <main
       className={cx(
-        "mx-auto flex w-full flex-col gap-14 px-6 pt-10 pb-28",
+        "mx-auto flex w-full flex-col gap-14 px-6 pt-10",
+        flush ? "pb-0" : "pb-28",
         width === "narrow" ? "max-w-2xl" : "max-w-5xl",
         className,
       )}

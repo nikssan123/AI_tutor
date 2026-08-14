@@ -8,16 +8,15 @@ import { validatePack } from "@/lib/packs/validate";
 import {
   Button,
   Card,
-  DisplayTitle,
   EmptyState,
   MaturityBadge,
   Meta,
   Row,
   RowList,
-  Title,
   stagger,
   Status,
 } from "@/components/ui";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { discardPackAction, promotePackAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -51,14 +50,24 @@ export default async function PacksIndexPage() {
   const failing = packs.filter((entry) => !entry.report.passed).length;
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-3">
-        <DisplayTitle>Packs</DisplayTitle>
-        <Meta>
-          {packs.length} pack{packs.length === 1 ? "" : "s"} on disk
-          {failing > 0 ? ` · ${failing} failing validation` : " · all passing"}
-        </Meta>
-      </header>
+    <AppFrame>
+      <AppHeader
+        eyebrow="Operations"
+        title="Packs"
+        lead="What we can teach, and whether it still validates."
+        facts={
+          <>
+            <Meta>
+              {packs.length} pack{packs.length === 1 ? "" : "s"} on disk
+            </Meta>
+            {failing > 0 ? (
+              <Status tone="problem">{failing} failing validation</Status>
+            ) : (
+              <Status tone="verified">All passing</Status>
+            )}
+          </>
+        }
+      />
 
       {packs.length === 0 ? (
         <Card>
@@ -92,15 +101,14 @@ export default async function PacksIndexPage() {
       )}
 
       {/* ── The review queue ───────────────────────────────────────────────── */}
-      {/* A section of the Packs page, not a second page, so it is an h2 —
-          two h1s is a real semantics problem, not just a failing query. */}
-      <header className="flex flex-col gap-3 pt-6">
-        <Title>Built on request</Title>
-        <Meta>
-          Written for a learner who asked for a subject nobody had curated.
-          Promoting one to Standard is a claim that you have read it.
-        </Meta>
-      </header>
+      {/* A section of the Packs page, not a second page, so `SectionHead` — an
+          h2 like every other band in the product. Two h1s is a real semantics
+          problem, not just a failing query. */}
+      <SectionHead label="The review queue" title="Built on request" />
+      <Meta>
+        Written for a learner who asked for a subject nobody had curated.
+        Promoting one to Standard is a claim that you have read it.
+      </Meta>
 
       {generated.length === 0 ? (
         <Card>
@@ -155,6 +163,6 @@ export default async function PacksIndexPage() {
           ))}
         </RowList>
       )}
-    </main>
+    </AppFrame>
   );
 }

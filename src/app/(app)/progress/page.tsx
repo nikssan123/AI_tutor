@@ -12,6 +12,7 @@ import { NothingRunning } from "@/components/nothing-running";
 import {
   Card,
   Figure,
+  HeroBand,
   Lead,
   Meta,
   stagger,
@@ -92,7 +93,12 @@ export default async function ProgressPage() {
     const standing = await standingFor(db, session.user.id);
 
     return (
-      <AppFrame width="narrow">
+      /* The same width this screen has once there is a digest, and the same
+         width `/today` meets the same learner at. A route that is narrow while
+         it is empty and wide once it fills moves the whole page under someone
+         who only pressed "Build it" — and four nav destinations that each sit
+         somewhere different is the drift §8.5.9 exists to stop. */
+      <AppFrame>
         <AppHeader
           title="Your week"
           lead="Every seven days, an honest read on the pace you are actually keeping."
@@ -117,30 +123,33 @@ export default async function ProgressPage() {
 
       {/* ── Hours against the commitment ─────────────────────────────────── */}
       {/*
-       * The hero band. Time is the one number that decides whether any of the
-       * others mean anything, so it is the only figure on the screen and it
-       * sits on the accent field alone — the rest of the week is read after
-       * this, not alongside it.
+       * The hero band, in the shape `/today` uses. Time is the one number that
+       * decides whether any of the others mean anything, so it is the only
+       * figure on the screen and it sits on the accent field alone — the rest
+       * of the week is read after this, not alongside it.
        */}
-      <Card
-        className="rise flex flex-wrap items-center justify-between gap-6 bg-accent-weak"
+      <HeroBand
+        className="rise"
         style={stagger(1)}
-      >
-        <Figure
-          value={digest.hoursLogged}
-          unit={digest.hoursLogged === 1 ? "hour" : "hours"}
-          caption={`logged of the ${hours(digest.committedHours)} you set aside${
-            digest.sessions > 0
-              ? `, across ${digest.sessions} ${digest.sessions === 1 ? "session" : "sessions"}`
-              : ""
-          }.`}
-        />
-        {digest.keptCommitment ? (
-          <Status tone="verified">You did what you said you would</Status>
-        ) : (
-          <Status tone="attention">Short of what you planned</Status>
-        )}
-      </Card>
+        field={
+          <>
+            <Figure
+              value={digest.hoursLogged}
+              unit={digest.hoursLogged === 1 ? "hour" : "hours"}
+              caption={`logged of the ${hours(digest.committedHours)} you set aside${
+                digest.sessions > 0
+                  ? `, across ${digest.sessions} ${digest.sessions === 1 ? "session" : "sessions"}`
+                  : ""
+              }.`}
+            />
+            {digest.keptCommitment ? (
+              <Status tone="verified">You did what you said you would</Status>
+            ) : (
+              <Status tone="attention">Short of what you planned</Status>
+            )}
+          </>
+        }
+      />
 
       {/* ── What moved, and what is slipping ─────────────────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(2)}>

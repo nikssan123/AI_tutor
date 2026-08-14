@@ -14,7 +14,6 @@ import {
   ButtonLink,
   Card,
   cx,
-  DisplayTitle,
   Lead,
   Meta,
   Skeleton,
@@ -22,7 +21,7 @@ import {
   Title,
   stagger,
 } from "@/components/ui";
-import { AppFrame } from "@/components/app-shell";
+import { AppFrame, AppHeader } from "@/components/app-shell";
 import { submitWorkAction } from "@/app/(app)/submission/actions";
 import { TutorPanel } from "./tutor-panel";
 import { LessonBody } from "./lesson-body";
@@ -73,18 +72,25 @@ export default async function SessionPage({ params, searchParams }: Props) {
     /* §8.5.9's documented exception — a session is a thing you *do*, so it
        keeps the narrow column and one block on screen at a time. */
     <AppFrame width="narrow">
-      <header className="rise flex flex-col gap-4">
-        <Meta>
-          {view.pack.name} ·{" "}
-          {view.finished
-            ? "Session complete"
-            : `Block ${position} of ${session.blocks.length}`}
-        </Meta>
-        <DisplayTitle>
-          {view.finished ? "That's the session" : (skill?.name ?? "Today's session")}
-        </DisplayTitle>
-        <BlockRail blocks={session.blocks} at={session.blockIndex} />
-      </header>
+      {/* The same header every other product screen opens with: the surface
+          named above the title, the title, and the facts on a ruled row. It
+          used to be a `Meta`, a `DisplayTitle` and the rail stacked by hand,
+          which put the pack name and the block count in one run-on line and
+          left the rail hanging off the bottom with nothing separating it. */}
+      <AppHeader
+        eyebrow={view.pack.name}
+        title={
+          view.finished ? "That's the session" : (skill?.name ?? "Today's session")
+        }
+        facts={
+          <Meta>
+            {view.finished
+              ? "Session complete"
+              : `Block ${position} of ${session.blocks.length}`}
+          </Meta>
+        }
+        action={<BlockRail blocks={session.blocks} at={session.blockIndex} />}
+      />
 
       {view.finished || !block ? (
         <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>

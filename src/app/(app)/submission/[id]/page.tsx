@@ -11,7 +11,8 @@ import {
   Card,
   Confidence,
   confidenceLevel,
-  cx,
+  Figure,
+  HeroBand,
   Lead,
   Meta,
   Skeleton,
@@ -118,38 +119,33 @@ export default async function SubmissionPage({ params }: Props) {
       />
 
       {/*
-       * The verdict, alone on the accent field. This is the screen the whole
-       * product is for and the grade used to sit in a row of loose spans under
-       * the title, at the same weight as the tier note beside it.
+       * The verdict, alone on the accent field, in the shape `/today` uses.
+       * This is the screen the whole product is for and the grade used to sit
+       * in a row of loose spans under the title, at the same weight as the tier
+       * note beside it.
        */}
-      <Card
-        className="rise flex flex-wrap items-end justify-between gap-x-8 gap-y-5 bg-accent-weak"
+      <HeroBand
+        className="rise"
         style={stagger(1)}
-      >
-        <div className="flex flex-col gap-1">
-          <span
-            className={cx(
-              "text-[length:var(--text-display-size)] leading-[var(--text-display-line)]",
-              "font-[650] tracking-[var(--text-display-tracking)] text-ink tabular-nums",
-            )}
-          >
-            {percent}%
-          </span>
-          <Meta tone="muted">
-            against the rubric you could read before you started
-          </Meta>
-        </div>
+        field={
+          <>
+            <Figure
+              value={`${percent}%`}
+              caption="against the rubric you could read before you started"
+            />
 
-        {/*
-          §7.2 — "confidence propagates to the UI everywhere". The number is
-          never shown without what it is worth, because a tier-3 verdict at
-          0.8 is not the same claim as a tier-1 one.
-        */}
-        <div className="flex flex-col items-start gap-2">
-          <Confidence level={confidenceLevel(evaluation.confidence)} />
-          <Meta tone="muted">Tier {evaluation.evalTier} evidence</Meta>
-        </div>
-      </Card>
+            {/*
+              §7.2 — "confidence propagates to the UI everywhere". The number is
+              never shown without what it is worth, because a tier-3 verdict at
+              0.8 is not the same claim as a tier-1 one.
+            */}
+            <div className="flex flex-col items-start gap-2">
+              <Confidence level={confidenceLevel(evaluation.confidence)} />
+              <Meta tone="muted">Tier {evaluation.evalTier} evidence</Meta>
+            </div>
+          </>
+        }
+      />
 
       {stored.status === "human_review" ? (
         <Status tone="attention">

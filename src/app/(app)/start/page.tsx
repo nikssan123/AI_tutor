@@ -18,13 +18,12 @@ import {
   Button,
   Card,
   cx,
-  DisplayTitle,
-  Lead,
   Meta,
   Status,
   Title,
   stagger,
 } from "@/components/ui";
+import { AppFrame, AppHeader } from "@/components/app-shell";
 import {
   buildFromConversationAction,
   openAction,
@@ -138,17 +137,18 @@ export default async function StartPage({ searchParams }: Props) {
     heldSubject?.trim().toLowerCase() !== seed.toLowerCase();
 
   return (
-    /* §8.5.9 — a task screen. The sidebar earns the wider column here because
-       it is the thing that makes the conversation feel like progress rather
-       than a chat window; it stacks below on narrow screens. */
-    <main
-      className={cx(
-        "mx-auto flex w-full max-w-4xl flex-col gap-10 px-6",
-        // Once there is a conversation the top of the page is no longer the
-        // point of the page, so it stops taking the room of one.
-        started ? "pt-8 pb-0" : "pt-16 pb-28",
-      )}
-    >
+    /* §8.5.9 — a task screen, but on the shared frame like every other one.
+       It used to hand-roll a `max-w-4xl` main, which made it the third column
+       width in the product and put its title at a different height from the
+       screens on either side of it. `flush` is the one thing it genuinely
+       needs that the others do not: the composer is pinned to the bottom of
+       the viewport, so the frame gives up its bottom padding.
+
+       Only while the composer is actually there. Once the conversation is done
+       it is replaced by the "Build my plan" card, which is in normal flow — and
+       a frame with no bottom padding puts that button under the fixed mobile
+       nav, on the one screen where the button is the entire point. */
+    <AppFrame flush={started && !intake.done}>
       {started ? (
         /*
          * The headline has done its job by now — it asked a question that has
@@ -159,13 +159,10 @@ export default async function StartPage({ searchParams }: Props) {
           What do you want to get good at?
         </h1>
       ) : (
-        <div className="rise flex flex-col gap-5">
-          <DisplayTitle>What do you want to get good at?</DisplayTitle>
-          <Lead>
-            Tell us in your own words. Anything — if we don&rsquo;t already
-            cover it, we&rsquo;ll build it.
-          </Lead>
-        </div>
+        <AppHeader
+          title="What do you want to get good at?"
+          lead="Tell us in your own words. Anything — if we don’t already cover it, we’ll build it."
+        />
       )}
 
       {error ? <Status tone="problem">{ERRORS[error] ?? ERRORS.subject}</Status> : null}
@@ -347,6 +344,6 @@ export default async function StartPage({ searchParams }: Props) {
           .
         </Meta>
       )}
-    </main>
+    </AppFrame>
   );
 }
