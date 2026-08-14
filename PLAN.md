@@ -965,9 +965,10 @@ Explicitly personalized-curriculum pages: what to skip because you already know 
 
 Each answers in the first 60 words (AI Overview / featured-snippet shape), backs it with an interactive calculator or check, and cites learning-science sources.
 
-> **The template and the first two are built** — `why-do-i-forget-what-i-learn`
-> and `how-long-does-it-take-to-learn-sql`. Three things this list did not
-> anticipate:
+> **The template and five of these are built:** `why-do-i-forget-what-i-learn` ·
+> `why-am-i-stuck-in-tutorial-hell` · `what-should-i-learn-after-python-basics` ·
+> `how-do-i-know-if-im-actually-improving` · `how-long-does-it-take-to-learn-sql`.
+> Three things this list did not anticipate:
 >
 > - **The 40–60 word answer is a schema rule, not a style note.** A guide whose
 >   answer falls outside the range does not load. Under 40 words it has not
@@ -980,7 +981,10 @@ Each answers in the first 60 words (AI Overview / featured-snippet shape), backs
 >   `how-long-does-it-take-to-learn-machine-learning` has no pack behind it, and
 >   `self-taught-vs-bootcamp` and `portfolio-projects-that-actually-get-interviews`
 >   both need outcome data we do not have. Writing them anyway would be the
->   thing §12 exists to stop.
+>   thing §12 exists to stop. The three that remain writable are
+>   `how-long-does-it-take-to-learn-python`,
+>   `how-many-hours-a-week-to-learn-a-new-skill` and
+>   `best-way-to-learn-a-skill-as-an-adult`.
 
 ### E. Free tools — `/tools/{tool}` (4 pages, P1)
 `learning-roadmap-generator` · `skill-gap-analyzer` · `learning-time-calculator` · `what-should-i-learn-next`
@@ -2019,7 +2023,7 @@ before picking the next thing up.**
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | ✅ Done | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD, the share cards, and now **the internal-link renderer and the quality-score job** (`src/lib/guides/{links,quality}.ts`), which needed authored pages to operate on. Lighthouse and GSC/Bing verification wait on a deployed origin |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
-| **E12** Content production | 🟡 Started — 2 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and the first two §10 D guides, both at 100/100 and both drafts until somebody reads them. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
+| **E12** Content production | 🟡 Started — 5 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and five §10 D guides, all at 100/100, all drafts until somebody reads them. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
 **E8's code is done and the loop has been watched run** — a real submission from
@@ -2104,12 +2108,20 @@ so `/learn/{topic}` grew a "questions people ask" section derived from it.
 Nobody maintains a link table, and no guide can put itself on a subject page by
 asserting relevance.
 
-**E12 is two pages of fifty, and both are drafts.** They score 100/100 on the
-measured dimensions, all six of their cited sources return 200, and they are
-`noindex` until somebody reads them — `HUMAN-REVIEW.md` part C, about twenty
-minutes. The remaining work is authoring: §10 D has eight more questions, of
-which roughly five can be answered honestly against the packs that exist, and
-§10 C and §10 F have no route yet.
+**E12 is five pages of fifty, and all five are drafts.** Each scores 100/100 on
+the measured dimensions, all sixteen cited sources return 200, and every one is
+`noindex` until somebody reads it — `HUMAN-REVIEW.md` part C, about an hour. The
+remaining work is authoring: three more of §10 D's ten can be answered honestly
+against the packs that exist, three cannot be answered honestly at all yet, and
+§10 C and §10 F have no route.
+
+**The gate earned its keep on the second batch, which is the part worth
+recording.** The first two guides were written against the score and passed
+first time, which proves nothing. The next three did not: one cited a source
+nothing pointed at, one leaned on catalogue-wide figures and so earned no
+inbound links from any subject, and one had three sources across two domains.
+All three were invisible on the page and all three are exactly the defects §12.2
+names. They were fixed by writing more specifically, not by relaxing anything.
 
 **E11's roadmap tool is in, and building it found two things that are bigger
 than the tool.**

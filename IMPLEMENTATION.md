@@ -2960,17 +2960,38 @@ answers 200.
   drafted before those numbers were looked up, and two of the sentences around
   them had to change once they resolved.
 
+## The gate earned its keep on the second batch
+
+The first two guides were written against the score and cleared it first time,
+which proves nothing about the score. The next three did not, and the three
+failures are worth recording because they are exactly the defects §12.2 names
+and all three were invisible on the rendered page:
+
+- `what-should-i-learn-after-python-basics` declared PEP 8 as a source and never
+  cited it — a bibliography rather than an argument.
+- `why-am-i-stuck-in-tutorial-hell` leaned on `{{catalogue.*}}` figures, which
+  are real proprietary data and say nothing about *which subject* the page is
+  about. It therefore earned **zero** inbound links, because no subject page had
+  grounds to carry it. Fixed by making it specific about Python, which is what
+  the page should have been anyway.
+- Two of the three had three sources across only two domains.
+
+Every one was fixed by writing more specifically. Nothing was relaxed, and the
+five pages now sit at 100/100 with 16 of 16 sources returning 200.
+
 ## Still open
 
-E12 is two pages of fifty. The substrate, the score, the link graph and the
-templates are done and the remaining work is authoring — §10 D has eight more
-questions, of which about five can be answered honestly against the packs that
-exist. §10 C (`/learn/{topic}-for-{audience}`) and §10 F (`/roadmaps/{slug}`)
-have no route yet.
+E12 is five pages of fifty. The substrate, the score, the link graph and the
+templates are done, and the remaining work is authoring — three more of §10 D's
+ten can be answered honestly against the packs that exist, three cannot be
+answered honestly at all (no ML pack; no outcome data for the bootcamp and
+portfolio questions). §10 C (`/learn/{topic}-for-{audience}`) and §10 F
+(`/roadmaps/{slug}`) have no route yet.
 
-Both guides need Nikolay's read before either can be indexed. That is
-`HUMAN-REVIEW.md` part C, and it is about twenty minutes rather than the day
-part A asked for.
+All five need Nikolay's read before any can be indexed. That is
+`HUMAN-REVIEW.md` part C, which now names the four uncited subject-matter claims
+worth his attention and says which two pages are cheapest to judge — twenty
+minutes for the first two, about an hour for all five.
 
 Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
 behind a deployed origin.

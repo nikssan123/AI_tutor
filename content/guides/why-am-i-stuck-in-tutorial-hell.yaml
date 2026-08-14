@@ -1,0 +1,161 @@
+slug: why-am-i-stuck-in-tutorial-hell
+title: Why am I stuck in tutorial hell?
+description: >-
+  Because following along is a different skill from starting from nothing, and
+  only one of them is the one you want. What to do about it, starting today.
+h1: Why am I stuck in tutorial hell?
+
+answer: >-
+  Because following a tutorial and starting from a blank file are different
+  skills, and only the first one gets practised. Every tutorial removes the two
+  hardest steps — deciding what to build and deciding what to do next — so
+  finishing ten of them leaves those two untouched. The exit is smaller work you
+  choose yourself.
+
+tool:
+  path: /projects/data-quality-audit
+  label: Start from a brief instead
+  pitch: >-
+    A brief states the problem and the marking checklist and then stops. About
+    {{project:data-quality-audit.minutes}} minutes, marked against
+    {{project:data-quality-audit.criteria}} published criteria, and no walkthrough.
+
+sections:
+  - heading: What a tutorial quietly does for you
+    body: >-
+      A good tutorial is a demonstration of somebody else's finished decisions.
+      By the time you meet it, the hardest work is already done and invisible:
+      what to build, what to leave out, which error was worth chasing, which
+      library to reach for, and what to do when the screen says something
+      unexpected.
+
+
+      Following along exercises typing, reading and comprehension. It does not
+      exercise choosing — and choosing is what a blank file actually asks for.
+      This is why the gap feels so sudden. It is not that you forgot the
+      material; it is that you never practised the part that is missing.
+    list:
+      - The tutorial chose the problem. You have to.
+      - The tutorial chose the shape of the solution. You have to.
+      - The tutorial's errors were anticipated. Yours will not be.
+      - The tutorial ended when it worked. Yours has to end when it is right.
+
+  - heading: Why it feels like learning while it is happening
+    body: >-
+      Because it feels *smooth*, and smoothness is the signal we mistake for
+      progress. Material you have just watched someone explain is maximally
+      familiar, and familiarity is nearly indistinguishable from competence from
+      the inside.
+
+
+      The study-techniques literature is unusually blunt about this: rereading
+      and highlighting — the passive, comfortable strategies — come out with
+      surprisingly low utility, while practice testing and spacing come out as
+      the two that reliably work across ages and abilities.[^dunlosky] Watching a
+      tutorial is rereading with better production values. It is the most
+      pleasant thing on that list and close to the least effective.
+
+
+      Effortful retrieval is the mechanism, and it is unpleasant by
+      design.[^retrieval] The research programme around this even has a name for
+      it — *desirable difficulties*, the conditions that slow you down while you
+      learn and leave more behind afterwards.[^bjork] If a study session feels
+      good the whole way through, that is information about the session.
+    links:
+      - to: /guides/how-do-i-know-if-im-actually-improving
+        type: related
+        anchor: how to tell the difference from the outside
+
+  - heading: The exit is smaller than you think, and it is not a bigger project
+    body: >-
+      The usual advice is "build your own project", which is correct and is
+      almost useless, because the reason you are stuck is that choosing a
+      project is the skill you have not practised. Told to build something, most
+      people pick something four times too large, stall, and go back to
+      tutorials — reasonably, because the tutorial was the thing that was
+      working.
+
+
+      Make the first one absurdly small. One function. One query. One page. Small
+      enough that the only hard part is the part you are trying to practise, and
+      short enough that finishing it is not a matter of stamina.
+    list:
+      - Take a tutorial you already finished and change the requirement. Same
+        material, and now the decisions are yours.
+      - Set a time box before you start, and hand in whatever exists when it
+        ends.
+      - Write down what "done" means before writing anything else.
+      - Look things up freely. Looking things up is not tutorial hell; being
+        walked through the decisions is.
+
+  - heading: What we do instead of a walkthrough
+    body: >-
+      A brief here states the problem, publishes the checklist it will be marked
+      against, and stops. No worked solution, because a worked solution is the
+      tutorial again — and the whole point is the interval between reading the
+      problem and knowing what to do, which is the part a walkthrough deletes.
+
+
+      There are {{catalogue.projects}} briefs across
+      {{catalogue.subjects}} subjects, all readable without an account, all with
+      their bands published in full — {{topic:python-fundamentals.projects}} of
+      them in Python across {{topic:python-fundamentals.skills}} skills.
+      Tutorials are still useful, and you should still read the documentation;
+      the difference is what happens after.
+    links:
+      - to: /projects/data-quality-audit
+        type: project_for
+        anchor: the smallest SQL brief we have
+      - to: /learn/python-fundamentals
+        type: related
+        anchor: the same idea in Python
+      - to: /check/sql-data-analysis
+        type: check_for
+        anchor: find out which parts you already have
+
+sources:
+  - id: dunlosky
+    url: https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html
+    title: "Dunlosky et al. (2013), Improving Students' Learning With Effective Learning Techniques"
+    note: >-
+      Ten techniques ranked by evidence. The free summary carries the finding;
+      the paywalled monograph adds detail you do not need for this.
+  - id: retrieval
+    url: https://www.retrievalpractice.org/
+    title: "Agarwal, Retrieval Practice — research library and free downloads"
+    note: >-
+      A cognitive scientist's practitioner site, useful because it turns the
+      research into things you can do on a Tuesday. It also sells books, which
+      is worth knowing while you read it.
+  - id: bjork
+    url: https://bjorklab.psych.ucla.edu/research/
+    title: "UCLA Bjork Learning and Forgetting Lab — desirable difficulties"
+    note: >-
+      The lab behind the phrase "desirable difficulties". Dense and worth it if
+      you want the reason the effective methods feel worse while you use them.
+
+faqs:
+  - question: Are tutorials bad?
+    answer: >-
+      No. They are efficient for a first pass and for showing you that a thing
+      is possible. The failure is stopping there — treating a tutorial as the
+      whole loop rather than as its opening move.
+  - question: How many tutorials before I start building?
+    answer: >-
+      One, usually. Enough to know the vocabulary and where the documentation
+      lives. Everything after that is better learned by needing it.
+  - question: What if I get completely stuck without a walkthrough?
+    answer: >-
+      Being stuck is the part you came for, and there is a difference between
+      stuck and blocked. Give it a real attempt, then look up the specific
+      thing rather than restarting from a guided version of the whole task.
+  - question: Is copying code from documentation tutorial hell?
+    answer: >-
+      No. Documentation answers a question you already have, which means you did
+      the deciding. Tutorial hell is when something else does the deciding and
+      you supply the typing.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

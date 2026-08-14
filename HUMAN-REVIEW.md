@@ -320,26 +320,32 @@ written and the stability half is measured and met.
 
 ---
 
-# C. The guide read — unblocks the first two SEO pages
+# C. The guide read — unblocks the first five SEO pages
 
 New, and much the smallest of the three. §12.1 rule 5 is *"no page ships without
 a human read"*, and it is the only §12 defence that cannot be automated. The
-other four are: the volume is 2 pages and not 5,000, every page carries a
+other four are: the volume is 5 pages and not 5,000, every page carries a
 working tool, the prose is hand-written, and `noindex` is the default.
 
 ## What it gates
 
 `isGuideIndexable` asks for three things: a §12.2 score of ≥75, an empty problem
-list, and a recorded reviewer. **The first two are already met.** Both guides
-score 100/100 on every dimension that can be measured, have no outstanding
-problems, and all six of their cited sources return 200.
+list, and a recorded reviewer. **The first two are already met.** All five
+guides score 100/100 on every dimension that can be measured, have no
+outstanding problems, and all sixteen of their cited sources return 200.
 
 So the pages exist, render, and are one line each away from the sitemap.
 
 ```
-content/guides/how-long-does-it-take-to-learn-sql.yaml
 content/guides/why-do-i-forget-what-i-learn.yaml
+content/guides/why-am-i-stuck-in-tutorial-hell.yaml
+content/guides/how-do-i-know-if-im-actually-improving.yaml
+content/guides/how-long-does-it-take-to-learn-sql.yaml
+content/guides/what-should-i-learn-after-python-basics.yaml
 ```
+
+They are listed in the order worth reading them, which is cheapest-to-judge
+first — see the recommendation at the end.
 
 ## What the machine already checked — do not spend time on these
 
@@ -362,11 +368,21 @@ Read each page end to end — they are about 900 words each — and ask three
 questions the score cannot:
 
 ### 1. Is anything in it wrong?
-Particularly the two subject-matter claims in the SQL guide: that a pivot table
-is a `GROUP BY` and a VLOOKUP is a join with one row on one side, and that grain
-and NULL behaviour are where confident spreadsheet users get *wrong answers*
-rather than errors. Both are mine, neither is cited, and both are the kind of
-sentence a reader will judge us on.
+The learning-science claims all carry citations you can follow. The
+**subject-matter** claims do not, and those are the ones a reader will judge us
+on. Four are worth your attention specifically:
+
+| Guide | The uncited claim |
+|---|---|
+| SQL hours | A pivot table is a `GROUP BY` and a VLOOKUP is a join with one row on one side |
+| SQL hours | Grain and NULL behaviour are where confident spreadsheet users get *wrong answers* rather than errors |
+| After Python basics | The four that matter next are traceback, exceptions, tests and structured data — **not** a framework |
+| After Python basics | Names-and-references is the skill most courses skip, and the pair with mutable defaults is where confident beginners come apart |
+
+The Python ordering claim is the strongest one on any of these pages and the one
+I would most like challenged. It is defensible from our own skill graph, which
+is where the dependency order comes from — but the graph is a model review, not
+a hand-checked one.
 
 ### 2. Does it sound like you?
 This is the only copy on the site that argues rather than states. If a sentence
@@ -385,8 +401,12 @@ review:
   reviewedAt: "2026-08-14"
 ```
 
-Then `pnpm guides:validate && DATABASE_URL=… pnpm verify`, and both pages enter
-the sitemap with `Course`-adjacent breadcrumb and `FAQPage` markup.
+Then `pnpm guides:validate && DATABASE_URL=… pnpm verify`, and each signed page
+enters the sitemap with breadcrumb and `FAQPage` markup.
+
+**Sign them one at a time.** They are five separate files and five separate
+decisions; there is nothing that wants doing in a batch, and the `/guides` hub
+joins the sitemap as soon as the first one does.
 
 **Signing is not required for the pages to be useful.** A draft still renders,
 still links out, and still says on its own face that nobody has read it. What
@@ -394,7 +414,19 @@ signing changes is whether we ask Google to rank it.
 
 ## Recommendation
 
-Read `why-do-i-forget-what-i-learn` first. It is the one with no subject-matter
-risk in it — the claims are learning science with citations, not SQL — so it is
-the cheaper of the two to judge, and it is the one that argues the product's
-thesis rather than describing a course.
+**Read them in this order**, which is cheapest-to-judge first:
+
+1. `why-do-i-forget-what-i-learn` — no subject-matter risk at all. Every claim
+   is learning science with a citation behind it.
+2. `why-am-i-stuck-in-tutorial-hell` — same, plus one argument of ours (that the
+   missing skill is *choosing*, not knowledge).
+3. `how-do-i-know-if-im-actually-improving` — the thesis page. Judge it as
+   positioning as much as prose; it is the one that says out loud why there is
+   no percentage anywhere in the product.
+4. `how-long-does-it-take-to-learn-sql` — two uncited SQL claims, above.
+5. `what-should-i-learn-after-python-basics` — the strongest uncited claim on
+   the site. Read it last and read it hardest.
+
+If you only have twenty minutes, do 1 and 2. Two indexed pages that are
+certainly right beat five that are probably right, and the rest keep in the
+repository as drafts indefinitely at no cost.

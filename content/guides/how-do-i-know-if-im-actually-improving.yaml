@@ -1,0 +1,164 @@
+slug: how-do-i-know-if-im-actually-improving
+title: How do I know if I'm actually improving?
+description: >-
+  Why your own sense of progress is the least reliable instrument you own, and
+  the four checks that give a straighter answer than a completion percentage.
+h1: How do I know if I'm actually improving?
+
+answer: >-
+  Not by how it feels, which is the least reliable instrument you have. Improving
+  shows up as work you could not have produced a month ago, judged against a
+  standard written before you started. Everything else — hours logged, videos
+  watched, a course bar at eighty percent — measures attendance rather than
+  ability.
+
+tool:
+  path: /projects/sales-funnel-analysis
+  label: Read a marking checklist
+  pitch: >-
+    A real brief with the {{project:sales-funnel-analysis.criteria}} criteria it
+    is marked against, published before you start. Read the bands and decide
+    honestly which one your current work lands in.
+
+sections:
+  - heading: The instrument you are using is the broken one
+    body: >-
+      The reason this question is hard is not that progress is invisible. It is
+      that the thing you are measuring it with is *inside the skill you are
+      trying to measure*. Judging whether your SQL is any good requires knowing
+      what good SQL looks like, which is most of what you are trying to learn.
+
+
+      That circularity has a name and a well-known paper behind it: people who
+      perform worst at a task tend to overestimate their ability most, because
+      the competence needed to do the thing and the competence needed to
+      recognise it being done well are largely the same competence.[^kruger]
+      Worth knowing that the statistical interpretation of the effect is
+      genuinely contested — but the practical lesson survives the argument
+      intact, and the practical lesson is that your confidence is not evidence.
+
+
+      The second problem is smaller and more common. Rereading material makes it
+      feel familiar, and familiarity is nearly indistinguishable from competence
+      from the inside.[^dunlosky] Most people asking this question have mistaken
+      a feeling of fluency for a change in ability — which is also why the
+      methods that work best tend to feel worst while you use them.[^bjork]
+    links:
+      - to: /guides/why-do-i-forget-what-i-learn
+        type: related
+        anchor: what that feeling of fluency actually is
+      - to: /guides/why-am-i-stuck-in-tutorial-hell
+        type: related
+        anchor: the version of this that happens to programmers
+
+  - heading: Four checks that do not depend on how you feel
+    body: >-
+      Each of these replaces a judgement about yourself with an observation
+      about a piece of work. None of them needs a product, an account or a
+      subscription — you can run all four on paper this afternoon.
+    list:
+      - Could you have produced this a month ago? Keep the old version. It is
+        the only honest before-and-after you will get.
+      - Does it clear a standard written before you started? A checklist you
+        wrote afterwards will describe what you happened to do.
+      - Can you explain the decision, not just the result? "It works" and "it
+        works because the join is at the order grain" are different states.
+      - Did it come back cold? Something you can do only while the tutorial is
+        open is not yet something you can do.
+    links:
+      - to: /check/sql-data-analysis
+        type: check_for
+        anchor: the cold-retrieval version of that fourth check
+
+  - heading: Why a percentage is worse than nothing
+    body: >-
+      Almost every learning product answers this question with a completion bar,
+      and a completion bar answers a different question: how much of the
+      material you have been *past*. It rises when you watch, when you click,
+      and when you mark something as done, none of which are evidence about you.
+
+
+      There is no percentage anywhere in this product, deliberately. What it
+      keeps instead is a list of things you have demonstrably done, each with the
+      piece of work attached that proves it — so the answer to "am I improving"
+      is a list that got longer, and you can open any line on it and see the work
+      that put it there. A skill you have not touched in months quietly stops
+      counting, because a claim about what you can do today is a claim about
+      today.
+    links:
+      - to: /learn/sql-data-analysis
+        type: related
+        anchor: what the individual claims look like
+
+  - heading: The standard has to exist before the work does
+    body: >-
+      This is the part that makes the difference, and it is the part that is easy
+      to skip. A checklist written after you finish will quietly describe what
+      you did. A checklist written before is the only one that can tell you
+      something you did not already believe.
+
+
+      Every graded brief here publishes its rubric on the page — all four bands
+      for every criterion, in the language they will actually be applied in.
+      There are {{topic:sql-data-analysis.projects}} of them for SQL alone,
+      across {{topic:sql-data-analysis.skills}} skills, and you can read every
+      band without an account. The brief below takes about
+      {{project:sales-funnel-analysis.minutes}} minutes.
+    links:
+      - to: /projects/sales-funnel-analysis
+        type: project_for
+        anchor: a brief with its bands published
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: put the work on a schedule
+
+sources:
+  - id: kruger
+    url: https://www.apa.org/pubs/journals/releases/psp7761121.pdf
+    title: "Kruger & Dunning (1999), Unskilled and Unaware of It"
+    note: >-
+      The original paper, free from the APA. Read it rather than the internet's
+      version of it — the effect is smaller and more specific than the meme, and
+      its statistical interpretation is still argued about.
+  - id: dunlosky
+    url: https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html
+    title: "Dunlosky et al. (2013), Improving Students' Learning With Effective Learning Techniques"
+    note: >-
+      Ten study techniques ranked by evidence. Relevant here for what it says
+      about rereading, which is where the feeling of improvement usually comes
+      from.
+  - id: bjork
+    url: https://bjorklab.psych.ucla.edu/research/
+    title: "UCLA Bjork Learning and Forgetting Lab — desirable difficulties"
+    note: >-
+      The lab behind the phrase. Dense, and the one to read if you want the
+      mechanism rather than the advice: why the conditions that slow learning
+      down are often the ones that make it last.
+
+faqs:
+  - question: Is a streak a sign of progress?
+    answer: >-
+      It is a sign of showing up, which is necessary and is not the same thing.
+      A long streak of passive study produces a long streak and very little
+      else. Track what you produced, not how many days you opened something.
+  - question: How often should I check?
+    answer: >-
+      Monthly is about right for anything with judgement in it. Weekly is too
+      often to see movement and turns into anxiety; yearly is too late to change
+      what you are doing about it.
+  - question: What if I have nothing to compare against?
+    answer: >-
+      Start now — do one piece of real work today and keep it. In a month it
+      becomes the comparison you wish you had. The cost of starting is one
+      afternoon; the cost of not having it is another month of guessing.
+  - question: Can somebody else judge this for me?
+    answer: >-
+      Yes, and it is usually the fastest route, as long as they tell you the
+      standard first. Feedback against an unstated standard is an opinion; the
+      same feedback against a published checklist is something you can argue
+      with on specifics.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

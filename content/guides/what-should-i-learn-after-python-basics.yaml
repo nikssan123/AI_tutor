@@ -1,0 +1,168 @@
+slug: what-should-i-learn-after-python-basics
+title: What should I learn after Python basics?
+description: >-
+  The four things that separate someone who can write Python from someone you
+  would let near a real file, in the order the dependencies actually run.
+h1: What should I learn after Python basics?
+
+answer: >-
+  Not a framework. The four things that separate writing Python from being
+  trusted with it are reading a traceback, handling the specific failure you
+  expected, writing a test that fails first, and loading a real imperfect file
+  without lying about what you skipped. Roughly seven hours, and they unlock
+  everything else.
+
+tool:
+  path: /check/python-fundamentals
+  label: Find out which of these you have
+  pitch: >-
+    A ten-minute check across {{topic:python-fundamentals.skills}} Python skills
+    that reports per skill, so what comes out is a list of what to skip rather
+    than a score.
+
+sections:
+  - heading: The honest answer is not a framework
+    body: >-
+      Almost every version of this question gets answered with a name — Django,
+      pandas, FastAPI, "learn a framework". That answer is popular because it is
+      easy to give and it sounds like a plan, and it is usually wrong at this
+      point, because a framework does not fix any of the things that are
+      actually still missing.
+
+
+      What is missing after the basics is not more surface area. It is the
+      handful of skills that turn code that runs on your machine into code
+      somebody else can rely on — and those are the same four regardless of
+      whether you are heading for web, data or scripting.
+    links:
+      - to: /learn/python-fundamentals
+        type: related
+        anchor: the whole map, in dependency order
+
+  - heading: The four, in the order the graph puts them
+    body: >-
+      These are not arbitrary. Each one has the earlier ones as a hard
+      prerequisite in our own skill graph, which is why the order is not a
+      matter of preference — you cannot handle an exception well without first
+      being able to read the traceback that told you which one to handle.
+    list:
+      - Reading a traceback — one hour. Locate the cause of a failure and say
+        which line is at fault. It has no prerequisites at all and almost
+        nobody teaches it deliberately.
+      - Exceptions — two hours. Handle the specific failure you expected without
+        hiding the ones you did not. The gap between this and a bare `except` is
+        most of what "production code" means at this level.
+      - Writing tests — two and a half hours. Write a test that fails for the
+        right reason *before* the code is fixed. This is the one that changes
+        how you work rather than what you know, and one library covers
+        it.[^pytest]
+      - Structured data — two and a half hours. Load a real, imperfect file and
+        produce a summary that states what it skipped. Real files are broken;
+        the skill is being honest about it in the output.
+    links:
+      - to: /check/python-fundamentals/reading-a-traceback
+        type: check_for
+        anchor: check the first one cold
+      - to: /projects/expired-items-bug
+        type: project_for
+        anchor: a brief that exercises the first two
+
+  - heading: The one that is not on the list and should be
+    body: >-
+      Mutable default arguments. One hour, and it is the clearest example of the
+      kind of thing that separates the two groups: a function that quietly
+      shares one list between every call that omitted the argument. It is not
+      hard, it is not obscure, and it is invisible until it costs you an
+      afternoon.
+
+
+      Its prerequisites are defining functions and understanding names and
+      references — which is itself the skill most Python courses skip, because
+      it is about a model of what a name *is* rather than about syntax you can
+      demonstrate on a slide. Of
+      {{topic:python-fundamentals.skills}} skills in this course, that pair is
+      where the most confident-sounding beginners actually come apart.
+    links:
+      - to: /check/python-fundamentals/mutable-default-arguments
+        type: check_for
+        anchor: see whether you would spot it
+
+  - heading: Then pick a direction, and only then
+    body: >-
+      Once those five hold, the framework question becomes answerable, because
+      it stops being "what should I learn" and becomes "what am I trying to
+      build". Data work goes towards pandas and SQL; web work towards a
+      framework and HTTP; automation towards files, paths and scheduling. Let a
+      formatter handle style rather than arguing about it.[^pep8]
+
+
+      If the answer is data, the ordering is worth knowing: SQL is
+      {{topic:sql-data-analysis.hours}} hours against Python's
+      {{topic:python-fundamentals.hours}}, it is the thing most analysis jobs
+      actually ask for, and it is genuinely independent — you can do it in
+      parallel rather than after. The official tutorial and the standard library
+      index remain the two best free references for everything else.[^tutorial][^stdlib]
+    links:
+      - to: /learn/sql-data-analysis
+        type: next_step
+        anchor: the SQL course, if data is the direction
+      - to: /guides/how-long-does-it-take-to-learn-sql
+        type: related
+        anchor: what that costs in weeks
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: lay it out against your own hours
+
+sources:
+  - id: tutorial
+    url: https://docs.python.org/3/tutorial/
+    title: "The Python Tutorial (official)"
+    note: >-
+      Still the best free first pass, and free of the padding most video courses
+      have. Weakest exactly where this page is strongest — it does not tell you
+      what matters most next.
+  - id: stdlib
+    url: https://docs.python.org/3/library/index.html
+    title: "The Python Standard Library reference"
+    note: >-
+      Worth browsing rather than searching, once. Most "which library should I
+      use" questions after the basics are answered by something already
+      installed.
+  - id: pytest
+    url: https://docs.pytest.org/en/stable/
+    title: "pytest documentation"
+    note: >-
+      The library almost everyone uses, and the docs are readable. Start at the
+      "get started" page and ignore the fixtures chapter until you need it.
+  - id: pep8
+    url: https://peps.python.org/pep-0008/
+    title: "PEP 8 — Style Guide for Python Code"
+    note: >-
+      Short, and read once it settles arguments rather than starting them. Let a
+      formatter apply it; read it so you know what the formatter is doing.
+
+faqs:
+  - question: Should I learn pandas or SQL first?
+    answer: >-
+      SQL, if you have to choose. It is asked for more often, it is
+      {{topic:sql-data-analysis.hours}} hours end to end, and the ideas transfer
+      into pandas afterwards more cleanly than they transfer the other way.
+  - question: Do I need to learn object-oriented programming next?
+    answer: >-
+      Not next. Classes make sense once you have written enough functions to
+      feel the thing they solve. Learned before that, they become a shape you
+      apply to everything rather than a tool you reach for.
+  - question: How do I know I have actually finished the basics?
+    answer: >-
+      When you can write a function with a clear signature that returns rather
+      than prints, predict what a condition does when the value is zero or
+      empty, and read a traceback without guessing. Those three are the line.
+  - question: Is it worth learning a framework to get a job?
+    answer: >-
+      Eventually, and not instead of the four above. A framework you can use but
+      cannot debug is the state that interviews are unusually good at finding.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null
