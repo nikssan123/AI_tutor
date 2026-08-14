@@ -20,6 +20,8 @@
     "lint": "eslint .",
     "packs:seed": "tsx scripts/packs-seed.ts",
     "packs:validate": "tsx scripts/packs-validate.ts",
+    "calibrate": "tsx scripts/calibration.ts",
+    "review:sheet": "tsx scripts/pack-review-sheet.ts",
     "actions:audit": "tsx scripts/server-actions-audit.ts",
     "start": "next start",
     "test": "vitest run",

@@ -36,6 +36,21 @@ minimum · the production-to-MCQ ratio ≥ the §16.4 floor · rubric criterion 
 are unique · **rubric weights sum to exactly 1** · every project resolves to a
 real rubric · every project targets real skills · a tier-1 pack ships projects.
 
+## The sheet
+
+```sh
+pnpm review:sheet                    # all three, into review/
+pnpm review:sheet sql-data-analysis  # just the beachhead
+```
+
+One document per pack, collating only what a human has to judge, in the order
+below. `review/` is gitignored — these are working documents you tick through,
+and the generator refuses to overwrite one unless you pass `--force`.
+
+Reading a pack *as* four YAML files means jumping between an item, the skill it
+assesses, and the rubric that grades the project targeting it. That is how a
+review turns into a skim.
+
 ## What only you can check
 
 Read in this order — it goes cheapest-to-most-expensive, and a failure early
@@ -177,12 +192,31 @@ so a disagreement is a genuine difference of judgement rather than a
 hallucination — and it is usually the rubric being ambiguous rather than either
 of you being wrong.
 
-## What I can build for this
+## Running it
 
-Say the word and I will write `scripts/calibration.ts`: reads a corpus of
-submissions plus your hand-grades from a YAML file, runs the evaluator twice per
-submission, and prints κ and the stability figure. That turns the 20 judgements
-into a repeatable check you can put in CI — which is what §27 D21–25 asked for
-("run the Phase-0 calibration set as an automated eval in CI").
+```sh
+cp calibration/query-rescue.example.yaml calibration/query-rescue.yaml
+# write the five submissions and your twenty grades, then:
+DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/query-rescue.yaml
+```
 
-Your part stays the same either way: **5 submissions and 20 hand-grades.**
+The template carries the four criteria with all sixteen band descriptions inline,
+so you grade without switching files, and a suggested spread for the five
+submissions.
+
+The runner checks the corpus before spending anything — an unknown or missing
+criterion id stops it, because a corpus that quietly measures 12 pairs instead of
+20 is worse than one that refuses to run. Then it grades each submission twice
+and prints:
+
+- **κ** against your grades, with the observed and by-chance agreement it came from
+- **the stability figure**, run 1 against run 2
+- **every disagreement, worst first** — the list actually worth reading
+- a verdict, and a non-zero exit code on failure so it can sit in CI as §27
+  D21–25 asks
+
+The arithmetic is in `src/lib/evaluation/agreement.ts` and unit-tested, including
+the two ways this measurement misleads: a corpus with no spread (κ undefined, not
+zero) and a mispaired corpus (a smaller honest `n`, never a silent mismatch).
+
+Your part is unchanged by any of it: **5 submissions and 20 hand-grades.**

@@ -21,3 +21,9 @@ coverage/
 
 # Inngest dev server state
 .inngest/
+
+# Pack review sheets are generated working documents — you tick through them.
+# `pnpm review:sheet` regenerates; committing them would mean merge conflicts
+# over checkboxes. The calibration corpus is NOT ignored: it is Phase-0 data
+# and §27 asks for it to run in CI.
+review/

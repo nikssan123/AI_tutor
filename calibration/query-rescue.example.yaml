@@ -1,0 +1,113 @@
+# The Phase-0 hand-graded set (§23), for `slow-query-rescue`.
+#
+#   cp calibration/query-rescue.example.yaml calibration/query-rescue.yaml
+#   # write five submissions, grade them, then:
+#   DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/query-rescue.yaml
+#
+# Two passes over five submissions is ten deep-tier calls: roughly $1 and eight
+# minutes.
+#
+# ── The one thing that ruins this ───────────────────────────────────────────
+#
+# Grade every submission BEFORE you run the script. Cohen's κ measures agreement
+# above chance, and if you grade after reading the model's output you will anchor
+# to it — the number comes out flattering and means nothing.
+#
+# The second thing that ruins it is a corpus with no spread. Five competent
+# submissions produce perfect observed agreement, expected agreement of 1, and no
+# information at all; the script will tell you κ is undefined rather than print a
+# number, but you will have spent the day. Aim for the shape below: one plainly
+# bad, one half-right, two realistic-middle, one genuinely good.
+#
+# ── The rubric you are grading against ──────────────────────────────────────
+#
+# Four criteria. Every submission needs all four graded, or the script refuses to
+# run rather than quietly measuring 12 pairs instead of 20.
+#
+#   diagnosis              (0.30)  The cause is correctly identified
+#     absent       Guesses at a cause with no evidence.
+#     developing   Names a plausible cause but does not support it from the plan.
+#     competent    Names the real cause and cites the plan.
+#     strong       Names the cause, cites the plan, and rules out a competing explanation.
+#
+#   improvement            (0.30)  The query is measurably faster
+#     absent       No measurement, or no improvement.
+#     developing   Improved, but measured only once or on unrepresentative data.
+#     competent    Clear improvement, measured on representative data.
+#     strong       Clear improvement with the measurement method described well enough to repeat.
+#
+#   correctness-preserved  (0.30)  The result is unchanged
+#     absent       The result changed and this was not noticed.
+#     developing   Result is the same on a spot check only.
+#     competent    Equivalence demonstrated on the full result set.
+#     strong       Equivalence demonstrated, including for NULL and edge-case rows.
+#
+#   proportionality        (0.10)  The fix is proportionate
+#     absent       Adds indexes or tables with no justification.
+#     developing   The fix works but does more than needed.
+#     competent    A minimal, targeted change.
+#     strong       Minimal, with the rejected heavier alternatives named and dismissed.
+
+pack: sql-data-analysis
+project: slow-query-rescue
+
+submissions:
+  # ── 1. Plainly bad ────────────────────────────────────────────────────────
+  # Confident, unsupported, no measurement. Not a strawman — write it the way a
+  # learner who has not done the work actually writes.
+  - id: s1-no-evidence
+    grades:
+      diagnosis: absent
+      improvement: absent
+      correctness-preserved: absent
+      proportionality: absent
+    artefact: |
+      REPLACE THIS. A submission that asserts a cause with no plan, changes the
+      query, and claims it is faster without timing anything.
+
+  # ── 2. Half-right ─────────────────────────────────────────────────────────
+  # The right instinct, incompletely executed. This is the band that separates a
+  # useful grader from a lenient one.
+  - id: s2-right-instinct
+    grades:
+      diagnosis: developing
+      improvement: developing
+      correctness-preserved: developing
+      proportionality: competent
+    artefact: |
+      REPLACE THIS.
+
+  # ── 3 and 4. The realistic middle ─────────────────────────────────────────
+  # Most real submissions land here, so two of the five do. Make them differ
+  # from each other — one strong on diagnosis and weak on proof, one the
+  # reverse — or the pair teaches you nothing the single one didn't.
+  - id: s3-solid
+    grades:
+      diagnosis: competent
+      improvement: competent
+      correctness-preserved: competent
+      proportionality: competent
+    artefact: |
+      REPLACE THIS.
+
+  - id: s4-solid-but-unproven
+    grades:
+      diagnosis: competent
+      improvement: developing
+      correctness-preserved: competent
+      proportionality: developing
+    artefact: |
+      REPLACE THIS.
+
+  # ── 5. Genuinely good ─────────────────────────────────────────────────────
+  # Measured, verified, proportionate, competing explanation ruled out. If the
+  # grader cannot tell this from s3, the rubric's top two bands are not
+  # separable and that is a part-A problem, not a prompt problem.
+  - id: s5-verified
+    grades:
+      diagnosis: strong
+      improvement: strong
+      correctness-preserved: strong
+      proportionality: strong
+    artefact: |
+      REPLACE THIS.
