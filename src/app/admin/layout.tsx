@@ -24,6 +24,9 @@ export const dynamic = "force-dynamic";
 const NAV = [
   { href: "/admin", label: "Console" },
   { href: "/admin/packs", label: "Packs" },
+  { href: "/admin/data", label: "Data" },
+  { href: "/admin/sql", label: "SQL" },
+  { href: "/admin/audit", label: "Audit" },
 ];
 
 export default function AdminLayout({

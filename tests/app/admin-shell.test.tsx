@@ -54,8 +54,10 @@ describe("the admin layout", () => {
   it("renders its children and the section nav", () => {
     render(AdminLayout({ children: <p>child</p> }));
     expect(screen.getByText("child")).toBeDefined();
-    expect(screen.getByText("Console")).toBeDefined();
-    expect(screen.getByText("Packs")).toBeDefined();
+
+    for (const label of ["Console", "Packs", "Data", "SQL", "Audit"]) {
+      expect(screen.getByText(label), label).toBeDefined();
+    }
   });
 });
 

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "admin:grant": "tsx scripts/admin-grant.ts",
+    "console:role": "tsx scripts/console-role.ts",
     "brand:build": "tsx scripts/build-brand.ts",
     "build": "next build",
     "coverage": "vitest run --coverage",

@@ -164,6 +164,50 @@ export const spendLedger = pgTable(
 );
 
 /**
+ * Every privileged act performed through `/admin`, kept forever.
+ *
+ * `src/lib/admin/console.ts` says a read-only console "needs no audit log to be
+ * trustworthy — the day it grows a button, all three of those become required
+ * at once". This is that day, and this is that log.
+ *
+ * Two shapes of row land here: SQL the operator typed, and the typed quick
+ * actions on a table row. Both record what was attempted, not merely what
+ * succeeded, because a denied `DELETE` and a rejected query are exactly the
+ * events an investigation is looking for.
+ *
+ * There is deliberately **no foreign key** on `actorId`. A log constrained by
+ * the table it observes is a log that its own subject can block: writing the
+ * row that says "this account was deleted" would fail the moment the account no
+ * longer existed, and a `set null` would quietly erase who acted the moment
+ * they left. Both columns are therefore plain strings, kept forever. An audit
+ * trail that can be argued out of existence by the data it audits is not one.
+ */
+export const adminAudit = pgTable(
+  "admin_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The actor's id at the time. Not a reference — see above. */
+    actorId: text("actor_id"),
+    actorEmail: text("actor_email").notNull(),
+    /** `sql.read` | `sql.write` | `user.plan` | `user.sessions` | `user.delete` */
+    action: text("action").notNull(),
+    /** What it was aimed at: a table name, a row id, an email. */
+    target: text("target"),
+    /** The query text, the old and new values — whatever makes the row legible later. */
+    detail: jsonb("detail"),
+    /** ok | error | denied */
+    outcome: text("outcome").notNull(),
+    error: text("error"),
+    durationMs: integer("duration_ms"),
+    rowCount: integer("row_count"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("admin_audit_created_idx").on(t.createdAt)],
+);
+
+/**
  * §7.1's Generated tier, in progress.
  *
  * A pack takes around three minutes and several model calls to author, so it
