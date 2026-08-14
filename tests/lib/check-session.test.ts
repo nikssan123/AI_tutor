@@ -244,3 +244,32 @@ describe("readableAnswerKey", () => {
     expect(readableAnswerKey({ ...items[0]!, answerKey })).toEqual([]);
   });
 });
+
+describe("every shipped pack, against the screen that reads it", () => {
+  /**
+   * The self-mark screen prints "A good answer covers" and then a list. When
+   * `readableAnswerKey` comes back empty it prints the heading and an empty
+   * list, and asks the learner "I had that / I did not" against nothing.
+   *
+   * 13 of the SQL pack's 36 self-marked items did exactly this. They were not
+   * missing an answer key — they carried `mustContain` and `resultShape`, which
+   * read like keys, validate fine, and are **read by no code anywhere**. Only
+   * `concepts` and `correct` reach a learner. The other two packs had used
+   * `concepts` throughout and were unaffected, which is why nothing looked
+   * wrong in aggregate.
+   */
+  it("shows a self-marking learner something to mark against", async () => {
+    const { allPacks } = await import("@/lib/content");
+    const { toDiagnostic } = await import("@/lib/check/session");
+
+    for (const pack of allPacks()) {
+      for (const item of toDiagnostic(pack).items) {
+        if (!needsSelfMark(item)) continue;
+        expect(
+          readableAnswerKey(item).length,
+          `${pack.slug}/${item.slug} has nothing under "A good answer covers"`,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+});

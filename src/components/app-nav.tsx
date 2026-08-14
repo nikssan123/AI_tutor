@@ -65,7 +65,7 @@ function Brand() {
       href="/today"
       className="text-[length:var(--text-label-size)] font-[650] tracking-[-0.02em] text-ink"
     >
-      online_uni
+      MeritKeep
     </Link>
   );
 }

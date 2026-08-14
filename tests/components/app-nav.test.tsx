@@ -80,7 +80,7 @@ describe("AppNav", () => {
   it("keeps the brand pointing home", () => {
     pathname.mockReturnValue("/today");
     render(<AppNav />);
-    for (const link of screen.getAllByRole("link", { name: "online_uni" })) {
+    for (const link of screen.getAllByRole("link", { name: "MeritKeep" })) {
       expect(link.getAttribute("href")).toBe("/today");
     }
   });

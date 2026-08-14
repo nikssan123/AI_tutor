@@ -114,7 +114,7 @@ describe("SiteHeader", () => {
   it("links the wordmark home", async () => {
     currentUserMock.mockResolvedValue(null);
     render(await SiteHeader());
-    expect(screen.getByText("online_uni").getAttribute("href")).toBe("/");
+    expect(screen.getByText("MeritKeep").getAttribute("href")).toBe("/");
   });
 });
 

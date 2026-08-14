@@ -160,6 +160,9 @@ const WRITTEN = [
 export default function HomePage() {
   const topics = allTopics();
   const featured = featuredProject();
+  // §7.1 — only a Curated pack was written and checked by a person. Band 04
+  // makes exactly that claim, so it may only show these.
+  const handWritten = topics.filter((t) => t.maturity === "curated");
 
   // Suggestions come from real pack content, so the autocomplete can never
   // promise a subject the product does not actually teach. Picking one goes
@@ -430,7 +433,7 @@ export default function HomePage() {
           <SectionHead
             step="04"
             label="Written by hand"
-            title="Three we wrote and checked ourselves"
+            title="The ones we wrote and checked ourselves"
             icon={<GridIcon />}
           />
 
@@ -439,8 +442,18 @@ export default function HomePage() {
             is why they go deeper than three minutes of writing can.
           </Lead>
 
+          {/*
+           * Curated only, and the count is no longer in the heading.
+           *
+           * This band iterated every topic under the title "Three we wrote and
+           * checked ourselves" and a lead claiming a person wrote all of them.
+           * That held while every pack on disk was Curated and stopped holding
+           * the moment one was not — the first Standard pack would have been
+           * listed here as hand-written, on a page whose entire argument is
+           * that the difference is declared rather than hidden (§7.1).
+           */}
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
-            {topics.map((topic, i) => (
+            {handWritten.map((topic, i) => (
               <li key={topic.slug} className="rise" style={stagger(i)}>
                 <LinkCard href={`/learn/${topic.slug}`} className="gap-4 p-6">
                   <span className="flex size-10 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">

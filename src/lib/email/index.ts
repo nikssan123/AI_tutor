@@ -116,7 +116,7 @@ export function resolveTransport(
     // here would turn a missing variable into a silent failure to deliver
     // exactly the mail people need — password resets.
     throw new Error(
-      "RESEND_API_KEY is set but EMAIL_FROM is not. Set EMAIL_FROM to an address on a domain verified with Resend, e.g. \"online_uni <hello@yourdomain.com>\".",
+      "RESEND_API_KEY is set but EMAIL_FROM is not. Set EMAIL_FROM to an address on a domain verified with Resend, e.g. \"MeritKeep <hello@yourdomain.com>\".",
     );
   }
 

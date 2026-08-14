@@ -53,16 +53,21 @@ describe("matchSubject", () => {
 
   it("refuses a slug that does not exist, however confident the model was", async () => {
     /*
-     * A model naming `python-fundamentals` does not make that pack exist, and a
-     * goal pointing at a missing pack fails much later — on /today, looking
-     * like a bug in the planner rather than a lie at intake.
+     * A model naming a pack does not make that pack exist, and a goal pointing
+     * at a missing pack fails much later — on /today, looking like a bug in the
+     * planner rather than a lie at intake.
+     *
+     * The slug here has to be one the catalogue will never contain. This test
+     * used `python-fundamentals`, which was safely fictional right up until
+     * someone added that pack, at which point it asserted the opposite of what
+     * it says.
      */
     const match = await matchSubject(
       db,
-      captured({ matchedPack: "python-fundamentals", subject: "Python" }),
+      captured({ matchedPack: "no-such-pack-exists", subject: "Kitesurfing" }),
     );
     expect(match.kind).toBe("gap");
-    expect(match.kind === "gap" && match.slug).toBe("python");
+    expect(match.kind === "gap" && match.slug).toBe("kitesurfing");
   });
 
   it("matches on the subject when the claimed slug is wrong but the subject is ours", async () => {

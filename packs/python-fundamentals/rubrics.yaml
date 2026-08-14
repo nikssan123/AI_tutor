@@ -1,0 +1,146 @@
+# Rubrics.
+#
+# §4.2 law 2: every rubric is public *before* the work is done.
+#
+# Every criterion here is markable by **reading** the submission, because this
+# pack is tier 2 and nothing executes a learner's code. A criterion like "the
+# tests pass" would be tier 1's to make, and writing one here would be a
+# checklist item the evaluator cannot honour — §4.2 law 3. What it can check is
+# that a test exists, that it targets the reported failure, and that the author
+# says what they saw. That is a weaker claim, and it is the true one.
+
+rubrics:
+  - slug: bug-fix-with-test
+    version: 1
+    isPublic: true
+    criteria:
+      - id: cause-identified
+        name: The cause is named, not just the symptom
+        description: >-
+          The submission says what was actually wrong, at the level of the line
+          and the language rule involved — not merely what the user saw.
+        weight: 0.3
+        bands:
+          absent: Restates the symptom, or describes the change without saying why it was needed.
+          developing: Names the region of the problem but not the rule that made it fail.
+          competent: Names the line and the behaviour that caused it.
+          strong: Names the cause and rules out a plausible competing explanation.
+      - id: test-fails-first
+        name: A test that would have caught it
+        description: >-
+          There is a test targeting the reported failure, and the write-up
+          states what it did before the fix.
+        weight: 0.3
+        bands:
+          absent: No test, or a test that cannot fail regardless of the fix.
+          developing: A test exists but exercises a different case than the one reported.
+          competent: A test covers the reported case, and the author says it failed before the fix.
+          strong: Covers the reported case and a neighbouring edge case, with the failure output quoted.
+      - id: fix-is-minimal
+        name: The fix is the smallest one that works
+        description: >-
+          The change addresses the cause and does not rewrite surrounding code
+          that was not implicated.
+        weight: 0.25
+        bands:
+          absent: Rewrites unrelated code, or changes behaviour the brief did not ask about.
+          developing: Fixes it, but carries incidental refactoring along with it.
+          competent: A targeted change confined to the cause.
+          strong: Targeted, with the larger rewrite explicitly considered and declined.
+      - id: readable
+        name: A colleague could follow it
+        description: Names say what things are; the diff can be read without the author present.
+        weight: 0.15
+        bands:
+          absent: Single-letter names, or a change that cannot be understood without asking.
+          developing: Understandable after a second read.
+          competent: Clear names and an obvious shape.
+          strong: Reads as an explanation of the bug as well as a fix for it.
+
+  - slug: data-summary
+    version: 1
+    isPublic: true
+    criteria:
+      - id: correct-aggregation
+        name: The numbers are the numbers asked for
+        description: The summary aggregates the right field over the right grouping.
+        weight: 0.3
+        bands:
+          absent: Aggregates the wrong field, or groups by the wrong key.
+          developing: Right idea, but the grouping or the total is off for some inputs.
+          competent: Correct field, correct grouping, correct totals.
+          strong: Correct, and the author states the grain of the output in one line.
+      - id: handles-bad-rows
+        name: Imperfect rows are handled on purpose
+        description: >-
+          Rows that cannot be parsed are dealt with by a stated decision rather
+          than by a crash or a silent skip.
+        weight: 0.3
+        bands:
+          absent: Crashes on a malformed row, or drops it with no trace.
+          developing: Survives bad rows, but the handling is implicit and unreported.
+          competent: Bad rows are skipped or defaulted by an explicit, stated rule.
+          strong: The rule is stated, the count is reported, and the choice is justified against the alternatives.
+      - id: reports-what-it-excluded
+        name: The output says what it left out
+        description: >-
+          A total that silently excludes rows is a wrong total. The output makes
+          the exclusion visible.
+        weight: 0.25
+        bands:
+          absent: The total stands alone with no indication anything was dropped.
+          developing: Mentions exclusions in prose but not in the output.
+          competent: The output carries the count of skipped rows alongside the figures.
+          strong: Carries the count and enough detail to find the offending rows again.
+      - id: readable
+        name: A colleague could maintain it
+        description: The script is decomposed into named steps that map onto the task.
+        weight: 0.15
+        bands:
+          absent: One long block with no structure.
+          developing: Some structure, but the reader must hold too much at once.
+          competent: Named functions matching the steps of the task.
+          strong: Structure makes the method obvious without the write-up.
+
+  - slug: small-tool
+    version: 1
+    isPublic: true
+    criteria:
+      - id: does-what-was-asked
+        name: It does what the brief asked
+        description: Every behaviour named in the brief is present and works as described.
+        weight: 0.35
+        bands:
+          absent: Core behaviour is missing or does something else.
+          developing: Main path works; a stated requirement is unmet.
+          competent: Every stated requirement is met.
+          strong: Every requirement met, and the boundaries of each are stated.
+      - id: functions-return-values
+        name: The pieces are testable
+        description: >-
+          Logic lives in functions that return values, rather than in a script
+          body that prints as it goes.
+        weight: 0.25
+        bands:
+          absent: One top-level script; nothing can be called in isolation.
+          developing: Some functions, but the important logic still prints rather than returns.
+          competent: Logic in functions that return their results.
+          strong: Functions with clear signatures, and the I/O confined to one place.
+      - id: failure-behaviour
+        name: It behaves sensibly on bad input
+        description: The tool's response to input it cannot handle is a decision, not an accident.
+        weight: 0.25
+        bands:
+          absent: Crashes with an unhandled traceback on ordinary bad input.
+          developing: Catches failures broadly, hiding what went wrong.
+          competent: Handles the specific anticipated failures and lets the rest surface.
+          strong: Handles them, and the message tells the user what to do next.
+      - id: readable
+        name: A colleague could extend it
+        description: Names and structure make the next change obvious.
+        weight: 0.15
+        bands:
+          absent: Opaque names, no structure.
+          developing: Readable in places.
+          competent: Clear throughout.
+          strong: The shape of the code suggests where a new feature would go.

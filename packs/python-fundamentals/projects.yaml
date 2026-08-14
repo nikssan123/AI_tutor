@@ -1,0 +1,83 @@
+# Graded project briefs.
+#
+# Each one ends in something a person hands in and we mark against the published
+# rubric. §4.2 law 2 — the learner reads the checklist before starting.
+#
+# The acceptance criteria are deliberately checkable by reading the submission,
+# because this pack is tier 2. "The test passes" is not among them anywhere;
+# nothing here runs the code, and a criterion the evaluator cannot honour is the
+# overclaim §4.2 law 3 rules out.
+
+projects:
+  - slug: expired-items-bug
+    title: Fix a bug, and prove it stays fixed
+    rubric: bug-fix-with-test
+    evidenceType: code
+    difficulty: 0.5
+    estimatedMinutes: 75
+    isPublic: true
+    targetSkills: [loops-and-iteration, reading-a-traceback, writing-tests, lists-and-tuples]
+    brief: >-
+      A cleanup routine is supposed to remove every expired item from a list,
+      and users report that some expired items survive. The code removes items
+      from the list while iterating over it.
+
+      Find the cause, write a test that fails because of it, then fix it. Hand
+      in the test, the fix, and a short note.
+
+      The note matters as much as the code: say what the failure was in terms of
+      what Python actually does, not in terms of what the user saw.
+    acceptanceCriteria:
+      - A test that targets the reported failure, with a name that says what it covers.
+      - A statement of what the test did before the fix, quoting the output.
+      - The fix, confined to the cause.
+      - Two or three sentences naming why the original loop skipped items.
+
+  - slug: orders-summary-script
+    title: Summarise a file that is not clean
+    rubric: data-summary
+    evidenceType: code
+    difficulty: 0.65
+    estimatedMinutes: 120
+    isPublic: true
+    targetSkills: [structured-data, dicts-and-sets, files-and-paths, exceptions]
+    brief: >-
+      You are given a CSV of orders with columns `id`, `customer`, `amount`.
+      About one row in fifty is unusable — a missing amount, a stray header
+      repeated mid-file, an amount with a currency symbol in it.
+
+      Produce total revenue per customer. The interesting part is not the sum;
+      it is what you do about the rows you cannot use, and whether someone
+      reading your output would know they existed.
+
+      Pick one rule for bad rows, apply it consistently, and make the count
+      visible in the output.
+    acceptanceCriteria:
+      - Revenue per customer, one row per customer.
+      - A stated rule for unusable rows, applied consistently.
+      - The count of skipped rows in the output itself, not only in the write-up.
+      - A line saying which of skip, zero, or fail you chose and why.
+
+  - slug: report-formatter
+    title: A small tool someone else could extend
+    rubric: small-tool
+    evidenceType: code
+    difficulty: 0.55
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [defining-functions, strings-and-formatting, exceptions, comprehensions]
+    brief: >-
+      Write a small tool that turns a list of records into a fixed-width text
+      report: a header, one line per record, and a totals line at the bottom.
+      Amounts align on the decimal point; names longer than the column are
+      truncated with an ellipsis.
+
+      The brief is deliberately mundane. What is being marked is whether the
+      logic is in functions that return strings — which is what makes it
+      testable — rather than in a script that prints as it goes.
+    acceptanceCriteria:
+      - A header, aligned record lines, and a totals line.
+      - Amounts aligned on the decimal point to two places.
+      - Over-long names truncated rather than breaking the alignment.
+      - The formatting logic returns strings; printing happens in one place.
+      - Sensible behaviour on an empty list of records, stated rather than accidental.

@@ -144,7 +144,7 @@ describe("landing page (§8 screen 1)", () => {
     // three-subject site to anyone who stops scrolling.
     expect(
       heads.indexOf("If nobody has written yours, we write it"),
-    ).toBeLessThan(heads.indexOf("Three we wrote and checked ourselves"));
+    ).toBeLessThan(heads.indexOf("The ones we wrote and checked ourselves"));
   });
 
   /**
@@ -202,9 +202,35 @@ describe("landing page (§8 screen 1)", () => {
    */
   it("badges the hand-written subjects as hand-written", () => {
     render(<HomePage />);
+    const curated = allTopics().filter((t) => t.maturity === "curated");
     expect(
       screen.getAllByText("Written and checked by hand").length,
-    ).toBe(allTopics().length);
+    ).toBe(curated.length);
+  });
+
+  it("links only hand-written subjects from the band that claims they are", () => {
+    // The band iterated `allTopics()` while every pack on disk happened to be
+    // Curated, so it would have passed a Standard pack off as hand-written the
+    // moment one existed — on the page whose whole argument is that the
+    // difference is declared rather than hidden.
+    //
+    // Scoped to the band's own links, not the whole page: the autocomplete
+    // above offers every subject we teach, which is correct and is a different
+    // claim entirely.
+    const { container } = render(<HomePage />);
+    const band = [...container.querySelectorAll("section")].find((s) =>
+      s.querySelector("h2")?.textContent?.includes("wrote and checked ourselves"),
+    );
+
+    const linked = [...band!.querySelectorAll("a[href^='/learn/']")].map((a) =>
+      a.getAttribute("href")!.replace("/learn/", ""),
+    );
+    expect(linked.sort()).toEqual(
+      allTopics()
+        .filter((t) => t.maturity === "curated")
+        .map((t) => t.slug)
+        .sort(),
+    );
   });
 
   /**

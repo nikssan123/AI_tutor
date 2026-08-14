@@ -1,0 +1,501 @@
+# Diagnostic and retrieval item bank.
+#
+# §16.4 — production items must outnumber multiple-choice by at least 2:1, and
+# the validator enforces it. Recognition is easy to author and easy to game.
+#
+# **Only `correct` and `concepts` are read by anything.** `correct` picks the
+# right option for an MCQ; `concepts` is the list a learner self-marks against
+# on the check's "A good answer covers" screen. Every free-text item below
+# carries `concepts`, because without it that screen shows a heading and an
+# empty list and asks the learner to mark themselves against nothing.
+
+items:
+  # --- values-and-types ------------------------------------------------------
+  - slug: types-mixed-arithmetic
+    skill: values-and-types
+    type: code_read
+    difficulty: 0.2
+    prompt: |-
+      What does each line produce?
+
+        7 / 2
+        7 // 2
+        "7" * 2
+        7 + "2"
+
+      For any that fail, say what the error tells you.
+    answerKey:
+      concepts: [true-division-gives-float, floor-division-truncates, str-times-int-repeats, no-implicit-str-to-int-coercion]
+
+  - slug: types-convert-input
+    skill: values-and-types
+    type: short_text
+    difficulty: 0.25
+    prompt: >-
+      A function receives `age` as a string from a web form. Return it as an
+      integer, and say what you want to happen when the string is "abc".
+    answerKey:
+      concepts: [int-conversion, valueerror-on-bad-input, decide-raise-or-default-explicitly]
+
+  - slug: types-float-equality
+    skill: values-and-types
+    type: mcq
+    difficulty: 0.4
+    prompt: "What does `0.1 + 0.2 == 0.3` evaluate to in Python?"
+    options:
+      - "True"
+      - "False"
+      - It raises a TypeError
+      - It depends on the platform
+    answerKey: { correct: 1 }
+
+  # --- names-and-references --------------------------------------------------
+  - slug: names-aliasing
+    skill: names-and-references
+    type: code_read
+    difficulty: 0.4
+    prompt: |-
+      a = [1, 2, 3]
+      b = a
+      b.append(4)
+      print(a)
+
+      What prints, and why? What one-character change to line 2 would make it
+      print [1, 2, 3]?
+    answerKey:
+      concepts: [both-names-point-at-one-list, append-mutates-in-place, copy-with-a-slice-or-list]
+
+  - slug: names-rebind-vs-mutate
+    skill: names-and-references
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A function takes a list, and you want the caller to see the change. One
+      colleague writes `items.append(x)` and another writes `items = items + [x]`.
+      Only one works. Explain which, and why.
+    answerKey:
+      concepts: [append-mutates-the-callers-object, plus-rebinds-a-local-name, caller-never-sees-a-rebind]
+
+  # --- strings-and-formatting ------------------------------------------------
+  - slug: strings-fstring-write
+    skill: strings-and-formatting
+    type: short_text
+    difficulty: 0.15
+    prompt: >-
+      Given `name` and `total` (a float), produce the line
+      `Alice owes £12.50` with the amount always to two decimal places.
+    answerKey:
+      concepts: [f-string, format-spec-.2f, no-manual-rounding-needed]
+
+  - slug: strings-build-in-loop
+    skill: strings-and-formatting
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      Someone builds a 50,000-line report with `text = text + line` inside a
+      loop and it is slow. Explain why, and what to do instead.
+    answerKey:
+      concepts: [strings-are-immutable, each-concat-copies-the-whole-string, collect-in-a-list-then-join]
+
+  - slug: strings-slice-write
+    skill: strings-and-formatting
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      From a filename like `report-2026-08.csv`, return just `2026-08` without
+      hardcoding character positions.
+    answerKey:
+      concepts: [split-on-a-separator, or-removeprefix-removesuffix, avoid-magic-indices]
+
+  # --- conditionals-and-truthiness -------------------------------------------
+  - slug: truthiness-zero-trap
+    skill: conditionals-and-truthiness
+    type: mcq
+    difficulty: 0.35
+    prompt: "`count` may be 0, or may be None. Which test distinguishes 'not supplied' from 'supplied as zero'?"
+    options:
+      - "if count:"
+      - "if count is not None:"
+      - "if not count:"
+      - "if count != False:"
+    answerKey: { correct: 1 }
+
+  - slug: truthiness-empty-list
+    skill: conditionals-and-truthiness
+    type: code_read
+    difficulty: 0.3
+    prompt: |-
+      def greet(names):
+          if not names:
+              return "nobody to greet"
+          return ", ".join(names)
+
+      Which inputs return "nobody to greet"? Is that what the author meant?
+    answerKey:
+      concepts: [empty-list-is-falsy, none-is-falsy, empty-string-is-falsy, decide-whether-none-and-empty-should-differ]
+
+  - slug: truthiness-chained-write
+    skill: conditionals-and-truthiness
+    type: short_text
+    difficulty: 0.25
+    prompt: >-
+      Write a condition that is true when `score` is between 0 and 100
+      inclusive, in the way Python lets you write it.
+    answerKey:
+      concepts: [chained-comparison-0-le-score-le-100, inclusive-bounds, no-and-needed]
+
+  # --- loops-and-iteration ---------------------------------------------------
+  - slug: loops-index-antipattern
+    skill: loops-and-iteration
+    type: explain
+    difficulty: 0.3
+    prompt: >-
+      `for i in range(len(items)):` followed by `items[i]`. When is this the
+      right thing to write, and what should replace it the rest of the time?
+    answerKey:
+      concepts: [iterate-the-collection-directly, enumerate-when-you-need-the-index, range-len-is-rarely-right]
+
+  - slug: loops-parallel-write
+    skill: loops-and-iteration
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Given two equal-length lists `names` and `scores`, print one line per
+      person in the form `Alice: 91`.
+    answerKey:
+      concepts: [zip-the-two-lists, unpack-in-the-for-target, no-index-arithmetic]
+
+  - slug: loops-mutate-while-iterating
+    skill: loops-and-iteration
+    type: code_read
+    difficulty: 0.55
+    prompt: |-
+      for item in items:
+          if item.expired:
+              items.remove(item)
+
+      This leaves some expired items behind. Explain why, and give a fix.
+    answerKey:
+      concepts: [removal-shifts-the-remaining-items, the-iterator-skips-one, build-a-new-list-or-iterate-a-copy]
+
+  # --- comprehensions --------------------------------------------------------
+  - slug: comprehension-rewrite
+    skill: comprehensions
+    type: short_text
+    difficulty: 0.35
+    prompt: |-
+      Rewrite as one comprehension:
+
+        out = []
+        for row in rows:
+            if row.active:
+                out.append(row.email)
+    answerKey:
+      concepts: [expression-then-for-then-if, filter-clause-after-the-loop, no-append-needed]
+
+  - slug: comprehension-when-not
+    skill: comprehensions
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Give a concrete case where you would keep the loop rather than write a
+      comprehension, and say what makes it the better choice there.
+    answerKey:
+      concepts: [side-effects-belong-in-a-loop, nested-or-multi-clause-hurts-readability, needs-try-except-or-intermediate-names]
+
+  # --- lists-and-tuples ------------------------------------------------------
+  - slug: list-vs-tuple-choose
+    skill: lists-and-tuples
+    type: explain
+    difficulty: 0.35
+    prompt: >-
+      You are returning a database row's (id, name, created_at) from a function.
+      List or tuple? Justify it from how the caller will use it.
+    answerKey:
+      concepts: [fixed-length-heterogeneous-suits-a-tuple, immutability-signals-do-not-edit, list-when-the-length-varies]
+
+  - slug: list-copy-write
+    skill: lists-and-tuples
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Write a function that returns a sorted version of a list without changing
+      the caller's list.
+    answerKey:
+      concepts: [sorted-returns-a-new-list, sort-mutates-in-place, do-not-mutate-an-argument]
+
+  - slug: list-nested-mutation
+    skill: lists-and-tuples
+    type: mcq
+    difficulty: 0.5
+    prompt: "`grid = [[0] * 3] * 3`, then `grid[0][0] = 1`. What is `grid`?"
+    options:
+      - "[[1, 0, 0], [0, 0, 0], [0, 0, 0]]"
+      - "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
+      - It raises an IndexError
+      - "[[1, 1, 1], [0, 0, 0], [0, 0, 0]]"
+    answerKey: { correct: 1 }
+
+  # --- dicts-and-sets --------------------------------------------------------
+  - slug: dict-replace-scan
+    skill: dicts-and-sets
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      A loop checks `if user_id in banned_list:` on every one of 100,000 users,
+      and `banned_list` holds 5,000 ids. Change one line to make it fast, and
+      say what changed.
+    answerKey:
+      concepts: [convert-to-a-set, membership-goes-linear-to-constant, build-the-set-once-outside-the-loop]
+
+  - slug: dict-count-write
+    skill: dicts-and-sets
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Count how many times each word appears in a list, without raising
+      KeyError on the first sighting of a word.
+    answerKey:
+      concepts: [dict-get-with-a-default, or-defaultdict, or-counter]
+
+  - slug: dict-unhashable-key
+    skill: dicts-and-sets
+    type: code_read
+    difficulty: 0.55
+    prompt: |-
+      `seen = {}` then `seen[["a", "b"]] = 1` raises TypeError: unhashable type.
+      Explain the rule, and give a key that works instead.
+    answerKey:
+      concepts: [keys-must-be-hashable, mutable-types-are-not-hashable, use-a-tuple]
+
+  # --- choosing-a-structure --------------------------------------------------
+  - slug: structure-choose-explain
+    skill: choosing-a-structure
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      You need to keep the last 100 events, appending constantly and dropping
+      from the front. Name the structure you would use and what a plain list
+      would cost you.
+    answerKey:
+      concepts: [deque-with-maxlen, list-pop-zero-is-linear, append-and-popleft-both-constant]
+
+  - slug: structure-dedupe-order
+    skill: choosing-a-structure
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      Remove duplicates from a list while keeping the original order. Say why
+      the obvious one-liner does not do this.
+    answerKey:
+      concepts: [set-does-not-preserve-order, track-seen-in-a-set-while-appending, or-dict-fromkeys]
+
+  # --- defining-functions ----------------------------------------------------
+  - slug: function-return-not-print
+    skill: defining-functions
+    type: explain
+    difficulty: 0.3
+    prompt: >-
+      A function ends with `print(total)` rather than `return total`. Name two
+      concrete things this makes impossible.
+    answerKey:
+      concepts: [cannot-be-tested, cannot-be-composed, caller-gets-none]
+
+  - slug: function-signature-write
+    skill: defining-functions
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Write the signature for a function that formats a price, always needs an
+      amount, and optionally takes a currency that defaults to GBP.
+    answerKey:
+      concepts: [required-parameter-first, default-argument-for-currency, immutable-default-is-safe]
+
+  # --- mutable-default-arguments ---------------------------------------------
+  - slug: mutable-default-read
+    skill: mutable-default-arguments
+    type: code_read
+    difficulty: 0.5
+    prompt: |-
+      def add(item, basket=[]):
+          basket.append(item)
+          return basket
+
+      add("a") returns ['a']. What does a second call add("b") return, and why?
+    answerKey:
+      concepts: [default-evaluated-once-at-definition, the-list-is-shared-across-calls, returns-a-and-b]
+
+  - slug: mutable-default-fix
+    skill: mutable-default-arguments
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Fix the function above so each call starts empty, without changing how a
+      caller invokes it.
+    answerKey:
+      concepts: [default-to-none, create-the-list-inside, signature-unchanged]
+
+  - slug: mutable-default-mcq
+    skill: mutable-default-arguments
+    type: mcq
+    difficulty: 0.4
+    prompt: When is a function's default argument value evaluated?
+    options:
+      - Once per call, before the body runs
+      - Once, when the `def` statement executes
+      - Lazily, the first time the parameter is read
+      - Once per module import
+    answerKey: { correct: 1 }
+
+  # --- scope-and-closures ----------------------------------------------------
+  - slug: closure-late-binding
+    skill: scope-and-closures
+    type: code_read
+    difficulty: 0.7
+    prompt: |-
+      fns = [lambda: i for i in range(3)]
+      print([f() for f in fns])
+
+      This prints [2, 2, 2] rather than [0, 1, 2]. Explain, and fix it.
+    answerKey:
+      concepts: [closure-captures-the-variable-not-the-value, i-is-read-when-called, bind-with-a-default-argument-or-factory]
+
+  - slug: scope-assignment-error
+    skill: scope-and-closures
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      A function reads a module-level `counter` fine, but adding `counter += 1`
+      makes it raise UnboundLocalError on the same line. Explain why.
+    answerKey:
+      concepts: [assignment-anywhere-makes-the-name-local, read-happens-before-assignment, use-nonlocal-or-global-or-return-the-value]
+
+  # --- reading-a-traceback ---------------------------------------------------
+  - slug: traceback-locate
+    skill: reading-a-traceback
+    type: explain
+    difficulty: 0.25
+    prompt: >-
+      You get a traceback ten frames deep, most of them inside a library. Say
+      which frame you read first, which line names the actual failure, and what
+      you do next.
+    answerKey:
+      concepts: [read-from-the-bottom, last-line-is-the-exception-and-message, find-the-deepest-frame-in-your-own-code]
+
+  - slug: traceback-keyerror
+    skill: reading-a-traceback
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      `KeyError: 'total'` from a line reading `row["total"]`. State precisely
+      what this tells you, and one thing it does not tell you.
+    answerKey:
+      concepts: [the-key-is-absent-from-that-dict, says-nothing-about-why-it-is-absent, check-the-source-of-the-row]
+
+  # --- exceptions ------------------------------------------------------------
+  - slug: exception-bare-except
+    skill: exceptions
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      `try: … except: pass` around a network call. Name two failures this
+      silently hides that you would want to know about.
+    answerKey:
+      concepts: [catches-typos-and-name-errors, hides-keyboardinterrupt-and-systemexit, catch-the-specific-exception-instead]
+
+  - slug: exception-specific-write
+    skill: exceptions
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Parse an integer from user input, returning None when it is not a number,
+      while letting every other failure propagate.
+    answerKey:
+      concepts: [catch-valueerror-only, return-none-in-the-handler, do-not-catch-exception-broadly]
+
+  - slug: exception-order-mcq
+    skill: exceptions
+    type: mcq
+    difficulty: 0.5
+    prompt: "`except Exception:` is written above `except ValueError:` in the same try. What happens to a ValueError?"
+    options:
+      - Both handlers run, in order
+      - The ValueError handler runs, being more specific
+      - The Exception handler runs; the ValueError handler is unreachable
+      - It is a SyntaxError
+    answerKey: { correct: 2 }
+
+  # --- writing-tests ---------------------------------------------------------
+  - slug: test-fails-first
+    skill: writing-tests
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Why is a test you have never seen fail almost worthless? Describe the
+      order you write a test and a fix in.
+    answerKey:
+      concepts: [a-test-that-cannot-fail-asserts-nothing, run-it-red-before-the-fix, then-green-after]
+
+  - slug: test-write-one
+    skill: writing-tests
+    type: micro_artifact
+    difficulty: 0.55
+    prompt: >-
+      A function `split_name(full)` should return ("Ada", "Lovelace") and
+      currently crashes on a single-word name. Write the test you would add
+      before fixing it.
+    answerKey:
+      concepts: [test-the-single-word-case, assert-the-expected-return, name-says-what-it-covers]
+
+  # --- files-and-paths -------------------------------------------------------
+  - slug: files-context-manager
+    skill: files-and-paths
+    type: short_text
+    difficulty: 0.3
+    prompt: >-
+      Read a text file into a list of lines, ensuring the file is closed even if
+      an error is raised part-way.
+    answerKey:
+      concepts: [with-open-as, closes-on-exception, no-manual-close-needed]
+
+  - slug: files-path-joining
+    skill: files-and-paths
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      `open(folder + "/" + name)` works on your machine and fails on a
+      colleague's. Name two reasons, and what to use instead.
+    answerKey:
+      concepts: [separator-differs-by-platform, breaks-on-a-trailing-slash, use-pathlib-or-os-path-join]
+
+  # --- structured-data -------------------------------------------------------
+  - slug: data-missing-field
+    skill: structured-data
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      You are summing a `price` field across 10,000 JSON records and 40 of them
+      have no `price`. Describe the three options, and which you would pick for
+      a figure going to a finance team.
+    answerKey:
+      concepts: [skip-and-report-the-count, treat-as-zero, refuse-and-fail-loudly, the-total-must-say-what-it-excluded]
+
+  - slug: data-load-summarise
+    skill: structured-data
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Given a CSV of orders with columns id, customer, amount, produce total
+      revenue per customer, and report how many rows you could not parse.
+    answerKey:
+      concepts: [read-with-csv-dictreader, accumulate-in-a-dict, count-the-skipped-rows-separately, report-both-numbers]
+
+  - slug: data-json-roundtrip
+    skill: structured-data
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Load a JSON file, add a field to each record, and write it back without
+      losing the original formatting of the numbers.
+    answerKey:
+      concepts: [json-load-and-dump, work-on-python-objects-in-between, dump-with-an-indent-for-a-readable-file]

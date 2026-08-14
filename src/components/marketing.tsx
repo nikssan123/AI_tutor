@@ -166,7 +166,7 @@ export async function SiteHeader() {
           href="/"
           className="text-[length:var(--text-label-size)] font-[650] tracking-[-0.02em] text-ink"
         >
-          online_uni
+          MeritKeep
         </Link>
         {/* §8.5.5 — three destinations, flat, no nesting. */}
         <nav aria-label="Main" className="flex items-center gap-6">

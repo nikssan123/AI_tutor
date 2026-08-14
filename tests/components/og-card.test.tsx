@@ -40,21 +40,21 @@ describe("OgCardImage", () => {
   it("renders a card with no facts and no badge without inventing either", () => {
     const { container } = render(<OgCardImage card={brandCard()} />);
     expect(container.textContent).not.toContain("·");
-    expect(container.textContent).toContain("online_uni");
+    expect(container.textContent).toContain("MeritKeep");
   });
 
   it("signs itself exactly once", () => {
-    // Found by rendering it: the brand card opened with "ONLINE_UNI" as its
+    // Found by rendering it: the brand card opened with "MERITKEEP" as its
     // eyebrow and closed with the wordmark, which reads as a bug rather than as
     // branding. Nothing in the tree distinguished the two, so nothing caught it.
     const { container } = render(<OgCardImage card={brandCard()} />);
-    expect(container.textContent!.match(/online_uni/gi)).toHaveLength(1);
+    expect(container.textContent!.match(/MeritKeep/gi)).toHaveLength(1);
   });
 
   it("keeps the eyebrow when it names something other than the product", () => {
     const { container } = render(<OgCardImage card={subjectCard(summary)} />);
     expect(screen.getByText("Subject")).toBeTruthy();
-    expect(container.textContent!.match(/online_uni/gi)).toHaveLength(1);
+    expect(container.textContent!.match(/MeritKeep/gi)).toHaveLength(1);
   });
 
   it("gives the badge a word, not only a colour (§8.5.5)", () => {

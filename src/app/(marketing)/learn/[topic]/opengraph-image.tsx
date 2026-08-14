@@ -12,7 +12,7 @@ import { brandCard, OG_SIZE, subjectCard } from "@/lib/seo/og";
  * describes itself to strangers, and this one says "Experimental" out loud when
  * that is what the subject is.
  */
-export const alt = "A subject on online_uni: what it covers, and how it was written";
+export const alt = "A subject on MeritKeep: what it covers, and how it was written";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const revalidate = 86_400;

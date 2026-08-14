@@ -7,6 +7,14 @@
 #
 # `difficulty` is on the same 0..1 scale as mastery, so the adaptive diagnostic
 # can pick the item closest to the current estimate (§16.2).
+#
+# **Only two `answerKey` fields are read by anything.** `correct` picks the right
+# option for an MCQ, and `concepts` is the list a learner self-marks against on
+# the check's "A good answer covers" screen. `mustContain` and `resultShape` are
+# authoring notes for a checker nobody has written: they look like keys, they
+# validate, and no code reads them. Thirteen items here carried them *instead of*
+# `concepts` and so showed a self-marking learner an empty list — see the guard
+# in tests/lib/check-session.test.ts. Add `concepts` to every free-text item.
 
 items:
   # --- select-projection -----------------------------------------------------
@@ -19,6 +27,7 @@ items:
       query returning the order id and the total in whole currency units, with
       the second column named `total`.
     answerKey:
+      concepts: [divide-cents-by-100, alias-second-column-as-total, only-the-two-columns-asked-for]
       mustContain: ["select", "orders"]
       resultShape: [id, total]
 
@@ -30,6 +39,7 @@ items:
       From `orders(id, subtotal_cents, tax_cents)`, return each order's id and
       the grand total in cents as `grand_total_cents`.
     answerKey:
+      concepts: [add-subtotal-and-tax, alias-as-grand_total_cents]
       mustContain: ["subtotal_cents", "tax_cents"]
 
   - slug: select-star-critique
@@ -77,6 +87,7 @@ items:
       Return every customer whose email is on the domain `example.com`, without
       matching `notexample.com`.
     answerKey:
+      concepts: [match-on-@example.com-not-example.com, anchor-the-at-sign, trailing-wildcard-alone-matches-notexample.com]
       mustContain: ["like", "@example.com"]
 
   # --- sorting-limiting ------------------------------------------------------
@@ -96,6 +107,7 @@ items:
     difficulty: 0.2
     prompt: Return orders sorted by status ascending, then by total descending.
     answerKey:
+      concepts: [status-ascending-first, then-total-descending, both-keys-in-one-order-by]
       mustContain: ["order by", "desc"]
 
   # --- null-semantics --------------------------------------------------------
@@ -140,6 +152,7 @@ items:
     difficulty: 0.35
     prompt: Return each customer's `nickname`, falling back to `first_name`, then to the literal 'there'.
     answerKey:
+      concepts: [coalesce-with-three-arguments, order-decides-precedence, literal-fallback-last]
       mustContain: ["coalesce"]
 
   # --- types-and-casting -----------------------------------------------------
@@ -194,6 +207,7 @@ items:
     difficulty: 0.2
     prompt: Return the total revenue across all orders as `revenue_cents`.
     answerKey:
+      concepts: [sum-total_cents, alias-as-revenue_cents, no-group-by-needed]
       mustContain: ["sum"]
 
   # --- group-by-grain --------------------------------------------------------
@@ -275,6 +289,7 @@ items:
       From a joined result that has fanned out, return the number of *distinct*
       orders per country.
     answerKey:
+      concepts: [count-distinct-order-id, group-by-country, distinct-undoes-the-fanout]
       mustContain: ["count(distinct"]
 
   # --- inner-join ------------------------------------------------------------
@@ -284,6 +299,7 @@ items:
     difficulty: 0.25
     prompt: Return each order's id alongside its customer's name.
     answerKey:
+      concepts: [join-orders-to-customers, on-customer_id-matches-customers-id, select-a-column-from-each]
       mustContain: ["join", "on"]
 
   - slug: join-condition-read
@@ -368,6 +384,7 @@ items:
       `employees(id, name, manager_id)`. Return each employee's name next to
       their manager's name.
     answerKey:
+      concepts: [join-employees-to-itself, two-different-aliases, on-manager_id-equals-the-other-alias-id, left-join-keeps-people-with-no-manager]
       mustContain: ["employees", "join"]
 
   # --- semi-and-anti-joins ---------------------------------------------------
@@ -377,6 +394,7 @@ items:
     difficulty: 0.5
     prompt: Return every customer who has never placed an order, using NOT EXISTS.
     answerKey:
+      concepts: [not-exists-with-a-correlated-subquery, select-1-is-enough, no-join-and-so-no-fanout]
       mustContain: ["not exists"]
 
   - slug: semi-join-grain
@@ -397,6 +415,7 @@ items:
     difficulty: 0.4
     prompt: Return every order whose total is above the overall average order total.
     answerKey:
+      concepts: [scalar-subquery-computes-the-average, compared-in-the-where-clause, subquery-runs-once-not-per-row]
       mustContain: ["select", "avg"]
 
   - slug: cte-decompose
@@ -510,6 +529,7 @@ items:
     difficulty: 0.35
     prompt: Return revenue by calendar month for 2026, with months as the first day of the month.
     answerKey:
+      concepts: [date_trunc-to-month, group-by-the-truncated-value, restrict-to-2026]
       mustContain: ["date_trunc"]
 
   - slug: cohort-build
@@ -531,6 +551,7 @@ items:
       Return one row per customer with three columns: orders placed in 2024,
       2025 and 2026.
     answerKey:
+      concepts: [one-case-expression-per-year, count-or-sum-over-it, group-by-customer]
       mustContain: ["case when", "sum"]
 
   - slug: validate-checklist

@@ -15,7 +15,7 @@ import { brandCard, OG_SIZE } from "@/lib/seo/og";
  * than no card at all.
  */
 export const alt =
-  "online_uni — learn anything, and have the work you produce marked against a published checklist";
+  "MeritKeep — learn anything, and have the work you produce marked against a published checklist";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const revalidate = 86_400;

@@ -196,6 +196,7 @@ describe("loadAllPacks", () => {
     expect(loadAllPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
       "photography",
+      "python-fundamentals",
       "sql-data-analysis",
     ]);
   });

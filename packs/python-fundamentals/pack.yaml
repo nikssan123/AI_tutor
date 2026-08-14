@@ -1,0 +1,302 @@
+# Python & programming fundamentals — Standard Domain Pack
+#
+# §7.1's first entry on the 12-pack launch list, and the first pack in the
+# repository that is **Standard** rather than Curated. The distinction is
+# provenance, and it is not decoration: Curated means a person authored the
+# graph and the rubrics and then read the whole thing; this was authored by a
+# model against §7.1's schema and has passed the validator and nothing else.
+# `quality.reviewedBy` stays `unreviewed` until someone has actually read it,
+# which is what keeps it out of the sitemap (`isTopicIndexable`).
+#
+# **Tier 2, not tier 1.** The Code workspace could support tier 1 — execute the
+# tests, assert the behaviour — and a Curated Python pack should claim it. This
+# one may not, for the same reason §7.1 caps a Generated pack: tier 1 is earned
+# by a person building the evaluator, and nobody built one here. §7.2 tier 2 is
+# "marked against a published checklist", which is exactly and only what this
+# pack can honour.
+
+slug: python-fundamentals
+name: Python Fundamentals
+# The same branch as SQL: it drives the subject icon, and an unrecognised value
+# falls back to the neutral grid rather than guessing at a metaphor.
+taxonomyParent: technical-entry
+maturity: standard
+evalTier: 2
+workspace: code
+
+evaluatorConfig:
+  model: opus
+  passes: 2
+  verifier: quote-match
+  tools: [read_file]
+
+quality:
+  status: draft
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- values ----------------------------------------------------------------
+  - slug: values-and-types
+    name: Values and types
+    description: >-
+      The handful of types every Python program is built from, and what each one
+      can and cannot do — including the conversions Python will not do for you.
+    level: foundational
+    area: values
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Predict the type of an expression and convert between types deliberately
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.25, pLearn: 0.22, pSlip: 0.1, pGuess: 0.15 }
+
+  - slug: names-and-references
+    name: Names and references
+    description: >-
+      What assignment actually does. Two names can point at one list, and the
+      difference between rebinding a name and mutating the thing behind it is
+      the source of a whole class of bug.
+    level: core
+    area: values
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Predict whether a change through one name is visible through another
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.1, pLearn: 0.16, pSlip: 0.14, pGuess: 0.08 }
+
+  - slug: strings-and-formatting
+    name: Strings and formatting
+    description: >-
+      Slicing, the string methods worth knowing by heart, and f-strings —
+      including why building a string with + in a loop is the wrong reflex.
+    level: foundational
+    area: values
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Build and take apart strings without reaching for a loop where a method exists
+    observableEvidence: [code]
+    bktPriors: { pInit: 0.2, pLearn: 0.2, pSlip: 0.11, pGuess: 0.12 }
+
+  # --- control ---------------------------------------------------------------
+  - slug: conditionals-and-truthiness
+    name: Conditionals and truthiness
+    description: >-
+      Branching, and the values Python quietly treats as false. `if x:` and
+      `if x is not None:` are different questions and the difference bites on 0
+      and on the empty list.
+    level: foundational
+    area: control
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Write a condition that says what you meant, including when the value may be zero or empty
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.18, pLearn: 0.19, pSlip: 0.12, pGuess: 0.12 }
+
+  - slug: loops-and-iteration
+    name: Loops and iteration
+    description: >-
+      Iterating over a thing rather than over its indices, and the tools that
+      make it read well — enumerate, zip, and knowing when a while loop is
+      actually the right shape.
+    level: foundational
+    area: control
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Iterate over a collection idiomatically, including in parallel with another
+    observableEvidence: [code]
+    bktPriors: { pInit: 0.15, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: comprehensions
+    name: Comprehensions
+    description: >-
+      Expressing a map or a filter as one expression, and recognising the point
+      at which a comprehension has become less readable than the loop it
+      replaced.
+    level: core
+    area: control
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Rewrite a build-a-list loop as a comprehension, and say when you would not
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.18, pSlip: 0.13, pGuess: 0.07 }
+
+  # --- structures ------------------------------------------------------------
+  - slug: lists-and-tuples
+    name: Lists and tuples
+    description: >-
+      The ordered sequences, what each is for, and why mutating a list while you
+      iterate over it does not do what it looks like it does.
+    level: foundational
+    area: structures
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Choose between a list and a tuple and justify it from how the data is used
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.11, pGuess: 0.12 }
+
+  - slug: dicts-and-sets
+    name: Dicts and sets
+    description: >-
+      Lookup by key and membership testing, and the reason both are fast — which
+      is also the reason their keys have to be hashable.
+    level: core
+    area: structures
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Use a dict or set to replace a linear scan, and explain what it costs
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.18, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: choosing-a-structure
+    name: Choosing a data structure
+    description: >-
+      Picking from the access pattern rather than from habit: how often you look
+      up, how often you append, whether order matters, whether duplicates do.
+    level: advanced
+    area: structures
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Pick a structure from the access pattern and say what the alternative would have cost
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.14, pGuess: 0.05 }
+
+  # --- functions -------------------------------------------------------------
+  - slug: defining-functions
+    name: Defining functions
+    description: >-
+      Parameters, defaults, keyword arguments and return values — and returning
+      a value rather than printing one, which is what makes a function testable.
+    level: foundational
+    area: functions
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Write a function with a clear signature that returns its result rather than printing it
+    observableEvidence: [code]
+    bktPriors: { pInit: 0.16, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: mutable-default-arguments
+    name: Mutable default arguments
+    description: >-
+      The default value is evaluated once, when the function is defined. A list
+      or dict default is therefore shared between every call, which is the most
+      famous surprise in the language.
+    level: core
+    area: functions
+    evalTier: 2
+    estimatedHours: 1
+    canDoStatement: Spot a shared mutable default and fix it without changing the function's interface
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.22, pSlip: 0.1, pGuess: 0.06 }
+
+  - slug: scope-and-closures
+    name: Scope and closures
+    description: >-
+      Which name refers to what, and when. Includes the late-binding closure —
+      why a list of functions built in a loop can all end up seeing the last
+      value.
+    level: advanced
+    area: functions
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Predict which value a nested function sees, and fix a late-binding closure
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.14, pSlip: 0.15, pGuess: 0.05 }
+
+  # --- correctness -----------------------------------------------------------
+  - slug: reading-a-traceback
+    name: Reading a traceback
+    description: >-
+      Reading it from the bottom, finding your own frame in it, and turning the
+      exception type and message into the next thing to check.
+    level: foundational
+    area: correctness
+    evalTier: 2
+    estimatedHours: 1
+    canDoStatement: Locate the cause of a failure from its traceback and say which line is at fault
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.14, pLearn: 0.21, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: exceptions
+    name: Raising and handling exceptions
+    description: >-
+      Catching the exception you can do something about, letting the rest
+      travel, and never writing a bare except that swallows the bug you are
+      about to spend an afternoon looking for.
+    level: core
+    area: correctness
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Handle a specific failure without hiding the failures you did not anticipate
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.09, pLearn: 0.17, pSlip: 0.13, pGuess: 0.07 }
+
+  - slug: writing-tests
+    name: Writing tests
+    description: >-
+      A test that fails before the fix and passes after it. Includes the habit
+      that makes tests worth having: watching the test fail first, so you know
+      it is testing something.
+    level: core
+    area: correctness
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Write a test that fails for the right reason before the code is fixed
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.07, pLearn: 0.16, pSlip: 0.13, pGuess: 0.05 }
+
+  # --- data ------------------------------------------------------------------
+  - slug: files-and-paths
+    name: Files and paths
+    description: >-
+      Reading and writing text, closing what you open, and treating a path as a
+      path rather than as a string you glued together with slashes.
+    level: core
+    area: data
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Read and write a file safely, with paths that work on someone else's machine
+    observableEvidence: [code]
+    bktPriors: { pInit: 0.11, pLearn: 0.19, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: structured-data
+    name: Working with structured data
+    description: >-
+      Loading JSON or CSV into Python's own structures and getting back out
+      again — including deciding what to do about the row that is missing a
+      field.
+    level: advanced
+    area: data
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Load a real, imperfect data file and produce a summary that states what it skipped
+    observableEvidence: [code, explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.14, pGuess: 0.05 }
+
+dependencies:
+  - { from: values-and-types, to: names-and-references, type: hard }
+  - { from: values-and-types, to: strings-and-formatting, type: hard }
+  - { from: values-and-types, to: conditionals-and-truthiness, type: hard }
+  - { from: conditionals-and-truthiness, to: loops-and-iteration, type: hard }
+  - { from: values-and-types, to: lists-and-tuples, type: hard }
+  - { from: names-and-references, to: lists-and-tuples, type: soft, strength: 0.7 }
+  - { from: lists-and-tuples, to: loops-and-iteration, type: hard }
+  - { from: loops-and-iteration, to: comprehensions, type: hard }
+  - { from: lists-and-tuples, to: dicts-and-sets, type: hard }
+  - { from: dicts-and-sets, to: choosing-a-structure, type: hard }
+  - { from: lists-and-tuples, to: choosing-a-structure, type: hard }
+  - { from: loops-and-iteration, to: defining-functions, type: hard }
+  - { from: defining-functions, to: mutable-default-arguments, type: hard }
+  - { from: names-and-references, to: mutable-default-arguments, type: hard }
+  - { from: defining-functions, to: scope-and-closures, type: hard }
+  - { from: names-and-references, to: scope-and-closures, type: soft, strength: 0.8 }
+  - { from: values-and-types, to: reading-a-traceback, type: soft, strength: 0.5 }
+  - { from: reading-a-traceback, to: exceptions, type: hard }
+  - { from: defining-functions, to: exceptions, type: hard }
+  - { from: defining-functions, to: writing-tests, type: hard }
+  - { from: exceptions, to: writing-tests, type: soft, strength: 0.6 }
+  - { from: exceptions, to: files-and-paths, type: hard }
+  - { from: strings-and-formatting, to: files-and-paths, type: soft, strength: 0.5 }
+  - { from: files-and-paths, to: structured-data, type: hard }
+  - { from: dicts-and-sets, to: structured-data, type: hard }
+  - { from: comprehensions, to: structured-data, type: soft, strength: 0.6 }

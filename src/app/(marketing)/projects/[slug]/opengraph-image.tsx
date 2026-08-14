@@ -13,7 +13,7 @@ import { brandCard, OG_SIZE, projectCard } from "@/lib/seo/og";
  * what marking means at this project's tier.
  */
 export const alt =
-  "A graded project on online_uni: what you build, and what it is marked against";
+  "A graded project on MeritKeep: what you build, and what it is marked against";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const revalidate = 86_400;

@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
  * under a fixed namespace for this product.
  */
 
-/** Fixed namespace for online_uni pack entities. Never change this value. */
+/** Fixed namespace for MeritKeep pack entities. Never change this value. */
 const NAMESPACE = "9f2a1c84-3b7e-5d16-8a4f-6c0e2b9d7a35";
 
 function namespaceBytes(): Buffer {

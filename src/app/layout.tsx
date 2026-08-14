@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   ),
   title: {
     default: "Don't just learn it. Prove it.",
-    template: "%s · online_uni",
+    template: "%s · MeritKeep",
   },
   description:
     "Name any subject — if nobody has written it, we write it for you. Then it finds your gaps, sets you real work, and grades what you make against a public checklist.",

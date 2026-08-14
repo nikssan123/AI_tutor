@@ -85,7 +85,7 @@ describe("every message", () => {
   });
 
   it.each(cases)("names the product in the subject ($subject)", (message) => {
-    expect(message.subject).toContain("online_uni");
+    expect(message.subject).toContain("MeritKeep");
   });
 });
 

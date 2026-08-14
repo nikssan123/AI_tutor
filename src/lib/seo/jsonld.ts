@@ -11,7 +11,7 @@ import type { ProjectDetail, SkillDetail, TopicSummary } from "@/lib/content";
  * is how sites end up with structured-data penalties.
  */
 
-export const ORGANISATION_NAME = "online_uni";
+export const ORGANISATION_NAME = "MeritKeep";
 
 export type JsonLd = Record<string, unknown>;
 

@@ -31,6 +31,7 @@ describe("allPacks", () => {
     expect(allPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
       "photography",
+      "python-fundamentals",
       "sql-data-analysis",
     ]);
   });
@@ -46,14 +47,22 @@ describe("allPacks", () => {
    * technical subject, the product has quietly become a developer tool.
    */
   it("spans domains, tiers and workspaces (§7.1)", () => {
+    // Asserted as "contains", not "equals". The guard is against the catalogue
+    // *collapsing* to a single technical subject, and equality made every
+    // addition a failure — a new workspace is the thing this test wants, not a
+    // regression it should report.
     const packs = allPacks();
-    expect(new Set(packs.map((p) => p.taxonomyParent))).toEqual(
-      new Set(["technical-entry", "professional-business", "creative"]),
-    );
-    expect(new Set(packs.map((p) => p.evalTier))).toEqual(new Set([1, 2, 3]));
-    expect(new Set(packs.map((p) => p.workspace))).toEqual(
-      new Set(["query-sheet", "text", "media"]),
-    );
+    const has = <T,>(values: T[], required: T[]) => {
+      for (const value of required) expect(new Set(values)).toContain(value);
+    };
+
+    has(packs.map((p) => p.taxonomyParent), [
+      "technical-entry",
+      "professional-business",
+      "creative",
+    ]);
+    has(packs.map((p) => p.evalTier), [1, 2, 3]);
+    has(packs.map((p) => p.workspace), ["query-sheet", "text", "media"]);
     expect(packs.filter((p) => p.taxonomyParent !== "technical-entry").length)
       .toBeGreaterThanOrEqual(2);
   });

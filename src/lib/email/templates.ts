@@ -22,7 +22,7 @@ export interface EmailMessage {
 }
 
 /** The product name as it appears in a subject line and a signature. */
-const BRAND = "online_uni";
+const BRAND = "MeritKeep";
 
 /**
  * Escaping is not optional here, even though the only interpolated values are a
