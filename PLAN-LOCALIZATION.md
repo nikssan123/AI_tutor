@@ -284,7 +284,8 @@ So: if a German learner submits German prose and the model renders its evidence 
 - Add `locale` to `AssessmentItem`, unique on `(packId, skillId, locale, slug)`.
 - A translated item **inherits the English parameters as priors only**, flagged `calibrated: false`, and is re-estimated after N responses (start at N = 30).
 - The diagnostic's max-information item selection must filter by locale. An uncalibrated item may be served but must not be the sole basis for a placement decision.
-- **Not every pack goes multilingual.** Start with the packs that exist — `sql-data-analysis`, `business-writing`, `photography` — and only in Bulgarian, where the founder can check the translation is right. German and Spanish item banks wait for evidence of demand in those locales.
+- **Not every pack goes multilingual.** Start with the **Curated** packs only — the ones a person has already read end to end — and only in Bulgarian, where the founder can check the translation is right. German and Spanish item banks wait for evidence of demand in those locales. (Stated as a rule rather than a list: this line named three packs and there are seven.)
+- **Localising the product is not the same as teaching a language.** This plan puts the *interface* and the SEO surface into Spanish, German and Bulgarian. It does not add language-learning subjects — those are declined in `src/lib/content/categories.ts`, and the two decisions are independent: a Spanish speaker learning SQL is exactly who this plan is for.
 
 ### 8.5 Cost — Cyrillic is not free
 
