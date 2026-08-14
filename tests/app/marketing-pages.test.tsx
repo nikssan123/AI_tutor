@@ -9,7 +9,6 @@ import {
   featuredProject,
   findPack,
   findProject,
-  findSkill,
 } from "@/lib/content";
 import { EVAL_TIER_CLAIM } from "@/lib/claims";
 import { tierFor } from "@/lib/evaluation/tier";
@@ -19,6 +18,15 @@ const notFoundMock = vi.fn(() => {
 });
 
 vi.mock("next/navigation", () => ({ notFound: () => notFoundMock() }));
+
+/*
+ * `/check/{topic}/{skill}` runs a check off a cookie now, so it reads the jar
+ * even to render its description. An empty one is the state a crawler arrives
+ * in, which is also the state every assertion in this file is about.
+ */
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined, set: () => undefined }),
+}));
 
 const { default: MarketingLayout } = await import("@/app/(marketing)/layout");
 const { default: HomePage } = await import("@/app/(marketing)/page");
@@ -974,25 +982,36 @@ describe("/check/[topic]/[skill]", () => {
     expect(screen.getByText("What counts as knowing this")).toBeDefined();
   });
 
-  it("is honest that a single-skill check does not exist yet", async () => {
-    // §4.2 law 5 — declared limits are a feature. A disabled button pretending
-    // to be a product is the overclaiming the positioning rejects.
-    //
-    // The limit itself moved when E4 landed: the diagnostic engine this page
-    // once said it was waiting for now exists and runs `/check/[topic]`. What
-    // is still missing is a check for one skill on its own, so that is what the
-    // page has to be honest about.
+  /**
+   * This card said "Not ready yet — you cannot check this skill on its own" for
+   * two epics, and it was the honest thing to say (§4.2 law 5) right up until
+   * the tool existed. It is the offer now, and it still declares what the check
+   * can and cannot settle before anybody starts one.
+   */
+  it("offers the check, and says what it will and will not settle", async () => {
     render(await check.default({ params: p }));
-    expect(screen.getByText(/cannot check this skill on its own yet/)).toBeDefined();
+
+    expect(screen.getByRole("button", { name: "Start" })).toBeDefined();
+    expect(screen.getByText(/on this skill\s+alone/)).toBeDefined();
+    expect(screen.getByText(/your answers are not kept/)).toBeDefined();
+    expect(screen.queryByText(/cannot check this skill on its own/)).toBeNull();
   });
 
-  it("cites the real item count behind the skill", async () => {
+  /**
+   * The page used to cite how many questions had been *written* for the skill,
+   * which is a fact about our authoring rather than about the visitor's next
+   * ten minutes. It states the budget now — how many it will ask at most — and
+   * that number comes from the same `budgetFor` the check runs on, so the offer
+   * cannot promise a question the check will not ask.
+   */
+  it("promises exactly the number of questions the check would ask", async () => {
+    const { budgetFor, narrow } = await import("@/lib/check/run");
+    const ref = { topic: "sql-data-analysis", skill: "join-grain" };
+    const budget = budgetFor(ref, narrow(findPack(ref.topic)!, ref).items);
+
     render(await check.default({ params: p }));
-    const skill = findSkill("sql-data-analysis", "join-grain")!.skill;
     expect(
-      screen.getByText(
-        new RegExp(`${skill.itemCount} questions? for this skill so far`),
-      ),
+      screen.getByText(new RegExp(`Up to ${budget} questions?`)),
     ).toBeDefined();
   });
 
@@ -1012,14 +1031,30 @@ describe("/check/[topic]/[skill]", () => {
     expect(screen.getByText(/No prerequisites/)).toBeDefined();
   });
 
-  it("pre-renders a page per skill across every subject", () => {
-    const expected = allTopics().reduce((n, t) => n + t.skillCount, 0);
-    expect(check.generateStaticParams()).toHaveLength(expected);
+  /**
+   * It used to prerender one page per skill and sit permanently `noindex`,
+   * because it described a check nobody had built. It runs one now, off a
+   * cookie, so it renders per request for the same reason `/check/{topic}` does
+   * — and it is submitted for indexing on the same gate as everything else
+   * about its pack.
+   */
+  it("renders per request, because a cached first question would be someone else's", async () => {
+    const mod = check as unknown as Record<string, unknown>;
+    expect(mod.dynamic).toBe("force-dynamic");
+    expect(mod.generateStaticParams).toBeUndefined();
   });
 
-  it("is never indexable while the tool does not exist", async () => {
+  it("is indexable on exactly its pack's gate", async () => {
+    const { findPack, isTopicIndexable } = await import("@/lib/content");
     const meta = await check.generateMetadata({ params: p });
-    expect(meta.robots).toEqual({ index: false, follow: true });
+
+    if (isTopicIndexable(findPack("sql-data-analysis")!)) {
+      expect(meta.robots).toBeUndefined();
+    } else {
+      expect(meta.robots).toEqual({ index: false, follow: true });
+    }
+    // §13.3 — title ≤60 characters, description 140–160.
+    expect(String(meta.title).length).toBeLessThanOrEqual(60);
   });
 
   it("404s and returns empty metadata for an unknown skill", async () => {

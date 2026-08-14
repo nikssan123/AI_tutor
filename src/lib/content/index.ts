@@ -246,29 +246,6 @@ export function findProject(slug: string): ProjectDetail | undefined {
   return allProjects().find((p) => p.slug === slug);
 }
 
-/**
- * §10 A — the Skill Check pages, of which there are two and they no longer
- * share an answer.
- *
- * Both used to be blanket-noindex under one constant, for one reason: the
- * diagnostic engine did not exist, and §12.1 forbids asking Google to rank a
- * page that promises a tool the product does not have. E4 shipped the engine
- * and the reason stopped being true — of `/check/{topic}` only.
- *
- * - `/check/{topic}` **runs**. A stranger arriving from search gets a working
- *   ten-minute assessment with no account, which is precisely §12.1's bar, so
- *   it is now gated on the same review the subject page is gated on:
- *   `isTopicIndexable`. An unreviewed pack's check is no more submittable than
- *   its curriculum.
- * - `/check/{topic}/{skill}` still says "Not ready yet" on the page itself,
- *   because you cannot check one skill on its own. The original reason survives
- *   here intact, so this one stays out of the index until that is built.
- *
- * The constant kept the two in step for as long as they were in step, and then
- * kept them in step for two passes after they were not.
- */
-export const SKILL_CHECKS_ARE_NEVER_INDEXED = false;
-
 export interface SearchHit {
   kind: "topic" | "skill" | "project";
   title: string;

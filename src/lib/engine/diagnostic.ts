@@ -1,5 +1,5 @@
 import { applyObservation, effectiveMastery, initialMastery } from "./bkt";
-import { CHECK_CONFIDENCE, evidenceTierFor } from "./scoring";
+import { CHECK_CONFIDENCE, evidenceTierFor, MASTERY_TARGET } from "./scoring";
 import type { BktPriors, EvalTier, MasteryState } from "./types";
 
 /**
@@ -142,31 +142,75 @@ export function informationValue(
 }
 
 /**
+ * What this particular check is allowed to ask for.
+ *
+ * The engine picks the most informative *answerable* item, and what is
+ * answerable is a property of the surface rather than of the engine. A
+ * ten-minute check across a whole subject cannot ask someone to go and take a
+ * photograph; a check for one skill, which somebody opened deliberately to
+ * prove that skill, can.
+ */
+export interface CheckScope {
+  /**
+   * Whether `micro_artifact` items are on the table — the ones that ask for a
+   * piece of work rather than an answer. Off by default, which is the broad
+   * check's behaviour and was the engine's only behaviour.
+   */
+  artefacts?: boolean;
+}
+
+/**
+ * A skill nothing more can be learned about by asking again.
+ *
+ * Two ways to be settled, and both are worth stopping on: the belief has
+ * cleared the bar the planner skips at, so more questions cannot change what
+ * happens next; or the check has already spent `MAX_PER_SKILL` questions on it,
+ * which on a nine-question budget is most of the check.
+ *
+ * This is the concentration rule. Without it a check will happily ask a second
+ * question about a skill it has already decided while another skill has none —
+ * which is the whole of what "adaptive" was supposed to prevent.
+ */
+export const MAX_PER_SKILL = 5;
+
+export function settled(state: DiagnosticState, skillSlug: string): boolean {
+  // Asserted: every caller has already established that the skill is in the
+  // state — `selectNextItem` filters on it in the same expression, and the page
+  // asks about the skill it started the diagnostic with.
+  return (
+    state.mastery[skillSlug]!.mastery >= MASTERY_TARGET ||
+    observationsFor(state, skillSlug) >= MAX_PER_SKILL
+  );
+}
+
+/**
  * Picks the next question as a pure function of state.
  *
- * **Coverage first, information second.** Breadth is a hard rule rather than a
- * weight, because it kept losing to one: answering a skill correctly moves its
- * posterior *towards* 0.5, which is exactly where an item is most informative,
- * so a purely information-greedy check spends all nine questions deepening the
- * one skill it just asked about. That is the right policy for grading a single
- * skill and the wrong one for "find my gaps across photography", which is what
- * this check is for.
+ * **Coverage first, information second, and nothing at all about a skill that
+ * is already decided.** Breadth is a hard rule rather than a weight, because it
+ * kept losing to one: answering a skill correctly moves its posterior *towards*
+ * 0.5, which is exactly where an item is most informative, so a purely
+ * information-greedy check spends all nine questions deepening the one skill it
+ * just asked about.
  *
- * So: fewest observations wins outright; among equals, the most informative
- * item; ties break on slug. The same state always yields the same question,
- * which matters when someone disputes a result.
+ * So: settled skills are out; among the rest, fewest observations wins
+ * outright; among equals, the most informative item; ties break on slug. The
+ * same state always yields the same question, which matters when someone
+ * disputes a result.
  */
 export function selectNextItem(
   state: DiagnosticState,
   items: DiagnosticItem[],
+  scope: CheckScope = {},
 ): DiagnosticItem | undefined {
   const seen = new Set(state.asked.map((a) => a.itemSlug));
 
   const candidates = items.filter(
     (item) =>
       !seen.has(item.slug) &&
-      gradingModeFor(item.type) !== "excluded" &&
-      state.mastery[item.skill] !== undefined,
+      (gradingModeFor(item.type) !== "excluded" || scope.artefacts === true) &&
+      state.mastery[item.skill] !== undefined &&
+      !settled(state, item.skill),
   );
 
   let best: { item: DiagnosticItem; asked: number; info: number } | undefined;
@@ -260,13 +304,21 @@ export function recordResponse(
   };
 }
 
+/**
+ * A check ends when the budget is gone or there is nothing left worth asking —
+ * and the second half is what concentration buys. A deep check on one skill
+ * stops the moment the skill is decided, rather than spending the rest of its
+ * questions confirming what it already knows.
+ */
 export function isComplete(
   state: DiagnosticState,
   items: DiagnosticItem[],
   budget = DEFAULT_BUDGET,
+  scope: CheckScope = {},
 ): boolean {
   return (
-    state.asked.length >= budget || selectNextItem(state, items) === undefined
+    state.asked.length >= budget ||
+    selectNextItem(state, items, scope) === undefined
   );
 }
 

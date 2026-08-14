@@ -36,6 +36,15 @@ const reviewed = (): DomainPack => {
   };
 };
 
+/*
+ * `/check/{topic}/{skill}` runs a check off a cookie now, so it reads the jar
+ * even to render its description — an empty one is the state a crawler arrives
+ * in, which is the state this file asserts about.
+ */
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined, set: () => undefined }),
+}));
+
 vi.mock("@/lib/packs/loader", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/packs/loader")>();
   return { ...actual, loadAllPacks: () => [reviewed()] };
@@ -61,13 +70,16 @@ afterEach(() => {
 });
 
 describe("a reviewed pack (§12.1 gate open)", () => {
-  it("is submitted for indexing — topic, its check, and projects alike", () => {
-    // The check joined this list when E4 shipped the assessment behind it. It
-    // is gated on the same review the curriculum is, because an unreviewed
-    // pack's questions are exactly as unreviewed as its skill graph.
+  it("is submitted for indexing — topic, both checks, and projects alike", () => {
+    // Each check joined this list when the assessment behind it shipped: the
+    // subject check with E4, the per-skill ones when a check for one skill was
+    // built. All are gated on the same review the curriculum is, because an
+    // unreviewed pack's questions are exactly as unreviewed as its skill graph.
     expect(packPages().map((e) => e.url)).toEqual([
       "https://example.com/learn/valid-minimal",
       "https://example.com/check/valid-minimal",
+      "https://example.com/check/valid-minimal/alpha",
+      "https://example.com/check/valid-minimal/beta",
       "https://example.com/projects/minimal-project",
     ]);
   });
@@ -104,13 +116,13 @@ describe("a reviewed pack (§12.1 gate open)", () => {
     expect(meta.robots).toBeUndefined();
   });
 
-  it("keeps the per-skill check out even so — that tool is still unbuilt", async () => {
-    // The one place the two check pages part company, and the reason the
-    // single constant covering both had to be split.
+  it("drops the noindex from the per-skill check too, now that it runs one", async () => {
+    // The two check pages parted company for two epics, on the honest grounds
+    // that only one of them had a tool behind it. They are back on one gate.
     const meta = await check.generateMetadata({
       params: params({ topic: "valid-minimal", skill: "alpha" }),
     });
-    expect(meta.robots).toEqual({ index: false, follow: true });
+    expect(meta.robots).toBeUndefined();
   });
 
   it("drops the noindex directive from the project brief", async () => {
@@ -150,13 +162,37 @@ describe("content shapes the real packs never produce", () => {
     expect(container.textContent).not.toContain("…");
   });
 
-  it("says 'question' not 'questions' when the bank holds one", async () => {
+  /**
+   * A skill whose only question is a `micro_artifact` — "photograph a scene",
+   * "cook a dish" — has a bank a short check cannot draw from. The fixture's
+   * `beta` is exactly that, which is how this was found: the page was offering
+   * "up to 0 questions" behind a Start button, which is worse than the "not
+   * ready yet" apology it replaced.
+   */
+  it("offers no check for a skill whose questions all ask for work", async () => {
     render(
       await check.default({
         params: params({ topic: "valid-minimal", skill: "beta" }),
       }),
     );
-    expect(screen.getByText(/1 question for this skill so far/)).toBeDefined();
+
+    expect(screen.getByText("This one is proved by doing it")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.queryByText(/Up to 0/)).toBeNull();
+  });
+
+  it("says 'question' not 'questions' when the bank holds one", async () => {
+    // The singular is reachable and stays reachable: most photography skills
+    // carry exactly one usable item, so a one-question deep check is the
+    // ordinary case rather than a fixture curiosity.
+    render(
+      await check.default({
+        params: params({ topic: "valid-minimal", skill: "alpha" }),
+      }),
+    );
+    expect(
+      screen.getByText((t) => /Up to \d+ questions?\b/.test(t)),
+    ).toBeDefined();
   });
 
   it("omits the unlocks section for a leaf skill", async () => {

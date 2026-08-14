@@ -7,8 +7,8 @@ import { getAnthropic, hasApiKey } from "@/lib/ai/client";
 import { findPack } from "@/lib/content";
 import { gradeAuto, type DiagnosticItem } from "@/lib/engine/diagnostic";
 import { markOpenAnswer } from "@/lib/check/mark";
+import { cookieFor, narrow, pathFor, type CheckRef } from "@/lib/check/run";
 import {
-  cookieName,
   decode,
   encode,
   MAX_ANSWER,
@@ -18,20 +18,25 @@ import {
 } from "@/lib/check/session";
 
 /**
- * The Skill Check's three transitions, as Server Actions.
+ * The Skill Check's transitions, as Server Actions.
  *
  * In their own module rather than inline in the page for two reasons: a "use
  * server" file can be imported and called directly by a test, and it keeps the
  * page a pure function of its cookie. Every action ends in a redirect back to
  * the same URL, so a refresh after answering re-renders the next question
  * instead of resubmitting the last one.
+ *
+ * **One set of actions for both checks.** Each takes a `CheckRef` — a subject,
+ * and a skill for the deep check on one skill (§24 E11's `/check/{skill}`) —
+ * which decides the cookie, the item pool and the path to return to. Two sets
+ * would be two places deciding what a marked answer is worth.
  */
 
 const SIX_HOURS = 60 * 60 * 6;
 
-async function write(topic: string, next: CheckCookie): Promise<void> {
+async function write(ref: CheckRef, next: CheckCookie): Promise<void> {
   const jar = await cookies();
-  jar.set(cookieName(topic), encode(next), {
+  jar.set(cookieFor(ref), encode(next), {
     /*
      * Site-wide, and this is the whole of §24 E11's "the anonymous check result
      * is preserved through signup".
@@ -56,30 +61,21 @@ async function write(topic: string, next: CheckCookie): Promise<void> {
   });
 }
 
-async function read(topic: string): Promise<CheckCookie> {
+async function read(ref: CheckRef): Promise<CheckCookie> {
   const jar = await cookies();
-  return decode(jar.get(cookieName(topic))?.value);
+  return decode(jar.get(cookieFor(ref))?.value);
 }
 
-function itemsFor(topic: string): DiagnosticItem[] {
-  const pack = findPack(topic);
-  if (!pack) return [];
-  return pack.items.map((i) => ({
-    slug: i.slug,
-    skill: i.skill,
-    type: i.type,
-    difficulty: i.difficulty,
-    discrimination: i.discrimination,
-    prompt: i.prompt,
-    options: i.options,
-    answerKey: i.answerKey,
-  }));
+/** The pool this check draws from — the whole subject, or one skill of it. */
+function itemsFor(ref: CheckRef): DiagnosticItem[] {
+  const pack = findPack(ref.topic);
+  return pack ? narrow(pack, ref).items : [];
 }
 
 /** Starts a check, and restarts a finished one — the same thing. */
-export async function startCheck(topic: string): Promise<void> {
-  await write(topic, { s: 1, a: [] });
-  redirect(`/check/${topic}`);
+export async function startCheck(ref: CheckRef): Promise<void> {
+  await write(ref, { s: 1, a: [] });
+  redirect(pathFor(ref));
 }
 
 /**
@@ -96,13 +92,13 @@ export async function startCheck(topic: string): Promise<void> {
  * not recorded at all until the learner has said how it went.
  */
 export async function submitAnswer(
-  topic: string,
+  ref: CheckRef,
   formData: FormData,
 ): Promise<void> {
-  const cookie = await read(topic);
+  const cookie = await read(ref);
   const slug = String(formData.get("item") ?? "");
-  const pack = findPack(topic);
-  const item = itemsFor(topic).find((i) => i.slug === slug);
+  const pack = findPack(ref.topic);
+  const item = itemsFor(ref).find((i) => i.slug === slug);
 
   // A stale or forged form is dropped rather than recorded against the wrong
   // item — the check would rather ask again than log a fiction.
@@ -110,11 +106,11 @@ export async function submitAnswer(
     const response = String(formData.get("response") ?? "");
 
     if (!needsSelfMark(item)) {
-      await write(topic, {
+      await write(ref, {
         ...cookie,
         a: [...cookie.a, { i: item.slug, c: gradeAuto(item, response) ? 1 : 0 }],
       });
-      redirect(`/check/${topic}`);
+      redirect(pathFor(ref));
     }
 
     const marking = await markOpenAnswer(
@@ -137,7 +133,7 @@ export async function submitAnswer(
     );
 
     await write(
-      topic,
+      ref,
       marking === null
         ? { ...cookie, p: { i: item.slug, r: response.slice(0, MAX_ANSWER) } }
         : {
@@ -156,32 +152,32 @@ export async function submitAnswer(
     );
   }
 
-  redirect(`/check/${topic}`);
+  redirect(pathFor(ref));
 }
 
 /** Clears the marking the learner has just read, and asks the next question. */
-export async function continueAfterMarking(topic: string): Promise<void> {
-  const cookie = await read(topic);
+export async function continueAfterMarking(ref: CheckRef): Promise<void> {
+  const cookie = await read(ref);
   const { m, ...rest } = cookie;
-  if (m) await write(topic, rest);
-  redirect(`/check/${topic}`);
+  if (m) await write(ref, rest);
+  redirect(pathFor(ref));
 }
 
 /** The learner's own verdict on an open answer. Recorded, never counted. */
 export async function submitSelfMark(
-  topic: string,
+  ref: CheckRef,
   formData: FormData,
 ): Promise<void> {
-  const cookie = await read(topic);
+  const cookie = await read(ref);
 
   if (cookie.p) {
     const { p, ...rest } = cookie;
-    await write(topic, {
+    await write(ref, {
       ...rest,
       s: 1,
       a: [...cookie.a, { i: p.i, c: formData.get("got") === "1" ? 1 : 0 }],
     });
   }
 
-  redirect(`/check/${topic}`);
+  redirect(pathFor(ref));
 }

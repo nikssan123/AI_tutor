@@ -53,6 +53,8 @@ const { findPack } = await import("@/lib/content");
 
 const TOPIC = "photography";
 const COOKIE = `check_${TOPIC}`;
+/** Both checks share these actions now; this suite runs the broad one. */
+const REF = { topic: TOPIC };
 const params = (topic = TOPIC) => Promise.resolve({ topic });
 
 const pack = findPack(TOPIC)!;
@@ -149,14 +151,14 @@ describe("the intro", () => {
  */
 describe("where the cookie can be read from", () => {
   it("is written site-wide, or the carry-in cannot happen", async () => {
-    await run(() => actions.startCheck(TOPIC));
+    await run(() => actions.startCheck(REF));
     expect(writtenWith.get(COOKIE)?.path).toBe("/");
   });
 
   it("stays httpOnly, same-site and short-lived", async () => {
     // Widening the scope is not a licence to relax the rest of it: what this
     // holds is a list of item slugs and a 0 or 1 each, for six hours.
-    await run(() => actions.startCheck(TOPIC));
+    await run(() => actions.startCheck(REF));
     expect(writtenWith.get(COOKIE)).toMatchObject({
       httpOnly: true,
       sameSite: "lax",
@@ -181,7 +183,7 @@ describe("answering", () => {
 
     await run(() =>
       actions.submitAnswer(
-        TOPIC,
+        REF,
         form({ item: closedItem.slug, response: String(correct) }),
       ),
     );
@@ -195,7 +197,7 @@ describe("answering", () => {
 
     await run(() =>
       actions.submitAnswer(
-        TOPIC,
+        REF,
         form({ item: closedItem.slug, response: String(correct + 1) }),
       ),
     );
@@ -214,7 +216,7 @@ describe("answering", () => {
 
     await run(() =>
       actions.submitAnswer(
-        TOPIC,
+        REF,
         form({ item: openItem.slug, response: "my attempt" }),
       ),
     );
@@ -227,20 +229,20 @@ describe("answering", () => {
   it("drops a submission for an item that is not in the pack", async () => {
     seed({ s: 1, a: [] });
     await run(() =>
-      actions.submitAnswer(TOPIC, form({ item: "forged", response: "0" })),
+      actions.submitAnswer(REF, form({ item: "forged", response: "0" })),
     );
     expect(stored().a).toEqual([]);
   });
 
   it("drops a submission for a subject that does not exist", async () => {
     await expect(
-      actions.submitAnswer("nope", form({ item: "x", response: "0" })),
+      actions.submitAnswer({ topic: "nope" }, form({ item: "x", response: "0" })),
     ).rejects.toThrow("REDIRECT:/check/nope");
   });
 
   it("ignores a form with no item field at all", async () => {
     seed({ s: 1, a: [] });
-    await run(() => actions.submitAnswer(TOPIC, new FormData()));
+    await run(() => actions.submitAnswer(REF, new FormData()));
     expect(stored().a).toEqual([]);
   });
 
@@ -267,7 +269,7 @@ describe("answering", () => {
 
   it("treats a missing response as an answer rather than crashing", async () => {
     seed({ s: 1, a: [] });
-    await run(() => actions.submitAnswer(TOPIC, form({ item: closedItem.slug })));
+    await run(() => actions.submitAnswer(REF, form({ item: closedItem.slug })));
     expect(stored().a).toEqual([{ i: closedItem.slug, c: 0 }]);
   });
 });
@@ -296,19 +298,19 @@ describe("self-marking — the honest part", () => {
   });
 
   it("records a generous self-mark, and the engine still withholds credit", async () => {
-    await run(() => actions.submitSelfMark(TOPIC, form({ got: "1" })));
+    await run(() => actions.submitSelfMark(REF, form({ got: "1" })));
     expect(stored().a).toEqual([{ i: openItem.slug, c: 1 }]);
     expect(stored().p).toBeUndefined();
   });
 
   it("records an honest self-mark too", async () => {
-    await run(() => actions.submitSelfMark(TOPIC, form({ got: "0" })));
+    await run(() => actions.submitSelfMark(REF, form({ got: "0" })));
     expect(stored().a).toEqual([{ i: openItem.slug, c: 0 }]);
   });
 
   it("does nothing when there is no pending answer to mark", async () => {
     seed({ s: 1, a: [] });
-    await run(() => actions.submitSelfMark(TOPIC, form({ got: "1" })));
+    await run(() => actions.submitSelfMark(REF, form({ got: "1" })));
     expect(stored().a).toEqual([]);
   });
 
@@ -410,7 +412,7 @@ describe("the result", () => {
 
   it("can be started again from scratch", async () => {
     seed(nineClosed());
-    await run(() => actions.startCheck(TOPIC));
+    await run(() => actions.startCheck(REF));
     expect(stored()).toEqual({ s: 1, a: [] });
   });
 });

@@ -58,6 +58,8 @@ const { replay, toDiagnostic } = await import("@/lib/check/session");
 
 const TOPIC = "photography";
 const COOKIE = `check_${TOPIC}`;
+/** Both checks share these actions now; this suite runs the broad one. */
+const REF = { topic: TOPIC };
 const NOW = "2026-08-14T09:00:00.000Z";
 const params = (topic = TOPIC) => Promise.resolve({ topic });
 
@@ -93,7 +95,7 @@ describe("an answer the grader marked", () => {
 
     await run(() =>
       actions.submitAnswer(
-        TOPIC,
+        REF,
         form({ item: openItem.slug, response: "Light falls off with distance." }),
       ),
     );
@@ -116,7 +118,7 @@ describe("an answer the grader marked", () => {
     const skill = pack.skills.find((s) => s.slug === openItem.skill)!;
 
     await run(() =>
-      actions.submitAnswer(TOPIC, form({ item: openItem.slug, response: "x" })),
+      actions.submitAnswer(REF, form({ item: openItem.slug, response: "x" })),
     );
 
     expect(markOpenAnswer.mock.calls[0]![1]).toEqual({
@@ -134,7 +136,7 @@ describe("an answer the grader marked", () => {
     seed({ s: 1, a: [] });
 
     await run(() =>
-      actions.submitAnswer(TOPIC, form({ item: openItem.slug, response: "hmm" })),
+      actions.submitAnswer(REF, form({ item: openItem.slug, response: "hmm" })),
     );
 
     expect(stored().a).toEqual([{ i: openItem.slug, c: 0, g: 1 }]);
@@ -144,7 +146,7 @@ describe("an answer the grader marked", () => {
   it("hands the marker a real client when there is a key to build one from", async () => {
     seed({ s: 1, a: [] });
     await run(() =>
-      actions.submitAnswer(TOPIC, form({ item: openItem.slug, response: "x" })),
+      actions.submitAnswer(REF, form({ item: openItem.slug, response: "x" })),
     );
 
     expect(markOpenAnswer.mock.calls[0]![0]).toMatchObject({
@@ -192,7 +194,7 @@ describe("an answer the grader marked", () => {
       m: { i: openItem.slug, c: 1, f: "Good.", r: "…" },
     });
 
-    await run(() => actions.continueAfterMarking(TOPIC));
+    await run(() => actions.continueAfterMarking(REF));
     expect(stored().m).toBeUndefined();
     expect(stored().a).toHaveLength(1);
   });
@@ -209,7 +211,7 @@ describe("an answer the grader marked", () => {
 
   it("does nothing when asked to continue with no marking to clear", async () => {
     seed({ s: 1, a: [] });
-    await run(() => actions.continueAfterMarking(TOPIC));
+    await run(() => actions.continueAfterMarking(REF));
     expect(stored().m).toBeUndefined();
   });
 });

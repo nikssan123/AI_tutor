@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { ChecklistIcon, GridIcon, StepsIcon } from "@/components/icons";
 import {
   EvalTierNote,
@@ -9,37 +10,73 @@ import {
   PageIntro,
   SectionHead,
 } from "@/components/marketing";
-import { LinkCard, Meta, stagger } from "@/components/ui";
 import {
-  allPacks,
-  findSkill,
-  skillDetails,
-  SKILL_CHECKS_ARE_NEVER_INDEXED,
-} from "@/lib/content";
+  BAND_COPY,
+  MarkingScreen,
+  QuestionScreen,
+  SelfMarkScreen,
+} from "@/components/check-screens";
+import {
+  Button,
+  DisplayTitle,
+  Lead,
+  LinkCard,
+  Meta,
+  stagger,
+  Status,
+} from "@/components/ui";
+import { findSkill, isTopicIndexable, skillDetails } from "@/lib/content";
+import {
+  budgetFor,
+  cookieFor,
+  narrow,
+  scopeFor,
+  type CheckRef,
+} from "@/lib/check/run";
+import { decode, readableAnswerKey, replay } from "@/lib/check/session";
+import {
+  bandFor,
+  isComplete,
+  selectNextItem,
+  settled,
+} from "@/lib/engine/diagnostic";
+import { effectiveMastery } from "@/lib/engine/bkt";
 import { breadcrumbs } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
+import {
+  continueAfterMarking,
+  startCheck,
+  submitAnswer,
+  submitSelfMark,
+} from "../actions";
 
 /**
- * §10 A — the interactive Skill Check.
+ * §10 A — the interactive Skill Check, for one skill.
  *
- * **Deliberately `noindex`**, and still the only check page that is. §2.6
- * identified the skill-assessment SERP as "the crack in the wall", but the thing
- * that would earn the ranking is a working assessment, and the one this page
- * offers — a check for a single skill on its own — is the one E4 did not build.
- * The page says so in as many words in its own second card. Publishing it would
- * be precisely the thin-content pattern §12 exists to prevent, so it is served,
- * honest about its state, and kept out of the index until the tool is real.
+ * **This page was an apology for two epics.** It described a skill, said "you
+ * cannot check this skill on its own yet", and was held out of the index
+ * because §12 forbids publishing a page for a tool that does not exist. The
+ * tool exists now, and it is the answer to the half of §24 E4 that the broad
+ * check cannot reach.
  *
- * `/check/{topic}` went the other way when E4 landed; the two reasons are in
- * `SKILL_CHECKS_ARE_NEVER_INDEXED`.
+ * The arithmetic is the whole reason it is a separate page. Clearing
+ * `MASTERY_TARGET` takes three to five observations on *one* skill; a
+ * nine-question check across twenty-six of them can never give any single skill
+ * that many, so the broad check locates a learner and cannot prove anything.
+ * This one spends its entire budget on one skill and stops the moment the skill
+ * is decided (`settled`), which is what "adaptive" was supposed to mean.
+ *
+ * So it is indexable now, on the same gate as everything else about its pack —
+ * §2.6 calls the skill-assessment SERP "the crack in the wall", and this is the
+ * page that answers those queries with a working assessment rather than an
+ * article about one.
+ *
+ * `force-dynamic` for the same reason `/check/{topic}` is: five screens at one
+ * URL off a cookie, and a cached first question would be someone else's. A
+ * crawler arrives without one and is served the description, which is the state
+ * worth ranking.
  */
-export const revalidate = 86_400;
-
-export function generateStaticParams() {
-  return allPacks().flatMap((pack) =>
-    pack.skills.map((skill) => ({ topic: pack.slug, skill: skill.slug })),
-  );
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -51,10 +88,11 @@ export async function generateMetadata({
   if (!found) return {};
 
   return marketingMetadata({
+    // §13.3 — title ≤60 characters, description 140–160.
     title: `${found.skill.name} — skill check`,
-    description: found.skill.canDoStatement,
+    description: `Prove one skill: ${found.skill.canDoStatement}. A short check, marked against the same bar, no account and nothing kept afterwards.`,
     path: `/check/${topic}/${skill}`,
-    indexable: SKILL_CHECKS_ARE_NEVER_INDEXED,
+    indexable: isTopicIndexable(found.pack),
   });
 }
 
@@ -104,6 +142,124 @@ export default async function CheckPage({
     { name: detail.name, path: `/check/${pack.slug}/${detail.slug}` },
   ];
 
+  /* ── The check, when one is running ──────────────────────────────────── */
+  const ref: CheckRef = { topic, skill };
+  const { skills, items } = narrow(pack, ref);
+  const jar = await cookies();
+  const cookie = decode(jar.get(cookieFor(ref))?.value);
+  const now = new Date().toISOString();
+  const state = replay(cookie, skills, items, now);
+  const budget = budgetFor(ref, items);
+  const scope = scopeFor(ref);
+
+  /*
+   * The running screens keep the narrow column (§8.5.9's task-screen exception)
+   * and drop everything else on the page. One question at a time is the whole
+   * point, and the prerequisites map underneath it would be an invitation to
+   * go and read the answer.
+   */
+  const running = (children: React.ReactNode) => (
+    <>
+      <JsonLdScript blocks={[breadcrumbs(crumbs)]} />
+      <PageFrame crumbs={crumbs} narrow className="gap-10">
+        {children}
+      </PageFrame>
+    </>
+  );
+
+  if (cookie.s && cookie.m) {
+    const marked = items.find((i) => i.slug === cookie.m!.i);
+    if (!marked) redirect(`/check/${topic}/${skill}`);
+
+    return running(
+      <MarkingScreen
+        prompt={marked.prompt}
+        marked={cookie.m}
+        asked={state.asked.length}
+        budget={budget}
+        action={continueAfterMarking.bind(null, ref)}
+      />,
+    );
+  }
+
+  if (cookie.s && cookie.p) {
+    const item = items.find((i) => i.slug === cookie.p!.i);
+    if (!item) redirect(`/check/${topic}/${skill}`);
+
+    return running(
+      <SelfMarkScreen
+        prompt={item.prompt}
+        response={cookie.p.r}
+        concepts={readableAnswerKey(item)}
+        asked={state.asked.length}
+        budget={budget}
+        action={submitSelfMark.bind(null, ref)}
+      />,
+    );
+  }
+
+  if (cookie.s && !isComplete(state, items, budget, scope)) {
+    return running(
+      <QuestionScreen
+        item={selectNextItem(state, items, scope)!}
+        asked={state.asked.length}
+        budget={budget}
+        action={submitAnswer.bind(null, ref)}
+      />,
+    );
+  }
+
+  /* ── The result, for one skill ───────────────────────────────────────── */
+  if (cookie.s) {
+    const mastery = effectiveMastery(state.mastery[detail.slug]!, now);
+    // Assessed means something other than the learner decided it (§7.2).
+    const assessed = state.asked.some((a) => a.mode !== "self");
+    const band = bandFor(mastery, assessed);
+    const proved = settled(state, detail.slug) && band === "likely-known";
+
+    return running(
+      <>
+        <Status tone={BAND_COPY[band].tone}>{BAND_COPY[band].text}</Status>
+        <DisplayTitle>{detail.name}</DisplayTitle>
+
+        <Lead>
+          {proved
+            ? `You cleared the bar on this one: you can ${detail.canDoStatement}. It counts from ${state.asked.filter((a) => a.mode !== "self").length} marked answers, and it is still not the same as doing the work.`
+            : assessed
+              ? "Not yet — the answers we could mark did not get there. That is a useful thing to know before you spend hours on the rest of the subject."
+              : "Nothing here could be marked, so nothing counts. Answering in writing is what makes a check mean something."}
+        </Lead>
+
+        <div className="flex flex-col gap-3 rounded-[var(--radius-card)] bg-accent-weak p-6">
+          {/* §8.5.4 — --ink-faint is under the small-text bar on this fill. */}
+          <Meta tone="muted">The bar, unchanged</Meta>
+          <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-lead-size)] leading-[var(--text-lead-line)] text-ink">
+            {detail.canDoStatement}
+          </p>
+        </div>
+
+        <Meta className="max-w-[var(--measure)]">
+          A check narrows things down. Only a piece of work you hand in and we
+          mark can prove you can do it — which is what a{" "}
+          <Link href="/projects" className="text-accent font-[550]">
+            graded project
+          </Link>{" "}
+          is for. The whole subject is on the{" "}
+          <Link href={`/check/${topic}`} className="text-accent font-[550]">
+            ten-minute check
+          </Link>
+          .
+        </Meta>
+
+        <form action={startCheck.bind(null, ref)}>
+          <Button type="submit" variant="text">
+            Start again
+          </Button>
+        </form>
+      </>,
+    );
+  }
+
   return (
     <>
       <JsonLdScript blocks={[breadcrumbs(crumbs)]} />
@@ -148,33 +304,61 @@ export default async function CheckPage({
           </div>
 
           {/*
-            Honest about state rather than a fake "coming soon" CTA. §4.2 law 5:
-            declared limits are a feature, and a disabled button pretending to
-            be a product is the overclaiming the whole positioning rejects.
+            Where the apology used to be.
 
-            The claim here used to be that the check "needs the diagnostic
-            engine, which is the next piece of work" — written before E4 landed
-            and left behind by it. The engine exists and `/check/[topic]` runs
-            on it; what is still missing is a check you can take for one skill
-            on its own.
+            This card said "Not ready yet — you cannot check this skill on its
+            own", which was true for two epics and is the reason the page was
+            held out of the index. It is the offer now, and it says what the
+            check can and cannot settle before anyone starts it (§4.2 law 5).
+
+            Unless there is nothing to ask. A skill whose questions are all
+            `micro_artifact` — "photograph a scene", "cook a dish" — has a bank
+            a ten-minute check cannot draw from, and offering "up to 0
+            questions" behind a Start button is worse than the apology it
+            replaced. That skill gets the truth and the route that does work.
           */}
-          <div
-            className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)]"
-            style={stagger(1)}
-          >
-            <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-attention">
-              Not ready yet
-            </span>
-            <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
-              A check for this one skill
-            </span>
-            <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
-              You cannot check this skill on its own yet. The ten-minute check
-              for {pack.name} covers it along with the rest. We have written{" "}
-              {detail.itemCount} question{detail.itemCount === 1 ? "" : "s"} for
-              this skill so far.
-            </p>
-          </div>
+          {budget > 0 ? (
+            <div
+              className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)]"
+              style={stagger(1)}
+            >
+              <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+                Prove it
+              </span>
+              <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                A check for this one skill
+              </span>
+              <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
+                Up to {budget} question{budget === 1 ? "" : "s"} on this skill
+                alone, marked against the bar beside this. It stops as soon as
+                the answer is clear. No account, and your answers are not kept.
+              </p>
+              <form action={startCheck.bind(null, ref)}>
+                <Button type="submit">Start</Button>
+              </form>
+            </div>
+          ) : (
+            <div
+              className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)]"
+              style={stagger(1)}
+            >
+              <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-attention">
+                Nothing to ask yet
+              </span>
+              <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                This one is proved by doing it
+              </span>
+              <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] text-ink-muted">
+                Every question written for this skill asks for a piece of work
+                rather than an answer, and a short check cannot take one. The
+                route that can is a{" "}
+                <Link href="/projects" className="text-accent font-[550]">
+                  graded project
+                </Link>
+                .
+              </p>
+            </div>
+          )}
         </div>
 
         {detail.hardPrerequisites.length > 0 ? (

@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { seoPage } from "@/db/schema";
-import { allProjects, allTopics } from "@/lib/content";
+import { allProjects, allTopics, findPack, skillDetails } from "@/lib/content";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { canonical } from "@/lib/site";
 
@@ -16,11 +16,11 @@ import { canonical } from "@/lib/site";
  *     pack;
  *   - authored `SeoPage` rows, filtered in the query itself.
  *
- * `/check/{topic}` is here now. It was excluded on the grounds that the
- * assessment behind it did not exist — true when this was written, and untrue
- * since E4 — so it is gated on exactly what the subject page is gated on. Its
- * `/check/{topic}/{skill}` children stay out: that page still offers a check
- * for one skill that nobody has built (`SKILL_CHECKS_ARE_NEVER_INDEXED`).
+ * Both check pages are here now, on the same gate. Each was excluded in turn on
+ * the grounds that the assessment behind it did not exist — true of the subject
+ * check until E4, and of the per-skill check until it was built. §2.6 calls the
+ * skill-assessment SERP "the crack in the wall", and these are the pages that
+ * answer those queries with a working tool rather than an article about one.
  */
 export function packPages(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
@@ -32,14 +32,25 @@ export function packPages(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.8,
     });
-    // §2.6 — the skill-assessment SERP is "the crack in the wall", and this is
-    // the only page in the product that answers one of those queries with a
-    // working tool rather than an article about one.
     entries.push({
       url: canonical(`/check/${topic.slug}`),
       changeFrequency: "monthly",
       priority: 0.8,
     });
+
+    /*
+     * One page per skill, each a check that can actually settle that skill —
+     * which is the difference between this and the combinatorial pages §12
+     * rules out. The subject check locates a learner across the whole graph and
+     * proves nothing; these prove one thing each, and they say so.
+     */
+    for (const skill of skillDetails(findPack(topic.slug)!)) {
+      entries.push({
+        url: canonical(`/check/${topic.slug}/${skill.slug}`),
+        changeFrequency: "monthly",
+        priority: 0.6,
+      });
+    }
   }
 
   for (const project of allProjects()) {

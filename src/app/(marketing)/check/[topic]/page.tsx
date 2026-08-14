@@ -18,6 +18,12 @@ import {
   Status,
   Title,
 } from "@/components/ui";
+import {
+  BAND_COPY,
+  MarkingScreen,
+  QuestionScreen,
+  SelfMarkScreen,
+} from "@/components/check-screens";
 import { findPack, isTopicIndexable, topicSummary } from "@/lib/content";
 import {
   CHECK_MINUTES,
@@ -29,15 +35,8 @@ import {
 import { breadcrumbs, quiz, type JsonLd } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
 import { subjectInProse } from "@/lib/subject-name";
-import {
-  cookieName,
-  decode,
-  MAX_ANSWER,
-  needsSelfMark,
-  readableAnswerKey,
-  replay,
-  toDiagnostic,
-} from "@/lib/check/session";
+import { cookieFor, narrow } from "@/lib/check/run";
+import { decode, readableAnswerKey, replay } from "@/lib/check/session";
 import {
   continueAfterMarking,
   startCheck,
@@ -91,24 +90,18 @@ function toEngine(topic: string) {
   const pack = findPack(topic);
   if (!pack) notFound();
 
-  return { pack, ...toDiagnostic(pack) };
+  return { pack, ...narrow(pack, { topic }) };
 }
 
 /* ── Screens ────────────────────────────────────────────────────────────── */
 
-const BAND_COPY = {
-  "likely-known": { tone: "verified" as const, text: "Likely known" },
-  unclear: { tone: "attention" as const, text: "Unclear" },
-  gap: { tone: "problem" as const, text: "Gap" },
-  "not-assessed": { tone: "neutral" as const, text: "Not assessed" },
-};
-
 export default async function CheckRunPage({ params }: Params) {
   const { topic } = await params;
+  const ref = { topic };
   const { pack, skills, items } = toEngine(topic);
 
   const jar = await cookies();
-  const cookie = decode(jar.get(cookieName(topic))?.value);
+  const cookie = decode(jar.get(cookieFor(ref))?.value);
   const now = new Date().toISOString();
   const state = replay(cookie, skills, items, now);
 
@@ -177,7 +170,7 @@ export default async function CheckRunPage({ params }: Params) {
               tier 1's "we run your work" on a build with no sandbox. */}
           <EvalTierNote tier={topicSummary(pack).evalTier} />
         </div>
-        <form action={startCheck.bind(null, topic)}>
+        <form action={startCheck.bind(null, ref)}>
           <Button type="submit">Start the check</Button>
         </form>
       </>,
@@ -196,34 +189,15 @@ export default async function CheckRunPage({ params }: Params) {
   if (cookie.m) {
     const marked = items.find((i) => i.slug === cookie.m!.i);
     if (!marked) redirect(`/check/${topic}`);
-    const right = cookie.m.c === 1;
 
     return shell(
-      <>
-        <Meta>
-          Question {state.asked.length} of {DEFAULT_BUDGET} · marked
-        </Meta>
-        <Title>{marked.prompt}</Title>
-
-        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]">
-          <Meta>What you wrote</Meta>
-          <p className="whitespace-pre-wrap m-0">{cookie.m.r}</p>
-        </div>
-
-        <div className="rise flex flex-col gap-3 rounded-[var(--radius-card)] bg-accent-weak p-6">
-          <Status tone={right ? "verified" : "attention"}>
-            {right ? "Counted as right" : "Not right yet"}
-          </Status>
-          {/* §8.5.4 — --ink-faint is under the small-text bar on this fill. */}
-          <p className="m-0 max-w-[var(--measure)] text-[length:var(--text-label-size)] leading-[var(--text-body-line)] text-ink">
-            {cookie.m.f}
-          </p>
-        </div>
-
-        <form action={continueAfterMarking.bind(null, topic)}>
-          <Button type="submit">Next question</Button>
-        </form>
-      </>,
+      <MarkingScreen
+        prompt={marked.prompt}
+        marked={cookie.m}
+        asked={state.asked.length}
+        budget={DEFAULT_BUDGET}
+        action={continueAfterMarking.bind(null, ref)}
+      />,
     );
   }
 
@@ -295,7 +269,7 @@ export default async function CheckRunPage({ params }: Params) {
           </Link>
         </div>
 
-        <form action={startCheck.bind(null, topic)}>
+        <form action={startCheck.bind(null, ref)}>
           <Button type="submit" variant="text">
             Start again
           </Button>
@@ -309,112 +283,25 @@ export default async function CheckRunPage({ params }: Params) {
     const item = items.find((i) => i.slug === cookie.p!.i);
     if (!item) redirect(`/check/${topic}`);
 
-    const key = readableAnswerKey(item);
-
     return shell(
-      <>
-        <Meta>
-          Question {state.asked.length + 1} of {DEFAULT_BUDGET} · mark your own
-          answer
-        </Meta>
-        <Title>{item.prompt}</Title>
-
-        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-raised)]">
-          <Meta>What you wrote</Meta>
-          <p className="whitespace-pre-wrap m-0">
-            {cookie.p.r || "(left blank)"}
-          </p>
-        </div>
-
-        <div className="rise flex flex-col gap-2 rounded-[var(--radius-card)] bg-accent-weak p-6">
-          {/* §8.5.4 — --ink-faint is under the small-text bar on this fill. */}
-          <Meta tone="muted">A good answer covers</Meta>
-          <ul className="flex list-disc flex-col gap-1 pl-5 m-0">
-            {key.map((concept) => (
-              <li key={concept}>{concept}</li>
-            ))}
-          </ul>
-        </div>
-
-        <form action={submitSelfMark.bind(null, topic)} className="flex gap-3">
-          <Button type="submit" name="got" value="1">
-            I had that
-          </Button>
-          <Button type="submit" name="got" value="0" variant="text">
-            I did not
-          </Button>
-        </form>
-
-        <Meta>Either way, this does not count. It is practice.</Meta>
-      </>,
+      <SelfMarkScreen
+        prompt={item.prompt}
+        response={cookie.p.r}
+        concepts={readableAnswerKey(item)}
+        asked={state.asked.length}
+        budget={DEFAULT_BUDGET}
+        action={submitSelfMark.bind(null, ref)}
+      />,
     );
   }
 
   /* ── Question ────────────────────────────────────────────────────────── */
-  const item = selectNextItem(state, items)!;
-  const closed = !needsSelfMark(item);
-
   return shell(
-    <>
-      <Meta>
-        Question {state.asked.length + 1} of {DEFAULT_BUDGET}
-        {/* Neither promise is safe before the fact: an open answer is marked
-            when the grader is reachable and inside the day's budget, and marked
-            by the learner when it is not. The screen after this one says which
-            happened. */}
-        {closed ? " · marked automatically" : " · a written answer"}
-      </Meta>
-      <Title>{item.prompt}</Title>
-
-      <form action={submitAnswer.bind(null, topic)} className="flex flex-col gap-5">
-        <input type="hidden" name="item" value={item.slug} />
-
-        {closed ? (
-          <ul className="flex list-none flex-col gap-0 p-0 m-0 rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-raised)] overflow-hidden">
-            {/* The validator rejects any mcq with fewer than two options. */}
-            {item.options!.map((option, i) => (
-              <li
-                key={option}
-                className="rise border-b border-hairline last:border-b-0 hover:bg-accent-weak"
-                style={stagger(i)}
-              >
-                <label className="flex cursor-pointer items-center gap-3 px-5 py-4">
-                  <input
-                    type="radio"
-                    name="response"
-                    value={String(i)}
-                    required
-                    className="accent-[var(--color-accent)]"
-                  />
-                  {option}
-                </label>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <textarea
-            name="response"
-            rows={6}
-            /* The same bound the cookie enforces (`MAX_ANSWER`). Without it a
-               long answer is truncated after the fact, or — before that bound
-               was tightened — silently dropped the whole cookie and reset the
-               check. Told up front instead. */
-            maxLength={MAX_ANSWER}
-            placeholder="Your answer"
-            className="rounded-[var(--radius-control)] border border-hairline bg-surface p-4 text-ink placeholder:text-ink-faint"
-          />
-        )}
-
-        <div>
-          <Button type="submit">
-            {/* "Show me a good answer" for an open item, until the grader
-                existed. It promised the reveal-and-self-mark screen, which is
-                now the fallback rather than the rule — and the button cannot
-                know which it will get. One word covers both. */}
-            Answer
-          </Button>
-        </div>
-      </form>
-    </>,
+    <QuestionScreen
+      item={selectNextItem(state, items)!}
+      asked={state.asked.length}
+      budget={DEFAULT_BUDGET}
+      action={submitAnswer.bind(null, ref)}
+    />,
   );
 }

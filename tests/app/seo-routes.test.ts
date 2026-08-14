@@ -111,14 +111,28 @@ describe("sitemap.xml", () => {
     }
   });
 
-  it("never lists a per-skill check — that tool still does not exist", async () => {
-    // The subject check runs (E4) and is listed with its subject. A check for
-    // one skill on its own does not, and that page says so itself, so it is the
-    // one /check URL that stays out.
+  /**
+   * §2.6's "crack in the wall", finally competed for.
+   *
+   * Both check pages were excluded in turn on the grounds that the assessment
+   * behind them did not exist — the subject check until E4, the per-skill check
+   * until it was built. Each is listed exactly when its pack's own gate is open,
+   * and a per-skill URL exists for every skill of an open pack rather than for a
+   * chosen few, because each one settles a different skill.
+   */
+  it("lists a check per skill of an indexable pack, and none of a shut one", async () => {
     selectMock.mockResolvedValue([]);
+    const { allTopics, findPack, skillDetails } = await import("@/lib/content");
     const { packPages } = await import("@/app/sitemap");
-    for (const entry of packPages()) {
-      expect(entry.url).not.toMatch(/\/check\/[^/]+\/.+/);
+    const urls = new Set(packPages().map((e) => e.url));
+
+    for (const topic of allTopics()) {
+      for (const skill of skillDetails(findPack(topic.slug)!)) {
+        expect(
+          urls.has(`https://example.com/check/${topic.slug}/${skill.slug}`),
+          `${topic.slug}/${skill.slug}`,
+        ).toBe(topic.indexable);
+      }
     }
   });
 

@@ -11,7 +11,6 @@ import {
   resetContentCache,
   search,
   skillDetails,
-  SKILL_CHECKS_ARE_NEVER_INDEXED,
   topicSummary,
 } from "@/lib/content";
 import { MAX_TIER_WITHOUT_EXECUTION } from "@/lib/evaluation/tier";
@@ -163,12 +162,6 @@ describe("§12.1 — indexing is earned, never granted", () => {
     }
   });
 
-  it("keeps the per-skill check out of the index until that tool exists", () => {
-    // §2.6 calls the skill-assessment SERP "the crack in the wall", and E4 built
-    // the tool that earns it — for a whole subject. A check for one skill on its
-    // own is still unbuilt, and that page still says so, so it stays out.
-    expect(SKILL_CHECKS_ARE_NEVER_INDEXED).toBe(false);
-  });
 });
 
 describe("the tier a public page is allowed to quote", () => {
