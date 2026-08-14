@@ -210,6 +210,32 @@ describe("/account — Google", () => {
   });
 });
 
+/**
+ * §8.5.4 specifies "Settings → Appearance" and only the marketing footer half
+ * was ever built — so the people who spend hours in this product could not
+ * change the theme anywhere, while a passing visitor could. These pin the
+ * setting to the screen the "You" destination points at, which is the same
+ * place signing out ended up and for the same reason.
+ */
+describe("/account — appearance", () => {
+  it("offers all three choices, System included", async () => {
+    render(await AccountPage({ searchParams: search({}) }));
+    for (const choice of ["light", "dark", "system"]) {
+      expect(
+        screen.getByRole("radio", { name: choice }),
+        choice,
+      ).toBeDefined();
+    }
+  });
+
+  it("says what the setting actually covers, rather than implying an account-wide preference", async () => {
+    // It is a cookie plus localStorage, so it follows the browser and not the
+    // person. Saying so costs one sentence and prevents a support email.
+    render(await AccountPage({ searchParams: search({}) }));
+    expect(screen.getByText(/Applies to this\s+browser only/)).toBeDefined();
+  });
+});
+
 describe("/account — sessions", () => {
   it("offers the thing to do when a password may be compromised", async () => {
     render(await AccountPage({ searchParams: search({}) }));

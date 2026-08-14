@@ -20,9 +20,10 @@ import { evalTierClaim } from "@/lib/claims";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 import { CUSTOM_PATH_HREF, customPathHref } from "@/lib/goals/custom-path";
 import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
-import { ORGANISATION_NAME, serialise, type JsonLd } from "@/lib/seo/jsonld";
+import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
+import { supportAddress } from "@/lib/site";
 import type { RubricCriterion } from "@/lib/packs/types";
 
 /**
@@ -242,50 +243,72 @@ const FOOTER_LINKS: Array<{ title: string; links: Array<[string, string]> }> = [
 export function SiteFooter() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
-        <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex max-w-md flex-col gap-3">
-            {/* The headline already makes the "prove you learned it" point, so
-                the footer carries the second half of the promise instead of
-                restating the first. */}
-            <Meta>
-              Every checklist on this site is the one your work is really marked
-              against, and you can read it before you start.
-            </Meta>
-            <Meta>Nothing counts as proof until your work has been marked.</Meta>
-          </div>
-
-          <nav
-            aria-label="Footer"
-            className="flex flex-wrap gap-x-16 gap-y-8"
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex max-w-md flex-col gap-4">
+          <Wordmark />
+          {/* The headline already makes the "prove you learned it" point, so
+              the footer carries the second half of the promise instead of
+              restating the first. */}
+          <Meta>
+            Every checklist on this site is the one your work is really marked
+            against, and you can read it before you start.
+          </Meta>
+          <Meta>Nothing counts as proof until your work has been marked.</Meta>
+          {/*
+           * The one address a stranger can write to. It sits with the wordmark
+           * rather than in a rule-separated strip underneath: a footer divided
+           * into two bands reads as a footer with something appended below it,
+           * and the thing that kept getting appended was whatever had no other
+           * home. There is one band now, and nothing hangs off it.
+           */}
+          <a
+            href={`mailto:${supportAddress()}`}
+            className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
           >
-            {FOOTER_LINKS.map((group) => (
-              <div key={group.title} className="flex flex-col gap-3">
-                <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
-                  {group.title}
-                </span>
-                <ul className="flex list-none flex-col gap-2 p-0 m-0">
-                  {group.links.map(([label, href]) => (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
+            {supportAddress()}
+          </a>
         </div>
 
-        <div className="flex items-center justify-between border-t border-hairline pt-6">
-          <Meta>{ORGANISATION_NAME}</Meta>
-          {/* §8.5.4 — a small control in the footer, never floating chrome. */}
-          <ThemeToggleStatic />
-        </div>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-16 gap-y-8">
+          {FOOTER_LINKS.map((group) => (
+            <div key={group.title} className="flex flex-col gap-3">
+              <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+                {group.title}
+              </span>
+              <ul className="flex list-none flex-col gap-2 p-0 m-0">
+                {group.links.map(([label, href]) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          {/*
+           * §8.5.4 puts a small theme control on the marketing pages, and it
+           * belongs *in* the footer rather than hanging off the bottom of it.
+           * It used to sit on its own rule beside the wordmark, which read as
+           * chrome appended below the footer instead of one of the things the
+           * footer offers — and it is the same kind of thing as the links
+           * beside it: something you might want, once, and then never again.
+           *
+           * Its real home is Settings → Appearance, which §8.5.4 also
+           * specifies and which now exists on `/account`. This one is for the
+           * reader who has no account to go to.
+           */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+              Appearance
+            </span>
+            <ThemeToggleStatic />
+          </div>
+        </nav>
       </div>
     </footer>
   );

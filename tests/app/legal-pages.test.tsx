@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { LEGAL_UPDATED, supportAddress } from "@/components/legal";
+import { LEGAL_UPDATED } from "@/components/legal";
+import { supportAddress } from "@/lib/site";
 import { SiteFooter } from "@/components/marketing";
 import Privacy, { generateMetadata as privacyMeta } from "@/app/(marketing)/privacy/page";
 import Terms, { generateMetadata as termsMeta } from "@/app/(marketing)/terms/page";
@@ -59,13 +60,53 @@ describe("the footer", () => {
   /** §8.5.1 — the footer is chrome, not a directory. */
   it("stays a short list rather than becoming a sitemap", () => {
     const { container } = render(<SiteFooter />);
-    expect(container.querySelectorAll("a")).toHaveLength(6);
+    // Six navigation links plus the support address. Change this number with a
+    // reason, not to make a new link fit.
+    expect(container.querySelectorAll("a")).toHaveLength(7);
   });
 
-  it("keeps the promise copy and the theme control", () => {
-    render(<SiteFooter />);
+  /**
+   * One band, nothing hanging off it. The wordmark and the support address used
+   * to sit in a rule-separated strip below the link groups, which reads as a
+   * footer with something appended *under* the footer — and the thing that kept
+   * getting appended was whatever had no other home.
+   */
+  it("keeps the promise copy, the wordmark and one way to reach a person", () => {
+    const { container } = render(<SiteFooter />);
     expect(screen.getByText(/Nothing counts as proof/)).toBeDefined();
     expect(screen.getByText("MeritKeep")).toBeDefined();
+    expect(
+      container.querySelector(`a[href="mailto:${supportAddress()}"]`),
+    ).not.toBeNull();
+  });
+
+  it("draws one band, not two", () => {
+    // The footer's own top rule separates it from the page. A second rule
+    // *inside* it is what made the last row read as a different section.
+    const { container } = render(<SiteFooter />);
+    const inner = container.querySelectorAll("footer .border-t");
+    expect(inner, "no rule inside the footer").toHaveLength(0);
+  });
+
+  /**
+   * §8.5.4 asks for "a small control in the footer". It had been sitting on its
+   * own rule beside the wordmark, *below* the link groups, which reads as chrome
+   * appended under the footer rather than as one of the things the footer
+   * offers. It is a labelled group beside Explore and Legal now.
+   */
+  it("puts the theme control inside the footer, not below it", () => {
+    const { container } = render(<SiteFooter />);
+    const nav = container.querySelector('nav[aria-label="Footer"]')!;
+    const appearance = nav.querySelector('[aria-label="Appearance"]');
+    expect(appearance, "the toggle belongs inside the footer nav").not.toBeNull();
+    expect(nav.textContent).toContain("Appearance");
+  });
+
+  it("still offers all three choices without any framework JS", () => {
+    // §8.5.8 — the marketing surface ships no component-library JS, so this is
+    // the static toggle rather than the Radix one `/account` uses.
+    const { container } = render(<SiteFooter />);
+    expect(container.querySelectorAll("[data-theme-choice]")).toHaveLength(3);
   });
 });
 

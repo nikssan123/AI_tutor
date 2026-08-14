@@ -1,4 +1,5 @@
 import type { EnvLike } from "./env-types";
+import { parseMailbox, supportFrom } from "./email/addresses";
 
 /**
  * The canonical site origin.
@@ -16,6 +17,19 @@ export function siteUrl(env: EnvLike = process.env): string {
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
 
   return "http://localhost:3000";
+}
+
+/**
+ * The address a stranger can write to, without the display name.
+ *
+ * Lives beside `siteUrl` because it is the same kind of fact — how to reach
+ * this site — and because three surfaces now print it: the footer, the privacy
+ * page and the terms page. It is derived from the variable outgoing mail
+ * actually sends from, so the site cannot advertise one inbox while the product
+ * writes from another.
+ */
+export function supportAddress(env?: EnvLike): string {
+  return parseMailbox(supportFrom(env)).address;
 }
 
 export function canonical(path: string, env?: EnvLike): string {

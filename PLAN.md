@@ -767,6 +767,28 @@ WCAG 2.2 AA in **both** themes: 4.5:1 for body text, 3:1 for large text and for 
 
 **Settings → Appearance**, as a three-way toggle group (Light / Dark / System). On marketing pages, a small control in the footer. **Never a floating widget, never in primary chrome** — theme switching is a once-a-year action and should not occupy permanent space.
 
+> **Built, and the Settings half was missing for long enough to matter.** Only
+> the marketing footer control was ever built, which inverted who the setting
+> was for: a **signed-in learner could not change the theme anywhere** — not on
+> `/today`, not in a session, not on `/account` — while a first-time visitor
+> passing through in sixty seconds was the one being offered it. The people who
+> spend hours in this product, often at night, were the only ones locked out of
+> it. `/account` now carries the Appearance card this section always specified.
+>
+> **The footer control moved up into the footer.** It had been sitting on its
+> own rule beside the wordmark, below the link groups, which reads as chrome
+> appended *under* the footer rather than as one of the things the footer
+> offers. It is a labelled group beside Explore and Legal now — the same kind of
+> thing as the links next to it: something you might want once and then never
+> again. That is this section's own "should not occupy permanent space", applied
+> to placement rather than only to size.
+>
+> **And the second band went with it.** A rule inside a footer makes whatever
+> is under it read as a different section, and what kept landing there was
+> whatever had no other home. The footer is one band now: wordmark, the two
+> lines of promise, one support address a stranger can write to, and the three
+> groups. The only rule is the one separating the footer from the page.
+
 ### Deliberately single-theme
 
 - **OG / social preview images** — platforms don't respect viewer theme; ship the light version only

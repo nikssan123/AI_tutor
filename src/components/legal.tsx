@@ -1,5 +1,5 @@
 import { Meta, Title } from "@/components/ui";
-import { parseMailbox, supportFrom } from "@/lib/email/addresses";
+import { supportAddress } from "@/lib/site";
 
 /**
  * The two legal pages share a shape so they cannot drift into two documents
@@ -45,15 +45,6 @@ export function LegalSection({
       </div>
     </section>
   );
-}
-
-/**
- * The support address, read from the same place outgoing mail reads it.
- * Hard-coding it would give us a page promising one inbox while the product
- * wrote from another.
- */
-export function supportAddress(): string {
-  return parseMailbox(supportFrom()).address;
 }
 
 export function SupportLine() {

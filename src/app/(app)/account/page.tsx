@@ -16,6 +16,7 @@ import {
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader } from "@/components/app-shell";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   changeEmailAction,
   changePasswordAction,
@@ -340,8 +341,31 @@ export default async function AccountPage({ searchParams }: Props) {
         </Card>
       ) : null}
 
-      {/* ── Sessions ─────────────────────────────────────────────────────── */}
+      {/* ── Appearance ───────────────────────────────────────────────────
+       * §8.5.4 specifies "Settings → Appearance, as a three-way toggle group",
+       * and it was never built. The consequence was not cosmetic: the only
+       * theme control in the product sat in the marketing footer, so a
+       * signed-in learner — the person who spends hours in here, often at
+       * night — could not change it anywhere at all, while a first-time
+       * visitor passing through in sixty seconds was the one being offered it.
+       *
+       * System leads because most people already made this choice at the OS
+       * level; the other two are for overriding it in one direction for one
+       * device, which is the only reason to touch this at all.
+       */}
       <Card className="rise flex flex-col gap-4" style={stagger(5)}>
+        <Title>Appearance</Title>
+        <Meta>
+          Follows your device unless you tell it otherwise. Applies to this
+          browser only.
+        </Meta>
+        <div className="border-t border-hairline pt-4">
+          <ThemeToggle />
+        </div>
+      </Card>
+
+      {/* ── Sessions ─────────────────────────────────────────────────────── */}
+      <Card className="rise flex flex-col gap-4" style={stagger(6)}>
         <Title>Signing out</Title>
         <Meta>
           If you think someone else has your password, sign everything out and
