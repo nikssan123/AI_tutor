@@ -92,8 +92,14 @@ export function courseSkillIds(
   return graph.skills.filter((s) => kept.has(s.id)).map((s) => s.id);
 }
 
-/** "Write a SQL query…" → "write a SQL query…", for mid-sentence use. */
-function lowerFirst(text: string): string {
+/**
+ * "Write a SQL query…" → "write a SQL query…", for mid-sentence use.
+ *
+ * Exported for the outline, which sets the same `canDoStatement` into a
+ * different sentence. One helper, so the two screens cannot start disagreeing
+ * about where the capital letter goes.
+ */
+export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 

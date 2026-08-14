@@ -36,6 +36,8 @@ import {
   Title,
   ToggleGroup,
 } from "@/components/ui";
+import { CourseOutline, OutlineLegend } from "@/components/course-outline";
+import type { Outline } from "@/lib/goals/outline";
 import { RubricLadder, SectionHead } from "@/components/marketing";
 import { AppHeader, SectionHead as AppSectionHead } from "@/components/app-shell";
 import { featuredProject } from "@/lib/content";
@@ -74,6 +76,75 @@ function Section({
     </section>
   );
 }
+
+/**
+ * One of each state, which is the only fixture this page ever wants: the
+ * outline's job is to make four states legible at a glance, and a sample
+ * missing one of them cannot show whether it does.
+ */
+const OUTLINE: Outline = {
+  counts: { open: 1, locked: 1, proved: 1, optional: 1 },
+  sections: [
+    {
+      key: "module-0",
+      title: "Getting the grain right",
+      state: "open",
+      hours: 4,
+      current: true,
+      handIn: "Ends with a project you hand in, and we mark it",
+      skills: [
+        {
+          skillId: "grain",
+          name: "GROUP BY and result grain",
+          state: "open",
+          hours: 4,
+          note: "Open to you now — you'll be able to say what one row of a result means.",
+        },
+        {
+          skillId: "fan-out",
+          name: "Join grain and fan-out",
+          state: "locked",
+          hours: 3,
+          note: "Unlocks once you've done GROUP BY and result grain.",
+        },
+      ],
+    },
+    {
+      key: "module-1",
+      title: "Reading a schema",
+      state: "proved",
+      hours: 0,
+      current: false,
+      handIn: null,
+      skills: [
+        {
+          skillId: "schema",
+          name: "Reading a schema you didn't write",
+          state: "proved",
+          hours: 0,
+          note: "You already showed you can find the table a question is really about.",
+        },
+      ],
+    },
+    {
+      key: "trailing-optional",
+      title: "Not in your course",
+      state: "optional",
+      hours: 9,
+      current: false,
+      handIn: null,
+      skills: [
+        {
+          skillId: "tuning",
+          name: "Query tuning",
+          state: "optional",
+          hours: 9,
+          note: "Not in your course at this depth — still yours to take on.",
+        },
+      ],
+    },
+  ],
+};
 
 export default function DesignPage() {
   const featured = featuredProject();
@@ -270,12 +341,17 @@ export default function DesignPage() {
 
       <Section
         title="Pack maturity"
-        note="§7.1 — depth is declared to the learner, not faked."
+        note="§7.1 — depth is declared to the learner, not faked. Two inputs decide the claim: how deep the material is, and who checked it. The label is what was actually done, and only a human sign-off gets the verified tone — a model review can open the index gate but cannot borrow the badge a person earns."
       >
         <Card className="flex flex-col gap-4">
-          <MaturityBadge maturity="curated" />
-          <MaturityBadge maturity="standard" />
-          <MaturityBadge maturity="generated" />
+          {/* Five, not six: an unreviewed pack claims no check whatever its
+              depth, so curated+null and standard+null are the same claim and a
+              sixth badge would be a duplicate posing as a distinct state. */}
+          <MaturityBadge maturity="curated" review="human" />
+          <MaturityBadge maturity="standard" review="human" />
+          <MaturityBadge maturity="curated" review="model" />
+          <MaturityBadge maturity="standard" review={null} />
+          <MaturityBadge maturity="generated" review={null} />
         </Card>
       </Section>
 
@@ -318,6 +394,16 @@ export default function DesignPage() {
             <Status tone="neutral">Locked</Status>
           </Row>
         </RowList>
+      </Section>
+
+      <Section
+        title="Course outline"
+        note="The row list nested one level: a card per section, skills inside it, opened by <details> rather than by state. Every state carries a word and a sentence — a locked row that cannot say what it is waiting for is an icon with no tooltip, which §8.5.5 bans outright."
+      >
+        <div className="flex flex-col gap-4">
+          <OutlineLegend counts={OUTLINE.counts} />
+          <CourseOutline outline={OUTLINE} />
+        </div>
       </Section>
 
       <Section

@@ -146,6 +146,19 @@ export function AccountIcon({ className }: IconProps) {
 }
 
 /**
+ * The disclosure mark on a section that opens. Points right when the section
+ * is shut and down when it is open — rotated by the caller, so there is one
+ * glyph rather than two that must be kept in sync.
+ */
+export function ChevronIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="m9 6 6 6-6 6" />
+    </Svg>
+  );
+}
+
+/**
  * The affordance on a card that goes somewhere. Paired with a word, and it
  * travels 2px on hover rather than the card tinting (§8.5.9).
  */

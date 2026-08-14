@@ -438,6 +438,27 @@ Each screen: purpose, key UI, interactions, data required, AI behind it, SEO imp
 - **UI:** skill graph visual (DAG, colour-coded: mastered / in progress / locked / skipped-because-you-know-it). Timeline against their weekly hours with an honest completion estimate and a confidence range. Milestones and the projects they'll produce. **Explicitly lists what was skipped and why** — this is the "don't waste my time" promise made visible, and it is a demo-able moment nobody else has.
 - **Data:** `Curriculum`, `CurriculumModule`, `Skill`, `LearnerSkillMastery`, `LearningPlan`.
 - **AI:** Skill Graph Builder (pack-seeded, personalised) + Curriculum Architect + **Curriculum Validator** (§14.6).
+- **The outline leads; the DAG moved below it.** The four states above were
+  right and the *graph* was the wrong way to show them. A DAG answers "what is
+  the shape of this subject", which is not the question anyone arrives with —
+  and it could only draw three of the four: an untouched skill and an
+  unreachable one were the same rectangle, so **locked**, the one state that
+  says what has to happen first, never reached the screen at all. What the page
+  opens with now is the course as a sectioned list — every skill carrying its
+  state as a *word* and a sentence for it, and a locked one naming the
+  prerequisite by name. The shape people already know how to read from every
+  course catalogue on the internet, and the one thing those catalogues never
+  have: the lock is derived from §16.1's own eligibility filter rather than
+  from a drip schedule someone set.
+- **"What was skipped and why" is inside the outline now, not a list underneath
+  it.** Same sentences, same acceptance criterion (§24 E6), but beside the
+  module the skill was skipped from — where it answers "why is my course
+  shorter than the subject" instead of sitting in a footnote about it.
+- **The screen is no longer empty before a path is generated**, which is the
+  state most goals are in most of the time: the pack ships areas and the graph
+  ships an order, so the whole subject lays out for free, in the shape the
+  generated modules slot straight into. Still no percentage anywhere (§24 E9),
+  and still no JavaScript in the disclosure — it is `<details>`.
 
 ### 6. Daily dashboard — `/today`
 - **Purpose:** the retention surface. Must answer "what do I do now" in under 2 seconds.

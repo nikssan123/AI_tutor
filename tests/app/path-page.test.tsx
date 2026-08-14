@@ -174,27 +174,62 @@ describe("the DAG", () => {
   it("carries a legend for every state it can draw", async () => {
     render(await PathPage({ params: params() }));
     for (const label of ["On your path", "Already yours", "Optional"]) {
-      expect(screen.getByText(label)).toBeDefined();
+      // `getAll`, because two of the three words are also the outline's — the
+      // same state should read the same on both halves of the page.
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
 });
 
-describe("what was skipped, and why", () => {
+/**
+ * The outline is what a learner actually reads, so it carries §24 E6's
+ * criterion now: what was skipped is listed with its reason, in the place it
+ * was skipped from rather than in a separate list at the bottom of the page.
+ */
+describe("the outline", () => {
+  it("lays out the whole subject before a path has been built", async () => {
+    render(await PathPage({ params: params() }));
+
+    // The pack's own areas, which is what the graph orders them by.
+    expect(screen.getByText("Exposure")).toBeDefined();
+    expect(screen.getByText("Optics")).toBeDefined();
+  });
+
+  it("names what a locked skill is waiting for", async () => {
+    // The state the DAG could never draw: an untouched skill and an
+    // unreachable one were the same rectangle.
+    render(await PathPage({ params: params() }));
+
+    expect(screen.getAllByText("Locked").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/Unlocks once you've done/).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("names each skipped skill with its reason", async () => {
     // §24 E6's acceptance criterion, and §8's "don't waste my time" promise
     // made visible.
     masteryForMock.mockResolvedValue([held(pack.skills[0]!.slug)]);
     render(await PathPage({ params: params() }));
 
-    expect(screen.getByText("What we skipped")).toBeDefined();
     expect(
-      screen.getByText(/Skipped — you already showed you can/),
+      screen.getByText(/You already showed you can/),
     ).toBeDefined();
   });
 
   it("says nothing about skipping when nothing was skipped", async () => {
     render(await PathPage({ params: params() }));
-    expect(screen.queryByText("What we skipped")).toBeNull();
+    expect(screen.queryByText(/You already showed you can/)).toBeNull();
+  });
+
+  it("counts the states above the list", async () => {
+    render(await PathPage({ params: params() }));
+
+    // Photography: 6 skills need nothing first, 8 are behind one of those, and
+    // the single specialist sits outside a standard course.
+    expect(screen.getByText("6 open now")).toBeDefined();
+    expect(screen.getByText("8 locked")).toBeDefined();
+    expect(screen.getByText("1 optional")).toBeDefined();
   });
 });
 
@@ -233,7 +268,7 @@ describe("the modules", () => {
       modules: [
         {
           order: 0,
-          title: "Exposure",
+          title: "Getting the exposure right",
           targetSkillIds: [pack.skills[0]!.slug],
           estimatedHours: 3,
           outputArtifact: "exercise",
@@ -243,24 +278,40 @@ describe("the modules", () => {
         {
           order: 1,
           title: "Shoot it",
-          targetSkillIds: ["a-skill-the-pack-dropped"],
+          targetSkillIds: [pack.skills[1]!.slug],
           estimatedHours: 2,
           outputArtifact: "project",
           acceptanceCriteria: [],
           rubricId: "r",
+        },
+        {
+          order: 2,
+          title: "A module about a skill the pack dropped",
+          targetSkillIds: ["a-skill-the-pack-dropped"],
+          estimatedHours: 2,
+          outputArtifact: "exercise",
+          acceptanceCriteria: [],
+          rubricId: null,
         },
       ],
     });
 
     render(await PathPage({ params: params() }));
 
-    expect(screen.getByText("Exposure")).toBeDefined();
+    expect(screen.getByText("Getting the exposure right")).toBeDefined();
     expect(screen.getByText("Shoot it")).toBeDefined();
     expect(screen.getByText("Graded")).toBeDefined();
-    // A stored module can outlive the skill it named; the slug is shown rather
-    // than a blank where a name should be.
-    expect(screen.getByText("a-skill-the-pack-dropped")).toBeDefined();
+    // A stored module outlives the pack it was written against. A module left
+    // with nothing to teach goes, rather than sitting there as an empty
+    // heading over work that no longer exists.
+    expect(
+      screen.queryByText("A module about a skill the pack dropped"),
+    ).toBeNull();
+    expect(screen.queryByText("a-skill-the-pack-dropped")).toBeNull();
+    // One filled button per screen: the offer to build is replaced by the
+    // offer to get on with it.
     expect(screen.queryByText("Build my path")).toBeNull();
+    expect(screen.getByRole("link", { name: /Start today/ })).toBeDefined();
 
     // §14.6 — the learner can see what was checked before they were shown this.
     expect(screen.getByText("Prerequisites are in order.")).toBeDefined();

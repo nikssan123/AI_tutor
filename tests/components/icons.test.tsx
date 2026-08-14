@@ -7,6 +7,7 @@ import {
   CalendarIcon,
   CameraIcon,
   ChecklistIcon,
+  ChevronIcon,
   CraftIcon,
   DatabaseIcon,
   GridIcon,
@@ -40,6 +41,7 @@ const ALL = [
   ["ProgressIcon", ProgressIcon],
   ["AccountIcon", AccountIcon],
   ["ArrowIcon", ArrowIcon],
+  ["ChevronIcon", ChevronIcon],
   ["CraftIcon", CraftIcon],
 ] as const;
 

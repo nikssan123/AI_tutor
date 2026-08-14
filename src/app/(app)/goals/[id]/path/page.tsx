@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { projectSkills } from "@/lib/goals/projection";
+import { buildOutline } from "@/lib/goals/outline";
 import { depthOptions } from "@/lib/goals/depth";
 import { currentCurriculum } from "@/lib/curriculum/store";
 import { resolvePack } from "@/lib/content/resolve";
@@ -14,6 +15,7 @@ import { effectiveMastery } from "@/lib/engine/bkt";
 import { CURRICULUM_MASTERED_THRESHOLD } from "@/lib/curriculum/validate";
 import {
   Button,
+  ButtonLink,
   Card,
   Lead,
   Meta,
@@ -22,6 +24,7 @@ import {
   MaturityBadge,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
+import { CourseOutline, OutlineLegend } from "@/components/course-outline";
 import { buildPathAction, setDepthAction } from "./actions";
 
 /**
@@ -53,10 +56,24 @@ function countSkills(n: number): string {
 /**
  * §8 screen 5 — the generated learning path.
  *
- * "The 'wow', and the honest expectation-set." Both halves matter: the DAG is
- * the wow, and the skipped list is the honesty. §8 is explicit that the page
- * must "explicitly list what was skipped and why" — that is the "don't waste my
- * time" promise made visible, and it is the part a progress bar can never say.
+ * "The 'wow', and the honest expectation-set." Both halves are still here; what
+ * changed is which one leads.
+ *
+ * **The graph was answering a question nobody asked.** §8 specifies four states
+ * — "mastered / in progress / locked / skipped-because-you-know-it" — and this
+ * page drew three of them as fills on a DAG. The fourth, *locked*, it could not
+ * draw at all: an untouched skill and an unreachable one were the same
+ * rectangle, so the most useful thing the engine knows — what has to happen
+ * first — never reached the screen. Meanwhile the honest half lived in a
+ * separate list at the bottom, so the skipped skills sat outside the shape of
+ * the course rather than in the place they were skipped from.
+ *
+ * So the outline leads now: the whole course, sectioned, every skill carrying
+ * its state and a sentence for it, in the shape every course catalogue on the
+ * internet uses because it works. The graph keeps its band lower down, where
+ * "how does this subject hold together" is a fair question to be asked.
+ * §24 E6's criterion is unchanged and still met — the DAG renders, and what was
+ * skipped is listed with its reason, now beside the module it was skipped from.
  *
  * There is no percentage anywhere on this page (§24 E9).
  */
@@ -133,6 +150,14 @@ export default async function PathPage({ params }: Props) {
     current: goal.spec.depth,
   });
 
+  const outline = buildOutline({
+    graph,
+    mastery,
+    now,
+    projection,
+    modules: stored?.modules,
+  });
+
   const names = new Map(graph.skills.map((s) => [s.id, s.name]));
   const effective = new Map(
     mastery.map((m) => [m.skillId, effectiveMastery(m, now)]),
@@ -171,17 +196,62 @@ export default async function PathPage({ params }: Props) {
             {/* §7.1 — see /today. The path is the screen people show other
                 people. */}
             {pack.maturity !== "curated" ? (
-              <MaturityBadge maturity={pack.maturity} />
+              <MaturityBadge
+                maturity={pack.maturity}
+                review={pack.quality.reviewKind}
+              />
             ) : null}
           </>
         }
       />
 
-      {/* ── The DAG ────────────────────────────────────────────────────── */}
+      {/* ── The outline ────────────────────────────────────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(1)}>
-        <SectionHead label="The graph" title="The whole subject" />
+        <SectionHead
+          label="The course"
+          title="Everything in it, and what's open to you now"
+        />
+        <Lead>
+          The whole subject, not just the next bit. A skill you can&rsquo;t start
+          yet says what has to happen first, so nothing here is a locked door
+          with no sign on it.
+        </Lead>
+        <OutlineLegend counts={outline.counts} />
+
+        {stored ? (
+          <div>
+            <ButtonLink href="/today">Start today&rsquo;s session</ButtonLink>
+          </div>
+        ) : (
+          /* §8.5.5's empty state is one sentence and one button — except this
+             one is no longer empty. The outline below is already the subject,
+             grouped by area; building the path is what re-cuts it into modules
+             that end in something you hand in. */
+          <Card className="flex flex-col items-start gap-4">
+            <Meta>
+              These are the pack&rsquo;s own areas. Build your path and we
+              regroup them into modules that each end in a piece of work &mdash;
+              about a minute, and we check it against the graph before you see
+              it.
+            </Meta>
+            <form action={buildPathAction.bind(null, goal.id)}>
+              <Button type="submit">Build my path</Button>
+            </form>
+          </Card>
+        )}
+
+        <CourseOutline outline={outline} />
+      </section>
+
+      {/* ── The DAG ────────────────────────────────────────────────────── */}
+      <section className="rise flex flex-col gap-6" style={stagger(2)}>
+        <SectionHead
+          label="The graph"
+          title="How the subject holds together"
+        />
         <Meta>
-          Laid out by depth, so every skill sits below what it needs first.
+          The same skills, laid out by depth — every one sits below what it
+          needs first.
         </Meta>
         <Card className="overflow-x-auto">
           <svg
@@ -252,55 +322,6 @@ export default async function PathPage({ params }: Props) {
         </Card>
       </section>
 
-      {/* ── The modules ────────────────────────────────────────────────── */}
-      <section className="rise flex flex-col gap-6" style={stagger(2)}>
-        <SectionHead label="In order" title="What you'll do" />
-        {stored ? (
-          /* Numbered, because "in order" is the whole claim of this list and
-             a stack of equal rows does not say it. */
-          <ol className="m-0 flex list-none flex-col gap-3 p-0">
-            {stored.modules.map((mod, i) => (
-              <li key={mod.order}>
-                <Card className="flex flex-wrap items-baseline gap-x-5 gap-y-3 p-5">
-                  <span
-                    aria-hidden="true"
-                    className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-[length:var(--text-meta-size)] font-[650] text-accent tabular-nums"
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="text-[length:var(--text-lead-size)] font-[550] text-ink">
-                      {mod.title}
-                    </span>
-                    <Meta>
-                      {mod.targetSkillIds
-                        .map((s) => names.get(s) ?? s)
-                        .join(" · ")}
-                    </Meta>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-4">
-                    {mod.outputArtifact === "project" ? (
-                      <Status tone="verified">Graded</Status>
-                    ) : null}
-                    <Meta>{mod.estimatedHours}h</Meta>
-                  </span>
-                </Card>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <Card className="flex flex-col items-start gap-4">
-            <Meta>
-              No path built yet. It takes about a minute — we generate one, then
-              check it against the graph before you see it.
-            </Meta>
-            <form action={buildPathAction.bind(null, goal.id)}>
-              <Button type="submit">Build my path</Button>
-            </form>
-          </Card>
-        )}
-      </section>
-
       {/* ── How much of the subject you're taking on ───────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(3)}>
         <SectionHead label="How deep" title="How much of this you're taking on" />
@@ -345,30 +366,9 @@ export default async function PathPage({ params }: Props) {
         </ul>
       </section>
 
-      {/* ── What was skipped, and why ──────────────────────────────────── */}
-      {projection.excludedSkillIds.length > 0 ? (
-        <section className="rise flex flex-col gap-6" style={stagger(4)}>
-          <SectionHead label="Not on it" title="What we skipped" />
-          <Lead>
-            You don&rsquo;t have to take our word for it — each of these was
-            skipped because you showed you could already do it.
-          </Lead>
-          <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-2">
-            {projection.excludedSkillIds.map((skillId) => (
-              <li
-                key={skillId}
-                className="rounded-[var(--radius-control)] bg-surface px-4 py-3 shadow-[var(--shadow-raised)]"
-              >
-                <Meta>{projection.exclusionReasons[skillId]}</Meta>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       {/* ── What was checked (§14.6) ───────────────────────────────────── */}
       {stored?.report ? (
-        <section className="rise flex flex-col gap-6" style={stagger(5)}>
+        <section className="rise flex flex-col gap-6" style={stagger(4)}>
           <SectionHead
             label="Before you saw it"
             title="What we checked before showing you this"
