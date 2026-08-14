@@ -25,7 +25,7 @@ export default async function SqlPage() {
   const { database, leastPrivilege } = getConsoleConnection();
 
   return (
-    <AppFrame>
+    <AppFrame width="full">
       <AppHeader
         eyebrow="Operations"
         title="SQL"

@@ -37,6 +37,21 @@ describe("AppFrame — one width, one rhythm (§8.5.9)", () => {
     expect(main.className).not.toContain("max-w-5xl");
   });
 
+  it("lets the operator's data grid off the measure entirely", () => {
+    // A fourteen-column table in `max-w-5xl` does not become readable; it
+    // becomes one where the columns you identify a row by are off-screen.
+    // Prose is unaffected, because `Lead` carries its own `--measure` cap.
+    const { container } = render(
+      <AppFrame width="full">
+        <p>child</p>
+      </AppFrame>,
+    );
+    const main = container.querySelector("main")!;
+    expect(main.className).toContain("max-w-none");
+    expect(main.className).not.toContain("max-w-5xl");
+    expect(main.className).not.toContain("max-w-2xl");
+  });
+
   /**
    * The mobile nav is `fixed` to the bottom of the viewport, so a frame with
    * no bottom padding puts the last thing on every page underneath it.

@@ -45,7 +45,7 @@ export default async function AuditPage() {
   const entries = await listAudit(getDb());
 
   return (
-    <AppFrame>
+    <AppFrame width="full">
       <AppHeader
         eyebrow="Operations"
         title="Audit"

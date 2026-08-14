@@ -41,6 +41,57 @@ describe("DataGrid", () => {
     expect(container.querySelector(".overflow-x-auto")).not.toBeNull();
   });
 
+  it("is allowed to be wider than the wrapper", () => {
+    // `w-full` pins the table to the visible width, so the browser compresses
+    // every column to fit and the wrapper's scroll never engages. `min-w-full`
+    // is what makes the sideways scroll real.
+    const { container } = render(<DataGrid columns={COLUMNS} rows={ROWS} />);
+    const table = container.querySelector("table")!;
+
+    expect(table.className).toContain("min-w-full");
+    expect(table.className).not.toMatch(/(^|\s)w-full(\s|$)/);
+  });
+
+  it("separates borders, so a pinned cell keeps them", () => {
+    const { container } = render(<DataGrid columns={COLUMNS} rows={ROWS} />);
+
+    expect(container.querySelector("table")!.className).toContain(
+      "border-separate",
+    );
+  });
+
+  describe("stickyLast", () => {
+    it("pins the last column when asked", () => {
+      // The actions column is the one you came to press; on a table wide
+      // enough to scroll it would otherwise sit off-screen.
+      const { container } = render(
+        <DataGrid columns={COLUMNS} rows={ROWS} stickyLast />,
+      );
+
+      const headers = [...container.querySelectorAll("thead th")];
+      expect(headers.at(-1)!.className).toContain("sticky");
+      expect(headers[0]!.className).not.toContain("sticky");
+
+      const cells = [...container.querySelectorAll("tbody tr")].map(
+        (row) => [...row.querySelectorAll("td")].at(-1)!,
+      );
+      // Opaque, or the scrolled columns show through it.
+      for (const cell of cells) {
+        expect(cell.className).toContain("sticky");
+        expect(cell.className).toContain("bg-surface");
+      }
+    });
+
+    it("pins nothing by default", () => {
+      // The SQL console's last column is data; pinning it would be arbitrary.
+      const { container } = render(<DataGrid columns={COLUMNS} rows={ROWS} />);
+
+      for (const cell of container.querySelectorAll("th, td")) {
+        expect(cell.className).not.toContain("sticky");
+      }
+    });
+  });
+
   it("shows the empty message instead of an empty table", () => {
     render(<DataGrid columns={COLUMNS} rows={[]} empty="Nothing here." />);
 
@@ -90,9 +141,33 @@ describe("Cell", () => {
     expect(container.querySelector("span")!.className).toContain("font-mono");
   });
 
-  it("breaks long values rather than stretching the column", () => {
+  it("clips a long value on one line rather than wrapping it", () => {
+    // Wrapping cost the column its width in the auto table layout — a wrapped
+    // cell's min-content width is one character — which is what turned every
+    // id into a five-line tower and pushed `email` off the visible area.
     const { container } = render(<Cell value={"x".repeat(200)} />);
+    const span = container.querySelector("span")!;
 
-    expect(container.querySelector("span")!.className).toContain("break-all");
+    expect(span.className).toContain("truncate");
+    expect(span.className).not.toContain("break-all");
+    expect(span.className).toContain("max-w-[40ch]");
+  });
+
+  it("sizes to its content rather than claiming the whole cap", () => {
+    // `block` would take the full max-width whatever it holds, so a
+    // 13-character id would reserve the same width as a 40-character one and
+    // the columns after it would be pushed off-screen.
+    const { container } = render(<Cell value="short" />);
+
+    expect(container.querySelector("span")!.className).toContain(
+      "inline-block",
+    );
+  });
+
+  it("keeps the full value reachable as a tooltip", () => {
+    const value = "a".repeat(80);
+    const { container } = render(<Cell value={value} />);
+
+    expect(container.querySelector("span")!.getAttribute("title")).toBe(value);
   });
 });

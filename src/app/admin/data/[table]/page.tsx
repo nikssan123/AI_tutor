@@ -112,7 +112,7 @@ export default async function TablePage({
   });
 
   return (
-    <AppFrame>
+    <AppFrame width="full">
       <AppHeader
         eyebrow="Data"
         title={info.name}
@@ -166,6 +166,7 @@ export default async function TablePage({
         <DataGrid
           columns={actionable ? [...headers, "Actions"] : headers}
           rows={rows}
+          stickyLast={actionable}
           empty={`${info.name} is empty.`}
         />
 

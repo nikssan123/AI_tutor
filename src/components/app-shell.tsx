@@ -41,7 +41,20 @@ export function AppFrame({
   className,
   children,
 }: {
-  width?: "wide" | "narrow";
+  /**
+   * `full` is the operator console's, and only the screens holding a data grid
+   * use it. A fourteen-column table boxed into `max-w-5xl` does not become
+   * readable — it becomes a table where the three columns you identify a row by
+   * are pushed off the visible area, which is exactly how `/admin/data/user`
+   * shipped: `id`, `name` and `email` needed 949px of a 976px viewport that the
+   * pinned actions column had already claimed 257px of.
+   *
+   * It does not reopen "pick a width per page". Prose is unaffected — `Lead`
+   * carries its own `--measure` cap — so what widens is the grid and nothing
+   * else, which is the one element on the page whose useful width is set by the
+   * data rather than by a reading measure.
+   */
+  width?: "wide" | "narrow" | "full";
   /**
    * Drops the bottom padding, for the one screen that pins a control to the
    * bottom of the viewport itself (`/start`'s composer). Anything rendered
@@ -62,7 +75,7 @@ export function AppFrame({
       className={cx(
         "mx-auto flex w-full flex-col gap-14 px-6 pt-10",
         flush ? "pb-0" : "pb-28",
-        width === "narrow" ? "max-w-2xl" : "max-w-5xl",
+        { narrow: "max-w-2xl", wide: "max-w-5xl", full: "max-w-none" }[width],
         className,
       )}
     >
