@@ -221,11 +221,23 @@ describe("/account — email", () => {
 });
 
 describe("/account — password", () => {
-  it("asks for the current one when the account has a password", async () => {
+  it("changes it by email rather than in the page", async () => {
+    // The inline form took the current password and the new one, and could be
+    // driven end to end from a session someone else had got hold of. The link
+    // goes to the inbox, so a borrowed session can start this and not finish
+    // it — there is no new-password field here to submit.
     render(await AccountPage({ searchParams: search({}) }));
 
-    expect(screen.getByLabelText("Current password")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Change password" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Email me a link" })).toBeDefined();
+    expect(screen.queryByLabelText("Current password")).toBeNull();
+    expect(screen.queryByLabelText("New password")).toBeNull();
+  });
+
+  it("says the link will sign them out here too", async () => {
+    // Following it revokes every session, this one included. Someone who is
+    // about to lose the tab they are looking at should be told first.
+    render(await AccountPage({ searchParams: search({}) }));
+    expect(screen.getByText(/signs you out everywhere/i)).toBeDefined();
   });
 
   it("offers to set a first one for an account that arrived via Google", async () => {

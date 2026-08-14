@@ -32,6 +32,9 @@ import { toThemeChoice } from "@/lib/theme-script";
 /** A plain-enough address check, so the API's schema error never reaches a UI. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Where the link in the password email drops the reader. */
+const RESET_PAGE = "/reset-password";
+
 export async function signOutAction(): Promise<void> {
   await getAuth().api.signOut({ headers: await headers() });
   // Home rather than /sign-in: someone who just signed out has said they are
@@ -103,32 +106,36 @@ export async function changeEmailAction(formData: FormData): Promise<void> {
   );
 }
 
-export async function changePasswordAction(formData: FormData): Promise<void> {
-  await requireUser();
-
-  const currentPassword = String(formData.get("currentPassword") ?? "");
-  const newPassword = String(formData.get("newPassword") ?? "");
-
-  if (newPassword.length < MIN_PASSWORD_LENGTH) {
-    accountError(`A password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
-  }
+/**
+ * Changing a password, through the inbox rather than in the page.
+ *
+ * This replaced a `changePassword` form that took the current password and the
+ * new one inline. The emailed link is the stronger of the two: the old form
+ * could be driven start to finish from a session someone else had got hold of,
+ * as long as they also had the current password — and a session worth stealing
+ * is usually one taken from an unlocked machine, where the browser knows the
+ * current password too. A link goes to the inbox, so a stolen session can start
+ * this and cannot finish it.
+ *
+ * It is the same endpoint `/forgot-password` calls, and deliberately so: one
+ * way to end up holding a new password rather than two that behave differently.
+ * What it does *not* do is copy that action's silence about failures — the
+ * anonymity rule there exists so a stranger cannot use the form to discover who
+ * has an account here, and this caller is already signed in as the only address
+ * it will ever send to. There is nobody to keep the secret from.
+ */
+export async function emailPasswordLinkAction(): Promise<void> {
+  const user = await requireUser();
 
   try {
-    await getAuth().api.changePassword({
-      headers: await headers(),
-      body: {
-        currentPassword,
-        newPassword,
-        // Changing a password is usually a reaction to suspecting someone else
-        // has it. Leaving their session alive would defeat the point.
-        revokeOtherSessions: true,
-      },
+    await getAuth().api.requestPasswordReset({
+      body: { email: user.email, redirectTo: RESET_PAGE },
     });
   } catch (error) {
-    accountError(explain(error, "We couldn't change your password."));
+    accountError(explain(error, "We couldn't send that email."));
   }
 
-  accountOk("Password changed. Every other device has been signed out.");
+  accountOk(`Check ${user.email} for a link to choose a new password.`);
 }
 
 /**

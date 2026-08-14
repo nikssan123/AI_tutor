@@ -240,53 +240,42 @@ describe("changeEmailAction", () => {
   });
 });
 
-describe("changePasswordAction", () => {
-  it("changes it and revokes every other session", async () => {
-    const error = await actions
-      .changePasswordAction(
-        form({ currentPassword: "old-password", newPassword: "new-password" }),
-      )
-      .catch((e) => e);
+describe("emailPasswordLinkAction", () => {
+  it("sends the link to the signed-in address, never to a posted one", async () => {
+    // It takes no FormData at all. The address is read from the session, so
+    // there is no field for a borrowed session to point somewhere else.
+    const error = await actions.emailPasswordLinkAction().catch((e) => e);
 
-    expect(api.changePassword).toHaveBeenCalledWith({
-      headers: expect.anything(),
-      body: {
-        currentPassword: "old-password",
-        newPassword: "new-password",
-        // Changing a password is a reaction to suspecting someone has it.
-        revokeOtherSessions: true,
-      },
+    expect(api.requestPasswordReset).toHaveBeenCalledWith({
+      body: { email: "learner@example.com", redirectTo: "/reset-password" },
     });
-    expect(landed(error).ok).toMatch(/every other device/i);
+    expect(landed(error).ok).toMatch(/learner@example\.com/);
   });
 
-  it("checks the length before spending a round trip on it", async () => {
-    const error = await actions
-      .changePasswordAction(form({ currentPassword: "x", newPassword: "short" }))
-      .catch((e) => e);
-
-    expect(landed(error).message).toMatch(/at least 8/);
+  it("uses the same endpoint /forgot-password does", async () => {
+    // One way to end up holding a new password, rather than two that behave
+    // differently. Nothing here calls `changePassword`.
+    await actions.emailPasswordLinkAction().catch(() => {});
     expect(api.changePassword).not.toHaveBeenCalled();
   });
 
-  it("survives a POST with no fields", async () => {
-    const error = await actions.changePasswordAction(new FormData()).catch((e) => e);
-    expect(landed(error).message).toMatch(/at least 8/);
-    expect(api.changePassword).not.toHaveBeenCalled();
+  it("reports a failure, unlike the signed-out form", async () => {
+    /*
+     * `/forgot-password` swallows errors so a stranger cannot use it to learn
+     * who has an account. This caller is already signed in as the only address
+     * it will ever send to, so there is nobody to keep the secret from — and
+     * silence here would read as a link that is on its way when it is not.
+     */
+    api.requestPasswordReset.mockRejectedValue(new Error("smtp is down"));
+
+    const error = await actions.emailPasswordLinkAction().catch((e) => e);
+    expect(landed(error).message).toMatch(/couldn't send that email/i);
   });
 
-  it("says plainly that the current password was wrong", async () => {
-    api.changePassword.mockRejectedValue(
-      new APIError("BAD_REQUEST", { code: "INVALID_PASSWORD" }),
-    );
-
-    const error = await actions
-      .changePasswordAction(
-        form({ currentPassword: "wrong", newPassword: "new-password" }),
-      )
-      .catch((e) => e);
-
-    expect(landed(error).message).toMatch(/current password isn't right/i);
+  it("refuses when nobody is signed in", async () => {
+    requireUserMock.mockRejectedValue(new Error("NO_SESSION"));
+    await expect(actions.emailPasswordLinkAction()).rejects.toThrow("NO_SESSION");
+    expect(api.requestPasswordReset).not.toHaveBeenCalled();
   });
 });
 

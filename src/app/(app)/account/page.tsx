@@ -29,7 +29,7 @@ import { GoogleIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   changeEmailAction,
-  changePasswordAction,
+  emailPasswordLinkAction,
   linkGoogleAction,
   rememberThemeAction,
   resendVerificationAction,
@@ -80,8 +80,15 @@ type Props = { searchParams: Promise<{ ok?: string; error?: string }> };
  *
  * One column until `sm`, because two 240px cards side by side on a phone is not
  * a denser page, it is two unreadable ones.
+ *
+ * `items-start` because these cards have genuinely different amounts to say.
+ * Stretching a row to its tallest card put a third of a card's height of empty
+ * space between the Password card's one sentence and its one button — a void
+ * inside a drawn border, which reads as something failing to load. Uneven
+ * bottom edges are the honest version: the card is short because there is
+ * little to say.
  */
-const grid = "grid gap-6 sm:grid-cols-2";
+const grid = "grid items-start gap-6 sm:grid-cols-2";
 
 export default async function AccountPage({ searchParams }: Props) {
   const user = await requireUser();
@@ -218,11 +225,9 @@ export default async function AccountPage({ searchParams }: Props) {
             </form>
           )}
 
-          {/* `mt-auto` so the actions sit on the bottom edge of the card rather
-              than halfway up it when the card beside it is the taller one. */}
           <form
             action={changeEmailAction}
-            className="mt-auto flex flex-col gap-3 border-t border-hairline pt-6"
+            className="flex flex-col gap-3 border-t border-hairline pt-6"
           >
             <Field
               label="Change it"
@@ -249,43 +254,33 @@ export default async function AccountPage({ searchParams }: Props) {
         <Card className="rise flex flex-col gap-6" style={stagger(3)}>
           <Title>Password</Title>
 
-          {/* `flex-1` so the form fills the card the grid stretched, which is
-              what gives the action bar below something to be pushed against. */}
           {hasPassword ? (
+            /*
+             * No current-password field, and no new one: this sends a link and
+             * the choosing happens on `/reset-password`. See the note on
+             * `emailPasswordLinkAction` for why the inbox is the safer place
+             * for it than a page a borrowed session can already reach.
+             */
             <form
-              action={changePasswordAction}
-              className="flex flex-1 flex-col gap-6"
+              action={emailPasswordLinkAction}
+              className="flex flex-col gap-4"
             >
-              <Meta>Changing it signs out every other device.</Meta>
+              <Meta>
+                We&rsquo;ll email you a link for choosing a new one. Following
+                it signs you out everywhere, including here, so you sign back in
+                with the new password.
+              </Meta>
 
-              <Field
-                label="Current password"
-                name="currentPassword"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-
-              <Field
-                label="New password"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                minLength={MIN_PASSWORD_LENGTH}
-                hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
-                required
-              />
-
-              <div className="mt-auto">
+              <div className="border-t border-hairline pt-4">
                 <Button variant="text" type="submit">
-                  Change password
+                  Email me a link
                 </Button>
               </div>
             </form>
           ) : (
             <form
               action={setPasswordAction}
-              className="flex flex-1 flex-col gap-6"
+              className="flex flex-col gap-6"
             >
               {/* An account that arrived through Google has no password at all.
                   Setting one is what makes disconnecting Google possible. */}
@@ -305,7 +300,7 @@ export default async function AccountPage({ searchParams }: Props) {
                 required
               />
 
-              <div className="mt-auto">
+              <div>
                 <Button variant="text" type="submit">
                   Set a password
                 </Button>
@@ -333,7 +328,7 @@ export default async function AccountPage({ searchParams }: Props) {
                     ? "You can still sign in with your email and password."
                     : "Set a password first, or you would have no way to sign in."}
                 </Meta>
-                <div className="mt-auto border-t border-hairline pt-4">
+                <div className="border-t border-hairline pt-4">
                   <Button variant="text" type="submit" disabled={!hasPassword}>
                     Disconnect Google
                   </Button>
@@ -342,7 +337,7 @@ export default async function AccountPage({ searchParams }: Props) {
             ) : (
               <form action={linkGoogleAction} className="flex flex-col gap-4">
                 <Meta>Sign in with one tap instead of a password.</Meta>
-                <div className="mt-auto border-t border-hairline pt-4">
+                <div className="border-t border-hairline pt-4">
                   {/* The branded variant here too: this starts the same OAuth
                       handoff as the sign-in screen, so it should look like the
                       control the person already recognises from it. Disconnect
@@ -370,7 +365,7 @@ export default async function AccountPage({ searchParams }: Props) {
             Follows your device unless you tell it otherwise. Applies to this
             browser, and to the emails we send you.
           </Meta>
-          <div className="mt-auto border-t border-hairline pt-4">
+          <div className="border-t border-hairline pt-4">
             <ThemeToggle onChoose={rememberThemeAction} />
           </div>
         </Card>
@@ -382,7 +377,7 @@ export default async function AccountPage({ searchParams }: Props) {
             What you are on, how much graded work is left this month, and how to
             change or stop it.
           </Meta>
-          <div className="mt-auto border-t border-hairline pt-4">
+          <div className="border-t border-hairline pt-4">
             <ButtonLink href="/account/billing" variant="text">
               Go to billing
             </ButtonLink>
@@ -405,7 +400,7 @@ export default async function AccountPage({ searchParams }: Props) {
            * the mobile bar and once in the desktop rail — so it moved to the
            * screen the "You" destination already points at.
            */}
-          <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-3 border-t border-hairline pt-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-3 border-t border-hairline pt-4">
             <form action={signOutAction}>
               <Button variant="text" type="submit">
                 Sign out
