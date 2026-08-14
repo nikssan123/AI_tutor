@@ -283,9 +283,26 @@ Each of these ships with tests, per `AGENTS.md` — 100% of `src/`, no exclusion
    errors, but that cannot cover its call *site* — `getAnthropic` throws with no
    API key — and an escape appended "[The tutor stopped early]" to an answer that
    had already arrived complete.
-4. **The prove-it-and-skip offer** — the new surface, and the one worth building
-   slowly. It routes into the existing diagnostic; it must not become a second
-   path to mastery that bypasses evidence.
+4. ~~**The prove-it-and-skip offer.**~~ **Built**, as `session/prove.ts` — and
+   the name is now wrong in a way worth keeping a note of. **Nothing is
+   skipped.** Accepting appends real items from the pack's bank to the session,
+   and the learner answers them through `answerCheck` like any other question.
+   Mastery moves on the answers or it does not move at all; the skill leaves the
+   path only when the belief clears the bar, which is what that bar already
+   means.
+
+   It routes into `answerCheck` rather than the adaptive diagnostic. The
+   diagnostic owns its own state and stopping rules and is built to *locate* a
+   learner across a whole pack; this tests one claim, and re-using the session's
+   own block runner meant no second grading path existed to keep honest.
+
+   Hardest items first — the inverse of the diagnostic's max-information rule,
+   because an easy question cannot separate someone who knows a skill from
+   someone who has seen it. MCQ excluded: a block renders a textarea, and a
+   guessable item is weak evidence for a volunteered claim.
+
+   The answers count both ways, and the card says so. A test greps the rendered
+   copy for "skip ahead" and "mark it as known" and fails if either appears.
 5. **`existingAssets` as a fifth lesson cache dimension** — closed vocabulary
    only. Cheapest real personalization available.
 
