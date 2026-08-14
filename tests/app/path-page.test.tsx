@@ -49,6 +49,7 @@ vi.mock("@/lib/curriculum/store", () => ({
 }));
 vi.mock("@/app/(app)/goals/[id]/path/actions", () => ({
   buildPathAction: vi.fn(),
+  setDepthAction: vi.fn(),
 }));
 
 const { default: PathPage } = await import("@/app/(app)/goals/[id]/path/page");
@@ -71,6 +72,7 @@ const goal = {
     motivation: "",
     constraints: [],
     existingAssets: [],
+    depth: "standard",
     clarity: 1,
   },
 };
@@ -306,5 +308,66 @@ describe("what the pack is", () => {
 
     render(await PathPage({ params: params() }));
     expect(screen.getByText(/Experimental/)).toBeDefined();
+  });
+});
+
+/**
+ * The depth dial (PLAN-ADAPTATION). The screen's job is to make the choice
+ * legible and honest: three sizes, priced for this learner, and a statement
+ * that switching cannot cost them a claim.
+ */
+describe("the depth dial", () => {
+  it("offers all three sizes and marks the one in force", async () => {
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    expect(screen.getByText("Sprint")).toBeTruthy();
+    expect(screen.getByText("Standard")).toBeTruthy();
+    expect(screen.getByText("Mastery")).toBeTruthy();
+    expect(screen.getByText("Your course")).toBeTruthy();
+  });
+
+  it("prices each size in skills and hours", async () => {
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    // Photography: 10 skills at sprint, 14 at standard, 15 at mastery.
+    expect(screen.getByText(/10 skills · 17h/)).toBeTruthy();
+    expect(screen.getByText(/14 skills · 25h/)).toBeTruthy();
+    expect(screen.getByText(/15 skills · 27\.5h/)).toBeTruthy();
+  });
+
+  it("says what switching costs, by number", async () => {
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    // Sprint drops the four advanced skills; mastery adds the one specialist.
+    expect(screen.getByRole("button", { name: /Drop 4 skills/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Add 1 skill$/ })).toBeTruthy();
+  });
+
+  it("promises that a switch cannot cost a proved skill", async () => {
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    expect(
+      screen.getByText(/never takes away a skill you.{0,3}ve already proved/i),
+    ).toBeTruthy();
+  });
+
+  it("describes each size by what the learner gets, not how it is computed", async () => {
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    // §8's honesty rule cuts both ways: the copy must not leak the mechanism.
+    expect(screen.queryByText(/prerequisite closure/i)).toBeNull();
+    expect(screen.queryByText(/specialist level/i)).toBeNull();
+  });
+
+  it("moves the marker when the goal is on another depth", async () => {
+    activeGoalMock.mockResolvedValue({
+      ...goal,
+      spec: { ...goal.spec, depth: "sprint" },
+    });
+    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+
+    // Nothing to drop from the shortest course; both others only add.
+    expect(screen.queryByRole("button", { name: /Drop/ })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Add/ }).length).toBe(2);
   });
 });

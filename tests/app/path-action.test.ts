@@ -15,6 +15,7 @@ const activeGoalMock = vi.fn();
 const generateMock = vi.fn();
 const saveMock = vi.fn(async () => "curriculum-1");
 const revalidateMock = vi.fn();
+const setDepthMock = vi.fn(async () => true);
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect: (u: string) => redirectMock(u) }));
@@ -31,6 +32,7 @@ vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({}) }));
 vi.mock("@/lib/goals/store", () => ({
   activeGoal: (...a: unknown[]) => activeGoalMock(...(a as [])),
   masteryFor: async () => [],
+  setGoalDepth: (...a: unknown[]) => setDepthMock(...(a as [])),
 }));
 vi.mock("@/lib/curriculum/generate", () => ({
   generateValidatedCurriculum: (...a: unknown[]) => generateMock(...(a as [])),
@@ -39,7 +41,9 @@ vi.mock("@/lib/curriculum/store", () => ({
   saveCurriculum: (...a: unknown[]) => saveMock(...(a as [])),
 }));
 
-const { buildPathAction } = await import("@/app/(app)/goals/[id]/path/actions");
+const { buildPathAction, setDepthAction } = await import(
+  "@/app/(app)/goals/[id]/path/actions"
+);
 
 const GOAL_ID = "goal-1";
 const goal = {
@@ -57,6 +61,7 @@ const goal = {
     motivation: "",
     constraints: [],
     existingAssets: [],
+    depth: "standard",
     clarity: 1,
   },
 };
@@ -126,5 +131,44 @@ describe("buildPathAction", () => {
     // The page still refreshes, so the learner sees the current state rather
     // than a button that appears to have done nothing.
     expect(revalidateMock).toHaveBeenCalled();
+  });
+});
+
+describe("setDepthAction", () => {
+  it("requires a signed-in learner", async () => {
+    getSessionMock.mockResolvedValue(null);
+    await expect(setDepthAction(GOAL_ID, "sprint")).rejects.toThrow(
+      "REDIRECT:/sign-in",
+    );
+    expect(setDepthMock).not.toHaveBeenCalled();
+  });
+
+  it("moves the goal and refreshes both screens that price it", async () => {
+    await setDepthAction(GOAL_ID, "mastery");
+
+    expect(setDepthMock).toHaveBeenCalledWith({}, "u1", GOAL_ID, "mastery");
+    // /today reads the same projection. Leaving it cached would show two
+    // different courses on two screens.
+    expect(revalidateMock).toHaveBeenCalledWith(`/goals/${GOAL_ID}/path`);
+    expect(revalidateMock).toHaveBeenCalledWith("/today");
+  });
+
+  /**
+   * The value arrives from a form, so it is parsed rather than trusted. Writing
+   * an unparseable depth would be a spec the planner later fails to read — a
+   * goal that silently stops working rather than one that never changed.
+   */
+  it("drops a depth that is not one of the three", async () => {
+    await setDepthAction(GOAL_ID, "extreme");
+
+    expect(setDepthMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts every real depth", async () => {
+    for (const depth of ["sprint", "standard", "mastery"]) {
+      await setDepthAction(GOAL_ID, depth);
+    }
+    expect(setDepthMock).toHaveBeenCalledTimes(3);
   });
 });

@@ -4,6 +4,7 @@ import { createClient } from "@/db";
 import {
   evaluation,
   learnerSkillMastery,
+  learningGoal,
   masteryUpdate,
   submission,
   user,
@@ -18,6 +19,7 @@ import {
   DEFAULT_SESSION_MINUTES,
   goalsFor,
   masteryFor,
+  setGoalDepth,
   sessionMinutesFor,
   setGoalStatus,
 } from "@/lib/goals/store";
@@ -248,6 +250,93 @@ live("the goal store", () => {
       now: NOW,
     });
     expect(await sessionMinutesFor(db, userId)).toBe(DEFAULT_SESSION_MINUTES);
+  });
+
+  describe("setGoalDepth", () => {
+    it("moves the goal between depths and leaves the rest of the spec alone", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      expect(await setGoalDepth(db, userId, goalId, "sprint")).toBe(true);
+
+      const goal = await activeGoal(db, userId);
+      expect(goal?.spec.depth).toBe("sprint");
+      // Everything else survives the read-modify-write. A switch that quietly
+      // reset the weekly budget would reshape every session after it.
+      expect(goal?.spec.weeklyHours).toBe(spec().weeklyHours);
+      expect(goal?.spec.rawGoal).toBe(spec().rawGoal);
+    });
+
+    it("refuses to move somebody else's goal", async () => {
+      const owner = await newUser();
+      const stranger = await newUser();
+      const goalId = await createGoal(db, {
+        userId: owner,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      expect(await setGoalDepth(db, stranger, goalId, "mastery")).toBe(false);
+      expect((await activeGoal(db, owner))?.spec.depth).toBe("standard");
+    });
+
+    /**
+     * The same rule `activeGoal` applies: a goal whose spec no longer parses is
+     * one we cannot plan against, so it is left alone rather than partially
+     * rewritten into something even less readable.
+     */
+    it("leaves a goal whose spec no longer parses alone", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [],
+        now: NOW,
+      });
+
+      await db
+        .update(learningGoal)
+        .set({ goalSpec: { rawGoal: "half a spec" } })
+        .where(eq(learningGoal.id, goalId));
+
+      expect(await setGoalDepth(db, userId, goalId, "sprint")).toBe(false);
+    });
+
+    it("reports nothing moved for a goal that does not exist", async () => {
+      const userId = await newUser();
+      expect(
+        await setGoalDepth(db, userId, crypto.randomUUID(), "sprint"),
+      ).toBe(false);
+    });
+
+    /**
+     * The promise the path screen prints. Depth decides what the projection
+     * asks for and has no opinion about evidence, so a switch cannot cost a
+     * learner a skill they proved.
+     */
+    it("does not disturb what the learner has already proved", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId,
+        packSlug: PACK,
+        spec: spec(),
+        mastery: [state(first!.slug, { mastery: 0.99 })],
+        now: NOW,
+      });
+
+      const before = await masteryFor(db, userId, PACK);
+      await setGoalDepth(db, userId, goalId, "sprint");
+      expect(await masteryFor(db, userId, PACK)).toEqual(before);
+    });
   });
 });
 
@@ -711,4 +800,5 @@ live("todayFor — assembling what /today plans against", () => {
       expect((await goalsFor(db, userId))[0]?.status).toBe("achieved");
     });
   });
+
 });

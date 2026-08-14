@@ -8,7 +8,7 @@ import {
 } from "@/db/schema";
 import { packId, skillId } from "@/lib/packs/ids";
 import { GoalSpec } from "@/lib/contracts/goal";
-import type { MasteryState } from "@/lib/engine";
+import type { CourseDepth, MasteryState } from "@/lib/engine";
 import { isGoalStatus, type GoalStatus } from "./lifecycle";
 
 /**
@@ -268,6 +268,51 @@ export async function setGoalStatus(
 
     return moved.length > 0;
   });
+}
+
+/**
+ * Move a goal between depths (PLAN-ADAPTATION).
+ *
+ * Read-modify-write on the stored `GoalSpec`, because depth rides inside the
+ * `goal_spec` jsonb rather than in a column of its own. Two things follow from
+ * that and both are deliberate.
+ *
+ * It re-parses the spec before writing it back, so a row that has stopped
+ * parsing is left alone rather than partially rewritten — the same rule
+ * `activeGoal` applies when it declines to plan against one.
+ *
+ * And it writes nothing else. Depth changes what the *projection* asks for; it
+ * has no opinion about mastery, evidence or claims, and a switch that also
+ * touched those would be able to take away something the learner proved.
+ *
+ * Returns false when no row moved, so a caller can tell "not yours" from "done"
+ * without a second query.
+ */
+export async function setGoalDepth(
+  db: Db,
+  userId: string,
+  goalId: string,
+  depth: CourseDepth,
+): Promise<boolean> {
+  const rows = await db
+    .select({ goalSpec: learningGoal.goalSpec })
+    .from(learningGoal)
+    .where(and(eq(learningGoal.id, goalId), eq(learningGoal.userId, userId)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return false;
+
+  const spec = GoalSpec.safeParse(row.goalSpec);
+  if (!spec.success) return false;
+
+  const moved = await db
+    .update(learningGoal)
+    .set({ goalSpec: { ...spec.data, depth } })
+    .where(and(eq(learningGoal.id, goalId), eq(learningGoal.userId, userId)))
+    .returning({ id: learningGoal.id });
+
+  return moved.length > 0;
 }
 
 /** §16.1's `availableMinutes`. Falls back to the column default (§15). */

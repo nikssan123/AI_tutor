@@ -250,8 +250,21 @@ Each of these ships with tests, per `AGENTS.md` — 100% of `src/`, no exclusion
 
 1. ~~**The depth dial.**~~ **Built.** No AI, no new prompt, no cache impact, and
    no migration. See the implementation table above.
-2. **Depth on the path screen** — let a learner see the three sizes and switch.
-   Changing depth re-projects; it must never re-open a claimed skill.
+2. ~~**Depth on the path screen.**~~ **Built.** `goals/depth.ts` prices all three
+   sizes against the learner's own mastery — so the number on the button is the
+   number the path shows after they press it — and `setGoalDepth` moves the goal
+   with a read-modify-write on the stored spec, touching nothing else.
+
+   Two things came out of building it. The claim "switching never takes away a
+   skill you've already proved" started as a runtime check, which was dead code:
+   exclusion is decided on evidence and never consults depth, so the guard could
+   only ever return true. It is a property of `projectSkills`, asserted in the
+   test suite where it belongs. And the sprint↔mastery step is often exactly one
+   skill, which is how the button came to read "Add 1 skills" until it didn't.
+
+   Switching does **not** rebuild the stored curriculum. The projection
+   recomputes on every render, so the path is right immediately; regenerating
+   behind a radio button would spend a model call the learner did not ask for.
 3. **Tutor signal classification** — `session/signals.ts`, Haiku, closed enum,
    wired to `support` and `frustrationRisk` first. Both receptors already exist,
    so this is measurable before any new UI.

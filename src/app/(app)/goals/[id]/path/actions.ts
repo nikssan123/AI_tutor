@@ -8,7 +8,8 @@ import { getAuth } from "@/lib/auth";
 import { getAnthropic } from "@/lib/ai/client";
 import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
-import { activeGoal, masteryFor } from "@/lib/goals/store";
+import { activeGoal, masteryFor, setGoalDepth } from "@/lib/goals/store";
+import { CourseDepthSpec } from "@/lib/contracts/goal";
 import { projectSkills } from "@/lib/goals/projection";
 import { generateValidatedCurriculum } from "@/lib/curriculum/generate";
 import { saveCurriculum } from "@/lib/curriculum/store";
@@ -22,6 +23,37 @@ import { saveCurriculum } from "@/lib/curriculum/store";
  * where the learner asked for it. Moving it to Inngest is E7's job, which is
  * also when there is a session runner for the result to feed.
  */
+/**
+ * Move the goal to another depth (PLAN-ADAPTATION).
+ *
+ * The value arrives from a form, so it is parsed rather than trusted: a posted
+ * string that is not one of the three depths is dropped and the page re-renders
+ * unchanged, instead of writing a spec the planner would later fail to read.
+ *
+ * No curriculum rebuild is triggered. The projection recomputes on every render
+ * from mastery and the graph, so the path screen is correct immediately; the
+ * stored curriculum is a separate artefact the learner asks for explicitly, and
+ * regenerating it behind a radio button would spend a model call they did not
+ * request.
+ */
+export async function setDepthAction(
+  goalId: string,
+  depth: string,
+): Promise<void> {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  if (!session) redirect("/sign-in");
+
+  const parsed = CourseDepthSpec.safeParse(depth);
+  if (!parsed.success) return;
+
+  await setGoalDepth(getDb(), session.user.id, goalId, parsed.data);
+
+  revalidatePath(`/goals/${goalId}/path`);
+  // The header on /today prices the same projection, so leaving it cached would
+  // show two different courses on two screens.
+  revalidatePath("/today");
+}
+
 export async function buildPathAction(goalId: string): Promise<void> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");

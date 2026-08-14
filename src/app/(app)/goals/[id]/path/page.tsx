@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { projectSkills } from "@/lib/goals/projection";
+import { depthOptions } from "@/lib/goals/depth";
 import { currentCurriculum } from "@/lib/curriculum/store";
 import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
@@ -21,7 +22,33 @@ import {
   MaturityBadge,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
-import { buildPathAction } from "./actions";
+import { buildPathAction, setDepthAction } from "./actions";
+
+/**
+ * §8's rule for this screen is that it sets expectations honestly, so the dial
+ * is described by what the learner gets, never by how the set is computed.
+ * "Levels kept, closed under hard prerequisites" is true and is none of their
+ * business.
+ */
+const DEPTH_COPY = {
+  sprint: {
+    name: "Sprint",
+    blurb: "The foundations and the core, and nothing else. The fastest route to doing the work.",
+  },
+  standard: {
+    name: "Standard",
+    blurb: "The version we'd pick for you. Everything most people need to work unsupervised.",
+  },
+  mastery: {
+    name: "Mastery",
+    blurb: "The whole subject, including the parts most people never reach for.",
+  },
+} as const;
+
+/** "1 skill", not "1 skills" — the sprint↔mastery step is often exactly one. */
+function countSkills(n: number): string {
+  return `${n} ${n === 1 ? "skill" : "skills"}`;
+}
 
 /**
  * §8 screen 5 — the generated learning path.
@@ -99,6 +126,12 @@ export default async function PathPage({ params }: Props) {
     depth: goal.spec.depth,
   });
   const stored = await currentCurriculum(db, goal.id);
+  const depths = depthOptions({
+    graph,
+    mastery,
+    now,
+    current: goal.spec.depth,
+  });
 
   const names = new Map(graph.skills.map((s) => [s.id, s.name]));
   const effective = new Map(
@@ -268,9 +301,53 @@ export default async function PathPage({ params }: Props) {
         )}
       </section>
 
+      {/* ── How much of the subject you're taking on ───────────────────── */}
+      <section className="rise flex flex-col gap-6" style={stagger(3)}>
+        <SectionHead label="How deep" title="How much of this you're taking on" />
+        <Lead>
+          Each is priced against what you&rsquo;ve already shown you can do, so
+          these are your hours, not a brochure&rsquo;s. Switching never takes
+          away a skill you&rsquo;ve already proved.
+        </Lead>
+        <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-3">
+          {depths.map((option) => {
+            const copy = DEPTH_COPY[option.depth];
+            return (
+              <li key={option.depth} className="flex">
+                <Card className="flex flex-1 flex-col items-start gap-3 p-5">
+                  <div className="flex flex-col gap-1">
+                    <strong className="text-[length:var(--text-label-size)] font-[var(--text-label-weight)]">
+                      {copy.name}
+                    </strong>
+                    <Meta>
+                      {option.skillCount} skills &middot; {option.estimatedHours}
+                      h
+                    </Meta>
+                  </div>
+                  <Meta>{copy.blurb}</Meta>
+                  {option.current ? (
+                    <Status tone="verified">Your course</Status>
+                  ) : (
+                    <form
+                      action={setDepthAction.bind(null, goal.id, option.depth)}
+                    >
+                      <Button type="submit" variant="text">
+                        {option.dropped.length > 0
+                          ? `Drop ${countSkills(option.dropped.length)}`
+                          : `Add ${countSkills(option.added.length)}`}
+                      </Button>
+                    </form>
+                  )}
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
       {/* ── What was skipped, and why ──────────────────────────────────── */}
       {projection.excludedSkillIds.length > 0 ? (
-        <section className="rise flex flex-col gap-6" style={stagger(3)}>
+        <section className="rise flex flex-col gap-6" style={stagger(4)}>
           <SectionHead label="Not on it" title="What we skipped" />
           <Lead>
             You don&rsquo;t have to take our word for it — each of these was
@@ -291,7 +368,7 @@ export default async function PathPage({ params }: Props) {
 
       {/* ── What was checked (§14.6) ───────────────────────────────────── */}
       {stored?.report ? (
-        <section className="rise flex flex-col gap-6" style={stagger(4)}>
+        <section className="rise flex flex-col gap-6" style={stagger(5)}>
           <SectionHead
             label="Before you saw it"
             title="What we checked before showing you this"
