@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { LEGAL_UPDATED } from "@/components/legal";
 import { supportAddress } from "@/lib/site";
+
+// The footer reads the theme cookie so its toggle can render already pressed,
+// which is what makes it async. Nothing here has chosen a theme.
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
+
 import { SiteFooter } from "@/components/marketing";
 import Privacy, { generateMetadata as privacyMeta } from "@/app/(marketing)/privacy/page";
 import Terms, { generateMetadata as termsMeta } from "@/app/(marketing)/terms/page";
@@ -27,8 +32,8 @@ afterEach(() => {
 });
 
 describe("the footer", () => {
-  it("gives the guides hub the site-wide link it never had", () => {
-    render(<SiteFooter />);
+  it("gives the guides hub the site-wide link it never had", async () => {
+    render(await SiteFooter());
     // Before this, the only link to /guides anywhere was the breadcrumb on a
     // guide — so the index was reachable only from past it.
     expect(screen.getByRole("link", { name: "Guides" }).getAttribute("href")).toBe(
@@ -36,8 +41,8 @@ describe("the footer", () => {
     );
   });
 
-  it("links both legal pages", () => {
-    render(<SiteFooter />);
+  it("links both legal pages", async () => {
+    render(await SiteFooter());
     expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe(
       "/terms",
     );
@@ -46,8 +51,8 @@ describe("the footer", () => {
     );
   });
 
-  it("carries the tool and the two hubs the header already has", () => {
-    render(<SiteFooter />);
+  it("carries the tool and the two hubs the header already has", async () => {
+    render(await SiteFooter());
     for (const [name, href] of [
       ["Subjects", "/learn"],
       ["Graded projects", "/projects"],
@@ -58,8 +63,8 @@ describe("the footer", () => {
   });
 
   /** §8.5.1 — the footer is chrome, not a directory. */
-  it("stays a short list rather than becoming a sitemap", () => {
-    const { container } = render(<SiteFooter />);
+  it("stays a short list rather than becoming a sitemap", async () => {
+    const { container } = render(await SiteFooter());
     // Six navigation links plus the support address. Change this number with a
     // reason, not to make a new link fit.
     expect(container.querySelectorAll("a")).toHaveLength(7);
@@ -71,8 +76,8 @@ describe("the footer", () => {
    * footer with something appended *under* the footer — and the thing that kept
    * getting appended was whatever had no other home.
    */
-  it("keeps the promise copy, the wordmark and one way to reach a person", () => {
-    const { container } = render(<SiteFooter />);
+  it("keeps the promise copy, the wordmark and one way to reach a person", async () => {
+    const { container } = render(await SiteFooter());
     expect(screen.getByText(/Nothing counts as proof/)).toBeDefined();
     expect(screen.getByText("MeritKeep")).toBeDefined();
     expect(
@@ -80,10 +85,10 @@ describe("the footer", () => {
     ).not.toBeNull();
   });
 
-  it("draws one band, not two", () => {
+  it("draws one band, not two", async () => {
     // The footer's own top rule separates it from the page. A second rule
     // *inside* it is what made the last row read as a different section.
-    const { container } = render(<SiteFooter />);
+    const { container } = render(await SiteFooter());
     const inner = container.querySelectorAll("footer .border-t");
     expect(inner, "no rule inside the footer").toHaveLength(0);
   });
@@ -94,18 +99,18 @@ describe("the footer", () => {
    * appended under the footer rather than as one of the things the footer
    * offers. It is a labelled group beside Explore and Legal now.
    */
-  it("puts the theme control inside the footer, not below it", () => {
-    const { container } = render(<SiteFooter />);
+  it("puts the theme control inside the footer, not below it", async () => {
+    const { container } = render(await SiteFooter());
     const nav = container.querySelector('nav[aria-label="Footer"]')!;
     const appearance = nav.querySelector('[aria-label="Appearance"]');
     expect(appearance, "the toggle belongs inside the footer nav").not.toBeNull();
     expect(nav.textContent).toContain("Appearance");
   });
 
-  it("still offers all three choices without any framework JS", () => {
+  it("still offers all three choices without any framework JS", async () => {
     // §8.5.8 — the marketing surface ships no component-library JS, so this is
     // the static toggle rather than the Radix one `/account` uses.
-    const { container } = render(<SiteFooter />);
+    const { container } = render(await SiteFooter());
     expect(container.querySelectorAll("[data-theme-choice]")).toHaveLength(3);
   });
 });

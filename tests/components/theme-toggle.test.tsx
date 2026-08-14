@@ -75,11 +75,23 @@ describe("ThemeToggleStatic (marketing routes)", () => {
     ]);
   });
 
-  it("marks System as pressed by default", () => {
+  it("marks System as pressed when the visitor has chosen nothing", () => {
     render(<ThemeToggleStatic />);
     expect(
       screen.getByRole("button", { name: "system" }).getAttribute("aria-pressed"),
     ).toBe("true");
+  });
+
+  it("marks the visitor's stored choice as pressed instead", () => {
+    // The footer passes what the theme cookie says. Hardcoding System here
+    // meant a dark page could come back with System lit up.
+    render(<ThemeToggleStatic pressed="dark" />);
+    expect(
+      screen.getByRole("button", { name: "dark" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "system" }).getAttribute("aria-pressed"),
+    ).toBe("false");
   });
 
   it("labels the group", () => {
@@ -96,12 +108,13 @@ describe("ThemeToggleStatic (marketing routes)", () => {
     }
   });
 
-  it("ships a small inline script rather than a client bundle", () => {
+  it("renders no <script> of its own", () => {
+    // A script rendered inside a component is inert when the page streams and
+    // is skipped outright on a client-side navigation, where React logs
+    // "Scripts inside React components are never executed when rendering on
+    // the client". The driver lives in <head> as `themeToggleScript`.
     const { container } = render(<ThemeToggleStatic />);
-    const script = container.querySelector("script");
-    expect(script).not.toBeNull();
-    expect(script!.innerHTML.length).toBeLessThan(700);
-    expect(script!.innerHTML).toContain("data-theme-choice");
+    expect(container.querySelector("script")).toBeNull();
   });
 });
 

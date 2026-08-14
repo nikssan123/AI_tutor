@@ -1,4 +1,4 @@
-import { THEME_COOKIE, THEME_STORAGE_KEY } from "@/lib/theme-script";
+import type { ThemeChoice } from "@/lib/theme-script";
 
 /**
  * §8.5.8 — "Marketing routes ship zero component-library JS."
@@ -9,23 +9,27 @@ import { THEME_COOKIE, THEME_STORAGE_KEY } from "@/lib/theme-script";
  * difference between 127KB and 43KB gzipped on the landing page.
  *
  * So the marketing footer gets this instead: a server component that renders
- * three plain buttons plus ~250 bytes of inline script. Same behaviour, same
- * tokens, no framework. §8.5.8 says every marketing-side pattern is achievable
- * in pure CSS and must be — this is that rule applied.
+ * three plain buttons and nothing else. §8.5.8 says every marketing-side
+ * pattern is achievable in pure CSS and must be — this is that rule applied.
+ *
+ * The behaviour lives in `themeToggleScript`, which the root layout puts in
+ * `<head>`. It was inline here first, which looks right and is wrong: a
+ * `<script>` rendered inside a component does not run when the page streams,
+ * and React skips it entirely on a client-side navigation. See the comment on
+ * that export. All this markup owes the script is `data-theme-choice`.
+ *
+ * `pressed` comes from the cookie `applyThemeChoice` mirrors the choice to —
+ * which is the whole reason that mirror exists (§8.5.4). Hardcoding "system"
+ * here meant a visitor who had chosen dark got a dark page with System lit up,
+ * and the toggle was the one control on the site that lied about the state it
+ * controls. Nothing re-renders this markup, so after that first paint the
+ * script owns the attribute.
  */
-const script = `(function(){var d=document,r=d.documentElement;
-d.addEventListener("click",function(e){
-var b=e.target.closest("[data-theme-choice]");if(!b)return;
-var v=b.getAttribute("data-theme-choice");
-r.classList.add("theme-transitioning");
-if(v==="system"){delete r.dataset.theme}else{r.dataset.theme=v}
-try{v==="system"?localStorage.removeItem("${THEME_STORAGE_KEY}"):localStorage.setItem("${THEME_STORAGE_KEY}",v)}catch(x){}
-d.cookie="${THEME_COOKIE}="+v+"; path=/; max-age=31536000; samesite=lax";
-d.querySelectorAll("[data-theme-choice]").forEach(function(o){o.setAttribute("aria-pressed",String(o===b))});
-requestAnimationFrame(function(){r.classList.remove("theme-transitioning")})
-})})();`;
-
-export function ThemeToggleStatic() {
+export function ThemeToggleStatic({
+  pressed = "system",
+}: {
+  pressed?: ThemeChoice;
+}) {
   return (
     <div
       className="inline-flex gap-1 rounded-[var(--radius-pill)] bg-surface p-1"
@@ -37,7 +41,7 @@ export function ThemeToggleStatic() {
           key={value}
           type="button"
           data-theme-choice={value}
-          aria-pressed={value === "system"}
+          aria-pressed={value === pressed}
           className={[
             "px-4 py-2 rounded-[var(--radius-pill)] capitalize cursor-pointer",
             "text-[length:var(--text-label-size)] font-[550]",
@@ -49,7 +53,6 @@ export function ThemeToggleStatic() {
           {value}
         </button>
       ))}
-      <script dangerouslySetInnerHTML={{ __html: script }} />
     </div>
   );
 }

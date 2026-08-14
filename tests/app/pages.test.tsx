@@ -71,6 +71,19 @@ describe("root layout", () => {
     expect(html).toContain(JSON.stringify(goalSearchScript).slice(1, 60));
   });
 
+  it("puts the marketing theme toggle's driver in <head> too", async () => {
+    const { default: RootLayout } = await import("@/app/layout");
+    const { themeToggleScript } = await import("@/lib/theme-script");
+    const html = JSON.stringify(
+      RootLayout({ children: null }) as React.ReactElement,
+    );
+
+    // Inside the footer component it was inert on a streamed load and skipped
+    // outright on a client-side navigation, where React logs "Scripts inside
+    // React components are never executed when rendering on the client".
+    expect(html).toContain(JSON.stringify(themeToggleScript).slice(1, 60));
+  });
+
   it("declares a metadataBase so canonicals and OG URLs resolve", async () => {
     const { metadata } = await import("@/app/layout");
     expect(metadata.metadataBase).toBeInstanceOf(URL);

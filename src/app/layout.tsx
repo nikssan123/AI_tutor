@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { goalSearchScript } from "@/lib/goal-search-script";
-import { themeInitScript } from "@/lib/theme-script";
+import { themeInitScript, themeToggleScript } from "@/lib/theme-script";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -71,6 +71,21 @@ export default function RootLayout({
          */}
         <script
           dangerouslySetInnerHTML={{ __html: goalSearchScript }}
+        />
+
+        {/*
+         * The marketing footer's theme toggle, here for the same two reasons
+         * and one more: rendered inside the component it never ran when the
+         * page streamed, and on a client-side navigation React refuses to run
+         * it at all — it logs "Scripts inside React components are never
+         * executed when rendering on the client" and the toggle stays dead.
+         *
+         * Inert on routes with no toggle markup, which is every route under
+         * (app) — those get the Radix `ThemeToggle`, and the cost here is the
+         * bytes, not any behaviour.
+         */}
+        <script
+          dangerouslySetInnerHTML={{ __html: themeToggleScript }}
         />
       </head>
       <body>{children}</body>

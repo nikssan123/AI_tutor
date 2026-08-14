@@ -1,16 +1,20 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   applyThemeChoice,
   readThemeChoice,
   THEME_COOKIE,
   THEME_STORAGE_KEY,
+  type ThemeChoice,
   themeInitScript,
+  themeToggleScript,
+  toThemeChoice,
 } from "@/lib/theme-script";
 
 afterEach(() => {
   delete document.documentElement.dataset.theme;
   document.documentElement.className = "";
+  document.body.innerHTML = "";
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -49,6 +53,147 @@ describe("the anti-FOUC script", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "chartreuse");
     new Function(themeInitScript)();
     expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+});
+
+describe("the marketing toggle's script", () => {
+  /** The three buttons `ThemeToggleStatic` renders, without React. */
+  function mountButtons(): Record<ThemeChoice, HTMLButtonElement> {
+    const choices: ThemeChoice[] = ["light", "dark", "system"];
+    document.body.innerHTML = choices
+      .map(
+        (v) =>
+          `<button data-theme-choice="${v}" aria-pressed="${v === "system"}">${v}</button>`,
+      )
+      .join("");
+    const find = (v: ThemeChoice) =>
+      document.querySelector<HTMLButtonElement>(`[data-theme-choice="${v}"]`)!;
+    return { light: find("light"), dark: find("dark"), system: find("system") };
+  }
+
+  // Installed once, exactly as <head> installs it: the handler delegates from
+  // `document`, so it outlives every fixture mounted under it.
+  beforeAll(() => {
+    new Function(themeToggleScript)();
+  });
+
+  it("stays small enough to inline on every route", () => {
+    // It ships in <head> on app routes too, where it is inert. That is only
+    // acceptable while it costs bytes and nothing else.
+    expect(themeToggleScript.length).toBeLessThan(800);
+  });
+
+  it("is a self-contained IIFE with no module syntax", () => {
+    // An `import` here is a bundle, and the bundle is the 80KB budget §13.3
+    // sets — the whole reason this is a string and not a component.
+    expect(themeToggleScript.startsWith("(function()")).toBe(true);
+    expect(themeToggleScript).not.toContain("import ");
+    expect(themeToggleScript).not.toContain("export ");
+  });
+
+  it("delegates from document rather than binding to the buttons", () => {
+    // A listener bound to a node found at parse time is lost when React
+    // hydrates over that node. `closest` at event time survives it.
+    expect(themeToggleScript).toContain('d.addEventListener("click"');
+    expect(themeToggleScript).toContain('closest("[data-theme-choice]")');
+  });
+
+  it("binds once, however many times the document evaluates it", () => {
+    const spy = vi.spyOn(document, "addEventListener");
+    new Function(themeToggleScript)();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("applies and persists an explicit choice", () => {
+    const { dark } = mountButtons();
+    dark.click();
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.cookie).toContain(`${THEME_COOKIE}=dark`);
+  });
+
+  it("clears the choice for System, so the media query decides again", () => {
+    const { dark, system } = mountButtons();
+    dark.click();
+    system.click();
+
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+    expect(document.cookie).toContain(`${THEME_COOKIE}=system`);
+  });
+
+  it("moves aria-pressed to the button that was clicked", () => {
+    // Nothing re-renders this markup, so the script owns the pressed state.
+    const { light, dark, system } = mountButtons();
+    dark.click();
+
+    expect(dark.getAttribute("aria-pressed")).toBe("true");
+    expect(light.getAttribute("aria-pressed")).toBe("false");
+    expect(system.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("responds to a click on content inside the button", () => {
+    // Real presses land on the label, not the button box.
+    const { dark } = mountButtons();
+    dark.innerHTML = "<span>dark</span>";
+    dark.querySelector("span")!.click();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("ignores clicks on anything else on the page", () => {
+    mountButtons();
+    document.body.insertAdjacentHTML("beforeend", "<a href='/'>Pricing</a>");
+    document.querySelector("a")!.click();
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it("ignores an event whose target cannot be walked up from", () => {
+    // `document` itself has no `closest`; a synthetic dispatch can target it.
+    mountButtons();
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it("still applies the theme when storage throws", () => {
+    // Private modes throw on write. Losing the preference across visits is
+    // acceptable; refusing to change the theme in front of someone is not.
+    const { dark } = mountButtons();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    dark.click();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("suppresses transitions for exactly one frame", async () => {
+    const { light } = mountButtons();
+    light.click();
+    expect(
+      document.documentElement.classList.contains("theme-transitioning"),
+    ).toBe(true);
+
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    expect(
+      document.documentElement.classList.contains("theme-transitioning"),
+    ).toBe(false);
+  });
+});
+
+describe("toThemeChoice", () => {
+  it("keeps the two explicit themes", () => {
+    expect(toThemeChoice("dark")).toBe("dark");
+    expect(toThemeChoice("light")).toBe("light");
+  });
+
+  it("treats anything else as System", () => {
+    // A hand-edited cookie is the realistic case: it is not HttpOnly, because
+    // the toggle's inline script has to write it.
+    expect(toThemeChoice("system")).toBe("system");
+    expect(toThemeChoice("chartreuse")).toBe("system");
+    expect(toThemeChoice("")).toBe("system");
+    expect(toThemeChoice(null)).toBe("system");
+    expect(toThemeChoice(undefined)).toBe("system");
   });
 });
 

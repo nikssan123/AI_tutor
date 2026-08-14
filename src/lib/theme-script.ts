@@ -22,14 +22,61 @@ export type ThemeChoice = "light" | "dark" | "system";
  */
 export const themeInitScript = `(function(){try{var k="${THEME_STORAGE_KEY}",t=localStorage.getItem(k);if(t==="dark"||t==="light"){document.documentElement.dataset.theme=t}}catch(e){}})();`;
 
+/**
+ * The click handler behind `ThemeToggleStatic`, the framework-free toggle in the
+ * marketing footer.
+ *
+ * ## Why it is here and not beside the buttons
+ *
+ * It was a `<script>` inside the component, which is wrong twice over. On a cold
+ * load Next streams the page, and body content arriving in a later chunk is
+ * *inserted* into the document rather than parsed into it — an inserted
+ * `<script>` never runs. On a client-side navigation React renders the element
+ * and skips it outright, which is what the console reports: "Scripts inside
+ * React components are never executed when rendering on the client." Either way
+ * the toggle was dead. `goalSearchScript` was moved to `<head>` for the first
+ * half of this; this is the same move, and the warning is the second half.
+ *
+ * In `<head>` it is parsed and run before the body exists, which is safe because
+ * it only delegates from `document` and touches nothing until the visitor
+ * clicks. Delegation is also what makes it survive hydration: a listener bound
+ * to a node found at parse time is lost when React hydrates over that node.
+ *
+ * It duplicates `applyThemeChoice` rather than importing it, because a module
+ * import here is a bundle — that import is the 80KB budget in §13.3. The two
+ * are kept in step by tests that assert the same outcomes for both.
+ */
+export const themeToggleScript = `(function(){var d=document;
+if(d.themeToggleBound)return;d.themeToggleBound=1;
+d.addEventListener("click",function(e){
+var t=e.target;if(!t||!t.closest)return;
+var b=t.closest("[data-theme-choice]");if(!b)return;
+var r=d.documentElement,v=b.getAttribute("data-theme-choice");
+r.classList.add("theme-transitioning");
+if(v==="system"){delete r.dataset.theme}else{r.dataset.theme=v}
+try{v==="system"?localStorage.removeItem("${THEME_STORAGE_KEY}"):localStorage.setItem("${THEME_STORAGE_KEY}",v)}catch(x){}
+d.cookie="${THEME_COOKIE}="+v+"; path=/; max-age=31536000; samesite=lax";
+d.querySelectorAll("[data-theme-choice]").forEach(function(o){o.setAttribute("aria-pressed",String(o===b))});
+requestAnimationFrame(function(){r.classList.remove("theme-transitioning")})
+})})();`;
+
+/**
+ * Normalises a raw value — from localStorage, from the cookie — to a choice.
+ *
+ * Anything that is not an explicit theme is "system", including the string
+ * "system" itself, a value from an older release, and a hand-edited cookie.
+ */
+export function toThemeChoice(value: string | null | undefined): ThemeChoice {
+  return value === "dark" || value === "light" ? value : "system";
+}
+
 /** Reads the stored choice. Returns "system" when nothing has been chosen. */
 export function readThemeChoice(
   storage: Pick<Storage, "getItem"> | undefined,
 ): ThemeChoice {
   if (!storage) return "system";
   try {
-    const value = storage.getItem(THEME_STORAGE_KEY);
-    return value === "dark" || value === "light" ? value : "system";
+    return toThemeChoice(storage.getItem(THEME_STORAGE_KEY));
   } catch {
     // Private browsing modes throw on storage access; "system" is the right
     // fallback because it is also the default.

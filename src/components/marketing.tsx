@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { SubjectIcon } from "@/components/icons";
 import { Wordmark } from "@/components/logo";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
@@ -24,6 +25,7 @@ import { serialise, type JsonLd } from "@/lib/seo/jsonld";
 import type { Crumb } from "@/lib/seo/jsonld";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { supportAddress } from "@/lib/site";
+import { THEME_COOKIE, toThemeChoice } from "@/lib/theme-script";
 import type { RubricCriterion } from "@/lib/packs/types";
 
 /**
@@ -240,7 +242,12 @@ const FOOTER_LINKS: Array<{ title: string; links: Array<[string, string]> }> = [
   },
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  // The theme cookie, read here for the toggle below. It costs nothing: these
+  // routes already render per request because `SiteHeader` reads the session.
+  const jar = await cookies();
+  const theme = toThemeChoice(jar.get(THEME_COOKIE)?.value);
+
   return (
     <footer className="mt-24 border-t border-hairline">
       <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12 sm:flex-row sm:items-start sm:justify-between">
@@ -306,7 +313,7 @@ export function SiteFooter() {
             <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
               Appearance
             </span>
-            <ThemeToggleStatic />
+            <ThemeToggleStatic pressed={theme} />
           </div>
         </nav>
       </div>

@@ -4,10 +4,21 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 const currentUserMock = vi.fn();
 
-// SiteHeader reads the session now, which is what makes it async. Everything
-// else in this file is still a plain synchronous server component.
+/** The `theme` cookie for the next render; undefined means never chosen. */
+let themeCookie: string | undefined;
+
+// SiteHeader reads the session and SiteFooter reads the theme cookie, which is
+// what makes those two async. Everything else in this file is still a plain
+// synchronous server component.
 vi.mock("@/lib/account/session", () => ({
   currentUser: () => currentUserMock(),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      themeCookie === undefined ? undefined : { name, value: themeCookie },
+  }),
 }));
 
 import {
@@ -33,7 +44,10 @@ import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
 import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
 import type { RubricCriterion } from "@/lib/packs/types";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  themeCookie = undefined;
+});
 
 describe("Breadcrumbs", () => {
   const crumbs = [
@@ -129,15 +143,40 @@ describe("SiteHeader", () => {
 });
 
 describe("SiteFooter", () => {
-  it("carries the promise about published marking checklists", () => {
-    render(<SiteFooter />);
+  const pressed = () =>
+    screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("aria-pressed") === "true")?.textContent;
+
+  it("carries the promise about published marking checklists", async () => {
+    render(await SiteFooter());
     expect(screen.getByText(/read it before you start/)).toBeDefined();
     expect(screen.getByText(/Nothing counts as proof/)).toBeDefined();
   });
 
-  it("puts the theme control in the footer, not in primary chrome (§8.5.4)", () => {
-    render(<SiteFooter />);
+  it("puts the theme control in the footer, not in primary chrome (§8.5.4)", async () => {
+    render(await SiteFooter());
     expect(screen.getByRole("group", { name: "Appearance" })).toBeDefined();
+  });
+
+  it("lights the theme the visitor actually chose", async () => {
+    // §8.5.4 mirrors the choice to a cookie precisely so the server can render
+    // this right. Without it the page came back dark with System lit up, and
+    // the toggle was the one control on the site lying about its own state.
+    themeCookie = "dark";
+    render(await SiteFooter());
+    expect(pressed()).toBe("dark");
+  });
+
+  it("falls back to System when nobody has chosen", async () => {
+    render(await SiteFooter());
+    expect(pressed()).toBe("system");
+  });
+
+  it("falls back to System for a cookie value it does not recognise", async () => {
+    themeCookie = "chartreuse";
+    render(await SiteFooter());
+    expect(pressed()).toBe("system");
   });
 });
 
