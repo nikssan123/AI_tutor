@@ -265,9 +265,24 @@ Each of these ships with tests, per `AGENTS.md` — 100% of `src/`, no exclusion
    Switching does **not** rebuild the stored curriculum. The projection
    recomputes on every render, so the path is right immediately; regenerating
    behind a radio button would spend a model call the learner did not ask for.
-3. **Tutor signal classification** — `session/signals.ts`, Haiku, closed enum,
-   wired to `support` and `frustrationRisk` first. Both receptors already exist,
-   so this is measurable before any new UI.
+3. ~~**Tutor signal classification.**~~ **Built.** `session/signals.ts` plus a
+   `tutor_signal` table, classified on Haiku after the answer has streamed.
+
+   Shipped with four labels rather than five: pace folded into the other two,
+   because "too fast for me" is `stuck` and "too slow for me" is
+   `already_knows`, and a value routing to identical receptors is a field that
+   rots. `misconception` reuses the grader's own table rather than starting a
+   second list.
+
+   The damper weights a signal at **half a failed attempt, capped at two**, so
+   chat alone reaches 0.5 against the 1.0 that three failed attempts say. Support
+   escalates and never de-escalates, which keeps the band as the floor and the
+   lesson cache at two buckets per band rather than one per learner.
+
+   The route now wraps the call in its own try. `noteTurn` catches its own
+   errors, but that cannot cover its call *site* — `getAnthropic` throws with no
+   API key — and an escape appended "[The tutor stopped early]" to an answer that
+   had already arrived complete.
 4. **The prove-it-and-skip offer** — the new surface, and the one worth building
    slowly. It routes into the existing diagnostic; it must not become a second
    path to mastery that bypasses evidence.
