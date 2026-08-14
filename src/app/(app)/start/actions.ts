@@ -20,6 +20,7 @@ import {
 } from "@/lib/goals/turn";
 import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
+import { projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
 import { startBuild } from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
@@ -114,7 +115,24 @@ export async function replyAction(formData: FormData): Promise<void> {
   );
 
   const ok = await recordTurn(db, userId, intake, messages, result);
-  if (!ok) redirect("/start?error=analyzer");
+  /*
+   * Back to the brief, when that is where they came from.
+   *
+   * The analyzer failing is the one path that returns somebody to `/start`
+   * rather than moving them along it, and a bare `/start?error=analyzer` drops
+   * the project — so a reader who had read a rubric end to end, pressed the
+   * button, and hit a bad minute from the model landed on an empty intake with
+   * no sign of the work they turned up for. The brief screen carries its slug
+   * in a hidden field precisely so this redirect can put them back on it.
+   *
+   * Only the opening turn has one. Every later turn comes from the composer,
+   * which has no brief to name — by then the project is in the conversation
+   * itself, and the generic screen is the right place to land.
+   */
+  const brief = String(formData.get("project") ?? "");
+  if (!ok) {
+    redirect(brief ? projectStartHref(brief, "analyzer") : "/start?error=analyzer");
+  }
 
   // To the new question rather than the top of the page — the pinned composer
   // covers the tail of the conversation otherwise.

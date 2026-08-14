@@ -42,6 +42,15 @@ describe("projectStartHref", () => {
     expect(projectStartHref("x")).toContain(`${PROJECT_PARAM}=`);
   });
 
+  it("adds an error code without losing the brief", () => {
+    // The one path that returns somebody to `/start` rather than moving them
+    // along it. Built here so the action does not hand-concatenate a second
+    // parameter onto a URL this module owns.
+    expect(projectStartHref("sales-dashboard", "analyzer")).toBe(
+      "/start?project=sales-dashboard&error=analyzer",
+    );
+  });
+
   it("encodes the slug, because a query string is not a trusted channel", () => {
     // Slugs are validated on the way into a pack, so this is defence against a
     // hand-typed URL rather than against our own content. `/start` resolves it

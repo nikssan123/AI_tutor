@@ -203,6 +203,11 @@ export default async function StartPage({ searchParams }: Props) {
               name="reply"
               value={projectStartSeed(brief.title, brief.topicName)}
             />
+            {/* So a failed opening turn comes back here rather than to a bare
+                intake. The action cannot recover the brief from the reply — by
+                then it is prose — and this is the only place that still has the
+                slug. */}
+            <input type="hidden" name="project" value={brief.slug} />
             <Button type="submit">Start this project</Button>
           </form>
         </Card>

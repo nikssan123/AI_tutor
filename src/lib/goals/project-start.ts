@@ -60,8 +60,9 @@ export const PROJECT_PARAM = "project";
  * else should interrupt a vague search, and should not bury the brief somebody
  * has just read the rubric of and pressed a button on.
  */
-export function projectStartHref(slug: string): string {
-  return `/start?${PROJECT_PARAM}=${encodeURIComponent(slug)}`;
+export function projectStartHref(slug: string, error?: string): string {
+  const href = `/start?${PROJECT_PARAM}=${encodeURIComponent(slug)}`;
+  return error ? `${href}&error=${encodeURIComponent(error)}` : href;
 }
 
 /**

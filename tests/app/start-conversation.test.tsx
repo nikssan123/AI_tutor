@@ -289,6 +289,19 @@ describe("the screen", () => {
     expect(screen.queryByText(/Start on “I want to learn/)).toBeNull();
   });
 
+  it("carries the slug in the form, so a failed turn can come back here", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    const { container } = render(
+      await StartPage({ searchParams: search({ project: BRIEF.slug }) }),
+    );
+
+    const carried = container.querySelector<HTMLInputElement>(
+      "input[name=project]",
+    )!;
+    // The action cannot recover it from the reply — by then it is prose.
+    expect(carried.value).toBe(BRIEF.slug);
+  });
+
   it("posts the brief as the opening line, clearing whatever was held", async () => {
     findProjectMock.mockReturnValue(BRIEF);
     const { container } = render(
@@ -659,6 +672,39 @@ describe("the conversation actions", () => {
     );
     const saved = saveIntakeMock.mock.calls[0]![2];
     expect(saved.messages.at(-1)!.t).toBe("Rust");
+  });
+
+  /**
+   * A failed opening turn has to land back on the brief, not on a bare intake.
+   *
+   * The redirect above drops everything the reader arrived with, which is a
+   * shrug in the middle of a conversation and a real loss on the first turn:
+   * they read a whole rubric and pressed a button, and a bad minute from the
+   * model would have left them on an empty "what do you want to get good at?"
+   * with no sign of the work they came for.
+   */
+  it("returns a failed opening turn to the brief it came from", async () => {
+    runAnalyzerMock.mockResolvedValue({ status: "refused", detail: "no" });
+
+    await expect(
+      replyAction(
+        form({
+          reply: 'I want to learn SQL so I can do the "Sales dashboard" project.',
+          project: "sales-dashboard",
+        }),
+      ),
+    ).rejects.toThrow("REDIRECT:/start?project=sales-dashboard&error=analyzer");
+  });
+
+  it("keeps the brief out of it once the conversation is under way", async () => {
+    // Later turns come from the composer, which carries no slug: by then the
+    // project is in the conversation itself and the generic screen is right.
+    intake = { ...EMPTY_INTAKE, messages: [{ r: "a", t: "What do you want?" }] };
+    runAnalyzerMock.mockResolvedValue({ status: "refused", detail: "no" });
+
+    await expect(replyAction(form({ reply: "Rust" }))).rejects.toThrow(
+      "REDIRECT:/start?error=analyzer",
+    );
   });
 
   it("ignores an empty answer", async () => {
