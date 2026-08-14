@@ -303,8 +303,20 @@ Each of these ships with tests, per `AGENTS.md` — 100% of `src/`, no exclusion
 
    The answers count both ways, and the card says so. A test greps the rendered
    copy for "skip ahead" and "mark it as known" and fails if either appears.
-5. **`existingAssets` as a fifth lesson cache dimension** — closed vocabulary
-   only. Cheapest real personalization available.
+5. ~~**`existingAssets` as a fifth lesson cache dimension.**~~ **Built** as
+   `priorDomain`: `none | spreadsheets | programming | statistics`, emitted by
+   the analyzer during a conversation it was already having rather than
+   classified afterwards by a second call.
+
+   `none` adds no prompt line at all, so those lessons are byte-for-byte what
+   was being generated before — which matters, because that is most learners in
+   most subjects, and the alternative is invalidating the whole cache to add a
+   sentence that says nothing.
+
+   The prompt offers the analogy and explicitly permits ignoring it. Told only
+   that a reader knows spreadsheets, a model will reach for a pivot-table
+   metaphor in a lesson on NULL semantics, where it is worse than no analogy —
+   the reader unlearns the comparison as well as learning the skill.
 
 Not now: per-learner lesson generation (kills the cache, worse prose), a
 per-learner generated syllabus (the commodity), and any depth setting that moves
