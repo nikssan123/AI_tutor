@@ -44,6 +44,22 @@ export const WEIGHTS = {
 export const HARD_PREREQ_THRESHOLD = 0.7;
 export const MASTERY_TARGET = 0.85;
 
+/**
+ * What a learner saying "I don't get this" is worth against actually failing at
+ * it (PLAN-ADAPTATION step 3).
+ *
+ * Half a failed attempt, and at most two of them counted. Both numbers exist to
+ * bound the same thing: a tutor signal is a model's reading of a conversation,
+ * which §7.2 calls tier 5, and tier 5 may make the system gentler but must never
+ * drive it on its own. At the cap, chat alone can push the damper to 0.5 — half
+ * of what three failed attempts say — and no further.
+ *
+ * This is the only place a signal touches the planner, and it can only ever
+ * lower a skill's rank. There is no path from here to mastery.
+ */
+export const STUCK_SIGNAL_WEIGHT = 0.5;
+export const MAX_STUCK_SIGNALS = 2;
+
 /** §16.1 step 3 — the deadline override multiplier. */
 export const DEADLINE_CRITICALITY_MULTIPLIER = 2.0;
 
@@ -119,6 +135,8 @@ export interface EligibilityContext {
   masteryById: Map<string, MasteryState>;
   effectiveById: Map<string, number>;
   attemptsBySkill: Map<string, SkillAttempt[]>;
+  /** §16.1's damper, fed by the tutor. Count of recent `stuck` signals per skill. */
+  stuckBySkill: Map<string, number>;
   skillsById: Map<string, EngineSkill>;
   recentSessions: SessionOutcome[];
   now: string;
@@ -150,6 +168,11 @@ export function buildContext(input: PlannerInput): EligibilityContext {
     list.sort((a, b) => a.at.localeCompare(b.at));
   }
 
+  const stuckBySkill = new Map<string, number>();
+  for (const signal of input.stuckSignals ?? []) {
+    stuckBySkill.set(signal, (stuckBySkill.get(signal) ?? 0) + 1);
+  }
+
   const recentSessions = [...input.history]
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     .slice(0, MOMENTUM_WINDOW);
@@ -160,6 +183,7 @@ export function buildContext(input: PlannerInput): EligibilityContext {
     masteryById,
     effectiveById,
     attemptsBySkill,
+    stuckBySkill,
     skillsById,
     recentSessions,
     now: input.now,
@@ -248,10 +272,13 @@ function frustrationRisk(ctx: EligibilityContext, skillId: string): number {
   );
 
   const considered = [...own.slice(-3), ...prereqAttempts.slice(-3)];
-  if (considered.length === 0) return 0;
+  const stuck = Math.min(ctx.stuckBySkill.get(skillId) ?? 0, MAX_STUCK_SIGNALS);
+  if (considered.length === 0 && stuck === 0) return 0;
 
   const failures = considered.filter((a) => !a.succeeded).length;
-  return clamp(failures / considered.length);
+  return clamp(
+    (failures + STUCK_SIGNAL_WEIGHT * stuck) / (considered.length + stuck),
+  );
 }
 
 /**

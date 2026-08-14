@@ -38,6 +38,11 @@ import {
 import { answerCheck, checkBlockAt, isBlank } from "@/lib/session/run";
 import { lessonForBlock, sessionView, supportFor } from "@/lib/session/view";
 import {
+  recentSignals,
+  recordTutorSignal,
+  SIGNAL_WINDOW_DAYS,
+} from "@/lib/session/store";
+import {
   cachedLesson,
   saveLesson,
   styleHashFor,
@@ -1001,6 +1006,83 @@ live("the session view and its lesson", () => {
     expect(await sessionView(db, userId, stored.id, NOW)).toBeUndefined();
   });
 
+  /**
+   * PLAN-ADAPTATION step 3 — a `stuck` signal reaching the lesson.
+   *
+   * On its own, a "solid" band asks for the standard lesson. The signal
+   * escalates it to the worked example, which changes the cache key — so the
+   * row saved under the escalated key is a *hit* only for the learner who said
+   * they were lost, and a miss for the one who did not.
+   *
+   * Deliberately on a second skill: the shared `skill` above is the one every
+   * other lesson test keys on, and a row written here under a common band would
+   * turn one of their cache misses into a hit.
+   */
+  it("escalates a learner's lesson after they said they were lost", async () => {
+    const other = graph.skills[1]!;
+    const userId = await newUser();
+    const goalId = await createGoal(db, {
+      userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+    });
+    const sessionId = (
+      await startSession(db, {
+        userId,
+        goalId,
+        planned: {
+          goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+          blocks: [{ type: "explain", skillId: other.id, content: "c", estMinutes: 5 }],
+          totalMinutes: 5, targetSkillIds: [other.id], backingOff: false,
+          reason: "r", compression: null, ranked: [],
+        },
+        now: NOW,
+      })
+    ).id;
+
+    const solid = {
+      ...initialMastery(other.id, other.bktPriors),
+      mastery: 0.9,
+      evidenceCount: 3,
+    };
+    const escalated: LessonRequest = {
+      packSlug: PACK,
+      skillSlug: other.id,
+      skillName: other.name,
+      canDoStatement: other.canDoStatement,
+      level: "solid",
+      minutes: 12,
+      support: "worked_example",
+    };
+    await saveLesson(db, escalated, lesson, NOW);
+
+    const explode = {
+      messages: { create: async () => { throw new Error("must not be called"); } },
+    } as never;
+
+    // No signal yet: a solid learner wants the standard lesson, which is not
+    // the row that was saved, so the cache misses and the model is reached for.
+    await expect(
+      lessonForBlock(db, explode, {
+        userId, packSlug: PACK, skill: other, mastery: solid, minutes: 12, now: NOW,
+      }),
+    ).rejects.toThrow("must not be called");
+
+    await recordTutorSignal(db, {
+      userId, sessionId, packSlug: PACK, skillSlug: other.id,
+      signal: "stuck", now: NOW,
+    });
+
+    // Same learner, same band, same skill — now a hit, because the signal moved
+    // the support level that the key includes.
+    const after = await lessonForBlock(db, explode, {
+      userId, packSlug: PACK, skill: other, mastery: solid, minutes: 12, now: NOW,
+    });
+    expect(after.cached).toBe(true);
+
+    await db
+      .delete(lessonTable)
+      .where(eq(lessonTable.skillId, skillId(PACK, other.id)));
+  });
+
   it("serves a cached lesson without calling a model", async () => {
     const userId = await newUser();
     await saveLesson(db, request, lesson, NOW);
@@ -1107,6 +1189,169 @@ live("the session view and its lesson", () => {
     expect(supportFor("shaky")).toBe("worked_example");
     expect(supportFor("getting there")).toBe("standard");
     expect(supportFor("solid")).toBe("standard");
+  });
+
+  /**
+   * PLAN-ADAPTATION step 3. The escalation is one-way on purpose: a learner who
+   * has said out loud that they do not follow it gets the worked example
+   * whatever their band says, and nothing can take it away from someone the
+   * band already gives it to.
+   */
+  it("escalates support for a learner who said they were lost", () => {
+    expect(supportFor("solid", true)).toBe("worked_example");
+    expect(supportFor("getting there", true)).toBe("worked_example");
+  });
+
+  it("never de-escalates on a signal", () => {
+    for (const level of ["no evidence yet", "shaky", "getting there", "solid"]) {
+      const withSignal = supportFor(level, true);
+      const without = supportFor(level, false);
+      // worked_example is the higher support level, so a signal can only move
+      // towards it, never away.
+      if (without === "worked_example") expect(withSignal).toBe(without);
+    }
+  });
+
+  it("keeps the cache to two buckets per band, not one per learner", () => {
+    // The whole reason support is a small closed set: `styleHashFor` keys on it,
+    // and an unbounded value here would give every learner their own lesson.
+    const reachable = new Set(
+      ["no evidence yet", "shaky", "getting there", "solid"].flatMap((level) => [
+        supportFor(level, false),
+        supportFor(level, true),
+      ]),
+    );
+    expect(reachable.size).toBe(2);
+  });
+
+  describe("tutor signals", () => {
+    it("records a signal against the skill and reads it back in slug space", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+      });
+      const sessionId = (
+        await startSession(db, {
+          userId: userId,
+          goalId,
+          planned: {
+            goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+            blocks: [{ type: "explain", skillId: skill.id, content: "c", estMinutes: 5 }],
+            totalMinutes: 5, targetSkillIds: [skill.id], backingOff: false,
+            reason: "r", compression: null, ranked: [],
+          },
+          now: NOW,
+        })
+      ).id;
+
+      await recordTutorSignal(db, {
+        userId,
+        sessionId,
+        packSlug: PACK,
+        skillSlug: skill.id,
+        signal: "stuck",
+        now: NOW,
+      });
+
+      const rows = await recentSignals(db, userId, PACK, NOW);
+      expect(rows).toEqual([
+        { skillSlug: skill.id, signal: "stuck", at: NOW },
+      ]);
+    });
+
+    it("keeps a signal with no skill out of the per-skill read", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+      });
+      const sessionId = (
+        await startSession(db, {
+          userId: userId,
+          goalId,
+          planned: {
+            goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+            blocks: [{ type: "explain", skillId: skill.id, content: "c", estMinutes: 5 }],
+            totalMinutes: 5, targetSkillIds: [skill.id], backingOff: false,
+            reason: "r", compression: null, ranked: [],
+          },
+          now: NOW,
+        })
+      ).id;
+
+      await recordTutorSignal(db, {
+        userId,
+        sessionId,
+        packSlug: PACK,
+        skillSlug: null,
+        signal: "stuck",
+        now: NOW,
+      });
+
+      // The row exists; every receptor is per-skill, so nothing reads it.
+      expect(await recentSignals(db, userId, PACK, NOW)).toEqual([]);
+    });
+
+    /**
+     * A signal is an impression of one moment. A learner confused a fortnight
+     * ago who has passed two checks since is not still confused, and nothing
+     * else expires these — the window is the only thing stopping one bad
+     * afternoon damping a skill forever.
+     */
+    it("forgets a signal older than the window", async () => {
+      const userId = await newUser();
+      const goalId = await createGoal(db, {
+        userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+      });
+      const sessionId = (
+        await startSession(db, {
+          userId: userId,
+          goalId,
+          planned: {
+            goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+            blocks: [{ type: "explain", skillId: skill.id, content: "c", estMinutes: 5 }],
+            totalMinutes: 5, targetSkillIds: [skill.id], backingOff: false,
+            reason: "r", compression: null, ranked: [],
+          },
+          now: NOW,
+        })
+      ).id;
+
+      const old = new Date(NOW.getTime() - (SIGNAL_WINDOW_DAYS + 1) * 86_400_000);
+      await recordTutorSignal(db, {
+        userId, sessionId, packSlug: PACK, skillSlug: skill.id,
+        signal: "stuck", now: old,
+      });
+
+      expect(await recentSignals(db, userId, PACK, NOW)).toEqual([]);
+    });
+
+    it("does not leak one learner's signals to another", async () => {
+      const mine = await newUser();
+      const theirs = await newUser();
+      const goalId = await createGoal(db, {
+        userId: mine, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+      });
+      const sessionId = (
+        await startSession(db, {
+          userId: mine,
+          goalId,
+          planned: {
+            goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+            blocks: [{ type: "explain", skillId: skill.id, content: "c", estMinutes: 5 }],
+            totalMinutes: 5, targetSkillIds: [skill.id], backingOff: false,
+            reason: "r", compression: null, ranked: [],
+          },
+          now: NOW,
+        })
+      ).id;
+
+      await recordTutorSignal(db, {
+        userId: mine, sessionId, packSlug: PACK, skillSlug: skill.id,
+        signal: "stuck", now: NOW,
+      });
+
+      expect(await recentSignals(db, theirs, PACK, NOW)).toEqual([]);
+    });
   });
 
   it("logs both halves of a tutor turn, costing only the answer", async () => {

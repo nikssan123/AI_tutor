@@ -276,6 +276,87 @@ describe("score components (§16.1 step 2)", () => {
     expect(scoreComponents(ctx, "joins", 30).frustrationRisk).toBe(0);
   });
 
+  /**
+   * PLAN-ADAPTATION step 3 — the tutor's reading of a conversation, worth half a
+   * failed attempt and capped at two. §7.2 puts a model's impression at tier 5,
+   * and tier 5 may make the system gentler but must never drive it alone.
+   */
+  describe("tutor signals", () => {
+    it("raises the damper for a learner who said they were lost", () => {
+      const ctx = buildContext(
+        plannerInput({ ...base, stuckSignals: ["joins"] }),
+      );
+      expect(scoreComponents(ctx, "joins", 30).frustrationRisk).toBe(0.5);
+    });
+
+    it("cannot max the damper on chat alone", () => {
+      const ctx = buildContext(
+        plannerInput({
+          ...base,
+          stuckSignals: ["joins", "joins", "joins", "joins", "joins"],
+        }),
+      );
+      // Five signals, two counted: 0.5 × 2 / 2. Never 1, which is what three
+      // failed attempts say.
+      expect(scoreComponents(ctx, "joins", 30).frustrationRisk).toBe(0.5);
+    });
+
+    it("counts for less than an actual failure", () => {
+      const signalled = buildContext(
+        plannerInput({ ...base, stuckSignals: ["joins", "joins"] }),
+      );
+      const failed = buildContext(
+        plannerInput({
+          ...base,
+          attempts: [
+            attempt("joins", "2026-08-10T09:00:00.000Z", false),
+            attempt("joins", "2026-08-11T09:00:00.000Z", false),
+          ],
+        }),
+      );
+
+      expect(
+        scoreComponents(signalled, "joins", 30).frustrationRisk,
+      ).toBeLessThan(scoreComponents(failed, "joins", 30).frustrationRisk);
+    });
+
+    it("nudges a mixed record rather than overwhelming it", () => {
+      const ctx = buildContext(
+        plannerInput({
+          ...base,
+          attempts: [
+            attempt("joins", "2026-08-10T09:00:00.000Z", true),
+            attempt("joins", "2026-08-11T09:00:00.000Z", false),
+          ],
+          stuckSignals: ["joins"],
+        }),
+      );
+      // (1 failure + 0.5) / (2 attempts + 1) = 0.5, against 0.5 without the
+      // signal — the prerequisite attempt list is empty, so this is the skill's
+      // own record moving.
+      expect(scoreComponents(ctx, "joins", 30).frustrationRisk).toBe(0.5);
+    });
+
+    it("attaches to the skill it was raised on, not its neighbours", () => {
+      const ctx = buildContext(
+        plannerInput({ ...base, stuckSignals: ["basics"] }),
+      );
+      expect(scoreComponents(ctx, "joins", 30).frustrationRisk).toBe(0);
+      expect(scoreComponents(ctx, "basics", 30).frustrationRisk).toBe(0.5);
+    });
+
+    it("changes nothing when there are none", () => {
+      const withEmpty = buildContext(
+        plannerInput({ ...base, stuckSignals: [] }),
+      );
+      const without = buildContext(plannerInput(base));
+
+      expect(scoreComponents(withEmpty, "joins", 30)).toEqual(
+        scoreComponents(without, "joins", 30),
+      );
+    });
+  });
+
   it("penalises a poor time fit", () => {
     const ctx = buildContext(base);
     // estimatedHours 1.5 -> 30-minute natural block. A 30-minute evening fits.

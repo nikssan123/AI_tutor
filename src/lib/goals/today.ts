@@ -13,6 +13,7 @@ import {
   openSession,
   recentAttempts,
   recentOutcomes,
+  recentSignals,
 } from "@/lib/session/store";
 
 /**
@@ -78,13 +79,14 @@ export async function todayFor(
   // Everything the planner was handed as an empty array until E7 wrote it.
   // Four of §16.1's nine terms read these, so a learner's tenth session used to
   // be scored exactly like their first.
-  const [history, attempts, retrievalQueue, sessionIndex, open] =
+  const [history, attempts, retrievalQueue, sessionIndex, open, signals] =
     await Promise.all([
       recentOutcomes(db, userId, goal.id, (slug) => areaOf.get(slug)),
       recentAttempts(db, userId, goal.id),
       dueRetrieval(db, userId, goal.packSlug),
       nextSessionIndex(db, userId, goal.id),
       openSession(db, userId, goal.id),
+      recentSignals(db, userId, goal.packSlug, now),
     ]);
 
   const session = plan({
@@ -104,6 +106,12 @@ export async function todayFor(
     },
     sessionIndex,
     depth: goal.spec.depth,
+    // PLAN-ADAPTATION step 3 — what the tutor heard, not what it decided. Feeds
+    // `frustrationRisk` only, so a learner who has been saying "I don't follow"
+    // gets backed off sooner instead of having to fail two checks first.
+    stuckSignals: signals
+      .filter((s) => s.signal === "stuck")
+      .map((s) => s.skillSlug),
   });
 
   return {

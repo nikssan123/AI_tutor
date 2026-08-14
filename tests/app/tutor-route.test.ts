@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const currentSessionMock = vi.fn();
 const sessionViewMock = vi.fn();
+const noteTurnMock = vi.fn();
 const transcriptMock = vi.fn();
 const tutorStreamMock = vi.fn();
 const logTurnMock = vi.fn();
@@ -20,6 +21,9 @@ vi.mock("@/lib/account/session", () => ({
 }));
 vi.mock("@/lib/session/view", () => ({
   sessionView: (...a: unknown[]) => sessionViewMock(...(a as [])),
+}));
+vi.mock("@/lib/session/signals", () => ({
+  noteTurn: (...a: unknown[]) => noteTurnMock(...(a as [])),
 }));
 vi.mock("@/lib/session/tutor", () => ({
   transcriptFor: (...a: unknown[]) => transcriptMock(...(a as [])),
@@ -65,9 +69,11 @@ beforeEach(() => {
   currentSessionMock.mockResolvedValue({ user: { id: "u1" } });
   sessionViewMock.mockResolvedValue({
     session: { id: "sess-1" },
+    goal: { packSlug: "sql-data-analysis" },
     block: undefined,
     learnerContext: "## Learner",
   });
+  noteTurnMock.mockResolvedValue("none");
   transcriptMock.mockResolvedValue([]);
   tutorStreamMock.mockReturnValue(answering(["Because ", "of the grain."]));
 });
@@ -148,5 +154,42 @@ describe("parseBody", () => {
     expect(parseBody("string")).toBeUndefined();
     expect(parseBody({ sessionId: "", message: "m" })).toBeUndefined();
     expect(parseBody({ sessionId: "s", message: 5 })).toBeUndefined();
+  });
+});
+
+/**
+ * PLAN-ADAPTATION step 3 — the classification runs after the answer, and the
+ * answer is what the learner is owed.
+ */
+describe("tutor signals on the streamed turn", () => {
+  it("classifies the exchange once the answer has been delivered", async () => {
+    const response = await POST(
+      post({ sessionId: "sess-1", message: "I don't follow" }),
+    );
+    // The stream's `start` only runs once the body is pulled, so the turn is
+    // not classified until the learner has actually been sent the answer.
+    await response.text();
+
+    expect(noteTurnMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        userId: "u1",
+        sessionId: "sess-1",
+        packSlug: "sql-data-analysis",
+        question: "I don't follow",
+        answer: "Because of the grain.",
+      }),
+    );
+  });
+
+  it("delivers the answer whole even when the classification falls over", async () => {
+    noteTurnMock.mockRejectedValue(new Error("haiku is down"));
+
+    const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
+
+    // The learner asked a question and got an answer. A label they will never
+    // see failing must not turn that into an error message.
+    expect(await response.text()).toBe("Because of the grain.");
   });
 });

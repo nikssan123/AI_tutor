@@ -62,6 +62,12 @@ export const STEP_MODELS = {
   lessonGenerator: "standard",
   tutor: "standard",
   /**
+   * §14.2's first line — "Classification" is the fast tier's own job
+   * description. Labelling one exchange into four values runs after the answer
+   * has already streamed, so it is off the critical path as well as cheap.
+   */
+  tutorSignal: "fast",
+  /**
    * §14.2 — "Assessment Agent: Haiku 4.5 *only* to grade free-text." §14.9.3's
    * cost table has no row for a session's recall checks, because it predates
    * there being a session to run; the routing rule it would follow is this one,
@@ -114,6 +120,8 @@ export const STEP_EFFORT = {
   resourceResearcher: null,
   lessonGenerator: null,
   tutor: null,
+  // Haiku rejects both thinking and effort outright (see above).
+  tutorSignal: null,
   artifactIngestor: null,
   rubricGrader: "high",
   consistencyPass: "medium",

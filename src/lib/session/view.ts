@@ -19,6 +19,7 @@ import {
 import {
   openMisconceptions,
   recentOutcomes,
+  recentSignals,
   sessionById,
   type StoredSession,
 } from "./store";
@@ -126,8 +127,15 @@ export async function sessionView(
  * nothing. Level is also already part of the cache key, so deriving support
  * from it means two learners at the same band share a lesson rather than each
  * generating their own.
+ *
+ * `stuck` only ever escalates (PLAN-ADAPTATION step 3). A learner who has said
+ * out loud that they do not follow it gets the worked example whatever their
+ * band says; nothing can take it away. That keeps the band rule as the floor,
+ * and it keeps the cache to two buckets per band rather than one per learner —
+ * bounded personalisation, which is the only kind that survives a shared cache.
  */
-export function supportFor(level: string): SupportLevel {
+export function supportFor(level: string, stuck = false): SupportLevel {
+  if (stuck) return "worked_example";
   return level === "solid" || level === "getting there"
     ? "standard"
     : "worked_example";
@@ -160,6 +168,20 @@ export async function lessonForBlock(
   },
 ): Promise<LessonOutcome> {
   const level = masteryBand(input.mastery);
+
+  // PLAN-ADAPTATION step 3. Asked here rather than threaded down from the page,
+  // because this is the only function that decides what a lesson looks like and
+  // splitting that decision across two files is how the two would disagree.
+  const signals = await recentSignals(
+    db,
+    input.userId,
+    input.packSlug,
+    input.now,
+  );
+  const stuck = signals.some(
+    (s) => s.signal === "stuck" && s.skillSlug === input.skill.id,
+  );
+
   const request: LessonRequest = {
     packSlug: input.packSlug,
     skillSlug: input.skill.id,
@@ -167,7 +189,7 @@ export async function lessonForBlock(
     canDoStatement: input.skill.canDoStatement,
     level,
     minutes: input.minutes,
-    support: supportFor(level),
+    support: supportFor(level, stuck),
   };
 
   const hit = await cachedLesson(db, request);

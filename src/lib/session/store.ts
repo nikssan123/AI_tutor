@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import {
   assessmentItem,
@@ -8,6 +8,7 @@ import {
   misconception,
   retrievalQueueItem,
   skill as skillTable,
+  tutorSignal,
 } from "@/db/schema";
 import { itemId as packItemId, packId, skillId } from "@/lib/packs/ids";
 import { BlockResponse, SessionResponses } from "@/lib/contracts/session";
@@ -532,6 +533,83 @@ export async function openMisconceptions(
     .limit(limit);
 
   return rows.map((row) => row.description);
+}
+
+/**
+ * How long a tutor signal stays relevant.
+ *
+ * Short on purpose. A signal is an impression of one moment in one conversation,
+ * and a learner who was confused a fortnight ago and has passed two checks since
+ * is not still confused. Attempts decay through the mastery model; these do not,
+ * so the window is the only thing stopping an old bad afternoon damping a skill
+ * forever.
+ */
+export const SIGNAL_WINDOW_DAYS = 7;
+
+/**
+ * Recent signals for one learner, newest first, in slug space.
+ *
+ * Joined through `skill` for the same reason `openMisconceptions` is: the engine
+ * reads slugs and the table stores UUIDs, and this file is where that seam is
+ * crossed. Rows with no skill — a signal raised on a reflect block — are not
+ * returned, because every receptor is per-skill.
+ */
+export async function recentSignals(
+  db: Db,
+  userId: string,
+  packSlug: string,
+  now: Date,
+  windowDays = SIGNAL_WINDOW_DAYS,
+): Promise<Array<{ skillSlug: string; signal: string; at: Date }>> {
+  const since = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      skillSlug: skillTable.slug,
+      signal: tutorSignal.signal,
+      at: tutorSignal.createdAt,
+    })
+    .from(tutorSignal)
+    .innerJoin(skillTable, eq(skillTable.id, tutorSignal.skillId))
+    .where(
+      and(
+        eq(tutorSignal.userId, userId),
+        eq(skillTable.packId, packId(packSlug)),
+        gte(tutorSignal.createdAt, since),
+      ),
+    )
+    .orderBy(desc(tutorSignal.createdAt));
+
+  return rows;
+}
+
+/**
+ * One labelled turn.
+ *
+ * `none` never reaches here — the caller drops it — so every row is a signal
+ * somebody meant. A signal with no skill still writes a row: it costs nothing,
+ * and a null `skill_id` is the honest record of "noticed, not attributable".
+ */
+export async function recordTutorSignal(
+  db: Db,
+  input: {
+    userId: string;
+    sessionId: string;
+    packSlug: string;
+    skillSlug: string | null;
+    signal: string;
+    now: Date;
+  },
+): Promise<void> {
+  await db.insert(tutorSignal).values({
+    userId: input.userId,
+    sessionId: input.sessionId,
+    skillId: input.skillSlug
+      ? skillId(input.packSlug, input.skillSlug)
+      : null,
+    signal: input.signal,
+    createdAt: input.now,
+  });
 }
 
 export async function recordMisconception(

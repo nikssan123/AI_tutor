@@ -26,6 +26,7 @@ import {
 import { markAchievedIfComplete } from "@/lib/goals/achievement";
 import { coursesFor } from "@/lib/goals/courses";
 import { todayFor } from "@/lib/goals/today";
+import { recordTutorSignal, startSession } from "@/lib/session/store";
 import type { GoalSpec } from "@/lib/contracts/goal";
 import type { MasteryState } from "@/lib/engine";
 
@@ -250,6 +251,71 @@ live("the goal store", () => {
       now: NOW,
     });
     expect(await sessionMinutesFor(db, userId)).toBe(DEFAULT_SESSION_MINUTES);
+  });
+
+  /**
+   * PLAN-ADAPTATION step 3 — a `stuck` signal reaching the planner.
+   *
+   * The signal feeds `frustrationRisk` and nothing else, so its only possible
+   * effect is to push a skill down the ranking. It cannot move mastery, and it
+   * cannot promote anything.
+   */
+  it("damps a skill the tutor heard the learner struggle with", async () => {
+    const userId = await newUser();
+    const goalId = await createGoal(db, {
+      userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+    });
+
+    const before = await todayFor(db, userId, NOW);
+    const target = before!.session.ranked[0]!;
+
+    const sessionId = (
+      await startSession(db, {
+        userId,
+        goalId,
+        planned: before!.session,
+        now: NOW,
+      })
+    ).id;
+
+    await recordTutorSignal(db, {
+      userId, sessionId, packSlug: PACK, skillSlug: target.skillId,
+      signal: "stuck", now: NOW,
+    });
+
+    const after = await todayFor(db, userId, NOW);
+    const same = after!.session.ranked.find((r) => r.skillId === target.skillId)!;
+
+    expect(same.components.frustrationRisk).toBeGreaterThan(
+      target.components.frustrationRisk,
+    );
+    expect(same.score).toBeLessThan(target.score);
+  });
+
+  /** A signal on one skill is not a signal on its neighbours. */
+  it("leaves every other skill's score alone", async () => {
+    const userId = await newUser();
+    const goalId = await createGoal(db, {
+      userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+    });
+
+    const before = await todayFor(db, userId, NOW);
+    const target = before!.session.ranked[0]!;
+    const sessionId = (
+      await startSession(db, { userId, goalId, planned: before!.session, now: NOW })
+    ).id;
+
+    await recordTutorSignal(db, {
+      userId, sessionId, packSlug: PACK, skillSlug: target.skillId,
+      signal: "stuck", now: NOW,
+    });
+
+    const after = await todayFor(db, userId, NOW);
+    for (const row of before!.session.ranked) {
+      if (row.skillId === target.skillId) continue;
+      const now = after!.session.ranked.find((r) => r.skillId === row.skillId);
+      expect(now?.components.frustrationRisk).toBe(row.components.frustrationRisk);
+    }
   });
 
   describe("setGoalDepth", () => {

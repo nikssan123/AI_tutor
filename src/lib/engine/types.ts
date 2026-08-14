@@ -156,6 +156,16 @@ export interface PlannerInput {
   history: SessionOutcome[];
   /** All attempts the planner should consider, any order. */
   attempts: SkillAttempt[];
+  /**
+   * Skill ids the tutor recently heard the learner struggle with — one entry
+   * per signal, so a skill named twice counts twice (PLAN-ADAPTATION step 3).
+   *
+   * Not evidence, and deliberately not shaped like it: these carry no verdict
+   * and no tier, because they are a model's reading of a conversation and §7.2
+   * puts that at tier 5. They feed `frustrationRisk` and nothing else, so their
+   * only possible effect is to make the planner back off sooner.
+   */
+  stuckSignals?: string[] | undefined;
   retrievalQueue: RetrievalCandidate[];
   constraints: LearnerConstraints;
   /** Sequence number of the session being planned, 1-based (§16.1 step 4). */

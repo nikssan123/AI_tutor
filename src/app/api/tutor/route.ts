@@ -4,6 +4,7 @@ import { currentSession } from "@/lib/account/session";
 import { recordAgentRun } from "@/lib/ai/runlog";
 import { sessionView } from "@/lib/session/view";
 import { logTurn, transcriptFor, tutorStream } from "@/lib/session/tutor";
+import { noteTurn } from "@/lib/session/signals";
 
 /**
  * §14.9.3 — the tutor, streamed, because a person is watching it type.
@@ -74,6 +75,31 @@ export async function POST(request: Request): Promise<Response> {
             meta: outcome.meta,
             status: outcome.refused ? "refusal" : "ok",
           });
+
+          // After the answer, never before it: the learner already has what
+          // they asked for, so a slow or failed classification costs them
+          // nothing.
+          //
+          // Its own try, rather than relying on the one `noteTurn` keeps
+          // internally. That catch cannot cover this call *site* — `getAnthropic`
+          // throws when there is no API key, before `noteTurn` is entered — and
+          // an error escaping to the outer handler would append "[The tutor
+          // stopped early]" to an answer that arrived complete. A label the
+          // learner will never see must not be able to spoil one they did.
+          try {
+            await noteTurn(db, getAnthropic(), {
+              userId: auth.user.id,
+              sessionId: view.session.id,
+              packSlug: view.goal.packSlug,
+              block: view.block,
+              question: parsed.message,
+              answer: outcome.text,
+              now,
+            });
+          } catch {
+            // Nothing to do and nobody to tell: the turn is logged, the answer
+            // is delivered, and the only thing lost is a label.
+          }
         } catch (error) {
           // The stream has already started, so there is no status code left to
           // change. Saying so in the body is the only honest option — a silent

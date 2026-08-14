@@ -47,6 +47,14 @@ export const interaction = pgTable(
  * Prompts are versioned files in git, loaded by (name, version); never
  * hot-edited in a database.
  */
+/**
+ * `visitor` | `operator` | null — *why* a run has no user, which §19.2's free-tier
+ * cap needs and could not previously ask.
+ *
+ * Null on every row written before this column existed, and those count as
+ * visitor spend. That is the safe reading: over-counting degrades the free tier
+ * conservatively, while under-counting leaves it unbounded.
+ */
 export const agentRun = pgTable(
   "agent_run",
   {
@@ -112,6 +120,39 @@ export const misconception = pgTable("misconception", {
     .notNull()
     .defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+});
+
+/**
+ * What the tutor noticed, which is not what the tutor decided.
+ *
+ * PLAN-ADAPTATION step 3. These rows are **not evidence** and nothing here may
+ * ever reach `learner_skill_mastery`: §7.2 puts a model's impression of a
+ * conversation at tier 5, and tier 5 can never raise mastery. They feed the
+ * planner's frustration damper and the next lesson's support level, both of
+ * which only ever make the system gentler.
+ *
+ * Kept separate from `interaction` because that table is the transcript and
+ * this is a reading of it — one row per labelled turn, and most turns produce
+ * no row at all.
+ */
+export const tutorSignal = pgTable("tutor_signal", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  sessionId: uuid("session_id").references(() => learningSession.id, {
+    onDelete: "cascade",
+  }),
+  /**
+   * Nullable: a `review` or `reflect` block is not about one skill, so a signal
+   * raised there attaches to nothing rather than to the wrong thing.
+   */
+  skillId: uuid("skill_id").references(() => skill.id, { onDelete: "cascade" }),
+  /** One of `TUTOR_SIGNALS`. Never "none" — an unlabelled turn writes no row. */
+  signal: text("signal").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /**
