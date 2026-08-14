@@ -1,9 +1,12 @@
+import Link from "next/link";
 import {
   cx,
   DisplayTitle,
   Lead,
+  stagger,
   Title,
 } from "@/components/ui";
+import { Wordmark } from "@/components/logo";
 
 /**
  * §8.5.9, applied to the authenticated screens.
@@ -85,17 +88,73 @@ export function AppFrame({
 }
 
 /**
- * The signed-out screens: sign in, forgot password, reset password.
+ * The signed-out screens: sign in, sign up, forgot password, reset password.
  *
  * They sit outside the nav — there is no session to navigate from — so they
  * centre on the viewport instead of hanging from the top of a column. Every
  * one of them had written this same line out by hand, which is how
  * `forgot-password` and `reset-password` ended up one `gap` apart.
+ *
+ * The wordmark is not decoration. These were the only screens in the product
+ * with no route out of them: no nav, no logo, no link home. Someone who opened
+ * `/sign-in` from a search result and decided they wanted to read about the
+ * product first had the back button and nothing else — and someone who arrived
+ * from an emailed reset link had not necessarily ever seen the brand at all.
+ *
+ * It is drawn only when there is no nav already drawing one, which is what
+ * `brand` is for. `/sign-in` and `/sign-up` are `requireGuest` and can never
+ * render inside the signed-in shell, so they take the default; but
+ * `/forgot-password`, `/reset-password` and `/verify-email` are all reachable
+ * *while signed in*, and there the rail is already showing the wordmark in the
+ * corner — a second centred one is the same brand twice.
+ *
+ * A prop rather than a session read of its own, because this has to stay a
+ * synchronous component: an async one cannot be nested inside a page under
+ * test, where the tree is rendered into jsdom rather than streamed. The pages
+ * are already async and `currentSession` is `cache`-memoised, so asking there
+ * costs nothing the layout has not already paid.
+ *
+ * `footer` carries the one line that belongs *outside* the card — "no account?
+ * create one" — because putting it inside makes it a fourth thing competing
+ * with the form's own actions, and it is not part of the form.
  */
-export function AuthFrame({ children }: { children: React.ReactNode }) {
+export function AuthFrame({
+  children,
+  footer,
+  brand = true,
+}: {
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  /** `false` where the signed-in nav is already showing the wordmark. */
+  brand?: boolean;
+}) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-16">
+      {brand ? (
+        <div className="rise flex justify-center">
+          <Link
+            href="/"
+            className={cx(
+              "inline-flex rounded-[var(--radius-control)] px-2 py-1",
+              "outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-weak)]",
+              "transition-opacity duration-[var(--dur-fast)] hover:opacity-80",
+            )}
+          >
+            <Wordmark />
+          </Link>
+        </div>
+      ) : null}
+
       {children}
+
+      {footer ? (
+        <div
+          className="rise text-center text-[length:var(--text-label-size)] text-ink-muted"
+          style={stagger(3)}
+        >
+          {footer}
+        </div>
+      ) : null}
     </main>
   );
 }

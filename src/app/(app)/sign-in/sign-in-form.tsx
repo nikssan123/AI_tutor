@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { DEFAULT_DESTINATION, withDestination } from "@/lib/account/next-url";
-import { Button, Card } from "@/components/ui";
+import { DEFAULT_DESTINATION } from "@/lib/account/next-url";
+import { Button, Card, Divider, Field } from "@/components/ui";
 
 /**
  * Better Auth reports a malformed body as a Zod dump —
@@ -92,7 +92,17 @@ export function SignInForm({
   }
 
   return (
-    <Card>
+    <Card className="flex flex-col gap-5">
+      {/* Google first, then the rule, then the fields.
+       *
+       * The one-tap path is both the faster one and the one that cannot fail on
+       * a forgotten password, so it goes where the eye lands. Underneath it the
+       * password form stays fully visible — never behind a "use email instead"
+       * disclosure, which hides the only route in for anyone who never linked a
+       * Google account. */}
+      {google}
+      {google ? <Divider label="or" /> : null}
+
       {/*
        * A real <form>, which a stack of buttons in a <div> was not. Without it
        * pressing Enter in either field does nothing at all — the most common
@@ -100,62 +110,46 @@ export function SignInForm({
        * act on, so an empty submit travels to the server to be rejected there.
        */}
       <form onSubmit={onSubmit} className="flex flex-col gap-5">
-        <label className="flex flex-col gap-2">
-          <span className="text-[length:var(--text-label-size)] font-[550]">Email</span>
-          <input
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className="min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink"
-          />
-        </label>
+        <Field
+          label="Email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+        />
 
-        <label className="flex flex-col gap-2">
-          <span className="text-[length:var(--text-label-size)] font-[550]">Password</span>
-          <input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            className="min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink"
-          />
-        </label>
+        <Field
+          label="Password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          /* On the label row rather than in the pile at the bottom: this is
+             where it is wanted — at the field that just failed — and moving it
+             here leaves one link under the card instead of three. */
+          action={
+            <Link
+              href="/forgot-password"
+              className="text-[length:var(--text-meta-size)] text-accent underline-offset-4 hover:underline"
+            >
+              Forgot?
+            </Link>
+          }
+        />
 
+        {/* The form-level error: a wrong pair, or a server that never answered.
+            Neither belongs to one field, so neither is a `Field` error. */}
         {error ? (
           <span role="alert" className="text-[length:var(--text-label-size)] text-problem">
             {error}
           </span>
         ) : null}
 
-        <div>
-          <Button type="submit" disabled={pending}>
-            Sign in
-          </Button>
-        </div>
+        <Button type="submit" disabled={pending} className="sm:w-full">
+          {pending ? "Signing in…" : "Sign in"}
+        </Button>
       </form>
-
-      {/* Below the form and outside it — none of these submits it. Creating an
-          account is a link now, not a second submit button: it goes to a screen
-          with its own fields rather than reusing these two. */}
-      <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
-        {google}
-        {/* Carries the destination across, because the visitor who most often
-            has nowhere to sign in to is the one who arrived with a subject
-            they wanted built. */}
-        <Link
-          href={withDestination("/sign-up", destination)}
-          className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
-        >
-          Create an account
-        </Link>
-        <Link
-          href="/forgot-password"
-          className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
-        >
-          Forgot your password?
-        </Link>
-      </div>
     </Card>
   );
 }

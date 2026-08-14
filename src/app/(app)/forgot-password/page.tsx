@@ -4,12 +4,14 @@ import {
   Button,
   Card,
   DisplayTitle,
+  Field,
   Lead,
   Meta,
   stagger,
   Status,
 } from "@/components/ui";
 import { AuthFrame } from "@/components/app-shell";
+import { currentSession } from "@/lib/account/session";
 import { requestResetAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -22,8 +24,12 @@ type Props = { searchParams: Promise<{ sent?: string; error?: string }> };
 export default async function ForgotPasswordPage({ searchParams }: Props) {
   const { sent, error } = await searchParams;
 
+  // No guest guard on this screen, so the nav may already be showing the
+  // wordmark. Memoised — the layout above has made this same call already.
+  const signedIn = (await currentSession()) !== null;
+
   return (
-    <AuthFrame>
+    <AuthFrame brand={!signedIn}>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Forgot your password</DisplayTitle>
         <Lead>
@@ -56,22 +62,18 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
           ) : null}
 
           <form action={requestResetAction} className="flex flex-col gap-5">
-            <label className="flex flex-col gap-2">
-              <span className="text-[length:var(--text-label-size)] font-[650]">
-                Email
-              </span>
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink focus:border-accent transition-colors duration-[var(--dur-fast)]"
-              />
-            </label>
+            <Field
+              label="Email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              placeholder="you@example.com"
+            />
 
-            <div>
-              <Button type="submit">Send the link</Button>
-            </div>
+            <Button type="submit" className="sm:w-full">
+              Send the link
+            </Button>
           </form>
         </Card>
       )}

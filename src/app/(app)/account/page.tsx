@@ -16,6 +16,7 @@ import {
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader } from "@/components/app-shell";
+import { GoogleIcon } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   changeEmailAction,
@@ -332,7 +333,13 @@ export default async function AccountPage({ searchParams }: Props) {
             <form action={linkGoogleAction} className="flex flex-col gap-3">
               <Meta>Sign in with one tap instead of a password.</Meta>
               <div>
-                <Button variant="text" type="submit">
+                {/* The branded variant here too: this starts the same OAuth
+                    handoff as the sign-in screen, so it should look like the
+                    control the person already recognises from it. Disconnect
+                    stays a text button — it is the subordinate action, and it
+                    is leaving Google, not going there. */}
+                <Button variant="social" type="submit">
+                  <GoogleIcon />
                   Connect Google
                 </Button>
               </div>

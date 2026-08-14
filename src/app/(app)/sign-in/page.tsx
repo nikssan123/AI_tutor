@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SignInForm } from "./sign-in-form";
 import { signInWithGoogleAction } from "./actions";
 import { googleEnabled } from "@/lib/auth";
 import { requireGuest } from "@/lib/account/session";
-import { safeDestination } from "@/lib/account/next-url";
+import { safeDestination, withDestination } from "@/lib/account/next-url";
 import { Button, DisplayTitle, Lead, stagger, Status } from "@/components/ui";
+import { GoogleIcon } from "@/components/icons";
 import { AuthFrame } from "@/components/app-shell";
 
 export const metadata: Metadata = {
@@ -32,7 +34,11 @@ function GoogleButton({ destination }: { destination: string }) {
           were going has to travel with the request rather than be read back
           off a URL that no longer exists by the time we return. */}
       <input type="hidden" name="next" value={destination} />
-      <Button variant="text" type="submit" className="px-0">
+      {/* `sm:w-full` overrides the base rule that buttons go intrinsic on
+          desktop. In a 28rem auth card a shrink-wrapped button looks stranded,
+          and this one has to line up with "Sign in" below it. */}
+      <Button variant="social" type="submit" className="sm:w-full">
+        <GoogleIcon />
         Continue with Google
       </Button>
     </form>
@@ -54,10 +60,25 @@ export default async function SignInPage({ searchParams }: Props) {
   await requireGuest(destination);
 
   return (
-    <AuthFrame>
-      <div className="rise flex flex-col gap-3">
-        <DisplayTitle>Sign in</DisplayTitle>
-        <Lead>Use your email and password, or continue with Google.</Lead>
+    <AuthFrame
+      footer={
+        <>
+          Don&rsquo;t have an account?{" "}
+          {/* Carries the destination across, because the visitor who most often
+              has nowhere to sign in to is the one who arrived with a subject
+              they wanted built. */}
+          <Link
+            href={withDestination("/sign-up", destination)}
+            className="text-accent underline-offset-4 hover:underline"
+          >
+            Create one
+          </Link>
+        </>
+      }
+    >
+      <div className="rise flex flex-col gap-2 text-center">
+        <DisplayTitle>Welcome back</DisplayTitle>
+        <Lead>Pick up where you left off.</Lead>
       </div>
 
       {reset ? (

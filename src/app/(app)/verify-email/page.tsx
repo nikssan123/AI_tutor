@@ -60,7 +60,7 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
   /* ── The address is confirmed ──────────────────────────────────────────── */
   if (user?.emailVerified || (!user && !error)) {
     return (
-      <AuthFrame>
+      <AuthFrame brand={!user}>
         <div className="rise flex flex-col gap-3">
           <Status tone="verified">Confirmed</Status>
           <DisplayTitle>Email confirmed</DisplayTitle>
@@ -93,7 +93,7 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
   /* ── Signed out, and a link brought them here ──────────────────────────── */
   if (!user) {
     return (
-      <AuthFrame>
+      <AuthFrame brand={!user}>
         <div className="rise flex flex-col gap-3">
           <DisplayTitle>That link didn&rsquo;t work</DisplayTitle>
           <Lead>
@@ -118,7 +118,7 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
 
   /* ── Signed in, not confirmed: the code form ───────────────────────────── */
   return (
-    <AuthFrame>
+    <AuthFrame brand={!user}>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Check your email</DisplayTitle>
         <Lead>

@@ -192,7 +192,9 @@ describe("/sign-in", () => {
   it("renders the form", async () => {
     const { default: SignInPage } = await import("@/app/(app)/sign-in/page");
     render(await SignInPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Sign in");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Welcome back",
+    );
   });
 
   it("checks for a session before it builds the form", async () => {

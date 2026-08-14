@@ -6,12 +6,13 @@ import {
   ButtonLink,
   Card,
   DisplayTitle,
+  Field,
   Lead,
-  Meta,
   stagger,
   Status,
 } from "@/components/ui";
 import { AuthFrame } from "@/components/app-shell";
+import { currentSession } from "@/lib/account/session";
 import { resetPasswordAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -20,9 +21,6 @@ export const metadata: Metadata = {
 };
 
 type Props = { searchParams: Promise<{ token?: string; error?: string }> };
-
-const input =
-  "min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink focus:border-accent transition-colors duration-[var(--dur-fast)]";
 
 export default async function ResetPasswordPage({ searchParams }: Props) {
   const { token, error } = await searchParams;
@@ -35,11 +33,15 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
    */
   const message = error ? messageForCode(error, error) : null;
 
+  // No guest guard here either: a reset link can be opened in a browser that
+  // is still signed in, and the nav would already be showing the wordmark.
+  const signedIn = (await currentSession()) !== null;
+
   // No token means the link was truncated, hand-typed, or already spent. There
   // is nothing to submit, so the page offers the only thing that can help.
   if (!token) {
     return (
-      <AuthFrame>
+      <AuthFrame brand={!signedIn}>
         <div className="rise flex flex-col gap-3">
           <DisplayTitle>That link didn&rsquo;t work</DisplayTitle>
           <Lead>
@@ -55,7 +57,7 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
   }
 
   return (
-    <AuthFrame>
+    <AuthFrame brand={!signedIn}>
       <div className="rise flex flex-col gap-3">
         <DisplayTitle>Set a new password</DisplayTitle>
         <Lead>
@@ -70,37 +72,27 @@ export default async function ResetPasswordPage({ searchParams }: Props) {
         <form action={resetPasswordAction} className="flex flex-col gap-5">
           <input type="hidden" name="token" value={token} />
 
-          <label className="flex flex-col gap-2">
-            <span className="text-[length:var(--text-label-size)] font-[650]">
-              New password
-            </span>
-            <Meta>At least {MIN_PASSWORD_LENGTH} characters.</Meta>
-            <input
-              name="newPassword"
-              type="password"
-              autoComplete="new-password"
-              minLength={MIN_PASSWORD_LENGTH}
-              required
-              className={input}
-            />
-          </label>
+          <Field
+            label="New password"
+            name="newPassword"
+            type="password"
+            autoComplete="new-password"
+            minLength={MIN_PASSWORD_LENGTH}
+            required
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+          />
 
-          <label className="flex flex-col gap-2">
-            <span className="text-[length:var(--text-label-size)] font-[650]">
-              Type it again
-            </span>
-            <input
-              name="confirmation"
-              type="password"
-              autoComplete="new-password"
-              required
-              className={input}
-            />
-          </label>
+          <Field
+            label="Type it again"
+            name="confirmation"
+            type="password"
+            autoComplete="new-password"
+            required
+          />
 
-          <div>
-            <Button type="submit">Set the password</Button>
-          </div>
+          <Button type="submit" className="sm:w-full">
+            Set the password
+          </Button>
         </form>
       </Card>
     </AuthFrame>

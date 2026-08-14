@@ -89,6 +89,53 @@ describe("AuthFrame", () => {
     expect(main.className).toContain("justify-center");
     expect(main.className).toContain("max-w-md");
   });
+
+  /**
+   * The regression this exists to catch: these screens had no route out of
+   * them at all. No nav, no logo, nothing — someone who landed on `/sign-in`
+   * from a search result or an emailed reset link could only go back.
+   */
+  it("offers a way home to someone with no nav to use", () => {
+    render(
+      <AuthFrame>
+        <p>child</p>
+      </AuthFrame>,
+    );
+    expect(
+      screen.getByRole("link", { name: /MeritKeep/ }).getAttribute("href"),
+    ).toBe("/");
+  });
+
+  /**
+   * `/forgot-password`, `/reset-password` and `/verify-email` have no guest
+   * guard, so they can render inside the signed-in shell — where the rail is
+   * already showing the wordmark. Two of them is the same brand twice.
+   */
+  it("leaves the wordmark to the nav when there is one", () => {
+    render(
+      <AuthFrame brand={false}>
+        <p>child</p>
+      </AuthFrame>,
+    );
+    expect(screen.queryByRole("link", { name: /MeritKeep/ })).toBeNull();
+  });
+
+  it("puts the footer outside the card, and omits it when there is none", () => {
+    const { container: bare } = render(
+      <AuthFrame>
+        <p>child</p>
+      </AuthFrame>,
+    );
+    expect(bare.textContent).not.toContain("Already have an account?");
+    cleanup();
+
+    render(
+      <AuthFrame footer={<span>Already have an account?</span>}>
+        <p>child</p>
+      </AuthFrame>,
+    );
+    expect(screen.getByText("Already have an account?")).toBeTruthy();
+  });
 });
 
 describe("AppHeader", () => {

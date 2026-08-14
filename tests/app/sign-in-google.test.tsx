@@ -99,6 +99,28 @@ describe("/sign-in", () => {
     expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
   });
 
+  /**
+   * Moved here from the form's own suite when the link moved out of the card
+   * into the frame's footer. The behaviour it protects did not move: the
+   * visitor who most often has no account is the one who arrived asking for a
+   * subject, and losing the destination here makes the next screen ask them
+   * what they wanted all over again.
+   */
+  it("carries the destination on to sign-up, for someone with no account yet", async () => {
+    const { container } = render(
+      await SignInPage({
+        searchParams: Promise.resolve({
+          next: "/start?topic=basket%20weaving",
+        }),
+      }),
+    );
+    expect(
+      container
+        .querySelector('a[href^="/sign-up"]')!
+        .getAttribute("href"),
+    ).toBe("/sign-up?next=%2Fstart%3Ftopic%3Dbasket%2520weaving");
+  });
+
   it("always offers the way out of a forgotten password", async () => {
     const { container } = render(
       await SignInPage({ searchParams: Promise.resolve({}) }),

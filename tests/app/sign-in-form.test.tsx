@@ -66,25 +66,17 @@ describe("SignInForm", () => {
     );
   });
 
-  it("carries that destination on to sign-up, for someone with no account yet", () => {
-    render(<SignInForm destination="/start?topic=basket%20weaving" />);
-    expect(
-      screen.getByRole("link", { name: "Create an account" }).getAttribute("href"),
-    ).toBe("/sign-up?next=%2Fstart%3Ftopic%3Dbasket%2520weaving");
-  });
-
-  it("sends someone creating an account to /sign-up, and signs nobody up itself", () => {
+  it("signs nobody up itself", () => {
     // This form used to do both, told apart by which button submitted it. That
     // stopped working when sign-up grew a confirmation field that sign-in must
-    // not have.
-    const { container } = render(<SignInForm />);
+    // not have. The link to /sign-up now lives in the frame's footer rather
+    // than in this card — see tests/app/sign-in-google.test.tsx for the
+    // assertion that it still carries the destination.
+    render(<SignInForm />);
 
     expect(
       screen.queryByRole("button", { name: "Create an account" }),
     ).toBeNull();
-    expect(
-      container.querySelector('a[href="/sign-up"]')?.textContent,
-    ).toBe("Create an account");
     expect(signUpEmail).not.toHaveBeenCalled();
   });
 
@@ -107,7 +99,7 @@ describe("SignInForm", () => {
     expect(await screen.findByText("That didn't work.")).toBeDefined();
   });
 
-  it("disables both actions while a request is in flight", async () => {
+  it("disables the button and says so while a request is in flight", async () => {
     let resolve!: (v: unknown) => void;
     signInEmail.mockReturnValue(new Promise((r) => (resolve = r)));
     render(<SignInForm />);
@@ -115,10 +107,12 @@ describe("SignInForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(
-        (screen.getByRole("button", { name: "Sign in" }) as HTMLButtonElement)
-          .disabled,
-      ).toBe(true);
+      // The label changes too. A button that only greys out reads as broken;
+      // one that says "Signing in…" says the wait is ours, not theirs.
+      const button = screen.getByRole("button", {
+        name: "Signing in…",
+      }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
     });
 
     resolve({ error: null });

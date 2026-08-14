@@ -6,6 +6,7 @@ import {
   CameraIcon,
   ChecklistIcon,
   DatabaseIcon,
+  GoogleIcon,
   GridIcon,
   MasteryIcon,
   PenIcon,
@@ -408,7 +409,7 @@ export default function DesignPage() {
 
       <Section
         title="Actions"
-        note="One filled button per screen. Everything else is a text button."
+        note="One filled button per screen. Everything else is a text button — except the one outlined variant, which only ever hands off to an identity provider."
       >
         <Card className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <Button>Start today&rsquo;s session</Button>
@@ -417,6 +418,12 @@ export default function DesignPage() {
           {/* Same contract, rendered as a link — for a primary action that
               navigates rather than submits. */}
           <ButtonLink href="#today">Back to today</ButtonLink>
+          {/* The federated sign-in exception. It carries no accent, so it stays
+              subordinate to the filled button beside it. */}
+          <Button variant="social">
+            <GoogleIcon />
+            Continue with Google
+          </Button>
         </Card>
       </Section>
 

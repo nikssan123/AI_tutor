@@ -7,11 +7,13 @@ import { signInWithGoogleAction } from "../sign-in/actions";
 import {
   Button,
   Card,
+  Divider,
   DisplayTitle,
+  Field,
   Lead,
-  Meta,
   stagger,
 } from "@/components/ui";
+import { GoogleIcon } from "@/components/icons";
 import { AuthFrame } from "@/components/app-shell";
 import { signUpAction } from "./actions";
 
@@ -33,11 +35,6 @@ type Props = {
   searchParams: Promise<{ error?: string; email?: string; next?: string }>;
 };
 
-const input =
-  "min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink focus:border-accent transition-colors duration-[var(--dur-fast)]";
-
-const label = "text-[length:var(--text-label-size)] font-[550]";
-
 export default async function SignUpPage({ searchParams }: Props) {
   const { error, email, next } = await searchParams;
   const destination = safeDestination(next);
@@ -48,16 +45,47 @@ export default async function SignUpPage({ searchParams }: Props) {
   await requireGuest(destination);
 
   return (
-    <AuthFrame>
-      <div className="rise flex flex-col gap-3">
+    <AuthFrame
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link
+            href={withDestination("/sign-in", destination)}
+            className="text-accent underline-offset-4 hover:underline"
+          >
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <div className="rise flex flex-col gap-2 text-center">
         <DisplayTitle>Create an account</DisplayTitle>
+        {/* Keeps saying a code is coming. Tightened, not dropped: someone who
+            is not told to expect one reads the next screen as a dead end. */}
         <Lead>
-          Then confirm your email with a code, so we can get you back in if you
-          forget your password.
+          We&rsquo;ll confirm your email with a code, so we can get you back in
+          if you forget your password.
         </Lead>
       </div>
 
-      <Card className="rise" style={stagger(1)}>
+      <Card className="rise flex flex-col gap-5" style={stagger(1)}>
+        {/* Same order as /sign-in, and here it saves more: the Google path
+            skips the confirmation code and both password fields entirely. */}
+        {googleEnabled() ? (
+          <>
+            <form action={signInWithGoogleAction}>
+              <input type="hidden" name="next" value={destination} />
+              {/* Google verifies the address itself, so this path skips the
+                  code entirely — there is nothing left for us to confirm. */}
+              <Button variant="social" type="submit" className="sm:w-full">
+                <GoogleIcon />
+                Continue with Google
+              </Button>
+            </form>
+            <Divider label="or" />
+          </>
+        ) : null}
+
         <form action={signUpAction} className="flex flex-col gap-5">
           {/* Rides along to the confirmation screen, which is where this path
               actually ends — a new account that lands on /today has still lost
@@ -73,68 +101,43 @@ export default async function SignUpPage({ searchParams }: Props) {
             </span>
           ) : null}
 
-          <label className="flex flex-col gap-2">
-            <span className={label}>Email</span>
-            <input
-              name="email"
-              type="email"
-              // Kept across a failed submit — otherwise a mistyped second
-              // password empties the form the person just filled in.
-              defaultValue={email ?? ""}
-              required
-              autoComplete="email"
-              className={input}
-            />
-          </label>
+          <Field
+            label="Email"
+            name="email"
+            type="email"
+            // Kept across a failed submit — otherwise a mistyped second
+            // password empties the form the person just filled in.
+            defaultValue={email ?? ""}
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+          />
 
-          <label className="flex flex-col gap-2">
-            <span className={label}>Password</span>
-            <Meta>At least {MIN_PASSWORD_LENGTH} characters.</Meta>
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={MIN_PASSWORD_LENGTH}
-              autoComplete="new-password"
-              className={input}
-            />
-          </label>
+          <Field
+            label="Password"
+            name="password"
+            type="password"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            autoComplete="new-password"
+            // A hint rather than a loose `Meta`: it is now announced with the
+            // field instead of floating between the label and the box, where a
+            // screen reader met it as an unrelated sentence.
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+          />
 
-          <label className="flex flex-col gap-2">
-            <span className={label}>Type it again</span>
-            <input
-              name="confirmation"
-              type="password"
-              required
-              autoComplete="new-password"
-              className={input}
-            />
-          </label>
+          <Field
+            label="Type it again"
+            name="confirmation"
+            type="password"
+            required
+            autoComplete="new-password"
+          />
 
-          <div>
-            <Button type="submit">Create the account</Button>
-          </div>
+          <Button type="submit" className="sm:w-full">
+            Create the account
+          </Button>
         </form>
-
-        <div className="mt-5 flex flex-col gap-3 border-t border-hairline pt-5">
-          {googleEnabled() ? (
-            <form action={signInWithGoogleAction}>
-              <input type="hidden" name="next" value={destination} />
-              {/* Google verifies the address itself, so this path skips the
-                  code entirely — there is nothing left for us to confirm. */}
-              <Button variant="text" type="submit" className="px-0">
-                Continue with Google
-              </Button>
-            </form>
-          ) : null}
-
-          <Link
-            href={withDestination("/sign-in", destination)}
-            className="text-[length:var(--text-label-size)] text-accent underline-offset-4 hover:underline"
-          >
-            Already have an account? Sign in
-          </Link>
-        </div>
       </Card>
     </AuthFrame>
   );

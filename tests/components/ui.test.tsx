@@ -9,8 +9,10 @@ import {
   Confidence,
   confidenceLevel,
   cx,
+  Divider,
   DisplayTitle,
   EmptyState,
+  Field,
   Figure,
   HeroTitle,
   Lead,
@@ -313,6 +315,138 @@ describe("Button", () => {
   it("supports the disabled state", () => {
     render(<Button disabled>Submitted</Button>);
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  /**
+   * The outlined variant exists for exactly one job. These assertions are what
+   * stop it from becoming the general-purpose secondary button §8.5.5 bans —
+   * the moment it carries the accent, it competes with the primary action.
+   */
+  it("gives the federated sign-in button a border but never the accent", () => {
+    render(<Button variant="social">Continue with Google</Button>);
+    const cls = screen.getByRole("button").className;
+    expect(cls).toContain("border");
+    expect(cls).toContain("text-ink");
+    expect(cls).not.toContain("bg-accent");
+    expect(cls).not.toContain("text-accent");
+  });
+
+  it("keeps the social button on the same touch target as every other", () => {
+    render(<Button variant="social">Continue with Google</Button>);
+    expect(screen.getByRole("button").className).toContain(
+      "min-h-[var(--touch-min)]",
+    );
+  });
+});
+
+/**
+ * `Field` exists because this markup was copy-pasted into four screens and had
+ * already drifted into three versions — one of which, `/sign-in`, shipped with
+ * no focus style at all. These assertions are the drift detector.
+ */
+describe("Field — the one input", () => {
+  it("ties the label to the input so clicking the label focuses it", () => {
+    render(<Field label="Email" name="email" type="email" />);
+    const input = screen.getByLabelText("Email") as HTMLInputElement;
+    expect(input.id).toBe("email");
+    expect(input.getAttribute("name")).toBe("email");
+  });
+
+  it("has a visible focus style, which /sign-in used to lack entirely", () => {
+    render(<Field label="Email" name="email" />);
+    const cls = screen.getByLabelText("Email").className;
+    // `outline-none` on its own is the a11y bug; it is only acceptable paired
+    // with something that replaces it.
+    expect(cls).toContain("outline-none");
+    expect(cls).toContain("focus:border-accent");
+    expect(cls).toContain("focus:shadow-");
+  });
+
+  it("announces a hint with the input rather than as loose prose", () => {
+    render(
+      <Field label="Password" name="password" hint="At least 8 characters." />,
+    );
+    const input = screen.getByLabelText("Password");
+    const describedBy = input.getAttribute("aria-describedby")!;
+    expect(describedBy).toBe("password-hint");
+    expect(document.getElementById(describedBy)!.textContent).toBe(
+      "At least 8 characters.",
+    );
+  });
+
+  it("marks a failed field invalid and speaks the reason", () => {
+    render(<Field label="Email" name="email" error="That address is taken." />);
+    const input = screen.getByLabelText("Email");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.className).toContain("border-problem");
+    expect(input.getAttribute("aria-describedby")).toBe("email-error");
+    expect(screen.getByRole("alert").textContent).toBe("That address is taken.");
+  });
+
+  it("describes the input by both when it has a hint and an error", () => {
+    render(
+      <Field label="Password" name="password" hint="Eight." error="Too short." />,
+    );
+    expect(
+      screen.getByLabelText("Password").getAttribute("aria-describedby"),
+    ).toBe("password-hint password-error");
+  });
+
+  it("stays quiet in the a11y tree when it is neither hinted nor failing", () => {
+    render(<Field label="Email" name="email" />);
+    const input = screen.getByLabelText("Email");
+    expect(input.getAttribute("aria-describedby")).toBe(null);
+    // Not `aria-invalid="false"` on every untouched field.
+    expect(input.getAttribute("aria-invalid")).toBe(null);
+  });
+
+  it("renders one control on the label row when given one", () => {
+    render(
+      <Field
+        label="Password"
+        name="password"
+        action={<a href="/forgot-password">Forgot?</a>}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Forgot?" })).toBeTruthy();
+  });
+
+  it("passes input attributes through and keeps its own classes", () => {
+    render(
+      <Field
+        label="Password"
+        name="password"
+        type="password"
+        required
+        minLength={8}
+        className="extra"
+      />,
+    );
+    const input = screen.getByLabelText("Password") as HTMLInputElement;
+    expect(input.type).toBe("password");
+    expect(input.required).toBe(true);
+    expect(input.minLength).toBe(8);
+    expect(input.className).toContain("extra");
+    expect(input.className).toContain("bg-ground");
+  });
+});
+
+describe("Divider", () => {
+  it("is a plain rule with no label", () => {
+    const { container } = render(<Divider />);
+    expect(container.querySelectorAll("hr").length).toBe(1);
+    expect(container.textContent).toBe("");
+  });
+
+  /**
+   * The word is the point: a bare rule between the Google button and the
+   * password fields reads as "more form", where "or" says these are two routes
+   * to the same place and one is enough.
+   */
+  it("sets a label into the rule, and hides the decoration from readers", () => {
+    const { container } = render(<Divider label="or" />);
+    expect(container.textContent).toBe("or");
+    expect(container.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
   });
 });
 

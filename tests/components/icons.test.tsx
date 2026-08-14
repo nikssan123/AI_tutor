@@ -10,6 +10,7 @@ import {
   ChevronIcon,
   CraftIcon,
   DatabaseIcon,
+  GoogleIcon,
   GridIcon,
   MasteryIcon,
   PenIcon,
@@ -79,6 +80,48 @@ describe("the icon set", () => {
     const cls = container.querySelector("svg")!.getAttribute("class")!;
     expect(cls).toContain("size-8");
     expect(cls).toContain("shrink-0");
+  });
+});
+
+/**
+ * The brand mark is the one deliberate hole in the rules above, so it is tested
+ * as an exception rather than quietly left out of `ALL` — a reader who finds it
+ * missing from that list should be able to find out here why, and a later
+ * change that "fixes" it to `currentColor` should fail something.
+ */
+describe("GoogleIcon — the sanctioned exception to the icon rules", () => {
+  it("keeps Google's four brand colours rather than inheriting ours", () => {
+    const { container } = render(<GoogleIcon />);
+    // Recolouring the mark is the specific thing Google's terms forbid, so the
+    // literal hexes are the assertion, not an implementation detail.
+    for (const hex of ["#EA4335", "#4285F4", "#FBBC05", "#34A853"]) {
+      expect(container.innerHTML).toContain(hex);
+    }
+    expect(container.querySelector("svg")!.getAttribute("stroke")).toBe(null);
+  });
+
+  it("is filled brand art on its own grid, not a 24x24 stroked glyph", () => {
+    const { container } = render(<GoogleIcon />);
+    const svg = container.querySelector("svg")!;
+    expect(svg.getAttribute("viewBox")).toBe("0 0 48 48");
+    expect(svg.getAttribute("stroke-width")).toBe(null);
+  });
+
+  /** The exception is bounded: everything not about colour still applies. */
+  it("stays decorative and sizeable like the rest of the set", () => {
+    const { container } = render(<GoogleIcon className="size-8" />);
+    const svg = container.querySelector("svg")!;
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("focusable")).toBe("false");
+    expect(svg.getAttribute("class")).toContain("size-8");
+    expect(svg.getAttribute("class")).toContain("shrink-0");
+  });
+
+  it("is not smuggled into the set the shared rules police", () => {
+    // If someone adds it to ALL, the currentColor assertion there starts
+    // failing for a reason that reads as a bug in the icon. Catch it here
+    // instead, where the message says what actually went wrong.
+    expect(ALL.map(([name]) => name)).not.toContain("GoogleIcon");
   });
 });
 

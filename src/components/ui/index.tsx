@@ -344,7 +344,7 @@ export function Row({
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 
-type ButtonVariant = "primary" | "text";
+type ButtonVariant = "primary" | "text" | "social";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   /** §8.5.5 — one filled button per screen. Everything else is a text button. */
@@ -374,6 +374,26 @@ function buttonClass(variant: ButtonVariant, className?: string): string {
     primary: "bg-accent text-on-accent hover:opacity-90",
     // §8.5.5 — text button in the accent: no border, no fill, no outlined variant.
     text: "bg-transparent text-accent hover:bg-accent-weak w-auto px-3",
+    /**
+     * The one sanctioned outlined button, and only for handing off to an
+     * identity provider.
+     *
+     * §8.5.5 bans an outlined variant because a second filled-looking button
+     * competes with the single primary action. A federated sign-in button is
+     * the exception the rule did not anticipate: it must read as a *button*
+     * rather than a link — people look for a recognisable target on this screen
+     * and skim past text — while staying visibly subordinate to "Sign in". A
+     * hairline border on the page ground does both, and carries no accent, so
+     * the accent stays unique to the primary action.
+     *
+     * `text-ink`, not the accent: the label sits beside a fixed four-colour
+     * brand mark, and a teal "Continue with Google" next to Google's red-yellow
+     * -green-blue G is the sort of thing their brand terms exist to prevent.
+     */
+    social: cx(
+      "border border-hairline bg-transparent text-ink",
+      "hover:bg-surface",
+    ),
   } as const;
 
   return cx(base, variants[variant], className);
@@ -402,6 +422,132 @@ export function ButtonLink({
   ...props
 }: React.ComponentProps<typeof Link> & { variant?: ButtonVariant }) {
   return <Link className={buttonClass(variant, className)} {...props} />;
+}
+
+/* ── Form fields ────────────────────────────────────────────────────────── */
+
+/**
+ * The text input, in one place.
+ *
+ * This string used to be copy-pasted into four screens, and had already drifted
+ * into three different versions of itself: `/sign-in` shipped with no focus
+ * style at all, while `/sign-up` and `/forgot-password` had `focus:border-accent`
+ * and `/reset-password` had its own local `const input`. A keyboard user could
+ * tab into the sign-in form and lose the caret entirely.
+ *
+ * The ring is `--accent-weak` rather than a translucent accent: it is a real
+ * token with a measured value in both themes (`#E6F4F0` / `#12302A`), so the
+ * focus state does not need a second definition for dark, and it cannot wash
+ * out over whatever the input happens to be sitting on.
+ */
+const FIELD_INPUT = cx(
+  "min-h-[var(--touch-min)] w-full px-4",
+  "rounded-[var(--radius-control)] border border-hairline bg-ground text-ink",
+  "placeholder:text-ink-faint",
+  // `outline-none` only ever paired with a focus style that replaces it.
+  "outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-weak)]",
+  "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+);
+
+type FieldProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "id" | "name"
+> & {
+  label: string;
+  /** Also the `id`, so the label's `htmlFor` cannot drift from the input. */
+  name: string;
+  /** Standing help — the password rule, say. Announced with the input. */
+  hint?: string;
+  /** A failure for *this* field. Announced immediately, and reddens the border. */
+  error?: string;
+  /** One control on the label row, right-aligned. "Forgot your password?". */
+  action?: React.ReactNode;
+};
+
+/**
+ * A labelled input, wired up.
+ *
+ * The id is derived from `name` rather than from `React.useId()`, and that is
+ * the load-bearing decision: `useId` is a hook, and half the screens using this
+ * — `/sign-up`, `/reset-password`, `/forgot-password` — are async Server
+ * Components that cannot call one. Deriving it keeps a single `Field` usable on
+ * both sides of the boundary. Field names are already unique within a form,
+ * which is the only scope an id has to be unique in here.
+ */
+export function Field({
+  label,
+  name,
+  hint,
+  error,
+  action,
+  className,
+  ...props
+}: FieldProps) {
+  const hintId = hint ? `${name}-hint` : undefined;
+  const errorId = error ? `${name}-error` : undefined;
+  const describedBy = cx(hintId, errorId) || undefined;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <label
+          htmlFor={name}
+          className="text-[length:var(--text-label-size)] font-[550]"
+        >
+          {label}
+        </label>
+        {action}
+      </div>
+
+      <input
+        id={name}
+        name={name}
+        aria-describedby={describedBy}
+        // Only when there is one: `aria-invalid="false"` on every untouched
+        // field is noise in the a11y tree.
+        aria-invalid={error ? true : undefined}
+        className={cx(FIELD_INPUT, error && "border-problem", className)}
+        {...props}
+      />
+
+      {hint ? (
+        <Meta id={hintId} className="leading-snug">
+          {hint}
+        </Meta>
+      ) : null}
+
+      {error ? (
+        <span
+          id={errorId}
+          role="alert"
+          className="text-[length:var(--text-label-size)] text-problem"
+        >
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A rule across a stack, optionally with a word sitting in it.
+ *
+ * The word matters on the auth screens: a bare rule between the Google button
+ * and the password fields reads as "here is some more form", where "or" says
+ * these are two ways to do the same thing and you only need one.
+ */
+export function Divider({ label }: { label?: string }) {
+  if (!label) return <hr className="border-0 border-t border-hairline" />;
+
+  return (
+    <div className="flex items-center gap-3" aria-hidden="true">
+      <hr className="h-0 flex-1 border-0 border-t border-hairline" />
+      <span className="text-[length:var(--text-meta-size)] text-ink-faint">
+        {label}
+      </span>
+      <hr className="h-0 flex-1 border-0 border-t border-hairline" />
+    </div>
+  );
 }
 
 /**

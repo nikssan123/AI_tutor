@@ -12,6 +12,7 @@ const listUserAccounts = vi.fn();
 const googleEnabledMock = vi.fn();
 const requireUserMock = vi.fn();
 const currentUserMock = vi.fn();
+const currentSessionMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
@@ -31,6 +32,10 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/account/session", () => ({
   requireUser: () => requireUserMock(),
   currentUser: () => currentUserMock(),
+  // `/forgot-password` and `/reset-password` have no guest guard, so they ask
+  // whether the nav is already showing a wordmark before drawing their own.
+  // Signed out is the state these screens are written for.
+  currentSession: () => currentSessionMock(),
 }));
 
 const { default: AccountPage } = await import("@/app/(app)/account/page");
@@ -61,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   requireUserMock.mockResolvedValue(USER);
   currentUserMock.mockResolvedValue(USER);
+  currentSessionMock.mockResolvedValue(null);
   listUserAccounts.mockResolvedValue(credential);
   googleEnabledMock.mockReturnValue(false);
 });
