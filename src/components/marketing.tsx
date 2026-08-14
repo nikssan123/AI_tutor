@@ -524,10 +524,11 @@ const CTA_LINK =
  * "start this project" includes the intake standing between them and it.
  */
 export function ProjectStartOffer({
-  title,
+  slug,
   topicName,
 }: {
-  title: string;
+  /** The brief's own slug — `/start` resolves the wording from it. */
+  slug: string;
   topicName: string;
 }) {
   return (
@@ -543,7 +544,7 @@ export function ProjectStartOffer({
         {topicName}, where you are starting from, and how many hours a week you
         actually have.
       </Meta>
-      <Link href={projectStartHref(title, topicName)} className={CTA_LINK}>
+      <Link href={projectStartHref(slug)} className={CTA_LINK}>
         Start this project
       </Link>
     </Card>

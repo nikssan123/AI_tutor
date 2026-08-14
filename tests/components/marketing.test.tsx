@@ -338,30 +338,30 @@ describe("CustomPathOffer", () => {
 });
 
 describe("ProjectStartOffer", () => {
-  it("links to the intake carrying both the subject and the brief", () => {
-    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+  it("names the brief by slug, so /start resolves the wording itself", () => {
+    render(<ProjectStartOffer slug="sales-dashboard" topicName="SQL" />);
 
     const href = screen
       .getByRole("link", { name: /start this project/i })
       .getAttribute("href");
 
-    expect(href).toBe(projectStartHref("Sales dashboard", "SQL"));
-    // Built from the helper above rather than spelled out here, but still
-    // checked for the two things that make it worth carrying at all.
-    expect(decodeURIComponent(href ?? "")).toContain("Sales dashboard");
-    expect(decodeURIComponent(href ?? "")).toContain("SQL");
+    expect(href).toBe(projectStartHref("sales-dashboard"));
+    // Not `?topic=`. That parameter means "a subject somebody typed", and
+    // sending a brief through it is what made `/start` treat a deliberate
+    // click like a vague search.
+    expect(href).not.toContain("topic=");
   });
 
   it("says what setting up costs rather than promising a click", () => {
     // The brief promises marking against a published rubric; an offer that hid
     // the intake behind "start now" would be the page's one dishonest sentence.
-    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+    render(<ProjectStartOffer slug="sales-dashboard" topicName="SQL" />);
     expect(screen.getByText(/three minutes/i)).toBeDefined();
     expect(screen.getByText(/how many hours a week/i)).toBeDefined();
   });
 
   it("promises marking against the checklist already on the page", () => {
-    render(<ProjectStartOffer title="Sales dashboard" topicName="SQL" />);
+    render(<ProjectStartOffer slug="sales-dashboard" topicName="SQL" />);
     expect(screen.getByText(/checklist you have just read/i)).toBeDefined();
   });
 });

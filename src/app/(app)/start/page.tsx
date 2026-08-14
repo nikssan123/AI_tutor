@@ -12,6 +12,11 @@ import {
 } from "@/lib/goals/captured-display";
 import { LATEST } from "@/lib/goals/anchors";
 import { customPathHref } from "@/lib/goals/custom-path";
+import {
+  projectStartHref,
+  projectStartSeed,
+} from "@/lib/goals/project-start";
+import { findProject } from "@/lib/content";
 import { withDestination } from "@/lib/account/next-url";
 import { loadIntake } from "@/lib/goals/intake-store";
 import {
@@ -56,7 +61,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ error?: string; topic?: string }> };
+type Props = {
+  searchParams: Promise<{ error?: string; topic?: string; project?: string }>;
+};
 
 /**
  * How much of a seeded topic is carried in. Matches `MAX_REPLY` in the action,
@@ -98,14 +105,34 @@ const OUTCOMES: Record<string, string> = {
 };
 
 export default async function StartPage({ searchParams }: Props) {
-  const { error, topic } = await searchParams;
+  const { error, topic, project } = await searchParams;
+
+  /*
+   * The brief they pressed the button on, or nothing.
+   *
+   * Resolved before anything else is decided, because a slug that resolves is
+   * the strongest instruction this screen can receive — it names one pack and
+   * one project — and a slug that does not resolve must leave no trace at all.
+   * Nothing a visitor can put in the query string reaches the page through
+   * here: it is either a project we publish or it is `undefined`.
+   */
+  const brief = project ? findProject(project) : undefined;
 
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
     // The typed subject comes back with them. Without this, someone who asked
     // us to build a subject signs in and is asked what they want all over
     // again — on the one screen whose whole job is not to lose that answer.
-    redirect(withDestination("/sign-in", customPathHref(topic ?? "")));
+    //
+    // The brief comes back with them for the same reason and it is the more
+    // expensive one to drop: they read a rubric end to end before pressing the
+    // button, and landing on a bare intake afterwards throws all of that away.
+    redirect(
+      withDestination(
+        "/sign-in",
+        brief ? projectStartHref(brief.slug) : customPathHref(topic ?? ""),
+      ),
+    );
   }
   const intake = await loadIntake(getDb(), session.user.id);
   const captured = intake.captured;
@@ -120,6 +147,83 @@ export default async function StartPage({ searchParams }: Props) {
   const seed = (topic ?? "").trim().slice(0, MAX_TOPIC);
   const started = intake.messages.length > 0;
 
+  /** The subject of the conversation already in progress, if there is one. */
+  const heldSubject = captured?.subject ?? null;
+
+  /*
+   * A brief takes the screen.
+   *
+   * This is the bug that shipped. A project click arrived as `?topic=<a whole
+   * sentence>`, which is the parameter a *search box* fills, so the conversation
+   * below treated it exactly like a vague query: an unfinished chat about
+   * something else rendered in full, with the brief reduced to one line inside a
+   * collision card — and the card asked whether you wanted to start on
+   * `I want to learn SQL so I can do the “…” project.`, because the wording it
+   * interpolates is meant to be a subject name.
+   *
+   * Worse, and quieter: the seed only ever became a first message when there was
+   * no conversation at all. Anyone with an abandoned chat got their brief
+   * dropped on the floor and their old answers shown instead.
+   *
+   * So a resolved brief returns here instead of falling through. The reader
+   * chose one specific piece of work and read its rubric to the end; the screen
+   * that follows is about that, and nothing else is drawn on it.
+   *
+   * The old conversation is not deleted on the way in. Clearing is a `POST`
+   * below, because `Link` prefetches this route — a `GET` that threw away an
+   * unfinished intake would do it to people who only hovered.
+   */
+  if (brief) {
+    return (
+      <AppFrame>
+        <AppHeader
+          title={`Start “${brief.title}”`}
+          lead={`A few questions about you, then the path that gets you to this brief in ${brief.topicName}. It is what you hand in at the end, marked against the checklist you have already read.`}
+        />
+
+        {error ? (
+          <Status tone="problem">{ERRORS[error] ?? ERRORS.subject}</Status>
+        ) : null}
+
+        <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>
+          <Title>Let&rsquo;s work out what you need</Title>
+          <Meta>
+            No more than {MAX_TURNS} questions, and you can skip any of them. We
+            ask what you want to do with it, where you are starting from, and how
+            many hours a week you actually have — the brief itself we already
+            know.
+          </Meta>
+          {/* Through `startFreshAction`, which clears any held conversation and
+              then posts this as the opening line. Both halves matter: without
+              the clear the analyzer answers the old chat, and without the reply
+              the brief is not in the conversation at all. */}
+          <form action={startFreshAction}>
+            <input
+              type="hidden"
+              name="reply"
+              value={projectStartSeed(brief.title, brief.topicName)}
+            />
+            <Button type="submit">Start this project</Button>
+          </form>
+        </Card>
+
+        {started ? (
+          <Meta tone="muted">
+            {heldSubject
+              ? `You still have a conversation going about ${heldSubject}.`
+              : "You still have a conversation going about something else."}{" "}
+            Starting here puts it aside — nothing has been built from it yet, so
+            it costs you a plan you never had, but the answers go.{" "}
+            <Link href="/start" className="underline underline-offset-4">
+              {heldSubject ? `Carry on with ${heldSubject}` : "Carry on with it"}
+            </Link>{" "}
+            instead.
+          </Meta>
+        ) : null}
+      </AppFrame>
+    );
+  }
+
   /*
    * They arrived asking for one subject and there is already a conversation
    * about another. The screen used to render the old one and say nothing —
@@ -129,8 +233,11 @@ export default async function StartPage({ searchParams }: Props) {
    *
    * Compared loosely because the stored subject is the analyzer's wording and
    * the topic is theirs: "JavaScript" and "javascript" are not two subjects.
+   *
+   * This only ever sees a *subject*, which is the invariant the project offer
+   * broke by routing a whole sentence through `?topic=`: no sentence equals a
+   * stored subject, so every such arrival collided.
    */
-  const heldSubject = captured?.subject ?? null;
   const collides =
     seed.length > 0 &&
     started &&

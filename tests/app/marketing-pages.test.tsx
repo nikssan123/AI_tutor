@@ -944,12 +944,14 @@ describe("the reading routes have a way in (§10 B)", () => {
       await project.default({ params: params({ slug: brief.slug }) }),
     );
 
-    const seeds = startLinks(container).map((href) => decodeURIComponent(href));
+    const seeds = startLinks(container);
     expect(seeds.length).toBeGreaterThan(0);
-    // The brief and its subject both travel, so the intake opens on what they
-    // were actually reading rather than on a blank "what do you want to learn".
-    expect(seeds.some((s) => s.includes(brief.title))).toBe(true);
-    expect(seeds.some((s) => s.includes(brief.topicName))).toBe(true);
+    // Named by slug, and deliberately *not* through `?topic=`. That parameter
+    // means "a subject somebody typed into a search box", and routing a brief
+    // through it is what made /start treat this click like a vague query and
+    // bury the brief under an unfinished conversation.
+    expect(seeds).toContain(`/start?project=${brief.slug}`);
+    expect(seeds.every((s) => !s.includes("topic="))).toBe(true);
   });
 
   it("offers a subject page's reader that subject", async () => {

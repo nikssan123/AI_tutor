@@ -84,6 +84,13 @@ vi.mock("@/lib/inngest/client", async (importOriginal) => ({
   inngest: { send: sendMock },
 }));
 vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
+// The screen resolves an arriving brief itself, so nothing a visitor can put
+// in the query string reaches the page unless it names a project we publish.
+const findProjectMock = vi.fn((_slug: string) => undefined as unknown);
+vi.mock("@/lib/content", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content")>()),
+  findProject: (slug: string) => findProjectMock(slug),
+}));
 
 const { default: StartPage } = await import("@/app/(app)/start/page");
 const { default: BuildingPage } = await import(
@@ -100,8 +107,9 @@ const {
 } = await import("@/app/(app)/start/actions");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
-const search = (params: { error?: string; topic?: string } = {}) =>
-  Promise.resolve(params);
+const search = (
+  params: { error?: string; topic?: string; project?: string } = {},
+) => Promise.resolve(params);
 
 const captured = (over: Partial<CapturedGoal> = {}): CapturedGoal => ({
   subject: "Rust programming",
@@ -139,6 +147,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   intake = { ...EMPTY_INTAKE };
   getSessionMock.mockResolvedValue(SIGNED_IN);
+  // Explicit, because `clearAllMocks` clears calls but keeps a return value a
+  // previous test set — which would leak a brief into every screen after it.
+  findProjectMock.mockReturnValue(undefined);
   runAnalyzerMock.mockResolvedValue(turn());
   startBuildMock.mockResolvedValue({ kind: "started" });
   findBuildMock.mockResolvedValue(undefined);
@@ -239,6 +250,148 @@ describe("the screen", () => {
 
     expect(screen.getByText(/conversation going about something else/)).toBeDefined();
     expect(screen.getByRole("link", { name: /Carry on where I was/ })).toBeDefined();
+  });
+
+  /*
+   * Arriving from a graded brief, which is the case that shipped broken.
+   *
+   * The brief travelled as a sentence in `?topic=` — the parameter a search box
+   * fills — so the screen compared a sentence against the stored subject (never
+   * equal, so it always collided), rendered the sentence inside `Start on “…”?`
+   * quotes and full stop included, and drew the abandoned conversation in full
+   * underneath. Reported from the product as "it contains context from my old
+   * chats", which is exactly what it was.
+   */
+  const BRIEF = {
+    slug: "sales-dashboard",
+    title: "Sales dashboard",
+    topicName: "SQL & Data Analysis",
+  };
+
+  it("gives a brief the screen, and does not draw the old conversation on it", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese before?" }],
+      captured: captured({ subject: "Japanese" }),
+    };
+    findProjectMock.mockReturnValue(BRIEF);
+
+    render(
+      await StartPage({ searchParams: search({ project: BRIEF.slug }) }),
+    );
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
+      "Sales dashboard",
+    );
+    // The reported symptom, asserted directly: not one word of the old chat.
+    expect(screen.queryByText(/Studied any Japanese before\?/)).toBeNull();
+    // And no sentence masquerading as a subject in a heading.
+    expect(screen.queryByText(/Start on “I want to learn/)).toBeNull();
+  });
+
+  it("posts the brief as the opening line, clearing whatever was held", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    const { container } = render(
+      await StartPage({ searchParams: search({ project: BRIEF.slug }) }),
+    );
+
+    const seeded = container.querySelector<HTMLInputElement>(
+      "input[name=reply]",
+    )!;
+    // A sentence here is right — this one is posted as a reply to the analyzer,
+    // never compared against a subject or rendered as a heading.
+    expect(seeded.value).toBe(
+      'I want to learn SQL & Data Analysis so I can do the "Sales dashboard" project.',
+    );
+  });
+
+  it("warns before putting an unfinished conversation aside, and does not destroy it", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese before?" }],
+      captured: captured({ subject: "Japanese" }),
+    };
+    findProjectMock.mockReturnValue(BRIEF);
+
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+
+    expect(
+      screen.getByText(/still have a conversation going about Japanese/),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /Carry on with Japanese/ }).getAttribute("href"),
+    ).toBe("/start");
+    // Rendering the screen must not clear anything: `Link` prefetches this
+    // route, so a GET that threw the intake away would do it on a hover.
+    expect(clearIntakeMock).not.toHaveBeenCalled();
+  });
+
+  it("says something useful when the held conversation has no subject yet", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "What do you want to learn?" }],
+      captured: captured({ subject: null }),
+    };
+    findProjectMock.mockReturnValue(BRIEF);
+
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+    expect(screen.getByText(/conversation going about something else/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /Carry on with it/ })).toBeDefined();
+  });
+
+  it("says nothing about putting anything aside when there is nothing held", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+    expect(screen.queryByText(/still have a conversation going/)).toBeNull();
+  });
+
+  it("still reports an analyzer error on the brief's own screen", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    render(
+      await StartPage({
+        searchParams: search({ project: BRIEF.slug, error: "analyzer" }),
+      }),
+    );
+    expect(screen.getByText(/That didn't go through/)).toBeDefined();
+  });
+
+  it("falls back to a general message for an error code it does not know", async () => {
+    // `?error=` is in the query string, so it is whatever arrives — including a
+    // code from a redirect we later rename. Showing the general message beats
+    // rendering a blank banner with no text in it.
+    findProjectMock.mockReturnValue(BRIEF);
+    render(
+      await StartPage({
+        searchParams: search({ project: BRIEF.slug, error: "not-a-code" }),
+      }),
+    );
+    expect(screen.getByText(/couldn't work out what you wanted/)).toBeDefined();
+  });
+
+  it("ignores a project slug that names nothing, rather than echoing it", async () => {
+    // The reason the slug travels instead of the wording: an unresolved slug
+    // leaves no trace, where a sentence in the URL was rendered straight back.
+    findProjectMock.mockReturnValue(undefined);
+    render(
+      await StartPage({ searchParams: search({ project: "<not-a-project>" }) }),
+    );
+
+    expect(screen.queryByText(/not-a-project/)).toBeNull();
+    // Falls through to the ordinary intake.
+    expect(screen.getByText(/Let’s work out what you need/)).toBeDefined();
+  });
+
+  it("carries the brief through sign-in, not just the typed subject", async () => {
+    // They read a whole rubric before pressing the button. Landing on a bare
+    // intake after signing in throws all of that away.
+    getSessionMock.mockResolvedValue(null);
+    findProjectMock.mockReturnValue(BRIEF);
+
+    await expect(
+      StartPage({ searchParams: search({ project: BRIEF.slug }) }),
+    ).rejects.toThrow(
+      `REDIRECT:/sign-in?next=${encodeURIComponent("/start?project=sales-dashboard")}`,
+    );
   });
 
   it("does not interrupt when they came back for the subject they were already on", async () => {

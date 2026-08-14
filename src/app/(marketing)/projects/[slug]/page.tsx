@@ -197,10 +197,7 @@ export default async function ProjectPage({
           </ul>
         </section>
 
-        <ProjectStartOffer
-          title={project.title}
-          topicName={project.topicName}
-        />
+        <ProjectStartOffer slug={project.slug} topicName={project.topicName} />
 
         <Meta>
           Part of{" "}

@@ -1,43 +1,65 @@
 import { describe, expect, it } from "vitest";
-import { projectStartHref, topicStartHref } from "@/lib/goals/project-start";
+import {
+  PROJECT_PARAM,
+  projectStartHref,
+  projectStartSeed,
+  topicStartHref,
+} from "@/lib/goals/project-start";
 
 /**
- * The exits from the two marketing pages search actually delivers people to.
+ * The exits from the marketing pages search actually delivers people to.
  *
- * Both assert the decoded sentence rather than only the encoded string: what
- * matters is what the analyzer reads as the learner's opening message, and a
- * test that only checked for `?topic=` would pass on a seed that named neither
- * the subject nor the brief.
+ * Both of these shipped as *sentences* in `?topic=`, and both were wrong in the
+ * same way: that parameter is the one a search box fills, and `/start` compares
+ * it against the subject it is holding and renders it inside `Start on “…”?`.
+ * A sentence never matches a subject, so every arrival collided, and the
+ * heading asked whether the reader wanted to start on a full sentence with its
+ * quotes and full stop intact.
  */
-const seedOf = (href: string): string =>
-  new URL(href, "https://example.test").searchParams.get("topic") ?? "";
 
-describe("projectStartHref", () => {
-  it("opens the intake with the subject and the brief in one sentence", () => {
-    expect(
-      seedOf(projectStartHref("Sales dashboard", "SQL & Data Analysis")),
-    ).toBe(
-      'I want to learn SQL & Data Analysis so I can do the "Sales dashboard" project.',
-    );
+describe("topicStartHref", () => {
+  it("carries the subject's name and nothing else", () => {
+    // What every consumer of `?topic=` already expects. The sentence version
+    // ("I want to learn SQL.") is what broke the collision check.
+    expect(topicStartHref("SQL")).toBe("/start?topic=SQL");
   });
 
-  it("encodes a title and subject a pack can really carry", () => {
-    // Ampersands and quotes both appear in real pack copy, and unencoded the
-    // first truncates the parameter — the learner then arrives at `/start`
-    // having asked for half a subject.
-    const href = projectStartHref("Q&A bot", "R&D / statistics");
-    expect(href.startsWith("/start?topic=")).toBe(true);
-    expect(href).not.toContain(" ");
-    expect(seedOf(href)).toContain("R&D / statistics");
-    expect(seedOf(href)).toContain("Q&A bot");
+  it("still encodes a subject a pack can really carry", () => {
+    expect(topicStartHref("R&D / statistics")).toBe(
+      "/start?topic=R%26D%20%2F%20statistics",
+    );
   });
 });
 
-describe("topicStartHref", () => {
-  it("names the subject as a sentence rather than a bare noun", () => {
-    // A bare "SQL" is what `customPathHref` sends when a search box is the
-    // source. Here the reader pressed a button on the subject's own page, and
-    // the opening line should read like something a person said.
-    expect(seedOf(topicStartHref("SQL"))).toBe("I want to learn SQL.");
+describe("projectStartHref", () => {
+  it("names the brief by slug rather than describing it", () => {
+    expect(projectStartHref("sales-dashboard")).toBe(
+      "/start?project=sales-dashboard",
+    );
+  });
+
+  it("uses the parameter /start reads, so the two cannot drift", () => {
+    expect(projectStartHref("x")).toContain(`${PROJECT_PARAM}=`);
+  });
+
+  it("encodes the slug, because a query string is not a trusted channel", () => {
+    // Slugs are validated on the way into a pack, so this is defence against a
+    // hand-typed URL rather than against our own content. `/start` resolves it
+    // and ignores anything that is not a project we publish, so nothing a
+    // visitor writes here is ever rendered back to them.
+    expect(projectStartHref("a b&c")).toBe("/start?project=a%20b%26c");
+  });
+});
+
+describe("projectStartSeed", () => {
+  /**
+   * This one stays a sentence, and the distinction is the whole fix: it is
+   * posted as the learner's opening reply to the analyzer, never compared
+   * against a stored subject and never rendered as a heading.
+   */
+  it("names the subject for the matcher and the brief for the plan", () => {
+    expect(projectStartSeed("Sales dashboard", "SQL & Data Analysis")).toBe(
+      'I want to learn SQL & Data Analysis so I can do the "Sales dashboard" project.',
+    );
   });
 });
