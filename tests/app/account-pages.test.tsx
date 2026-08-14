@@ -88,8 +88,11 @@ describe("/account — profile", () => {
     expect((screen.getByLabelText("Handle") as HTMLInputElement).value).toBe(
       "learner",
     );
-    expect((screen.getByLabelText("Timezone") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Timezone") as HTMLSelectElement).value).toBe(
       "Europe/Sofia",
+    );
+    expect((screen.getByLabelText("Language") as HTMLSelectElement).value).toBe(
+      "en",
     );
   });
 
@@ -106,10 +109,70 @@ describe("/account — profile", () => {
     expect((screen.getByLabelText("Handle") as HTMLInputElement).value).toBe("");
   });
 
-  it("offers the platform's timezones without any script", async () => {
-    const { container } = render(await AccountPage({ searchParams: search({}) }));
-    const options = container.querySelectorAll("#timezones option");
-    expect(options.length).toBeGreaterThan(100);
+  it("offers the platform's timezones as a browsable list, without any script", async () => {
+    // It was an `<input list>` over a datalist, which only suggests once you
+    // have typed and matches on the raw IANA id — so finding your own zone
+    // meant knowing Sofia is filed under `Europe/`. A select is browsable, and
+    // still ships nothing to the client.
+    render(await AccountPage({ searchParams: search({}) }));
+
+    const select = screen.getByLabelText("Timezone") as HTMLSelectElement;
+    expect(select.tagName).toBe("SELECT");
+    expect(select.querySelectorAll("option").length).toBeGreaterThan(400);
+    expect(select.querySelectorAll("optgroup").length).toBeGreaterThan(5);
+  });
+
+  it("puts each zone's current offset on the row", async () => {
+    // "Europe/Kyiv" and "Europe/Sofia" are the same hour today and were not two
+    // years ago; the offset is the fact people are actually checking for.
+    render(await AccountPage({ searchParams: search({}) }));
+    const select = screen.getByLabelText("Timezone") as HTMLSelectElement;
+    const sofia = [...select.querySelectorAll("option")].find(
+      (option) => option.value === "Europe/Sofia",
+    );
+    expect(sofia?.textContent).toMatch(/^Sofia \(GMT[+-]\d{2}:\d{2}\)$/);
+  });
+
+  it("keeps a saved zone the canonical list spells differently", async () => {
+    // `supportedValuesOf` lists India as `Asia/Calcutta`. Were the option
+    // missing, the select would fall back to its first one and this user's next
+    // save would quietly move them to Abidjan.
+    requireUserMock.mockResolvedValue({ ...USER, timezone: "Asia/Kolkata" });
+    render(await AccountPage({ searchParams: search({}) }));
+
+    expect((screen.getByLabelText("Timezone") as HTMLSelectElement).value).toBe(
+      "Asia/Kolkata",
+    );
+  });
+
+  it("offers the languages we actually have copy for, by their own names", async () => {
+    // Endonyms: someone who needs this control may not read the language the
+    // rest of the page is written in.
+    render(await AccountPage({ searchParams: search({}) }));
+
+    const select = screen.getByLabelText("Language") as HTMLSelectElement;
+    expect(
+      [...select.querySelectorAll("option")].map((option) => [
+        option.value,
+        option.textContent,
+      ]),
+    ).toEqual([
+      ["en", "English"],
+      ["de", "Deutsch"],
+      ["bg", "Български"],
+      ["es", "Español"],
+    ]);
+  });
+
+  it("resolves a stored regional locale onto the language it selects", async () => {
+    // An older row may hold `en-GB`, which is not one of the four options. The
+    // select has to open on English rather than on whatever comes first.
+    requireUserMock.mockResolvedValue({ ...USER, locale: "en-GB" });
+    render(await AccountPage({ searchParams: search({}) }));
+
+    expect((screen.getByLabelText("Language") as HTMLSelectElement).value).toBe(
+      "en",
+    );
   });
 
   it("reports the outcome of whatever was just submitted", async () => {
@@ -234,11 +297,16 @@ describe("/account — appearance", () => {
     }
   });
 
-  it("says what the setting actually covers, rather than implying an account-wide preference", async () => {
-    // It is a cookie plus localStorage, so it follows the browser and not the
-    // person. Saying so costs one sentence and prevents a support email.
+  it("says what the setting actually covers, rather than leaving it to be guessed", async () => {
+    // The theme itself is a cookie plus localStorage, so it follows the browser
+    // and not the person — but the choice is also copied onto the account, and
+    // the mail we send is painted from it. Both halves are worth one sentence:
+    // the first prevents "why is my laptop still light", and the second is the
+    // only place anyone learns that their inbox follows this too.
     render(await AccountPage({ searchParams: search({}) }));
-    expect(screen.getByText(/Applies to this\s+browser only/)).toBeDefined();
+    expect(
+      screen.getByText(/Applies to this\s+browser, and to the emails we send/),
+    ).toBeDefined();
   });
 });
 

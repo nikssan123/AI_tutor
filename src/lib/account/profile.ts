@@ -4,7 +4,14 @@
  * Same shape as `parseGoalForm` (§24 E3): a result, never a throw. Every one of
  * these failures is a person mistyping into a form, and a form that 500s on a
  * bad timezone is worse than one that says what it wanted.
+ *
+ * Both list-backed fields are now `<select>`s, which means a well-behaved
+ * browser cannot post an invalid one. These checks stay regardless: a Server
+ * Action is a public endpoint, and the value that reaches this function is
+ * whatever was in the request body.
  */
+
+import { isLocale } from "@/lib/i18n/locales";
 
 export const MAX_NAME_LENGTH = 80;
 export const MIN_HANDLE_LENGTH = 3;
@@ -75,10 +82,15 @@ export function isValidTimezone(timezone: string): boolean {
   }
 }
 
-/** Language, or language-region. Enough to pick copy and format a date. */
-export function isValidLocale(locale: string): boolean {
-  return /^[a-z]{2}(-[A-Z]{2})?$/.test(locale);
-}
+/*
+ * The locale check used to be a shape test — `/^[a-z]{2}(-[A-Z]{2})?$/`, which
+ * accepted `pt-BR` as readily as `en`. That was the right rule while the field
+ * was a free-text box and the value only had to look like a language tag; it is
+ * the wrong one now that it is a select over the four languages we have copy
+ * for. `LOCALES` is that list, and storing anything outside it buys a row whose
+ * only effect is to silently fall back to English at send time — a preference
+ * the product records and then does not honour.
+ */
 
 export function parseProfileForm(form: FormData): ProfileFormResult {
   const name = String(form.get("name") ?? "").trim();
@@ -96,8 +108,8 @@ export function parseProfileForm(form: FormData): ProfileFormResult {
   if (!handle.ok) return handle;
 
   const locale = String(form.get("locale") ?? "").trim();
-  if (!isValidLocale(locale)) {
-    return { ok: false, error: "That doesn't look like a language code." };
+  if (!isLocale(locale)) {
+    return { ok: false, error: "We don't speak that language yet." };
   }
 
   const timezone = String(form.get("timezone") ?? "").trim();

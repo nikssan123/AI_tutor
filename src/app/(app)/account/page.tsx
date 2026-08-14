@@ -7,10 +7,19 @@ import {
   MAX_NAME_LENGTH,
   MIN_HANDLE_LENGTH,
 } from "@/lib/account/profile";
+import { zoneGroups } from "@/lib/account/timezones";
+import {
+  LOCALE_NAMES,
+  LOCALES,
+  resolveLocale,
+} from "@/lib/i18n/locales";
 import {
   Button,
+  ButtonLink,
   Card,
+  Field,
   Meta,
+  SelectField,
   stagger,
   Status,
   Title,
@@ -22,6 +31,7 @@ import {
   changeEmailAction,
   changePasswordAction,
   linkGoogleAction,
+  rememberThemeAction,
   resendVerificationAction,
   setPasswordAction,
   signOutAction,
@@ -34,11 +44,24 @@ import {
  * The account screen — everything a person owns about their own account, on one
  * page, in the order they are likely to want it.
  *
- * It is a task screen, so it keeps the narrow column (§8.5.9) and one card per
- * concern. Every form posts to a Server Action and the result comes back as a
- * sentence in the query string, which is what lets the whole page work with no
- * client JavaScript at all — including on the day a bundle fails to load, which
- * is exactly the day someone needs to change a password.
+ * Every form posts to a Server Action and the result comes back as a sentence
+ * in the query string, which is what lets the whole page work with no client
+ * JavaScript at all — including on the day a bundle fails to load, which is
+ * exactly the day someone needs to change a password.
+ *
+ * ## Why this is `wide`, when a task screen is normally `narrow`
+ *
+ * §8.5.9's narrow column is for a screen that is *one* task — a goal form, a
+ * sign-in — where a long line would be a worse form. This is not that screen.
+ * It is seven unrelated concerns that happen to share an owner, and stacking
+ * them one per row in a 530px column produced a page four viewports tall whose
+ * last three cards were a title, one sentence and a single text button each,
+ * floating in ~370px of dead gutter on either side.
+ *
+ * So the column widens and the short cards pair up. The measure argument is
+ * unaffected: nothing here is prose, and the two cards that do hold a real form
+ * split their own fields into two columns rather than stretching an input to
+ * 976px.
  */
 export const metadata: Metadata = {
   title: "Account",
@@ -51,10 +74,14 @@ const GOOGLE = "google";
 
 type Props = { searchParams: Promise<{ ok?: string; error?: string }> };
 
-const input =
-  "min-h-[var(--touch-min)] w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 text-ink placeholder:text-ink-faint focus:border-accent transition-colors duration-[var(--dur-fast)]";
-
-const fieldLabel = "text-[length:var(--text-label-size)] font-[650] text-ink";
+/**
+ * The pair-up. Cards flow into it in source order, so the two that carry real
+ * forms lead and the short ones fall into rows behind them.
+ *
+ * One column until `sm`, because two 240px cards side by side on a phone is not
+ * a denser page, it is two unreadable ones.
+ */
+const grid = "grid gap-6 sm:grid-cols-2";
 
 export default async function AccountPage({ searchParams }: Props) {
   const user = await requireUser();
@@ -67,13 +94,10 @@ export default async function AccountPage({ searchParams }: Props) {
   const hasPassword = providers.has(CREDENTIAL);
   const hasGoogle = providers.has(GOOGLE);
 
-  // Rendered as a datalist rather than a select: the platform's own tz database
-  // is the only correct list, it has ~400 entries, and a type-ahead over all of
-  // them beats a dropdown nobody can scroll — with no script either way.
-  const zones = Intl.supportedValuesOf("timeZone");
+  const zones = zoneGroups(user.timezone);
 
   return (
-    <AppFrame width="narrow">
+    <AppFrame width="wide">
       {/* No facts row: every card below carries its own state, and a header
           that repeated "Confirmed" would be saying it twice on one screen. */}
       <AppHeader title="Account" lead="Your details, and how you sign in." />
@@ -83,323 +107,318 @@ export default async function AccountPage({ searchParams }: Props) {
       {ok ? <Status tone="verified">{ok}</Status> : null}
       {error ? <Status tone="problem">{error}</Status> : null}
 
-      {/* ── Profile ──────────────────────────────────────────────────────── */}
-      <Card className="rise flex flex-col gap-6" style={stagger(1)}>
-        <Title>Profile</Title>
+      <div className={grid}>
+        {/* ── Profile ────────────────────────────────────────────────────── */}
+        <Card
+          className="rise flex flex-col gap-6 sm:col-span-2"
+          style={stagger(1)}
+        >
+          <Title>Profile</Title>
 
-        <form action={updateProfileAction} className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="name" className={fieldLabel}>
-              Name
-            </label>
-            <input
-              id="name"
-              name="name"
-              defaultValue={user.name}
-              maxLength={MAX_NAME_LENGTH}
-              required
-              className={input}
-            />
-          </div>
+          <form action={updateProfileAction} className="flex flex-col gap-6">
+            <div className={grid}>
+              <Field
+                label="Name"
+                name="name"
+                defaultValue={user.name}
+                maxLength={MAX_NAME_LENGTH}
+                required
+              />
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="handle" className={fieldLabel}>
-              Handle
-            </label>
-            <Meta>
-              Optional and public. It appears in the web address of any Proof
-              Page you publish. Letters, numbers and hyphens,{" "}
-              {MIN_HANDLE_LENGTH}–{MAX_HANDLE_LENGTH} characters.
-            </Meta>
-            <input
-              id="handle"
-              name="handle"
-              defaultValue={user.handle ?? ""}
-              maxLength={MAX_HANDLE_LENGTH}
-              placeholder="nikolay"
-              className={input}
-            />
-          </div>
+              <Field
+                label="Handle"
+                name="handle"
+                defaultValue={user.handle ?? ""}
+                maxLength={MAX_HANDLE_LENGTH}
+                placeholder="nikolay"
+                hint={`Optional and public. It appears in the web address of any Proof Page you publish. Letters, numbers and hyphens, ${MIN_HANDLE_LENGTH}–${MAX_HANDLE_LENGTH} characters.`}
+              />
 
-          <div className="flex flex-wrap gap-6">
-            <div className="flex flex-1 flex-col gap-2">
-              <label htmlFor="timezone" className={fieldLabel}>
-                Timezone
-              </label>
-              <Meta>Decides which day your work counts towards.</Meta>
-              <input
-                id="timezone"
+              {/*
+               * A select over the platform's tz database rather than the
+               * datalist this used to be. `zoneGroups` is what guarantees the
+               * saved value is one of the options — see the note there; without
+               * it this control silently relocates anyone whose zone the
+               * canonical list spells differently.
+               */}
+              <SelectField
+                label="Timezone"
                 name="timezone"
                 defaultValue={user.timezone}
-                list="timezones"
+                hint="Decides which day your work counts towards."
                 required
-                className={input}
-              />
-              <datalist id="timezones">
-                {zones.map((zone) => (
-                  <option key={zone} value={zone} />
+              >
+                {zones.map((group) => (
+                  <optgroup key={group.area} label={group.area}>
+                    {group.zones.map((zone) => (
+                      <option key={zone.value} value={zone.value}>
+                        {zone.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </datalist>
-            </div>
+              </SelectField>
 
-            <div className="flex flex-1 flex-col gap-2">
-              <label htmlFor="locale" className={fieldLabel}>
-                Language
-              </label>
-              <Meta>A code like en or en-GB.</Meta>
-              <input
-                id="locale"
+              {/*
+               * Endonyms, from `LOCALE_NAMES` — someone who needs this control
+               * is by definition someone who may not read the language the rest
+               * of the page is written in.
+               */}
+              <SelectField
+                label="Language"
                 name="locale"
-                defaultValue={user.locale}
+                defaultValue={resolveLocale(user.locale)}
+                hint="The language we write to you in. The product itself is English for now."
                 required
-                className={input}
-              />
+              >
+                {LOCALES.map((locale) => (
+                  <option key={locale} value={locale}>
+                    {LOCALE_NAMES[locale]}
+                  </option>
+                ))}
+              </SelectField>
             </div>
-          </div>
 
-          <div>
-            <Button type="submit">Save</Button>
-          </div>
-        </form>
-      </Card>
-
-      {/* ── Email ────────────────────────────────────────────────────────── */}
-      <Card className="rise flex flex-col gap-6" style={stagger(2)}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Title>Email</Title>
-          {user.emailVerified ? (
-            <Status tone="verified">Confirmed</Status>
-          ) : (
-            <Status tone="attention">Not confirmed</Status>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className={fieldLabel}>{user.email}</span>
-          {user.emailVerified ? (
-            <Meta>
-              We can send you a password reset if you ever need one.
-            </Meta>
-          ) : (
-            <Meta>
-              Until you confirm this address, we cannot send you a password
-              reset.
-            </Meta>
-          )}
-        </div>
-
-        {user.emailVerified ? null : (
-          <form action={resendVerificationAction}>
-            <Button variant="text" type="submit">
-              Send me a confirmation code
-            </Button>
+            <div>
+              <Button type="submit">Save</Button>
+            </div>
           </form>
-        )}
+        </Card>
 
-        <form
-          action={changeEmailAction}
-          className="flex flex-col gap-3 border-t border-hairline pt-6"
-        >
-          <label htmlFor="newEmail" className={fieldLabel}>
-            Change it
-          </label>
-          <Meta>
-            {user.emailVerified
-              ? "We'll email your current address to approve the change. Nothing changes until you do."
-              : "We'll send a confirmation link to the new address."}
-          </Meta>
-          <input
-            id="newEmail"
-            name="newEmail"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            required
-            className={input}
-          />
-          <div>
-            <Button variant="text" type="submit">
-              Change email
-            </Button>
+        {/* ── Email ──────────────────────────────────────────────────────── */}
+        <Card className="rise flex flex-col gap-6" style={stagger(2)}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Title>Email</Title>
+            {user.emailVerified ? (
+              <Status tone="verified">Confirmed</Status>
+            ) : (
+              <Status tone="attention">Not confirmed</Status>
+            )}
           </div>
-        </form>
-      </Card>
 
-      {/* ── Password ─────────────────────────────────────────────────────── */}
-      <Card className="rise flex flex-col gap-6" style={stagger(3)}>
-        <Title>Password</Title>
+          <div className="flex flex-col gap-2">
+            <span className="text-[length:var(--text-label-size)] font-[550] text-ink">
+              {user.email}
+            </span>
+            {user.emailVerified ? (
+              <Meta>We can send you a password reset if you ever need one.</Meta>
+            ) : (
+              <Meta>
+                Until you confirm this address, we cannot send you a password
+                reset.
+              </Meta>
+            )}
+          </div>
 
-        {hasPassword ? (
-          <form action={changePasswordAction} className="flex flex-col gap-6">
-            <Meta>Changing it signs out every other device.</Meta>
+          {user.emailVerified ? null : (
+            <form action={resendVerificationAction}>
+              <Button variant="text" type="submit">
+                Send me a confirmation code
+              </Button>
+            </form>
+          )}
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor="currentPassword" className={fieldLabel}>
-                Current password
-              </label>
-              <input
-                id="currentPassword"
+          {/* `mt-auto` so the actions sit on the bottom edge of the card rather
+              than halfway up it when the card beside it is the taller one. */}
+          <form
+            action={changeEmailAction}
+            className="mt-auto flex flex-col gap-3 border-t border-hairline pt-6"
+          >
+            <Field
+              label="Change it"
+              name="newEmail"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              hint={
+                user.emailVerified
+                  ? "We'll email your current address to approve the change. Nothing changes until you do."
+                  : "We'll send a confirmation link to the new address."
+              }
+              required
+            />
+            <div>
+              <Button variant="text" type="submit">
+                Change email
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* ── Password ───────────────────────────────────────────────────── */}
+        <Card className="rise flex flex-col gap-6" style={stagger(3)}>
+          <Title>Password</Title>
+
+          {/* `flex-1` so the form fills the card the grid stretched, which is
+              what gives the action bar below something to be pushed against. */}
+          {hasPassword ? (
+            <form
+              action={changePasswordAction}
+              className="flex flex-1 flex-col gap-6"
+            >
+              <Meta>Changing it signs out every other device.</Meta>
+
+              <Field
+                label="Current password"
                 name="currentPassword"
                 type="password"
                 autoComplete="current-password"
                 required
-                className={input}
               />
-            </div>
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor="newPassword" className={fieldLabel}>
-                New password
-              </label>
-              <Meta>At least {MIN_PASSWORD_LENGTH} characters.</Meta>
-              <input
-                id="newPassword"
+              <Field
+                label="New password"
                 name="newPassword"
                 type="password"
                 autoComplete="new-password"
                 minLength={MIN_PASSWORD_LENGTH}
+                hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
                 required
-                className={input}
               />
-            </div>
 
-            <div>
-              <Button variant="text" type="submit">
-                Change password
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <form action={setPasswordAction} className="flex flex-col gap-6">
-            {/* An account that arrived through Google has no password at all.
-                Setting one is what makes disconnecting Google possible later. */}
-            <Meta>
-              You signed in with Google, so this account has no password yet.
-              Set one and you can sign in either way, and disconnect Google
-              later if you want to.
-            </Meta>
-
-            <div className="flex flex-col gap-2">
-              <label htmlFor="newPassword" className={fieldLabel}>
-                New password
-              </label>
-              <Meta>At least {MIN_PASSWORD_LENGTH} characters.</Meta>
-              <input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                minLength={MIN_PASSWORD_LENGTH}
-                required
-                className={input}
-              />
-            </div>
-
-            <div>
-              <Button variant="text" type="submit">
-                Set a password
-              </Button>
-            </div>
-          </form>
-        )}
-      </Card>
-
-      {/* ── Connected accounts ───────────────────────────────────────────── */}
-      {googleEnabled() ? (
-        <Card className="rise flex flex-col gap-6" style={stagger(4)}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Title>Google</Title>
-            {hasGoogle ? (
-              <Status tone="verified">Connected</Status>
-            ) : (
-              <Status tone="neutral">Not connected</Status>
-            )}
-          </div>
-
-          {hasGoogle ? (
-            <form action={unlinkGoogleAction} className="flex flex-col gap-3">
-              <Meta>
-                {hasPassword
-                  ? "You can still sign in with your email and password."
-                  : "Set a password first, or you would have no way to sign in."}
-              </Meta>
-              <div>
-                <Button variant="text" type="submit" disabled={!hasPassword}>
-                  Disconnect Google
+              <div className="mt-auto">
+                <Button variant="text" type="submit">
+                  Change password
                 </Button>
               </div>
             </form>
           ) : (
-            <form action={linkGoogleAction} className="flex flex-col gap-3">
-              <Meta>Sign in with one tap instead of a password.</Meta>
-              <div>
-                {/* The branded variant here too: this starts the same OAuth
-                    handoff as the sign-in screen, so it should look like the
-                    control the person already recognises from it. Disconnect
-                    stays a text button — it is the subordinate action, and it
-                    is leaving Google, not going there. */}
-                <Button variant="social" type="submit">
-                  <GoogleIcon />
-                  Connect Google
+            <form
+              action={setPasswordAction}
+              className="flex flex-1 flex-col gap-6"
+            >
+              {/* An account that arrived through Google has no password at all.
+                  Setting one is what makes disconnecting Google possible. */}
+              <Meta>
+                You signed in with Google, so this account has no password yet.
+                Set one and you can sign in either way, and disconnect Google
+                later if you want to.
+              </Meta>
+
+              <Field
+                label="New password"
+                name="newPassword"
+                type="password"
+                autoComplete="new-password"
+                minLength={MIN_PASSWORD_LENGTH}
+                hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+                required
+              />
+
+              <div className="mt-auto">
+                <Button variant="text" type="submit">
+                  Set a password
                 </Button>
               </div>
             </form>
           )}
         </Card>
-      ) : null}
 
-      {/* ── Appearance ───────────────────────────────────────────────────
-       * §8.5.4 specifies "Settings → Appearance, as a three-way toggle group",
-       * and it was never built. The consequence was not cosmetic: the only
-       * theme control in the product sat in the marketing footer, so a
-       * signed-in learner — the person who spends hours in here, often at
-       * night — could not change it anywhere at all, while a first-time
-       * visitor passing through in sixty seconds was the one being offered it.
-       *
-       * System leads because most people already made this choice at the OS
-       * level; the other two are for overriding it in one direction for one
-       * device, which is the only reason to touch this at all.
-       */}
-      <Card className="rise flex flex-col gap-4" style={stagger(5)}>
-        <Title>Appearance</Title>
-        <Meta>
-          Follows your device unless you tell it otherwise. Applies to this
-          browser only.
-        </Meta>
-        <div className="border-t border-hairline pt-4">
-          <ThemeToggle />
-        </div>
-      </Card>
+        {/* ── Connected accounts ─────────────────────────────────────────── */}
+        {googleEnabled() ? (
+          <Card className="rise flex flex-col gap-4" style={stagger(4)}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Title>Google</Title>
+              {hasGoogle ? (
+                <Status tone="verified">Connected</Status>
+              ) : (
+                <Status tone="neutral">Not connected</Status>
+              )}
+            </div>
 
-      {/* ── Sessions ─────────────────────────────────────────────────────── */}
-      <Card className="rise flex flex-col gap-4" style={stagger(6)}>
-        <Title>Signing out</Title>
-        <Meta>
-          If you think someone else has your password, sign everything out and
-          then change it.
-        </Meta>
-        {/*
-         * Forms, not links: signing out is a state change, and a GET that ends
-         * a session is one prefetch away from ending it by accident.
-         *
-         * This is the only sign-out in the product. It used to sit in the app
-         * header, which the responsive shell would now render twice — once in
-         * the mobile bar and once in the desktop rail — so it moved to the
-         * screen the "You" destination already points at.
+            {hasGoogle ? (
+              <form action={unlinkGoogleAction} className="flex flex-col gap-4">
+                <Meta>
+                  {hasPassword
+                    ? "You can still sign in with your email and password."
+                    : "Set a password first, or you would have no way to sign in."}
+                </Meta>
+                <div className="mt-auto border-t border-hairline pt-4">
+                  <Button variant="text" type="submit" disabled={!hasPassword}>
+                    Disconnect Google
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form action={linkGoogleAction} className="flex flex-col gap-4">
+                <Meta>Sign in with one tap instead of a password.</Meta>
+                <div className="mt-auto border-t border-hairline pt-4">
+                  {/* The branded variant here too: this starts the same OAuth
+                      handoff as the sign-in screen, so it should look like the
+                      control the person already recognises from it. Disconnect
+                      stays a text button — it is the subordinate action, and it
+                      is leaving Google, not going there. */}
+                  <Button variant="social" type="submit">
+                    <GoogleIcon />
+                    Connect Google
+                  </Button>
+                </div>
+              </form>
+            )}
+          </Card>
+        ) : null}
+
+        {/* ── Appearance ─────────────────────────────────────────────────
+         * §8.5.4 specifies "Settings → Appearance, as a three-way toggle
+         * group". System leads because most people already made this choice at
+         * the OS level; the other two are for overriding it in one direction
+         * for one device, which is the only reason to touch this at all.
          */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 border-t border-hairline pt-4">
-          <form action={signOutAction}>
-            <Button variant="text" type="submit">
-              Sign out
-            </Button>
-          </form>
-          <form action={signOutEverywhereAction}>
-            <Button variant="text" type="submit">
-              Sign out everywhere
-            </Button>
-          </form>
-        </div>
-      </Card>
+        <Card className="rise flex flex-col gap-4" style={stagger(5)}>
+          <Title>Appearance</Title>
+          <Meta>
+            Follows your device unless you tell it otherwise. Applies to this
+            browser, and to the emails we send you.
+          </Meta>
+          <div className="mt-auto border-t border-hairline pt-4">
+            <ThemeToggle onChoose={rememberThemeAction} />
+          </div>
+        </Card>
+
+        {/* ── Billing ────────────────────────────────────────────────────── */}
+        <Card className="rise flex flex-col gap-4" style={stagger(6)}>
+          <Title>Plan and billing</Title>
+          <Meta>
+            What you are on, how much graded work is left this month, and how to
+            change or stop it.
+          </Meta>
+          <div className="mt-auto border-t border-hairline pt-4">
+            <ButtonLink href="/account/billing" variant="text">
+              Go to billing
+            </ButtonLink>
+          </div>
+        </Card>
+
+        {/* ── Sessions ───────────────────────────────────────────────────── */}
+        <Card className="rise flex flex-col gap-4" style={stagger(7)}>
+          <Title>Signing out</Title>
+          <Meta>
+            If you think someone else has your password, sign everything out and
+            then change it.
+          </Meta>
+          {/*
+           * Forms, not links: signing out is a state change, and a GET that
+           * ends a session is one prefetch away from ending it by accident.
+           *
+           * This is the only sign-out in the product. It used to sit in the app
+           * header, which the responsive shell would now render twice — once in
+           * the mobile bar and once in the desktop rail — so it moved to the
+           * screen the "You" destination already points at.
+           */}
+          <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-3 border-t border-hairline pt-4">
+            <form action={signOutAction}>
+              <Button variant="text" type="submit">
+                Sign out
+              </Button>
+            </form>
+            <form action={signOutEverywhereAction}>
+              <Button variant="text" type="submit">
+                Sign out everywhere
+              </Button>
+            </form>
+          </div>
+        </Card>
+      </div>
     </AppFrame>
   );
 }

@@ -22,6 +22,7 @@ import {
   revealAt,
   Row,
   RowList,
+  SelectField,
   Skeleton,
   stagger,
   Status,
@@ -428,6 +429,112 @@ describe("Field — the one input", () => {
     expect(input.minLength).toBe(8);
     expect(input.className).toContain("extra");
     expect(input.className).toContain("bg-ground");
+  });
+});
+
+describe("SelectField — the one choice out of a list", () => {
+  const zones = (
+    <>
+      <optgroup label="Europe">
+        <option value="Europe/Sofia">Sofia (GMT+03:00)</option>
+        <option value="Europe/London">London (GMT+01:00)</option>
+      </optgroup>
+    </>
+  );
+
+  it("ties the label to the select so clicking the label focuses it", () => {
+    render(
+      <SelectField label="Timezone" name="timezone">
+        {zones}
+      </SelectField>,
+    );
+    const select = screen.getByLabelText("Timezone") as HTMLSelectElement;
+    expect(select.tagName).toBe("SELECT");
+    expect(select.id).toBe("timezone");
+    expect(select.getAttribute("name")).toBe("timezone");
+  });
+
+  it("is a native select, so it works with no client JavaScript", () => {
+    // A scripted dropdown on these screens would be a control that renders and
+    // then does nothing. The platform's own gives back keyboard type-ahead and
+    // a popup allowed to escape the card — which 400 timezones need.
+    render(
+      <SelectField label="Timezone" name="timezone" defaultValue="Europe/London">
+        {zones}
+      </SelectField>,
+    );
+    const select = screen.getByLabelText("Timezone") as HTMLSelectElement;
+    expect(select.value).toBe("Europe/London");
+    expect(select.querySelectorAll("optgroup")).toHaveLength(1);
+    expect(select.querySelectorAll("option")).toHaveLength(2);
+  });
+
+  it("wears the same border and focus ring as the text input", () => {
+    render(
+      <SelectField label="Timezone" name="timezone">
+        {zones}
+      </SelectField>,
+    );
+    const cls = screen.getByLabelText("Timezone").className;
+    expect(cls).toContain("outline-none");
+    expect(cls).toContain("focus:border-accent");
+    expect(cls).toContain("focus:shadow-");
+    // The OS arrow is dropped so the control matches `Field`; the chevron is
+    // drawn back in, and must not eat the click that opens the select.
+    expect(cls).toContain("appearance-none");
+  });
+
+  it("draws its own chevron, out of the a11y tree and out of the way", () => {
+    const { container } = render(
+      <SelectField label="Timezone" name="timezone">
+        {zones}
+      </SelectField>,
+    );
+    const chevron = container.querySelector("svg")!;
+    expect(chevron.getAttribute("aria-hidden")).toBe("true");
+    expect(chevron.getAttribute("class")).toContain("pointer-events-none");
+  });
+
+  it("announces a hint with the select rather than as loose prose", () => {
+    render(
+      <SelectField
+        label="Timezone"
+        name="timezone"
+        hint="Decides which day your work counts towards."
+      >
+        {zones}
+      </SelectField>,
+    );
+    const describedBy = screen
+      .getByLabelText("Timezone")
+      .getAttribute("aria-describedby")!;
+    expect(describedBy).toBe("timezone-hint");
+    expect(document.getElementById(describedBy)!.textContent).toBe(
+      "Decides which day your work counts towards.",
+    );
+  });
+
+  it("stays quiet in the a11y tree when it has no hint", () => {
+    render(
+      <SelectField label="Timezone" name="timezone">
+        {zones}
+      </SelectField>,
+    );
+    expect(
+      screen.getByLabelText("Timezone").getAttribute("aria-describedby"),
+    ).toBe(null);
+  });
+
+  it("passes select attributes through and keeps its own classes", () => {
+    render(
+      <SelectField label="Timezone" name="timezone" required className="extra">
+        {zones}
+      </SelectField>,
+    );
+    const select = screen.getByLabelText("Timezone") as HTMLSelectElement;
+    expect(select.required).toBe(true);
+    expect(select.className).toContain("extra");
+    expect(select.className).toContain("bg-ground");
   });
 });
 

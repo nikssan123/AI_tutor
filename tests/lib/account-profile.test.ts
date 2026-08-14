@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  isValidLocale,
   isValidTimezone,
   MAX_HANDLE_LENGTH,
   MAX_NAME_LENGTH,
@@ -69,19 +68,6 @@ describe("isValidTimezone", () => {
   });
 });
 
-describe("isValidLocale", () => {
-  it.each([["en"], ["bg"], ["en-GB"], ["pt-BR"]])("accepts %s", (locale) => {
-    expect(isValidLocale(locale)).toBe(true);
-  });
-
-  it.each([["english"], ["EN"], ["en_GB"], ["en-gb"], [""]])(
-    "rejects %s",
-    (locale) => {
-      expect(isValidLocale(locale)).toBe(false);
-    },
-  );
-});
-
 describe("parseProfileForm", () => {
   it("returns the update when everything is in order", () => {
     expect(parseProfileForm(form(valid))).toEqual({
@@ -123,10 +109,25 @@ describe("parseProfileForm", () => {
     });
   });
 
-  it("refuses a locale that isn't a language code", () => {
-    const result = parseProfileForm(form({ ...valid, locale: "English" }));
-    expect(result.ok).toBe(false);
-  });
+  it.each([["en"], ["de"], ["bg"], ["es"]])(
+    "accepts %s, which we have copy for",
+    (locale) => {
+      const result = parseProfileForm(form({ ...valid, locale }));
+      expect(result).toEqual({ ok: true, update: { ...valid, locale } });
+    },
+  );
+
+  it.each([["English"], ["pt-BR"], ["en-GB"], ["fr"], [""]])(
+    "refuses %s, which we don't",
+    (locale) => {
+      // Storing one of these buys a row whose only effect is to fall back to
+      // English at send time — a preference recorded and then not honoured.
+      expect(parseProfileForm(form({ ...valid, locale }))).toEqual({
+        ok: false,
+        error: "We don't speak that language yet.",
+      });
+    },
+  );
 
   it("refuses a timezone the platform doesn't know", () => {
     const result = parseProfileForm(form({ ...valid, timezone: "Mars/Olympus" }));
@@ -145,7 +146,7 @@ describe("parseProfileForm", () => {
     // Name only: no handle (fine, that means none) and no language (not fine).
     expect(parseProfileForm(form({ name: "A" }))).toEqual({
       ok: false,
-      error: "That doesn't look like a language code.",
+      error: "We don't speak that language yet.",
     });
 
     // Everything but the timezone.

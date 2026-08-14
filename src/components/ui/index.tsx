@@ -529,6 +529,87 @@ export function Field({
   );
 }
 
+type SelectFieldProps = Omit<
+  React.SelectHTMLAttributes<HTMLSelectElement>,
+  "id" | "name"
+> & {
+  label: string;
+  /** Also the `id`, for the same reason as `Field`. */
+  name: string;
+  hint?: string;
+};
+
+/**
+ * `Field`, for a choice out of a fixed list.
+ *
+ * Native `<select>`, not a listbox built out of divs. That is not
+ * minimalism — it is the only version that works here: these screens ship no
+ * client JavaScript, so a scripted dropdown would be a control that renders and
+ * then does nothing. What the platform gives back in exchange is the whole
+ * behaviour set a custom one has to re-earn: keyboard type-ahead, a native
+ * wheel picker on iOS, and a popup that is allowed to escape the card's
+ * bounds — which a 400-row timezone list very much needs.
+ *
+ * `appearance-none` drops the OS arrow so the control matches `Field`'s border
+ * and focus ring, and the chevron is drawn back in beside it. The SVG is inline
+ * rather than `ChevronIcon` because `icons.tsx` imports `cx` from this file,
+ * and importing it back would close the cycle.
+ */
+export function SelectField({
+  label,
+  name,
+  hint,
+  className,
+  children,
+  ...props
+}: SelectFieldProps) {
+  const hintId = hint ? `${name}-hint` : undefined;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label
+        htmlFor={name}
+        className="text-[length:var(--text-label-size)] font-[550]"
+      >
+        {label}
+      </label>
+
+      <div className="relative">
+        <select
+          id={name}
+          name={name}
+          aria-describedby={hintId}
+          className={cx(FIELD_INPUT, "appearance-none pr-11", className)}
+          {...props}
+        >
+          {children}
+        </select>
+
+        {/* Decorative: the control is already announced as a combobox. */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+          className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-ink-faint"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </div>
+
+      {hint ? (
+        <Meta id={hintId} className="leading-snug">
+          {hint}
+        </Meta>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * A rule across a stack, optionally with a word sitting in it.
  *
