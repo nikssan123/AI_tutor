@@ -22,6 +22,7 @@ import {
   skillDetails,
   topicSummary,
 } from "@/lib/content";
+import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { breadcrumbs, course } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
 import { subjectInProse } from "@/lib/subject-name";
@@ -134,6 +135,29 @@ export default async function TopicPage({
             </div>
           ))}
         </div>
+
+        {/*
+         * The one number the four figures above cannot give: how long ~47 hours
+         * is *for you*. §11 item 3 asks every page like this one for "a
+         * realistic time estimate with an explicit range and stated
+         * assumptions", and the honest version of that depends on a pace only
+         * the reader knows — so it links to the tool that asks for one rather
+         * than printing a week count nobody's week matches.
+         *
+         * The parameterised URL is deliberate: it is `noindex, follow` at the
+         * other end (§13.3), so this passes a reader through without asking
+         * Google to rank a view.
+         */}
+        <Meta className="max-w-[var(--measure)]">
+          {summary.totalHours} hours is a number, not a plan.{" "}
+          <Link
+            href={`${ROADMAP_TOOL_PATH}?subject=${pack.slug}`}
+            className="font-[550] text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+          >
+            Lay it out week by week
+          </Link>{" "}
+          at the hours you actually have.
+        </Meta>
 
         {/* ── 01 The skill map ─────────────────────────────────────────────── */}
         <section className="flex flex-col gap-10">

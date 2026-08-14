@@ -63,6 +63,9 @@ describe("robots.txt", () => {
   });
 });
 
+/** The ungated pages: the three hubs and the free tool (§10 E). */
+const HUBS = 4;
+
 describe("sitemap.xml", () => {
   /**
    * These asserted the sitemap's exact contents, which was a way of asserting
@@ -143,7 +146,7 @@ describe("sitemap.xml", () => {
     expect(entry.lastModified).toBe(updatedAt);
   });
 
-  it("always lists the three hubs, whatever else is or is not indexable", async () => {
+  it("always lists the hubs, whatever else is or is not indexable", async () => {
     // The hubs are the top of the internal link graph and never gated.
     selectMock.mockResolvedValue([]);
     const { default: sitemap } = await import("@/app/sitemap");
@@ -151,6 +154,26 @@ describe("sitemap.xml", () => {
     expect(urls).toContain("https://example.com");
     expect(urls).toContain("https://example.com/learn");
     expect(urls).toContain("https://example.com/projects");
+    expect(urls).toContain("https://example.com/tools/learning-roadmap-generator");
+  });
+
+  /**
+   * §13.3's faceted-nav rule, and §17's "DON'T BUILD: timeframe/duration
+   * combinatorial SEO pages", asserted where the temptation actually is.
+   *
+   * The roadmap tool answers seven subjects at forty paces. Submitting those
+   * 280 near-identical URLs is the single fastest way to turn this site into
+   * the content farm §12 exists to keep it from being, so the tool is in the
+   * sitemap exactly once, with no query on it.
+   */
+  it("lists the roadmap tool once, and no view of it", async () => {
+    selectMock.mockResolvedValue([]);
+    const { default: sitemap } = await import("@/app/sitemap");
+    const urls = (await sitemap()).map((e) => e.url);
+    const tool = urls.filter((u) => u.includes("/tools/"));
+
+    expect(tool).toEqual(["https://example.com/tools/learning-roadmap-generator"]);
+    for (const url of urls) expect(url, url).not.toContain("?");
   });
 
   it("degrades to the static pages rather than 500ing when the database is down", async () => {
@@ -162,9 +185,9 @@ describe("sitemap.xml", () => {
     const entries = await sitemap();
 
     // The hubs plus whatever the packs contribute — everything that does not
-    // need the database. Length rather than 3, which only held while no pack
-    // was signed off.
-    expect(entries).toHaveLength(3 + packPages().length);
+    // need the database. Length rather than a literal, which only held while no
+    // pack was signed off.
+    expect(entries).toHaveLength(HUBS + packPages().length);
     expect(entries[0]!.url).toBe("https://example.com");
   });
 

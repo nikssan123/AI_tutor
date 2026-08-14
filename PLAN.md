@@ -945,6 +945,18 @@ Each answers in the first 60 words (AI Overview / featured-snippet shape), backs
 ### E. Free tools — `/tools/{tool}` (4 pages, P1)
 `learning-roadmap-generator` · `skill-gap-analyzer` · `learning-time-calculator` · `what-should-i-learn-next`
 
+> **`learning-roadmap-generator` is built** (§19.2's note has the shape of it).
+> **`learning-time-calculator` is deliberately not a second page**: "how long
+> does this take at my pace" is the roadmap's own headline, and a page that
+> answers it with *less* of the same arithmetic is two URLs competing for one
+> intent — which is the near-duplicate shape §12's gate exists to catch, and we
+> would be shipping it to ourselves. If the separate URL is ever wanted for the
+> search intent, it is an alias, not a second tool.
+>
+> The other two are mid-funnel and neither is next: `skill-gap-analyzer` is the
+> Skill Check with an email gate on it, and `what-should-i-learn-next` is the
+> planner, which is the signed-in product.
+
 ### F. Roadmaps — `/roadmaps/{slug}` (6 pages only, P3)
 `ai-engineer-for-experienced-developers` · `data-analyst-career-change` · `self-taught-developer-with-a-full-time-job` · `ml-engineer-part-time-6-months` · `analyst-to-data-scientist` · `marketer-to-growth-engineer`
 
@@ -1704,6 +1716,30 @@ This is worth being explicit about: naive live generation at 10k roadmaps/month 
 
 **Abuse controls:** Upstash IP rate limit · Cloudflare Turnstile on the novel-generation path · email verification for >1 novel generation/day · hard global daily spend cap on the free tier that degrades to "we'll email it to you" · block the obvious datacenter ASNs.
 
+> **Built — and there is no cache, because there is nothing to cache.** This
+> section is right about the economics and wrong about the mechanism. By the
+> time the tool was reachable, every piece of a roadmap already existed as pack
+> data and pure code: the skill graph (§7.1), `topologicalOrder`'s deterministic
+> ordering, `projectSkills`' decision about what a learner does and does not have
+> to do, and hours per skill. **A roadmap for a subject we have is arithmetic.**
+>
+> So `/tools/learning-roadmap-generator` calls no model at all. Zero marginal
+> cost, ~5ms, identical every time — which is a stronger claim than a
+> spot-checked cache, because there is nothing left to spot-check, no 2,000-row
+> table to invalidate when a pack is edited, and no novel-generation path to gate.
+> The abuse controls follow: **a tool with no AI spend behind it cannot be abused
+> into a bill.** Upstash and Turnstile stay unbuilt and stay unneeded here. They
+> are still owed on the one public surface that *does* spend — §7.1's Generated
+> tier at $0.61 a pack — which already sits behind an account.
+>
+> **The level dropdown is gone too, and that is the product decision in this
+> section.** "goal × level × weekly-hours" builds the level into the cache key,
+> and a level is self-reported: §4.2 law 1 says self-report is never evidence,
+> and `projection.ts` refuses to read the one the goal form collects. The tool
+> asks for a subject and a pace, and says plainly that the plan is the same for
+> everyone until something is *proved*. Every competing tool personalises on the
+> answer to a question it has no way to check.
+
 ## 19.3 Conversion funnel
 
 ```
@@ -1927,7 +1963,7 @@ before picking the next thing up.**
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
 | **E9.7** Goal lifecycle + the ledger that outlives it | ✅ Done — *not in the original plan* | `src/lib/goals/lifecycle.ts`, `achievement.ts`, `courses.ts`, `course-actions.ts`, `src/lib/mastery/view.ts` — §8 screens 10 and 11a |
 | **E10** SEO infrastructure | 🟡 Partial | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD **and the share cards**. Internal-link renderer and the quality-score job remain, and both are E12's to earn |
-| **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check ships; the rest does not |
+| **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check and the **Roadmap tool** (`src/lib/roadmap/`, `/tools/learning-roadmap-generator`) ship, both with no AI call at all. There is no cache and no rate limiting because there is no spend — see §19.2's note |
 | **E12** Content production | ⬜ Not started | 3 curated packs of the 12 |
 | **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
 
@@ -1969,6 +2005,31 @@ were not on the list:
 What remains on E10 is the internal-link renderer and the quality-score job.
 Both operate on authored `SeoPage` rows, and there are none — they are E12's
 work, not a gap to fill speculatively against content nobody has written.
+
+**E11's roadmap tool is in, and building it found two things that are bigger
+than the tool.**
+
+- **§24 E11's own acceptance criterion — "the anonymous check result is
+  preserved through signup" — has never been met in a browser.** The carry-in
+  was built (`masteryFromCheck`), the badge that promises it was built
+  (`answeredTopics`, on `/today`, `/subjects` and the goal form), and the check
+  cookie was written at `path: /check/{topic}` — so a browser sent it to the
+  check and to nothing else, and every reader of it is outside that path. It
+  failed silently: those screens behaved exactly as they would for a visitor who
+  had taken no check. The cookie is site-wide now, and the harness that hid it
+  (a cookie jar that threw the write options away) records them.
+- **§24 E4's "an expert-level tester is correctly placed at high mastery on ≥80%
+  of skills they actually know" is not met by today's item banks.** Measured
+  rather than argued: `projectSkills` excludes a skill at `MASTERY_TARGET`
+  (0.85), the BKT needs **three** correct observations on one skill to get
+  there, and a nine-question check across a 26-skill subject never gives any
+  single skill three. A *perfect* check tops out around 0.6, so nothing is ever
+  skipped on the strength of one. That is not a bug in the BKT — one right
+  answer is not proof, which is §4.2 law 1 working — but it does mean the check
+  currently narrows and never excludes, and §8 screen 5's "explicitly lists what
+  was skipped and why" has nothing to list unless a learner has *graded work*.
+  Fixing it is an item-bank and budget question (more items per skill, or a
+  deeper check), not a code change, and it is the next thing E4 owes.
 
 **E9.6 fixed the state nobody had designed.** Every screen in E1–E9.5 was built
 for a learner with a course running. The learner without one — which is every

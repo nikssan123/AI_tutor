@@ -17,10 +17,21 @@ import { tierFor } from "@/lib/evaluation/tier";
 
 const jar = new Map<string, string>();
 
+/**
+ * The options the cookie was actually written with, which this harness used to
+ * throw away — and that is how a `path` nobody could receive survived two
+ * passes. A jar handed straight to the function accepts any scope at all; the
+ * browser is the part that decides, and it was not in the test.
+ */
+const writtenWith = new Map<string, Record<string, unknown>>();
+
 const cookiesMock = {
   get: (name: string) =>
     jar.has(name) ? { name, value: jar.get(name)! } : undefined,
-  set: (name: string, value: string) => jar.set(name, value),
+  set: (name: string, value: string, options?: Record<string, unknown>) => {
+    jar.set(name, value);
+    writtenWith.set(name, options ?? {});
+  },
 };
 
 const redirectMock = vi.fn((url: string) => {
@@ -121,6 +132,34 @@ describe("the intro", () => {
 
   it("returns empty metadata for an unknown subject", async () => {
     expect(await page.generateMetadata({ params: params("nope") })).toEqual({});
+  });
+});
+
+/**
+ * §24 E11 — "the anonymous check result is preserved through signup".
+ *
+ * The carry-in was built (`masteryFromCheck`), the badge that promises it was
+ * built (`answeredTopics`, on `/today`, `/subjects` and the goal form), and none
+ * of it could ever fire: the cookie was written at `path: /check/{topic}`, so a
+ * browser sent it to the check and to nothing else. Every reader is outside that
+ * path. Nothing failed loudly — the screens simply behaved as though no check
+ * had been taken, which is indistinguishable from a visitor who took none.
+ */
+describe("where the cookie can be read from", () => {
+  it("is written site-wide, or the carry-in cannot happen", async () => {
+    await run(() => actions.startCheck(TOPIC));
+    expect(writtenWith.get(COOKIE)?.path).toBe("/");
+  });
+
+  it("stays httpOnly, same-site and short-lived", async () => {
+    // Widening the scope is not a licence to relax the rest of it: what this
+    // holds is a list of item slugs and a 0 or 1 each, for six hours.
+    await run(() => actions.startCheck(TOPIC));
+    expect(writtenWith.get(COOKIE)).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 6,
+    });
   });
 });
 

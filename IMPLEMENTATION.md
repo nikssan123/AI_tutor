@@ -2175,3 +2175,151 @@ E10's internal-link renderer and quality-score job still wait on authored
 deployed origin.
 
 3120 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+
+---
+
+# Delivery record — pass 25: the roadmap generator that generates nothing
+
+`src/lib/roadmap/plan.ts`, `/tools/learning-roadmap-generator`, one line of
+`check/[topic]/actions.ts`, and the `webApplication` block §13.3 had asked a
+tool page for. **No model is called anywhere in this pass, and that is the
+finding rather than an aside.**
+
+## §19.2 was right about the money and wrong about the mechanism
+
+The plan costs the Roadmap Generator as an LLM call and then spends a section
+avoiding the bill: precompute the top ~2,000 (goal × level × weekly-hours)
+combinations, validate them, spot-check them by hand, store them in Postgres,
+serve a database read, and gate novel goals behind an email and a Turnstile.
+
+By the time the tool was reachable, every piece of a roadmap already existed:
+
+- the **skill graph** is pack data (§7.1), authored or generated once;
+- **`topologicalOrder`** puts it in a teachable order, deterministically, with a
+  stable (level, slug) tiebreak;
+- **`projectSkills`** decides what a learner does and does not have to do;
+- hours are pack data.
+
+A roadmap for a subject we have is **arithmetic**. So there is no cache, no
+quality gate over the output, no 2,000-row table to invalidate when a pack is
+edited, and no novel-generation path to rate-limit — `$0.00` and about five
+milliseconds. "Identical every time" is a stronger claim than "spot-checked",
+because there is nothing left to spot-check.
+
+The abuse controls follow the same way. **A tool with no AI spend behind it
+cannot be abused into a bill**, so Upstash and Turnstile stay unbuilt and stay
+unneeded *here*. They are still owed on the surface that does spend — §7.1's
+Generated tier at $0.61 a pack — which already sits behind an account.
+
+## The level dropdown, and why there isn't one
+
+"goal × level × weekly-hours" builds a self-declared level into the cache key.
+§4.2 law 1 says self-report is never evidence, and `projection.ts` already
+refuses to read the stated level the goal form collects — so a tool that
+shortens its plan on the answer would be the one place in the product that does.
+
+Every competitor's roadmap tool personalises on a question it has no way to
+check. This one asks for a subject and a pace, and says so on the page: *this is
+the same plan we would give anyone; the only thing that takes work out of it is
+work of yours that has been marked.* That is law 1 written as a feature rather
+than as an apology, and it is the sentence the page ends on.
+
+## Two things the measuring found, both bigger than the tool
+
+The first cut built the plan on the anonymous check cookie, so a visitor's
+answers would drop skills out of it. Writing the test for that is what turned
+both of these up.
+
+**1. The check cookie has never reached any of its readers.** It was written at
+`path: /check/{topic}`. A browser sends that to the check and to nothing else —
+and every reader is outside it: `masteryFromCheck` in `/start`'s action,
+`answeredTopics` on `/today`, `/subjects` and the goal form. §24 E11's own
+acceptance criterion, "the anonymous check result is preserved through signup",
+could not happen in a browser. It failed **silently**: those screens behaved
+exactly as they would for a visitor who had taken no check, which is
+indistinguishable from the ordinary case.
+
+It survived two passes because the test harness handed the jar straight to the
+function and threw the write options away. The jar accepts any scope at all; the
+browser is the part that decides, and the browser was not in the test. The
+harness records the options now, and `path: "/"` is asserted — with `httpOnly`,
+`sameSite` and the six-hour expiry asserted beside it, so widening the scope
+cannot quietly become a licence to relax the rest.
+
+**2. A Skill Check cannot lift any skill to the bar that would skip it.**
+`projectSkills` excludes at `MASTERY_TARGET` (0.85). Measured on the real pack:
+the BKT needs **three** correct observations on one skill to clear it (0.60 →
+0.81 → 0.92), and a nine-question check across a 26-skill subject never gives
+any single skill three. A *perfect* check tops out around 0.6.
+
+That is not a bug in the BKT — one right answer is not proof, which is §4.2 law 1
+doing its job. It does mean §24 E4's "an expert-level tester is correctly placed
+at high mastery on ≥80% of skills they actually know" is not met by today's item
+banks, and that §8 screen 5's "explicitly lists what was skipped and why" has
+nothing to list until a learner has graded work. Fixing it is an item-bank and
+budget question, not a code change.
+
+**So the page reads no cookie and claims nothing about the visitor.** A band
+saying "your check took these out" would have been a band nobody could ever see
+— §4.2 law 3's overclaim, arrived at by good intentions rather than by
+marketing.
+
+## The presentation decisions the render made
+
+Three, and all three came from looking at the page rather than at the test.
+
+1. **A week's total says "starts here".** Work is assigned to the week its
+   running total falls in, so a 3-hour project beginning on the Thursday of a
+   4-hour week makes that week's rows add up to 6.5h — and makes the *next* week
+   look light. Printing that as the week's workload is wrong; printing it as
+   what begins is exactly right, and it is also what explains the quiet week
+   after it. Each spanning row says `runs into week 5` on its own account.
+2. **A graded row links to its brief instead of restating it.**
+   `canonicalCurriculum`'s acceptance criterion for a project module is `Submit
+   {title} for grading.`, which under a heading that is already the title reads
+   as the title said twice in a stilted sentence. §4.2 law 2 is the better half
+   of that sentence and it is one click away.
+3. **The range is the specialist tail, not a margin of error.** §11 asks for "an
+   explicit range with stated assumptions"; the pack declares which skills are
+   the tail and `projectSkills` leaves them out of the estimate on purpose, so
+   the honest upper bound is the plan with them in. Inventing ±30% would have
+   been the alternative.
+
+## Notes
+
+- **The bare URL is the only indexable one.** Every `?subject=…&hours=…` view is
+  `noindex, follow` and canonicals to it. That is §13.3's faceted-nav rule and
+  also §17's "DON'T BUILD: timeframe/duration combinatorial SEO pages" — seven
+  subjects at forty paces is 280 pages that differ by a number, which is the
+  content-farm shape §12 exists to keep this site out of. Asserted in both the
+  page suite and the sitemap suite.
+- **A plain GET form**, so the answer is a URL that survives a refresh, a
+  bookmark and a paste — and so the one marketing page that takes input still
+  ships zero JavaScript (§8.5.8).
+- **`defaultSubject` picks the deepest reviewed pack**, tie-broken on the slug so
+  it cannot change between deploys, and falls back to the catalogue when nothing
+  has been signed off — which was every environment until three passes ago.
+- **No `/tools` hub.** One tool does not need an index, and a hub page listing
+  one link is the thin page §12 is about. `/learn/{topic}` links in instead:
+  "47 hours is a number, not a plan."
+- **`learning-time-calculator` is not a second page.** "How long does this take
+  at my pace" is this tool's headline; a page answering it with less of the same
+  arithmetic is two URLs competing for one intent.
+- Three defensive `??`s came out of `plan.ts` during the coverage pass. Each was
+  guarding against something the function immediately above it had just
+  guaranteed — an unreachable branch dressed up as caution, which is the shape
+  the coverage rule is meant to catch.
+
+## Still open
+
+Unchanged: §24 E8's last two acceptance criteria need the hand-graded corpus §23
+lists as a Phase-0 MUST, and E10's internal-link renderer and quality-score job
+wait on authored `SeoPage` rows, which are E12's. Lighthouse and the GSC/Bing
+verification need a deployed origin.
+
+**New, and both belong to earlier epics:** E4 owes the item banks that would let
+a check place an expert (above); and with the cookie now travelling, the
+carry-in it enables has still only been exercised in tests — the first real
+browser run of check → signup → path is worth watching.
+
+3163 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.

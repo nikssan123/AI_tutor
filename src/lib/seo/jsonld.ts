@@ -135,6 +135,37 @@ export function quiz(
   };
 }
 
+/**
+ * §13.3 — `WebApplication` on `/tools`.
+ *
+ * `offers` at price 0 rather than `isAccessibleForFree` alone: the free-tool
+ * row in a result is what this page competes on, and a tool that needs an
+ * account is the thing every competing result actually is. Both are stated
+ * because they answer different questions — whether it costs money, and whether
+ * anything is asked of you before it runs.
+ *
+ * No `featureList`. It is the obvious place to list what the tool does and it
+ * would be the first markup on this site describing the page rather than
+ * reading it, which is the rule at the top of this file.
+ */
+export function webApplication(input: {
+  name: string;
+  description: string;
+  path: string;
+}): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: input.name,
+    description: input.description,
+    url: canonical(input.path),
+    applicationCategory: "EducationalApplication",
+    isAccessibleForFree: true,
+    offers: { "@type": "Offer", price: 0, priceCurrency: "EUR" },
+    provider: { "@type": "Organization", name: ORGANISATION_NAME },
+  };
+}
+
 /** Serialises for a `<script type="application/ld+json">` tag. */
 export function serialise(...blocks: JsonLd[]): string {
   return JSON.stringify(blocks.length === 1 ? blocks[0] : blocks);

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { seoPage } from "@/db/schema";
 import { allProjects, allTopics } from "@/lib/content";
+import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { canonical } from "@/lib/site";
 
 /**
@@ -71,6 +72,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: canonical("/"), changeFrequency: "weekly", priority: 1 },
     { url: canonical("/learn"), changeFrequency: "weekly", priority: 0.9 },
     { url: canonical("/projects"), changeFrequency: "weekly", priority: 0.9 },
+    // The bare tool only. Every `?subject=…&hours=…` view of it is `noindex`
+    // and canonicals here, which is the same faceted-nav rule `/learn?q=`
+    // follows — and the reason there is no page per subject per pace.
+    {
+      url: canonical(ROADMAP_TOOL_PATH),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
   ];
 
   const base = [...hubs, ...packPages()];

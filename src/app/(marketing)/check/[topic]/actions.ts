@@ -27,8 +27,24 @@ const SIX_HOURS = 60 * 60 * 6;
 async function write(topic: string, next: CheckCookie): Promise<void> {
   const jar = await cookies();
   jar.set(cookieName(topic), encode(next), {
-    // Scoped to this subject's check: the cookie is never sent anywhere else.
-    path: `/check/${topic}`,
+    /*
+     * Site-wide, and this is the whole of §24 E11's "the anonymous check result
+     * is preserved through signup".
+     *
+     * It was `/check/${topic}`, on the reasoning that a cookie should go no
+     * further than the thing that wrote it — which is right for a secret and
+     * wrong for this one. A path-scoped cookie is not sent to `/start`,
+     * `/today` or `/subjects`, and all three read it: `masteryFromCheck` seeds
+     * a new goal's mastery from it, and `answeredTopics` is what puts "Your
+     * check comes with you" on a subject row. None of them had ever received
+     * it. The carry-in was written, tested against a jar handed straight to the
+     * function, and could not happen in a browser — the failure a unit test
+     * cannot see, because the browser is the part that decides.
+     *
+     * What it holds is item slugs and a 0 or 1 each. It stays `httpOnly` and
+     * `sameSite: lax` and expires in six hours.
+     */
+    path: "/",
     httpOnly: true,
     sameSite: "lax",
     maxAge: SIX_HOURS,
