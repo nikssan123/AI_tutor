@@ -254,6 +254,19 @@ items:
     answerKey:
       concepts: [move-your-feet, change-angle, wait-for-it-to-leave]
 
+  # `separation-shoot` below is a micro_artifact, which the check excludes, so
+  # this skill was unassessable for every learner until this item existed.
+  - slug: separation-tools
+    skill: subject-separation
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A subject is lost against a cluttered background and you cannot move
+      either of them. Name three ways to separate them anyway, and say which one
+      costs you the most if the light is already low.
+    answerKey:
+      concepts: [wider-aperture-for-focus-falloff, find-a-darker-or-brighter-backdrop, change-angle-so-the-background-recedes, wide-aperture-costs-depth-of-field-and-focus-accuracy]
+
   - slug: separation-shoot
     skill: subject-separation
     type: micro_artifact

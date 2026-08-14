@@ -1,4 +1,5 @@
 import { detectCycle } from "@/lib/engine/graph";
+import { gradingModeFor } from "@/lib/engine/diagnostic";
 import type { EngineSkillGraph } from "@/lib/engine/types";
 import { PRODUCTION_ITEM_TYPES, type DomainPack } from "./types";
 
@@ -173,7 +174,16 @@ export function validatePack(pack: DomainPack): ValidationReport {
       );
       continue;
     }
-    itemsBySkill.set(item.skill, (itemsBySkill.get(item.skill) ?? 0) + 1);
+    // Only items the diagnostic can actually serve count towards coverage.
+    // `micro_artifact` is `excluded` by `gradingModeFor` — it is work you hand
+    // in, not a question you answer in ten minutes — so a skill whose entire
+    // bank is micro_artifacts has items and is still unassessable, which is the
+    // exact harm the message below describes. Counting every item made this
+    // rule pass while its own sentence stayed true: four skills across the
+    // shipped packs came back `not-assessed` for every learner, forever.
+    if (gradingModeFor(item.type) !== "excluded") {
+      itemsBySkill.set(item.skill, (itemsBySkill.get(item.skill) ?? 0) + 1);
+    }
 
     if (item.type === "mcq" && (item.options?.length ?? 0) < 2) {
       issues.push(
@@ -208,7 +218,7 @@ export function validatePack(pack: DomainPack): ValidationReport {
       issue(
         "item_coverage",
         pack.maturity === "curated" ? "blocking" : "warning",
-        `skill "${slug}" has no assessment items, so the diagnostic cannot place a learner on it`,
+        `skill "${slug}" has no items the diagnostic can serve, so it cannot place a learner on it`,
       ),
     );
   }

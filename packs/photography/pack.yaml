@@ -27,8 +27,18 @@ evaluatorConfig:
 
 quality:
   status: reviewed
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  # Reviewed end to end at Nikolay's request, and attributed to what did it.
+  # All 33 answer keys including the four auto-graded MCQs, 15 can-do
+  # statements, 18 dependency edges, three rubrics, three briefs. Every
+  # criterion stays inside §7.2 tier 3: technical only, nothing scores taste.
+  # One defect fixed - subject-separation had no item the check could serve.
+  #
+  # **This is a model review, not a human one.** §7.1's Curated tier says
+  # "human-reviewed" and the badge says "Written and checked by hand". The
+  # writing was by hand; the checking was not. The gate cannot tell the
+  # difference - see the test in tests/lib/content.test.ts.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:

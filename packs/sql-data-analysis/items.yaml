@@ -418,6 +418,21 @@ items:
       concepts: [scalar-subquery-computes-the-average, compared-in-the-where-clause, subquery-runs-once-not-per-row]
       mustContain: ["select", "avg"]
 
+  # An item the diagnostic can actually serve. `cte-decompose` below is a
+  # micro_artifact, which `gradingModeFor` excludes from the check — so before
+  # this existed, `ctes` came back "not assessed" for every learner who ever
+  # took it, forever, while the pack validated clean.
+  - slug: cte-vs-subquery
+    skill: ctes
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      A colleague says a CTE is "just a subquery with a nicer name". Name one
+      thing a CTE does that a nested subquery cannot, and one cost of reaching
+      for them by default.
+    answerKey:
+      concepts: [can-be-referenced-more-than-once, recursion-needs-a-cte, may-act-as-an-optimisation-fence, long-chains-hide-where-the-cost-is]
+
   - slug: cte-decompose
     skill: ctes
     type: micro_artifact
@@ -502,6 +517,16 @@ items:
     answerKey:
       mustContain: ["rows between", "preceding"]
 
+  - slug: lag-first-row
+    skill: lag-lead
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      A month-over-month change column is NULL for the earliest month. Explain
+      why, then say what you would show there instead — and why not zero.
+    answerKey:
+      concepts: [no-previous-row-for-lag-to-read, lag-takes-a-default-argument, zero-would-claim-no-change-which-is-a-different-statement]
+
   - slug: lag-period-over-period
     skill: lag-lead
     type: micro_artifact
@@ -531,6 +556,17 @@ items:
     answerKey:
       concepts: [date_trunc-to-month, group-by-the-truncated-value, restrict-to-2026]
       mustContain: ["date_trunc"]
+
+  - slug: cohort-suspicious-hundred
+    skill: cohort-analysis
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      A retention table shows one cohort still at 100% in month 3, while every
+      neighbouring cohort has fallen to about 40%. What do you check first, and
+      what is the most likely explanation?
+    answerKey:
+      concepts: [check-the-cohort-size-not-the-percentage, a-tiny-denominator-makes-100-percent-meaningless, one-or-two-users, always-show-cohort-size-beside-the-share]
 
   - slug: cohort-build
     skill: cohort-analysis

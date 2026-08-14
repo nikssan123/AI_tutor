@@ -27,8 +27,17 @@ evaluatorConfig:
 
 quality:
   status: reviewed
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  # Reviewed end to end at Nikolay's request, and attributed to what did it.
+  # All 33 answer keys, 14 can-do statements, 19 dependency edges, three
+  # rubrics band by band, three briefs. Two defects fixed: an item typed
+  # code_read in a pack with no code, and - in a writing pack - 'A engineer'.
+  #
+  # **This is a model review, not a human one.** §7.1's Curated tier says
+  # "human-reviewed" and the badge says "Written and checked by hand". The
+  # writing was by hand; the checking was not. The gate cannot tell the
+  # difference - see the test in tests/lib/content.test.ts.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 skills:

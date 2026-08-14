@@ -258,6 +258,38 @@ describe("every shipped pack, against the screen that reads it", () => {
    * `concepts` throughout and were unaffected, which is why nothing looked
    * wrong in aggregate.
    */
+  /**
+   * The check can only serve items `gradingModeFor` does not exclude, and it
+   * excludes `micro_artifact` — work you hand in, not a question you answer in
+   * ten minutes. So a skill whose entire item bank is micro_artifacts has items
+   * and is still unassessable: it comes back "not assessed" for every learner
+   * who ever takes the check.
+   *
+   * Four skills were in that state across the shipped packs — three in SQL,
+   * one in photography — while `validatePack` passed them, because its coverage
+   * rule counted every item rather than every *servable* item. The rule counts
+   * correctly now; this asserts the same thing from the other end, against the
+   * engine that actually picks them.
+   */
+  it("can serve at least one item for every skill of every pack", async () => {
+    const { allPacks } = await import("@/lib/content");
+    const { gradingModeFor } = await import("@/lib/engine/diagnostic");
+
+    for (const pack of allPacks()) {
+      const servable = new Set(
+        pack.items
+          .filter((i) => gradingModeFor(i.type) !== "excluded")
+          .map((i) => i.skill),
+      );
+      for (const skill of pack.skills) {
+        expect(
+          servable.has(skill.slug),
+          `${pack.slug}/${skill.slug} can never be assessed by the check`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it("shows a self-marking learner something to mark against", async () => {
     const { allPacks } = await import("@/lib/content");
     const { toDiagnostic } = await import("@/lib/check/session");

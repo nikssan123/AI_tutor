@@ -21,7 +21,7 @@ items:
     type: explain
     difficulty: 0.45
     prompt: >-
-      A engineer sends the board a two-page update full of component names and
+      An engineer sends the board a two-page update full of component names and
       ticket numbers. The board reads none of it. Diagnose the failure in terms
       of audience, and say what the update should have led with instead.
     answerKey:
@@ -53,7 +53,10 @@ items:
 
   - slug: one-thing-buried
     skill: the-one-thing
-    type: code_read
+    # Was `code_read`, in a pack with no code in it. Functionally identical —
+    # both grade as self-marked — but the type vocabulary is data, and "read
+    # this code" is the wrong label for a paragraph of committee prose.
+    type: short_text
     difficulty: 0.5
     prompt: |-
       "Following our review of the Q3 vendor landscape, and after consultation

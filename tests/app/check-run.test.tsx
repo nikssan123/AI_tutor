@@ -104,9 +104,19 @@ describe("the intro", () => {
     );
   });
 
-  it("is never submitted for indexing", async () => {
+  it("is submitted for indexing on exactly its pack's gate", async () => {
+    // Named "is never submitted for indexing" until E4's assessment shipped and
+    // the check earned §12.1's bar. It is gated on `isTopicIndexable` now — the
+    // same review its curriculum sits behind — so this asserts the pairing
+    // rather than a fixed answer, which is what went stale.
+    const { findPack, isTopicIndexable } = await import("@/lib/content");
     const meta = await page.generateMetadata({ params: params() });
-    expect(meta.robots).toEqual({ index: false, follow: true });
+
+    if (isTopicIndexable(findPack("sql-data-analysis")!)) {
+      expect(meta.robots).toBeUndefined();
+    } else {
+      expect(meta.robots).toEqual({ index: false, follow: true });
+    }
   });
 
   it("returns empty metadata for an unknown subject", async () => {
