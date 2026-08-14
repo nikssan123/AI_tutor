@@ -266,11 +266,17 @@ body {
       animation-range: entry var(--reveal-start, 0%) cover 34%;
     }
 
-    /* The showcase surfaces, which are often taller than the viewport. */
+    /*
+     * The showcase surfaces, which are often taller than the viewport. It takes
+     * the same `--reveal-start` offset as `.reveal` — a page can hold a *row*
+     * of showcase surfaces (the five bands of a rubric on a brief page), and
+     * without it they would arrive as one block rather than in the order they
+     * are meant to be read.
+     */
     .settle {
       animation: settle linear both;
       animation-timeline: view();
-      animation-range: entry 5% cover 38%;
+      animation-range: entry calc(5% + var(--reveal-start, 0%)) cover 38%;
     }
 
     .drift {

@@ -13,7 +13,7 @@ import {
   LinkCard,
   MaturityBadge,
   Meta,
-  stagger,
+  revealAt,
 } from "@/components/ui";
 import {
   allPacks,
@@ -110,7 +110,11 @@ export default async function TopicPage({
         />
 
         {/* §8.5.5 bans dense metric grids, and four numbers on separate cards
-            is exactly that. One card, four figures, no chrome per figure. */}
+            is exactly that. One card, four figures, no chrome per figure.
+
+            The figures count themselves in left to right as the card crosses
+            the fold — a row on a vertical timeline, which is the case
+            `revealAt` exists for (§8.5.6's marketing amendment). */}
         <div className="grid grid-cols-2 gap-6 rounded-[var(--radius-card)] bg-surface p-7 shadow-[var(--shadow-raised)] sm:grid-cols-4">
           {[
             ["Skills", String(summary.skillCount)],
@@ -118,7 +122,11 @@ export default async function TopicPage({
             ["Estimated hours", `~${summary.totalHours}`],
             ["Areas", String(areas.length)],
           ].map(([label, value], i) => (
-            <div key={label} className="rise flex flex-col gap-1" style={stagger(i)}>
+            <div
+              key={label}
+              className="reveal flex flex-col gap-1"
+              style={revealAt(i)}
+            >
               <span className="text-[length:var(--text-display-size)] font-[650] leading-none tracking-[var(--text-display-tracking)] text-accent">
                 {value}
               </span>
@@ -149,7 +157,7 @@ export default async function TopicPage({
                 {skills
                   .filter((s) => s.area === area)
                   .map((skill, i) => (
-                    <li key={skill.slug} className="rise" style={stagger(i)}>
+                    <li key={skill.slug} className="reveal" style={revealAt(i)}>
                       <LinkCard href={`/check/${pack.slug}/${skill.slug}`}>
                         <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
                           {skill.name}
@@ -185,7 +193,7 @@ export default async function TopicPage({
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 lg:grid-cols-2">
             {projects.map((project, i) => (
-              <li key={project.slug} className="rise" style={stagger(i)}>
+              <li key={project.slug} className="reveal" style={revealAt(i)}>
                 <LinkCard href={`/projects/${project.slug}`} className="gap-4 p-6">
                   <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
                     {project.title}

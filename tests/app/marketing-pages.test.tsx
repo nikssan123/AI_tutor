@@ -911,6 +911,61 @@ describe("/projects/[slug] — §4.2 law 2", () => {
   });
 });
 
+/**
+ * §8.5.6's marketing amendment, asserted across every route it covers.
+ *
+ * `rise` runs off a clock that starts when the document does, so anything below
+ * the fold carrying it has finished animating before the reader has scrolled to
+ * it — the whole motion budget spent on the one screenful that did not need it.
+ * The landing page keeps it, for the fold alone, and that split is asserted in
+ * its own suite above.
+ *
+ * The four routes a visitor *reads* have no fold to spend it on: they open with
+ * a breadcrumb trail and a page title. Every one of them had `rise` on the whole
+ * page, which is why the pages were reported as having no motion at all — the
+ * motion was real, and over before it could be seen.
+ *
+ * Asserted here rather than per route because it is the sort of thing that comes
+ * back one page at a time: the next person to add a grid copies the nearest one,
+ * and the nearest one is as likely to be an app screen (where `rise` is still
+ * right — those are screens you operate, not documents you scroll) as a
+ * marketing page.
+ */
+describe("the reading routes move with the scroll (§8.5.6)", () => {
+  const reading = [
+    ["/learn", () => learn.default({ searchParams: params({}) })],
+    [
+      "/learn/[topic]",
+      () => topic.default({ params: params({ topic: "sql-data-analysis" }) }),
+    ],
+    ["/projects", () => projects.default()],
+    [
+      "/projects/[slug]",
+      () => project.default({ params: params({ slug: "slow-query-rescue" }) }),
+    ],
+  ] as const;
+
+  it.each(reading)("%s is driven by the scroll, not by a clock", async (_, page) => {
+    const { container } = render(await page());
+
+    expect(container.querySelector(".rise")).toBeNull();
+
+    const moved = [...container.querySelectorAll(".reveal, .settle")];
+    expect(moved.length).toBeGreaterThan(3);
+
+    // The stagger is a range offset rather than a delay, because a view
+    // timeline has no clock to be late against. It is also what lets a row
+    // build left-to-right on a timeline that only measures vertical travel.
+    expect(moved.map((el) => el.getAttribute("style"))).toContain(
+      "--reveal-start: 6%;",
+    );
+
+    // An element carrying both would fight itself: two animations on one
+    // element, and whichever rule the stylesheet emitted last wins.
+    expect(container.querySelector(".rise.reveal, .rise.settle")).toBeNull();
+  });
+});
+
 describe("/check/[topic]/[skill]", () => {
   const p = params({ topic: "sql-data-analysis", skill: "join-grain" });
 

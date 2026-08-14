@@ -797,7 +797,7 @@ Rules: things **grow from where they were tapped** — a row expands into the sc
 
 Every rule in this section was written for a screen you *operate*, where a row that travels is a row you lose track of. A landing page is read, and on a read page "stagger 24ms on first render" means **everything below the fold has finished animating before anyone has seen it** — the entire motion budget is spent on the one screenful that did not need it. The result is what the pages actually were: an entrance at the top and a dead scroll under it.
 
-So the four marketing routes get scroll-linked motion, under constraints that keep it composed rather than playful:
+So the marketing surface gets scroll-linked motion — the landing page and the four routes §8.5.9 calls the ones a visitor *reads* (`/learn`, `/learn/{topic}`, `/projects`, `/projects/{slug}`) — under constraints that keep it composed rather than playful:
 
 | Constraint | Why it is the one that matters |
 |---|---|
@@ -808,7 +808,7 @@ So the four marketing routes get scroll-linked motion, under constraints that ke
 | **`prefers-reduced-motion` removes it, not just its duration** | The global clamp in `tokens.css` cannot help: a scroll-driven animation has no duration to shorten, so it is gated at the declaration |
 | **The stagger is a *range*, not a delay** | A view timeline has no clock. `revealAt(i)` offsets each item's `animation-range` by 6%, which is what lets a horizontal rail build left-to-right on a vertical timeline — `stagger(i)` cannot do that at any speed |
 
-The classes are `reveal`, `settle`, `drift` and `recede`, all in `globals.css`. `rise` stays, and is now the *hero's* animation and nothing else: an element carrying both would fight itself, since the stylesheet's last rule would win. Asserted in `tests/app/marketing-pages.test.tsx`.
+The classes are `reveal`, `settle`, `drift` and `recede`, all in `globals.css`. **`rise` stays, and its territory is now exactly the screens that do not scroll to be read**: the landing page's fold, the running skill check, and everything under `(app)` — screens you *operate*, where the original rule was right and stays. On the four reading routes there is no `rise` at all, which is what makes them read as pages that answer to the scroll rather than pages that finished moving before you arrived. No element carries both: two animations on one element fight, and the stylesheet's last rule would win. Both halves are asserted in `tests/app/marketing-pages.test.tsx` — the split on the landing page, and the absence across the four.
 
 ## 8.5.7 Reconciling restraint with two hard requirements
 

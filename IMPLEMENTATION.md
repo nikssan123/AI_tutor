@@ -2023,3 +2023,155 @@ only page that knows how far along it is.
   reproduced once in four full runs before the file was moved.
 
 2708 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.
+
+---
+
+# Delivery record — pass 24: the pages a visitor reads, and the scroll that reads them
+
+The five public routes — `/`, `/learn`, `/learn/{topic}`, `/projects`,
+`/projects/{slug}` — plus `src/styles/globals.css`, two shared cards in
+`src/components/marketing.tsx`, `revealAt` in the vocabulary, and PLAN §8.5.6's
+marketing amendment. No model is called anywhere in this pass.
+
+## Two faults, and only one of them was the pages
+
+**The pages said the same thing twice and buried the best thing they had.** The
+landing page's seventh cut was five bands, four of which opened with a
+`SectionHead` over a grid of hairline-topped items, so it read as one shape
+repeated until it ran out. A visitor met, in order: a headline, half a screen of
+nothing, a process diagram, three paragraphs of small print about generation
+quality floors, and *then* the marking — the single most convincing artefact the
+product owns, fourth. `/learn` ended in every graded brief in the product,
+twenty-two cards of `4 criteria · 75 min` with no subject attached, which is
+`/projects` reproduced without the two things that make `/projects` legible.
+`/projects` itself was one wall ordered by `difficulty` — a number the reader
+cannot see and would not agree with — with every brief cut at 160 characters
+mid-word.
+
+**And the motion was invisible.** Twenty-seven animations on the landing page
+and the review verdict was "I don't see any animations", which is the correct
+verdict: `rise` runs off a clock that starts when the document does, so
+everything below the fold finished animating before anybody had scrolled to it.
+The entire motion budget was spent on the one screenful that did not need it.
+
+## Why §8.5.6 was amended rather than bent
+
+Every rule in that section — nothing translates more than 20px, state changes
+cross-fade rather than slide, list items stagger 24ms on first render — was
+written for a screen you *operate*, where a row that travels is a row you lose
+track of. A landing page is read. The rule was not too strict for these pages;
+it was written about a different kind of page, and applying it to marketing was
+the mistake.
+
+The amendment is scroll-linked motion under constraints, and the constraint that
+does the work is that it is **CSS only**: `animation-timeline: view()`, driven by
+the compositor off the scroll position. §8.5.8's "marketing routes ship zero
+component-library JS" and §13.1's 80KB budget are untouched — no
+IntersectionObserver, no scroll listener, nothing to hydrate. Roughly forty lines
+in `globals.css`, all of it inside `@supports (animation-timeline: view())` and
+`prefers-reduced-motion: no-preference`, so a browser that cannot drive it gets
+the page exactly as it was. The failure mode of a JS reveal library is a blank
+page; this one cannot have that failure.
+
+## The first cut of the motion was invisible for two reasons, not one
+
+Distance was the obvious half: holding to §8.5.6's literal 20px on a page you
+scroll is motion nobody can see. The half that was not obvious is that the
+ranges ended at `entry 100%` — the moment the element is fully on screen, which
+is the *bottom edge*. Everything was over by the time it reached the part of the
+viewport a person reads. Ranges now end around `cover 34–38%`, about a third of
+the way up. Travel is 48–72px, scale bottoms out at 0.9, and it is `linear`
+throughout, because on a scroll timeline the reader's own scrolling is the
+easing.
+
+## The stagger had to be a range
+
+`stagger(i)` sets `--rise-delay` in milliseconds. A view timeline has no clock,
+so there is nothing to be late against. `revealAt(i)` offsets each item's
+`animation-range` start by 6% instead — which is also the only way a *row* of
+things side by side can build left to right on a timeline that measures vertical
+travel. Both helpers cap at 8 for the same reason: the ninth card would not
+begin until the band was half past.
+
+## One pinned scene, and it teaches
+
+`pin-scene` holds the landing page's marking band for a viewport and a half
+while the rubric ladder builds Absent → Developing → Competent → Strong. It earns
+the scroll because what happens during the pin is the argument in its own order:
+somebody skimming receives it in sequence instead of meeting four paragraphs at
+once.
+
+The load-bearing trick is not the pin. A pinned element's own `view()` timeline
+is **frozen by definition** — it is not moving relative to the viewport — so the
+rungs would sit at whatever frame they stuck on. They are driven by the
+section's *named* timeline (`view-timeline-name: --scene`) instead, which is
+what lets a stationary element be animated by a page that is still scrolling.
+Desktop only: below `lg` the two-pane card is taller than the viewport, and an
+element taller than the viewport cannot stick to the top of it.
+
+## The two routes that finished this pass
+
+`/learn/{topic}` and `/projects/{slug}` were left on the clock while the other
+three moved to the scroll — which is the worst of the three states, because it
+is the one nobody notices. They open with a breadcrumb trail and a title; they
+have no fold to spend an entrance on; and both had `rise` on the whole page.
+
+They have none now. The stat row on a subject counts itself in left to right as
+the card crosses the fold, the skill map and the brief list reveal per area, and
+a brief's rubric bands `settle` — which meant `.settle` had to learn the same
+`--reveal-start` offset `revealAt`'s own doc comment promised it took. A brief
+page holds five showcase surfaces in a grid; without the offset they arrive as
+one block rather than in the order they are meant to be read.
+
+**`rise` is not deprecated, and its territory is now sharp**: the landing page's
+fold, the running skill check, and everything under `(app)`. Those are screens
+you operate rather than documents you scroll, and the original rule is right
+there. What the invariant test asserts is the *boundary* — no `.rise` anywhere on
+the four reading routes, and no element carrying both, since two animations on
+one element fight and the stylesheet's last rule wins.
+
+## What the render found that no test could
+
+**`getComputedStyle` lies about scroll-driven animations.** Probing the live page
+from the console reported `opacity: 1` on every `.reveal` element, including ones
+that were visibly at a fifth of that in the same instant — the animation runs on
+the compositor and the computed style reports the base value. The probe said the
+motion was not running; the screenshot showed it running correctly. **Only the
+picture is evidence here**, which is the same lesson passes 19–22 kept arriving
+at from other directions, and it is worth writing down because the wrong tool
+was the *more* precise-looking one.
+
+Checked in Chrome at 1459×812 on all five routes: the subject page's stat row
+lands fully revealed at rest (it sits high enough that its range has completed
+before anyone scrolls, which is what the fold needs), the skill grid reveals per
+area with the stagger legible across a row, the brief page's rubric cards arrive
+with their ladders filling, and the pinned scene sticks and builds.
+
+## Notes
+
+- **Both claims or neither, on a subject card.** §7.1's maturity says how the
+  material got written; §7.2's tier says what marking it can honour. The card
+  lived twice, character for character, in `/` and `/learn`, and a card carrying
+  one and not the other tells half the story — always the flattering half. They
+  are drawn together in `SubjectCard` now rather than assembled per page.
+- **The landing page dropped both.** Nobody chooses a subject there; the
+  catalogue band is a row list whose closing line names both kinds and sends the
+  reader to `/learn`, where the labels are. Saying less is not the overclaim
+  §4.2 law 3 rules out — implying the hand-written depth covers everything would
+  have been.
+- `excerpt` cuts at a word and then drops stranded punctuation, so a brief no
+  longer ends `you state before you start.…`. Neither `replace` has a branch: a
+  pattern that does not match returns the string it was given.
+- The three notes about *what this band is for* stay per page. The motion is the
+  same everywhere; what the reader came for is not.
+
+## Still open
+
+Unchanged: §24 E8's last two acceptance criteria need the hand-graded corpus §23
+lists as a Phase-0 MUST. It is human work.
+
+E10's internal-link renderer and quality-score job still wait on authored
+`SeoPage` rows, which are E12's. Lighthouse and the GSC/Bing verification need a
+deployed origin.
+
+3120 tests, 100% on all four metrics, `pnpm verify` clean, `pnpm build` clean.

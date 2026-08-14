@@ -10,7 +10,7 @@ import {
   RubricLadder,
   SectionHead,
 } from "@/components/marketing";
-import { LinkCard, Meta, stagger } from "@/components/ui";
+import { LinkCard, Meta, revealAt } from "@/components/ui";
 import { allProjects, findProject } from "@/lib/content";
 import { breadcrumbs, howTo } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
@@ -104,8 +104,8 @@ export default async function ProjectPage({
             {project.acceptanceCriteria.map((criterion, i) => (
               <li
                 key={criterion}
-                className="rise flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-raised)]"
-                style={stagger(i)}
+                className="reveal flex items-start gap-3 rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-raised)]"
+                style={revealAt(i)}
               >
                 <span
                   aria-hidden="true"
@@ -145,12 +145,22 @@ export default async function ProjectPage({
             first, so you can argue with any score on the specifics.
           </Meta>
 
+          {/*
+           * `settle` rather than `reveal`, for the same reason the specimen on
+           * `/projects` and the offer card on `/learn` use it: these are the
+           * page's showcase surfaces, and they arrive as whole objects. The
+           * ladder inside each one builds against its own entrance (§8.5.6's
+           * marketing amendment), so what the reader gets is a card arriving
+           * with its bands filling in — the standard assembling itself in the
+           * order it is meant to be read, which is the one thing on this page
+           * that motion can genuinely say.
+           */}
           <ul className="grid list-none grid-cols-1 gap-5 p-0 m-0 lg:grid-cols-2">
             {criteria.map((criterion, i) => (
               <li
                 key={criterion.id}
-                className="rise rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-lifted)]"
-                style={stagger(i)}
+                className="settle rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-lifted)]"
+                style={revealAt(i)}
               >
                 <RubricLadder criterion={criterion} />
               </li>
@@ -172,7 +182,7 @@ export default async function ProjectPage({
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
             {project.skills.map((skill, i) => (
-              <li key={skill.slug} className="rise" style={stagger(i)}>
+              <li key={skill.slug} className="reveal" style={revealAt(i)}>
                 <LinkCard href={`/check/${project.topicSlug}/${skill.slug}`}>
                   <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
                     {skill.name}

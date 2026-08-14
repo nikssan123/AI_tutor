@@ -17,6 +17,7 @@ import {
   LinkCard,
   MaturityBadge,
   Meta,
+  revealAt,
   Row,
   RowList,
   Skeleton,
@@ -149,6 +150,27 @@ describe("stagger", () => {
   it("caps the delay so a long list does not out-wait the reader", () => {
     // 24ms × 26 skills would leave the last row arriving 600ms late.
     expect(stagger(50)).toEqual(stagger(8));
+  });
+});
+
+/**
+ * `stagger`'s counterpart for the scroll-driven classes (§8.5.6's marketing
+ * amendment). A view timeline has no clock, so there is no delay to stagger —
+ * what an item gets instead is a later *start* to its range, which is also the
+ * only way a row of things side by side can build left-to-right on a timeline
+ * that measures vertical travel.
+ */
+describe("revealAt", () => {
+  it("offsets the range rather than delaying a clock", () => {
+    expect(revealAt(0)).toEqual({ "--reveal-start": "0%" });
+    expect(revealAt(3)).toEqual({ "--reveal-start": "18%" });
+  });
+
+  it("caps the offset so a long row still starts before the band is past", () => {
+    // The ninth card in a grid would otherwise not begin until the section had
+    // travelled half the viewport — which is the same failure the amendment is
+    // about, arriving from the other direction.
+    expect(revealAt(50)).toEqual(revealAt(8));
   });
 });
 
