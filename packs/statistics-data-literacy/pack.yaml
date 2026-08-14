@@ -1,0 +1,242 @@
+# Statistics & Data Literacy — Standard Domain Pack
+#
+# §7.1's launch list, and the natural companion to SQL: that pack teaches you to
+# get the number, this one teaches you whether to believe it.
+#
+# **Standard, not Curated.** Authored by a model against §7.1's schema, validated,
+# and read by nobody yet. `quality.reviewedBy` stays `unreviewed`, which keeps it
+# out of the sitemap.
+#
+# **Tier 2.** The Text workspace, marked against a published checklist. Tier 1
+# would mean executing something and asserting the result, and there is no
+# evaluator here that does. Most of what this subject teaches is judgement about
+# whether a claim is supported — which is markable by reading, and is exactly
+# what tier 2 licenses.
+
+slug: statistics-data-literacy
+name: Statistics & Data Literacy
+taxonomyParent: technology
+maturity: standard
+evalTier: 2
+workspace: text
+
+evaluatorConfig:
+  model: opus
+  passes: 2
+  verifier: quote-match
+  tools: []
+
+quality:
+  status: draft
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- describing ------------------------------------------------------------
+  - slug: summarising-a-distribution
+    name: Summarising a distribution
+    description: >-
+      Mean, median and spread, and choosing between them by looking at the shape
+      rather than by habit. A mean reported for a skewed distribution is not
+      wrong so much as misleading.
+    level: foundational
+    area: describing
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Choose a summary statistic that fits the distribution's shape and say why the other would mislead
+    observableEvidence: [explanation, chart]
+    bktPriors: { pInit: 0.25, pLearn: 0.22, pSlip: 0.1, pGuess: 0.15 }
+
+  - slug: variation-and-spread
+    name: Variation and spread
+    description: >-
+      Why the average alone is almost never the answer, and how to say how much
+      the thing varies in units a reader can picture.
+    level: foundational
+    area: describing
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Report a spread alongside a central figure, in units the reader can act on
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: reading-a-chart
+    name: Reading a chart honestly
+    description: >-
+      Axis truncation, dual axes, cumulative totals presented as growth, and the
+      other ways a chart tells the truth and misleads anyway.
+    level: foundational
+    area: describing
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Name what a chart's construction is doing to the reader's impression, and redraw it fairly
+    observableEvidence: [explanation, chart]
+    bktPriors: { pInit: 0.2, pLearn: 0.22, pSlip: 0.11, pGuess: 0.12 }
+
+  # --- sampling --------------------------------------------------------------
+  - slug: population-and-sample
+    name: Population and sample
+    description: >-
+      What the number you have is a number *about*, and the gap between the group
+      you measured and the group you want to talk about.
+    level: core
+    area: sampling
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: State precisely which population a figure supports a claim about, and which it does not
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.18, pSlip: 0.13, pGuess: 0.08 }
+
+  - slug: sampling-bias
+    name: Sampling bias
+    description: >-
+      Survivorship, self-selection and non-response — the three that account for
+      most confidently wrong business numbers.
+    level: core
+    area: sampling
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Identify who is missing from a dataset and say which direction their absence pushes the result
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.17, pSlip: 0.13, pGuess: 0.06 }
+
+  - slug: sample-size-intuition
+    name: Sample size intuition
+    description: >-
+      Why a 100% conversion rate on three users is not news, and roughly how much
+      data a difference of a given size needs before it means anything.
+    level: core
+    area: sampling
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Say whether a reported difference is large enough to distinguish from noise at the sample size given
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.14, pGuess: 0.06 }
+
+  # --- uncertainty -----------------------------------------------------------
+  - slug: uncertainty-intervals
+    name: Uncertainty and intervals
+    description: >-
+      Reporting a range rather than a point, and what a confidence interval does
+      and does not claim.
+    level: advanced
+    area: uncertainty
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Report a figure as a range and state correctly what the range means
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.14, pSlip: 0.15, pGuess: 0.05 }
+
+  - slug: significance-misread
+    name: What significance does not mean
+    description: >-
+      Statistical significance is a statement about noise, not about size or
+      importance, and p-values are the most misquoted number in business.
+    level: advanced
+    area: uncertainty
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Correct a claim that treats a significant result as a large or important one
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.14, pGuess: 0.06 }
+
+  - slug: multiple-comparisons
+    name: Looking until you find something
+    description: >-
+      Test twenty things and one will look remarkable. Why slicing a dashboard
+      until a segment "pops" is a way of manufacturing findings.
+    level: specialist
+    area: uncertainty
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Recognise a finding produced by repeated slicing and say what would test it properly
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.04, pLearn: 0.13, pSlip: 0.15, pGuess: 0.04 }
+
+  # --- inference -------------------------------------------------------------
+  - slug: correlation-and-cause
+    name: Correlation and cause
+    description: >-
+      Confounding, reverse causation and coincidence — and the specific question
+      to ask of any claim that one thing drove another.
+    level: core
+    area: inference
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Name a plausible confounder for a causal claim and say what evidence would rule it out
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.15, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: base-rates
+    name: Base rates
+    description: >-
+      Why a 95%-accurate test for a rare thing is mostly wrong when it fires, and
+      how to reason about it without the algebra.
+    level: advanced
+    area: inference
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Work out how often a positive result is actually correct, given the underlying rate
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.15, pSlip: 0.14, pGuess: 0.05 }
+
+  - slug: experiment-basics
+    name: Reading an experiment
+    description: >-
+      What randomisation buys you, what a control group is for, and the ways a
+      real A/B test goes wrong before anyone looks at the numbers.
+    level: advanced
+    area: inference
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Judge whether an experiment's design supports the conclusion drawn from it
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.14, pGuess: 0.05 }
+
+  # --- communicating ---------------------------------------------------------
+  - slug: reporting-a-number
+    name: Reporting a number responsibly
+    description: >-
+      Significant figures, denominators, and saying what the figure excludes.
+      A precise-looking number is a claim about precision.
+    level: core
+    area: communicating
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Report a figure with its denominator, its exclusions and no more precision than it has
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.19, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: challenging-a-claim
+    name: Challenging a claim
+    description: >-
+      The short list of questions that finds the weakness in almost any
+      data-backed assertion, and how to ask them without a fight.
+    level: specialist
+    area: communicating
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Take a data-backed claim apart into its assumptions and name which one is load-bearing
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.14, pSlip: 0.14, pGuess: 0.05 }
+
+dependencies:
+  - { from: summarising-a-distribution, to: variation-and-spread, type: hard }
+  - { from: summarising-a-distribution, to: reading-a-chart, type: soft, strength: 0.5 }
+  - { from: variation-and-spread, to: population-and-sample, type: hard }
+  - { from: population-and-sample, to: sampling-bias, type: hard }
+  - { from: population-and-sample, to: sample-size-intuition, type: hard }
+  - { from: variation-and-spread, to: sample-size-intuition, type: hard }
+  - { from: sample-size-intuition, to: uncertainty-intervals, type: hard }
+  - { from: uncertainty-intervals, to: significance-misread, type: hard }
+  - { from: significance-misread, to: multiple-comparisons, type: hard }
+  - { from: population-and-sample, to: correlation-and-cause, type: hard }
+  - { from: correlation-and-cause, to: experiment-basics, type: hard }
+  - { from: uncertainty-intervals, to: experiment-basics, type: soft, strength: 0.7 }
+  - { from: population-and-sample, to: base-rates, type: hard }
+  - { from: summarising-a-distribution, to: reporting-a-number, type: hard }
+  - { from: variation-and-spread, to: reporting-a-number, type: hard }
+  - { from: correlation-and-cause, to: challenging-a-claim, type: hard }
+  - { from: sampling-bias, to: challenging-a-claim, type: hard }
+  - { from: reporting-a-number, to: challenging-a-claim, type: soft, strength: 0.6 }

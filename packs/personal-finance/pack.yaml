@@ -1,0 +1,239 @@
+# Personal Finance & Investing — Standard Domain Pack
+#
+# §7.1's launch list. Chosen for the business branch because it is the one
+# subject on that list where the work a learner produces is unambiguously
+# checkable: a budget either reconciles or it does not, a projection either
+# states its assumptions or it does not.
+#
+# **Standard, not Curated** — authored by a model, validated, unread by a human.
+#
+# **Tier 2**, Text workspace. It could be Query & Sheet, and a curated version
+# should be: a spreadsheet model is exactly the artefact this subject produces.
+# It is Text here because the tier-1 claim on that workspace is "execute and
+# assert", and nothing built executes a spreadsheet.
+#
+# ── The line this pack does not cross ──────────────────────────────────────
+#
+# Nothing here recommends a product, a provider, an allocation or a course of
+# action, and no rubric criterion scores whether a learner's decision was
+# *correct*. That is regulated advice, and it is also unknowable: whether a
+# given portfolio was right depends on facts about a person this product does
+# not have and on a future nobody has.
+#
+# What is markable is the *reasoning*: whether the arithmetic holds, whether the
+# assumptions are stated, whether the risks are named, whether the plan survives
+# its own stress test. §4.2 law 3 in a domain where overclaiming is not merely
+# dishonest but harmful.
+
+slug: personal-finance
+name: Personal Finance & Investing
+taxonomyParent: business
+maturity: standard
+evalTier: 2
+workspace: text
+
+evaluatorConfig:
+  model: opus
+  passes: 2
+  verifier: quote-match
+  tools: []
+
+quality:
+  status: draft
+  reviewedBy: unreviewed # ← set to your name once you have read this end to end
+  reviewedAt: null
+  score: null
+
+skills:
+  # --- position --------------------------------------------------------------
+  - slug: knowing-where-you-stand
+    name: Knowing where you stand
+    description: >-
+      Assets, liabilities and the one number that is actually your position.
+      Most people can name their salary and not their net worth.
+    level: foundational
+    area: position
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Produce a net-worth statement that reconciles and states what it excludes
+    observableEvidence: [spreadsheet, explanation]
+    bktPriors: { pInit: 0.2, pLearn: 0.22, pSlip: 0.1, pGuess: 0.12 }
+
+  - slug: cashflow-not-salary
+    name: Cashflow, not salary
+    description: >-
+      What actually arrives and what actually leaves, monthly, including the
+      annual bills people forget and the irregular income people over-count.
+    level: foundational
+    area: position
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Build a monthly cashflow that includes annualised irregular costs and reconciles to a bank statement
+    observableEvidence: [spreadsheet]
+    bktPriors: { pInit: 0.18, pLearn: 0.2, pSlip: 0.11, pGuess: 0.1 }
+
+  - slug: emergency-buffer
+    name: The buffer before anything else
+    description: >-
+      Why liquid savings come before investing and before extra debt repayment,
+      and how to size one from your own fixed costs rather than a rule of thumb.
+    level: foundational
+    area: position
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Size a cash buffer from your own fixed outgoings and justify the number of months
+    observableEvidence: [explanation, spreadsheet]
+    bktPriors: { pInit: 0.15, pLearn: 0.21, pSlip: 0.11, pGuess: 0.1 }
+
+  # --- money-over-time -------------------------------------------------------
+  - slug: compounding
+    name: Compounding
+    description: >-
+      Why time matters more than rate over long horizons, and how to compute it
+      rather than repeat the slogan.
+    level: core
+    area: money-over-time
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Project a balance forward under compounding and show the working
+    observableEvidence: [spreadsheet, explanation]
+    bktPriors: { pInit: 0.12, pLearn: 0.2, pSlip: 0.12, pGuess: 0.1 }
+
+  - slug: inflation-and-real-returns
+    name: Real returns
+    description: >-
+      A 5% return in a 4% inflation year is a 1% return. Reasoning in real terms
+      rather than nominal ones, and saying which you are quoting.
+    level: core
+    area: money-over-time
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Convert a nominal figure to a real one and state which basis a projection is on
+    observableEvidence: [spreadsheet, explanation]
+    bktPriors: { pInit: 0.1, pLearn: 0.18, pSlip: 0.13, pGuess: 0.08 }
+
+  - slug: cost-of-debt
+    name: The cost of debt
+    description: >-
+      APR versus flat rates, what a minimum payment actually costs over time, and
+      ordering repayments by interest rate rather than by balance.
+    level: core
+    area: money-over-time
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Compare two repayment orders by total interest paid, with the arithmetic shown
+    observableEvidence: [spreadsheet]
+    bktPriors: { pInit: 0.1, pLearn: 0.19, pSlip: 0.12, pGuess: 0.08 }
+
+  # --- risk ------------------------------------------------------------------
+  - slug: risk-and-volatility
+    name: Risk is not just volatility
+    description: >-
+      The difference between a price that moves and a permanent loss, and why the
+      horizon you will actually need the money on decides which matters.
+    level: advanced
+    area: risk
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Distinguish volatility from risk of loss for a stated horizon and goal
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.07, pLearn: 0.15, pSlip: 0.14, pGuess: 0.06 }
+
+  - slug: diversification
+    name: Diversification
+    description: >-
+      What spreading holdings does and does not protect against, and why
+      correlation matters more than count.
+    level: advanced
+    area: risk
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Explain what a given spread of holdings protects against and what it leaves exposed
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.08, pLearn: 0.16, pSlip: 0.13, pGuess: 0.07 }
+
+  - slug: fees-and-drag
+    name: Fees and drag
+    description: >-
+      Why a 1% annual fee is not a 1% cost, and how to compute the lifetime drag
+      of a charge rather than glance at it.
+    level: core
+    area: risk
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Compute the lifetime cost of a percentage fee against a stated horizon
+    observableEvidence: [spreadsheet]
+    bktPriors: { pInit: 0.08, pLearn: 0.18, pSlip: 0.12, pGuess: 0.08 }
+
+  # --- decisions -------------------------------------------------------------
+  - slug: stating-assumptions
+    name: Stating assumptions
+    description: >-
+      Every plan rests on a return, an inflation rate and a horizon. A plan that
+      does not say which is not a plan, it is a hope with a spreadsheet.
+    level: core
+    area: decisions
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: List every assumption a projection depends on, with the value used for each
+    observableEvidence: [spreadsheet, explanation]
+    bktPriors: { pInit: 0.1, pLearn: 0.2, pSlip: 0.12, pGuess: 0.08 }
+
+  - slug: stress-testing
+    name: Stress testing a plan
+    description: >-
+      What happens to the plan if income stops for six months, if returns are
+      three points lower, if the horizon shortens. Where it breaks first.
+    level: advanced
+    area: decisions
+    evalTier: 2
+    estimatedHours: 2.5
+    canDoStatement: Break your own plan under a stated adverse scenario and say what breaks first
+    observableEvidence: [spreadsheet, explanation]
+    bktPriors: { pInit: 0.05, pLearn: 0.14, pSlip: 0.15, pGuess: 0.05 }
+
+  - slug: tax-wrappers
+    name: Tax-advantaged accounts
+    description: >-
+      The general shape of tax-advantaged saving — contribute-before-tax versus
+      withdraw-tax-free, and why the wrapper is usually a bigger lever than the
+      holding inside it.
+    level: advanced
+    area: decisions
+    evalTier: 2
+    estimatedHours: 2
+    canDoStatement: Explain the mechanism of a tax wrapper and identify what you would need to check for your own jurisdiction
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.06, pLearn: 0.15, pSlip: 0.15, pGuess: 0.06 }
+
+  - slug: spotting-bad-advice
+    name: Spotting bad advice
+    description: >-
+      Guaranteed returns, urgency, complexity presented as sophistication, and
+      the incentive of whoever is telling you. The most valuable skill here.
+    level: specialist
+    area: decisions
+    evalTier: 2
+    estimatedHours: 1.5
+    canDoStatement: Identify who is paid by a recommendation and name the specific claim that cannot be true
+    observableEvidence: [explanation]
+    bktPriors: { pInit: 0.09, pLearn: 0.18, pSlip: 0.12, pGuess: 0.08 }
+
+dependencies:
+  - { from: knowing-where-you-stand, to: cashflow-not-salary, type: hard }
+  - { from: cashflow-not-salary, to: emergency-buffer, type: hard }
+  - { from: knowing-where-you-stand, to: compounding, type: soft, strength: 0.5 }
+  - { from: compounding, to: inflation-and-real-returns, type: hard }
+  - { from: compounding, to: cost-of-debt, type: hard }
+  - { from: cashflow-not-salary, to: cost-of-debt, type: hard }
+  - { from: compounding, to: fees-and-drag, type: hard }
+  - { from: inflation-and-real-returns, to: risk-and-volatility, type: hard }
+  - { from: risk-and-volatility, to: diversification, type: hard }
+  - { from: emergency-buffer, to: risk-and-volatility, type: soft, strength: 0.6 }
+  - { from: compounding, to: stating-assumptions, type: hard }
+  - { from: inflation-and-real-returns, to: stating-assumptions, type: hard }
+  - { from: stating-assumptions, to: stress-testing, type: hard }
+  - { from: diversification, to: stress-testing, type: soft, strength: 0.7 }
+  - { from: stating-assumptions, to: tax-wrappers, type: soft, strength: 0.5 }
+  - { from: fees-and-drag, to: spotting-bad-advice, type: hard }
+  - { from: diversification, to: spotting-bad-advice, type: hard }

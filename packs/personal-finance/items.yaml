@@ -1,0 +1,356 @@
+# Diagnostic and retrieval item bank.
+#
+# §16.4 — production items outnumber multiple-choice at least 2:1.
+#
+# Only `correct` and `concepts` are read by anything; `concepts` is what a
+# learner self-marks against. Every free-text item carries one, and no skill has
+# `micro_artifact` as its only item — the check excludes those.
+#
+# **No item asks what a learner should do with their money.** Every one asks
+# about a mechanism, an arithmetic consequence, or a stated assumption. See the
+# note at the top of pack.yaml.
+
+items:
+  # --- knowing-where-you-stand -----------------------------------------------
+  - slug: networth-what-counts
+    skill: knowing-where-you-stand
+    type: explain
+    difficulty: 0.25
+    prompt: >-
+      Someone lists their car, their pension, their mortgage and their student
+      loan. Say which side of a net-worth statement each belongs on, and name one
+      of the four that is commonly left out entirely.
+    answerKey:
+      concepts: [car-and-pension-are-assets, mortgage-and-student-loan-are-liabilities, pension-is-the-one-people-omit, value-assets-at-what-you-would-actually-get]
+
+  - slug: networth-excludes
+    skill: knowing-where-you-stand
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Why should a net-worth statement say what it excludes, and name two things
+      commonly excluded that materially change the picture.
+    answerKey:
+      concepts: [a-number-without-scope-is-not-checkable, future-pension-entitlements, illiquid-or-hard-to-value-assets]
+
+  - slug: networth-mcq
+    skill: knowing-where-you-stand
+    type: mcq
+    difficulty: 0.3
+    prompt: Your salary rises by £5,000 and your spending rises by £5,000. What happens to net worth?
+    options:
+      - It rises, because income rose
+      - It is unchanged, because nothing was retained
+      - It falls, because of tax
+      - It cannot be determined without the interest rate
+    answerKey: { correct: 1 }
+
+  # --- cashflow-not-salary ---------------------------------------------------
+  - slug: cashflow-annualise
+    skill: cashflow-not-salary
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      List four costs that do not arrive monthly but must appear in a monthly
+      cashflow, and say how you would put them there.
+    answerKey:
+      concepts: [insurance-and-car-costs-and-subscriptions-and-gifts, divide-the-annual-figure-by-twelve, set-it-aside-monthly-so-the-month-it-lands-is-not-a-shock]
+
+  - slug: cashflow-reconcile
+    skill: cashflow-not-salary
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      A budget says £340 should be left at month end; the account is £90 short,
+      every month, consistently. Explain what a *consistent* gap tells you that a
+      variable one would not, and how you would find it.
+    answerKey:
+      concepts: [consistent-means-a-missing-recurring-item-not-overspending, reconcile-against-the-statement-line-by-line, look-for-annualised-or-forgotten-direct-debits]
+
+  # --- emergency-buffer ------------------------------------------------------
+  - slug: buffer-size
+    skill: emergency-buffer
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      "Three to six months of expenses" is the usual rule. Say what "expenses"
+      should mean here, and name two circumstances that push the right number
+      towards the higher end.
+    answerKey:
+      concepts: [fixed-and-essential-outgoings-not-total-spending, unstable-or-single-income, long-notice-or-slow-to-replace-role, dependants]
+
+  - slug: buffer-order
+    skill: emergency-buffer
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Explain the argument for holding cash earning little while carrying debt
+      that costs more. Then give the case against, and say what fact decides it.
+    answerKey:
+      concepts: [buffer-prevents-borrowing-at-worse-rates-in-a-shock, mathematically-the-debt-costs-more, the-deciding-fact-is-access-to-affordable-credit-in-an-emergency]
+
+  # --- compounding -----------------------------------------------------------
+  - slug: compound-project
+    skill: compounding
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      £5,000 grows at 6% a year for 10 years with nothing added. Show how you
+      would compute the balance and give it to the nearest hundred.
+    answerKey:
+      concepts: [multiply-by-1.06-ten-times, about-8950, not-5000-plus-3000-of-simple-interest]
+
+  - slug: compound-time-vs-rate
+    skill: compounding
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Two savers end with similar balances: one started 10 years earlier at a
+      lower rate. Explain why starting earlier can beat a higher rate, and when
+      it cannot.
+    answerKey:
+      concepts: [growth-is-exponential-in-time, early-contributions-compound-for-longest, a-large-enough-rate-gap-still-wins-over-long-horizons]
+
+  - slug: compound-mcq
+    skill: compounding
+    type: mcq
+    difficulty: 0.35
+    prompt: At roughly what annual rate does money double in about 10 years?
+    options:
+      - "About 3%"
+      - "About 7%"
+      - "About 12%"
+      - "About 20%"
+    answerKey: { correct: 1 }
+
+  # --- inflation-and-real-returns --------------------------------------------
+  - slug: real-return-compute
+    skill: inflation-and-real-returns
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      A savings account pays 4.5% in a year when inflation is 6%. State the real
+      return and what it means in plain words.
+    answerKey:
+      concepts: [roughly-minus-1.5-percent, the-balance-grew-but-buys-less, nominal-gain-real-loss]
+
+  - slug: real-projection-basis
+    skill: inflation-and-real-returns
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A 30-year projection shows "£1.2 million". Why is that number close to
+      meaningless without one more word, and what should the projection state?
+    answerKey:
+      concepts: [nominal-or-real-changes-the-meaning-entirely, todays-money-is-the-useful-basis, state-the-inflation-assumption-used]
+
+  # --- cost-of-debt ----------------------------------------------------------
+  - slug: debt-minimum-payment
+    skill: cost-of-debt
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A card balance of £3,000 at 22% APR with minimum payments only. Explain,
+      without exact arithmetic, why this takes many years and roughly what
+      dominates the early payments.
+    answerKey:
+      concepts: [minimum-is-mostly-interest-early-on, principal-barely-moves, the-term-stretches-to-many-years, paying-anything-above-the-minimum-changes-it-sharply]
+
+  - slug: debt-order
+    skill: cost-of-debt
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Two debts: £1,000 at 25% and £6,000 at 6%. Say which order costs least in
+      total interest, and name the argument for the other order.
+    answerKey:
+      concepts: [highest-rate-first-costs-least, smallest-balance-first-gives-an-earlier-win, the-second-is-a-behavioural-argument-not-an-arithmetic-one]
+
+  - slug: debt-mcq
+    skill: cost-of-debt
+    type: mcq
+    difficulty: 0.4
+    prompt: A "0% for 18 months" balance transfer with a 3% transfer fee. What is the honest way to describe its cost?
+    options:
+      - It is free for 18 months
+      - About 3% for 18 months, then the standard rate
+      - 3% per year
+      - Cheaper than any repayment plan
+    answerKey: { correct: 1 }
+
+  # --- risk-and-volatility ---------------------------------------------------
+  - slug: risk-vs-volatility
+    skill: risk-and-volatility
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Explain the difference between a holding that moves a lot and a holding
+      that might not come back, and say why the horizon you need the money on
+      decides which one you should care about.
+    answerKey:
+      concepts: [volatility-is-movement-loss-is-permanent, a-long-horizon-can-wait-out-movement, money-needed-soon-cannot, matching-horizon-to-holding]
+
+  - slug: risk-horizon-short
+    skill: risk-and-volatility
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      Money is needed for a house deposit in 14 months. Say what property of a
+      holding matters most here and why, without naming a product.
+    answerKey:
+      concepts: [certainty-of-nominal-value-on-the-date-needed, a-drop-cannot-be-waited-out, accepting-a-lower-expected-return-buys-that-certainty]
+
+  # --- diversification -------------------------------------------------------
+  - slug: diversify-correlation
+    skill: diversification
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Someone holds twenty companies, all in the same industry, and calls it
+      diversified. Explain what they are protected against and what they are not.
+    answerKey:
+      concepts: [protected-against-one-company-failing, not-protected-against-the-sector-turning, correlation-matters-more-than-count]
+
+  - slug: diversify-mcq
+    skill: diversification
+    type: mcq
+    difficulty: 0.45
+    prompt: Diversification most reliably reduces which of these?
+    options:
+      - The chance of any loss at all
+      - The impact of one holding going badly wrong
+      - The effect of a market-wide fall
+      - The fees you pay
+    answerKey: { correct: 1 }
+
+  # --- fees-and-drag ---------------------------------------------------------
+  - slug: fees-lifetime
+    skill: fees-and-drag
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      Explain why a 1% annual fee costs far more than 1% of the final balance
+      over 30 years, in terms a person could repeat to someone else.
+    answerKey:
+      concepts: [the-fee-is-taken-every-year-on-a-growing-balance, it-removes-the-growth-that-money-would-have-produced, the-loss-compounds-alongside-the-gains]
+
+  - slug: fees-compare
+    skill: fees-and-drag
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      Say what you would need to know to compare two options quoting 0.2% and
+      0.9% annual charges, beyond the two percentages.
+    answerKey:
+      concepts: [the-horizon, whether-other-charges-exist-transaction-or-platform, what-each-actually-holds]
+
+  # --- stating-assumptions ---------------------------------------------------
+  - slug: assumptions-list
+    skill: stating-assumptions
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      List every assumption a "retire at 60" projection depends on. Aim for at
+      least five.
+    answerKey:
+      concepts: [return-rate, inflation-rate, contribution-amount-and-continuity, horizon-and-retirement-age, spending-in-retirement, tax-treatment]
+
+  - slug: assumptions-sensitivity
+    skill: stating-assumptions
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Of the assumptions in a long projection, which one usually moves the answer
+      most, and why is that the one to state first?
+    answerKey:
+      concepts: [the-return-rate-compounds-over-the-whole-horizon, small-changes-produce-large-differences, state-it-with-a-range-not-a-point]
+
+  # --- stress-testing --------------------------------------------------------
+  - slug: stress-break-first
+    skill: stress-testing
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      Take a plan that works on its central assumptions. Describe how you would
+      find what breaks *first* when things go wrong, rather than testing one
+      disaster at a time.
+    answerKey:
+      concepts: [vary-one-assumption-at-a-time-to-find-the-sensitive-one, then-combine-the-plausible-ones, identify-the-first-point-the-plan-fails-not-the-worst-case]
+
+  - slug: stress-income-stop
+    skill: stress-testing
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Take your own plan or a worked example. Model income stopping for six
+      months. Submit the before and after, and one line on the first thing that
+      breaks.
+    answerKey:
+      concepts: [buffer-depletes-first, then-which-commitment-cannot-be-met, states-the-month-it-happens]
+
+  - slug: stress-mcq
+    skill: stress-testing
+    type: mcq
+    difficulty: 0.5
+    prompt: A plan survives every single-variable stress test but fails when two move together. This mainly shows…
+    options:
+      - The plan is fine; two things rarely move together
+      - Adverse conditions correlate, so joint tests matter
+      - The single-variable tests were wrong
+      - The plan needs a higher return assumption
+    answerKey: { correct: 1 }
+
+  # --- tax-wrappers ----------------------------------------------------------
+  - slug: wrapper-mechanism
+    skill: tax-wrappers
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      Describe the two broad shapes of tax-advantaged account — relief going in
+      versus tax-free coming out — and what fact about a person decides which
+      suits them better. Do not name specific products or jurisdictions.
+    answerKey:
+      concepts: [relief-now-taxed-later-versus-taxed-now-free-later, the-comparison-is-your-tax-rate-now-against-in-retirement, both-shelter-growth-in-between]
+
+  - slug: wrapper-check
+    skill: tax-wrappers
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      You have understood the general mechanism. List what you would still need
+      to check before acting, and say why this pack cannot tell you.
+    answerKey:
+      concepts: [jurisdiction-specific-limits-and-rules, your-own-rate-and-circumstances, rules-change-and-this-is-general-education-not-advice]
+
+  # --- spotting-bad-advice ---------------------------------------------------
+  - slug: advice-incentive
+    skill: spotting-bad-advice
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      What is the first question to ask about any financial recommendation, and
+      what are you looking for in the answer?
+    answerKey:
+      concepts: [who-is-paid-and-how, commission-or-fee-or-neither, an-incentive-does-not-make-it-wrong-but-changes-what-to-verify]
+
+  - slug: advice-impossible-claim
+    skill: spotting-bad-advice
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      "Guaranteed 12% annual returns, capital protected." Name the specific claim
+      that cannot be true as stated, and say why.
+    answerKey:
+      concepts: [guaranteed-and-high-return-cannot-coexist, return-compensates-for-risk, a-real-guarantee-is-only-as-good-as-the-guarantor]
+
+  - slug: advice-mcq
+    skill: spotting-bad-advice
+    type: mcq
+    difficulty: 0.35
+    prompt: Which is the strongest single warning sign in a pitch?
+    options:
+      - It uses technical language you do not know
+      - It presses you to decide before a deadline
+      - It has performed well recently
+      - It is not something your friends hold
+    answerKey: { correct: 1 }

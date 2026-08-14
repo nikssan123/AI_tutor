@@ -1,0 +1,143 @@
+# Rubrics.
+#
+# §4.2 law 2 — public before the work is done.
+#
+# Tier 2, Text workspace: every criterion is markable by reading the submission.
+# Nothing here scores whether the learner's statistics are *right* in a way that
+# needs computation — the evaluator cannot run anything. What it can check is
+# whether a claim is supported by what is on the page, which is the actual skill
+# this subject teaches.
+
+rubrics:
+  - slug: claim-audit
+    version: 1
+    isPublic: true
+    criteria:
+      - id: population-named
+        name: The population is named
+        description: >-
+          The submission says precisely which group the figure describes, and
+          which group the claim is about.
+        weight: 0.25
+        bands:
+          absent: Treats the sample as the population without noticing.
+          developing: Mentions the sample but not the gap to the population of interest.
+          competent: Names both groups and the gap between them.
+          strong: Names both, and says which direction the gap pushes the result.
+      - id: weakness-located
+        name: The load-bearing assumption is found
+        description: >-
+          The critique identifies the one assumption the claim actually rests on,
+          rather than listing every possible objection.
+        weight: 0.3
+        bands:
+          absent: No assumption identified, or the critique attacks the conclusion directly.
+          developing: Several objections listed with no view on which matters most.
+          competent: One assumption named as load-bearing, with a reason.
+          strong: Named, reasoned, and the weaker objections explicitly set aside.
+      - id: test-proposed
+        name: Something that would settle it
+        description: >-
+          A concrete piece of evidence or a specific analysis that would confirm
+          or kill the claim.
+        weight: 0.3
+        bands:
+          absent: No test proposed, or "we need more data".
+          developing: A direction is suggested but not something anyone could act on.
+          competent: A specific, obtainable test with a stated expected outcome.
+          strong: Specific, obtainable, and says what result would change the author's own mind.
+      - id: proportionate
+        name: The critique is proportionate
+        description: The response matches the stakes and stays usable by the person who made the claim.
+        weight: 0.15
+        bands:
+          absent: Dismissive, or so hedged it makes no point.
+          developing: Correct but adversarial, or buried in caveats.
+          competent: Direct, specific, and collaborative.
+          strong: Reads as help rather than correction, without softening the point.
+
+  - slug: honest-summary
+    version: 1
+    isPublic: true
+    criteria:
+      - id: right-statistic
+        name: The summary statistic fits the data
+        description: The choice of mean, median or percentile is justified by the shape described.
+        weight: 0.3
+        bands:
+          absent: A mean reported for an obviously skewed distribution, unremarked.
+          developing: A defensible statistic chosen, with no reason given.
+          competent: The right statistic with a stated reason drawn from the shape.
+          strong: Right, reasoned, and the discarded alternative named with what it would have implied.
+      - id: spread-present
+        name: Variation is reported, not just the centre
+        description: The reader can tell how much the quantity varies, not only where it sits.
+        weight: 0.25
+        bands:
+          absent: A single number with no indication of spread.
+          developing: Spread mentioned qualitatively but not quantified.
+          competent: A concrete spread figure in the same units as the centre.
+          strong: Spread given as the figure a reader would act on, such as a high percentile.
+      - id: precision-honest
+        name: No more precision than the data supports
+        description: Figures are rounded to what the sample can bear, and denominators are present.
+        weight: 0.25
+        bands:
+          absent: Several decimal places on a small sample, or a percentage with no denominator.
+          developing: Denominator present, precision overstated, or vice versa.
+          competent: Sensible rounding and a visible denominator.
+          strong: Both, plus a stated note on what the figure excludes.
+      - id: readable
+        name: A non-specialist can act on it
+        description: The summary is written for the decision-maker, not for another analyst.
+        weight: 0.2
+        bands:
+          absent: Jargon-dense, or requires the reader to do the interpretation.
+          developing: Understandable after effort.
+          competent: Clear to a numerate non-specialist.
+          strong: The decision it supports is obvious from the summary alone.
+
+  - slug: chart-redraw
+    version: 1
+    isPublic: true
+    criteria:
+      - id: sourced
+        name: The original is checkable
+        description: >-
+          The chart being criticised is reproduced or linked with its source, so
+          a reader can verify the criticism rather than take it on trust.
+        weight: 0.15
+        bands:
+          absent: No source, or a description of a chart the reader cannot see.
+          developing: A source that cannot be located from what is given.
+          competent: The original reproduced or linked, with its publisher and date.
+          strong: Reproduced with the underlying figures, so the redraw can be checked too.
+      - id: distortion-named
+        name: The distortion is identified
+        description: The submission says what the original chart's construction does to a reader's impression.
+        weight: 0.3
+        bands:
+          absent: Says the chart is misleading without saying how.
+          developing: Names a problem that is cosmetic rather than the distorting one.
+          competent: Names the construction choice and its effect on the reader.
+          strong: Names it, and quantifies roughly how much the impression is exaggerated.
+      - id: redraw-fair
+        name: The redraw is fair
+        description: The new chart shows the same data without the distortion, and without introducing another.
+        weight: 0.3
+        bands:
+          absent: The redraw distorts in a different direction.
+          developing: Fixes the named problem and introduces a smaller one.
+          competent: Same data, fairly encoded.
+          strong: Fair, and the encoding chosen suits the comparison being made.
+      - id: judgement-stated
+        name: The line is drawn explicitly
+        description: >-
+          Not every axis choice is dishonest. The submission says where it thinks
+          legitimate emphasis ends and distortion begins.
+        weight: 0.25
+        bands:
+          absent: Treats all axis choices as equally wrong.
+          developing: Implies a rule without stating it.
+          competent: States a rule and applies it consistently.
+          strong: States it, applies it, and names a case where the opposite choice would be right.

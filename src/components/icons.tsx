@@ -200,10 +200,14 @@ export function SubjectIcon({
   taxonomyParent,
   className,
 }: IconProps & { taxonomyParent: string | null }) {
+  // Keyed on `content/categories.ts`'s vocabulary. It used to be keyed on
+  // `technical-entry`/`professional-business`, which no generated pack has ever
+  // produced — the generator asks for "technology, business, creative, science,
+  // language, craft" — so every generated subject fell to the grid.
   const byTaxonomy: Record<string, (p: IconProps) => React.ReactElement> = {
-    "professional-business": PenIcon,
+    business: PenIcon,
     creative: CameraIcon,
-    "technical-entry": DatabaseIcon,
+    technology: DatabaseIcon,
   };
   const Chosen = byTaxonomy[taxonomyParent ?? ""] ?? GridIcon;
   return <Chosen className={className} />;

@@ -100,9 +100,13 @@ describe("SubjectIcon — §7.3 rule 1, adding a domain is a data change", () =>
   };
 
   it("gives each taxonomy branch its own mark", () => {
-    const business = marks("professional-business");
+    // Keyed on `content/categories.ts`'s vocabulary, which is the one the pack
+    // generator emits. It used to key on `technical-entry` and
+    // `professional-business` — values no generated pack has ever produced, so
+    // every generated subject fell through to the grid.
+    const business = marks("business");
     const creative = marks("creative");
-    const technical = marks("technical-entry");
+    const technical = marks("technology");
 
     expect(business).toBe(render(<PenIcon />).container.innerHTML);
     expect(creative).toBe(render(<CameraIcon />).container.innerHTML);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SubjectIcon } from "@/components/icons";
 import { MaturityBadge, Meta, Row, RowList, stagger, Status } from "@/components/ui";
+import { groupByCategory } from "@/lib/content/categories";
 import type { TopicSummary } from "@/lib/content";
 
 /**
@@ -75,6 +76,18 @@ export function SubjectRow({
   );
 }
 
+/**
+ * Grouped by §7.1's taxonomy branch once there is more than one group.
+ *
+ * A flat list of six subjects is still readable; a flat list of the sixty §7.1
+ * plans is a wall, and the shape of the catalogue is information in itself —
+ * a learner scanning for "is there anything here for me" answers it from the
+ * headings without reading a single row.
+ *
+ * The heading only appears from the second group onwards for the same reason
+ * `/mastery` suppresses its subject heading with one course: with everything in
+ * one branch, a heading names what the page has already named.
+ */
 export function SubjectList({
   topics,
   checked,
@@ -82,16 +95,42 @@ export function SubjectList({
   topics: readonly TopicSummary[];
   checked: ReadonlySet<string>;
 }) {
+  const groups = groupByCategory([...topics]);
+
+  if (groups.length <= 1) {
+    return (
+      <RowList className="shadow-[var(--shadow-raised)]">
+        {topics.map((topic, i) => (
+          <SubjectRow
+            key={topic.slug}
+            topic={topic}
+            checked={checked.has(topic.slug)}
+            index={i}
+          />
+        ))}
+      </RowList>
+    );
+  }
+
   return (
-    <RowList className="shadow-[var(--shadow-raised)]">
-      {topics.map((topic, i) => (
-        <SubjectRow
-          key={topic.slug}
-          topic={topic}
-          checked={checked.has(topic.slug)}
-          index={i}
-        />
+    <div className="flex flex-col gap-8">
+      {groups.map(({ category, topics: inGroup }) => (
+        <section key={category.slug} className="flex flex-col gap-3">
+          <span className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-accent">
+            {category.name}
+          </span>
+          <RowList className="shadow-[var(--shadow-raised)]">
+            {inGroup.map((topic, i) => (
+              <SubjectRow
+                key={topic.slug}
+                topic={topic}
+                checked={checked.has(topic.slug)}
+                index={i}
+              />
+            ))}
+          </RowList>
+        </section>
       ))}
-    </RowList>
+    </div>
   );
 }

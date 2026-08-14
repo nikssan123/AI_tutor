@@ -1,0 +1,80 @@
+# Graded project briefs.
+#
+# Every acceptance criterion is checkable by reading the submission, and every
+# rubric criterion appears in the list below — the gap between what a brief asks
+# for and what its rubric grades is the defect that cost two SQL briefs a
+# quarter of their marks each.
+
+projects:
+  - slug: audit-a-claim
+    title: Take apart a number someone is about to act on
+    rubric: claim-audit
+    evidenceType: text
+    difficulty: 0.6
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [challenging-a-claim, population-and-sample, sampling-bias, correlation-and-cause]
+    brief: >-
+      Find a data-backed claim that is currently being used to justify a
+      decision — from your own organisation, a public report, or a news story
+      with the underlying figures published.
+
+      Write the critique you would actually send. The test of this piece is not
+      whether you can find something wrong; almost any claim has something
+      wrong. It is whether you can find the *one* thing that matters and propose
+      something that would settle it.
+    acceptanceCriteria:
+      - The claim quoted exactly, with its source.
+      - The population the figure describes, and the population the claim is about.
+      - One assumption named as load-bearing, with the reason it carries the weight.
+      - Weaker objections explicitly set aside rather than listed.
+      - A specific, obtainable test, and what result would change your own mind.
+      - Written so the person who made the claim would read it to the end.
+
+  - slug: summarise-without-misleading
+    title: Report a messy number to someone who will act on it
+    rubric: honest-summary
+    evidenceType: text
+    difficulty: 0.5
+    estimatedMinutes: 75
+    isPublic: true
+    targetSkills: [summarising-a-distribution, variation-and-spread, reporting-a-number, uncertainty-intervals]
+    brief: >-
+      You are given, or can find, a distribution that is genuinely awkward —
+      skewed, small, or with a long tail. Salaries, delivery times, response
+      times and support ticket ages all work.
+
+      Write the one-paragraph summary a decision-maker would receive. The
+      difficulty is not the arithmetic; it is choosing what to leave out without
+      making the figure mean something it does not.
+    acceptanceCriteria:
+      - One paragraph, aimed at a numerate non-specialist.
+      - The summary statistic chosen, with a reason drawn from the shape of the data.
+      - The alternative statistic named, and what it would have implied.
+      - A spread figure in the same units, chosen for what a reader would act on.
+      - A visible denominator and rounding the sample can bear.
+      - A line saying what the figure excludes.
+
+  - slug: redraw-a-chart
+    title: Redraw a chart that tells the truth and misleads anyway
+    rubric: chart-redraw
+    evidenceType: text
+    difficulty: 0.45
+    estimatedMinutes: 60
+    isPublic: true
+    targetSkills: [reading-a-chart, summarising-a-distribution, reporting-a-number]
+    brief: >-
+      Find a published chart whose numbers are correct and whose construction
+      does the arguing — a truncated axis, a dual axis, a cumulative total shown
+      as growth, an area chart encoding a single value.
+
+      Redraw it fairly and say what changed. Then draw the line: state where you
+      think legitimate emphasis ends and distortion begins, and name a case where
+      the choice you just criticised would be the right one.
+    acceptanceCriteria:
+      - The original, with its source.
+      - The construction choice named, and its effect on a reader's impression.
+      - A rough sense of how much the impression is exaggerated.
+      - A redraw of the same data with the distortion removed and none added.
+      - An explicit rule for where emphasis ends and distortion begins.
+      - One case where the criticised choice would be legitimate.

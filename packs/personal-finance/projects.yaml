@@ -1,0 +1,80 @@
+# Graded project briefs.
+#
+# Every rubric criterion appears in the acceptance list below. A criterion that
+# is graded and not asked for is marks taken for something nobody was told about.
+#
+# None of these asks a learner to decide anything about their own money, and
+# none is marked on whether they did. They ask for reasoning that can be checked.
+
+projects:
+  - slug: where-you-actually-stand
+    title: A position statement that reconciles
+    rubric: financial-position
+    evidenceType: text
+    difficulty: 0.4
+    estimatedMinutes: 90
+    isPublic: true
+    targetSkills: [knowing-where-you-stand, cashflow-not-salary, emergency-buffer]
+    brief: >-
+      Produce a net-worth statement and a monthly cashflow — for yourself, or for
+      a fictional person you invent and describe. Either is fine; the marking is
+      identical, and inventing one is the sensible choice if you would rather not
+      hand over your own figures.
+
+      The work is not the arithmetic. It is the annual costs that do not appear
+      in a monthly view, and the honesty about what you left out.
+    acceptanceCriteria:
+      - A net-worth statement whose totals add up and tie to a named source.
+      - Any residual difference identified rather than absorbed into a rounding line.
+      - Irregular and annual costs apportioned into the monthly view, with the method stated.
+      - A line for the unexpected, sized from something rather than guessed.
+      - An explicit list of what the statement excludes, and which exclusion would most change the picture.
+      - Structured so next month's version is an edit, not a rebuild.
+
+  - slug: thirty-year-projection
+    title: A projection that states what it rests on
+    rubric: projection-quality
+    evidenceType: text
+    difficulty: 0.6
+    estimatedMinutes: 120
+    isPublic: true
+    targetSkills: [compounding, inflation-and-real-returns, stating-assumptions, fees-and-drag]
+    brief: >-
+      Build a long-horizon projection — a savings goal, a repayment schedule, or
+      a retirement figure. Show the working.
+
+      Two things separate a real projection from a spreadsheet that produces a
+      large number: every assumption is written down with the value used, and the
+      answer says whether it is in today's money or tomorrow's.
+
+      Include the effect of an annual percentage fee. Most projections omit it,
+      and over thirty years it is not a rounding error.
+    acceptanceCriteria:
+      - The working visible, not just the result.
+      - A rough sense-check of the final figure by an independent estimate.
+      - Every assumption listed with the number used, and the most sensitive one flagged.
+      - Nominal or real declared, applied consistently, and the figure also shown on the other basis.
+      - The lifetime cost of the annual fee, computed rather than asserted.
+      - Conclusions confined to what the arithmetic supports, naming what a reader would still have to decide themselves.
+
+  - slug: break-your-own-plan
+    title: Break your own plan on purpose
+    rubric: plan-under-stress
+    evidenceType: text
+    difficulty: 0.7
+    estimatedMinutes: 105
+    isPublic: true
+    targetSkills: [stress-testing, risk-and-volatility, emergency-buffer, stating-assumptions]
+    brief: >-
+      Take the projection from the previous project, or any plan that currently
+      works on its central assumptions, and find the point where it stops
+      working.
+
+      The interesting output is not "it fails" — every plan fails under a large
+      enough shock. It is *what gives way first, and in which month*, because
+      that is the only part anyone can prepare for.
+    acceptanceCriteria:
+      - A named, quantified, dated adverse scenario, justified from something that has actually happened.
+      - The first thing that breaks, the month it breaks, and the margin by which it fails.
+      - A response decided in advance, available at the moment it would be needed, with its own cost acknowledged.
+      - A statement of what the test could not model, and which omission would matter most.

@@ -1,0 +1,365 @@
+# Diagnostic and retrieval item bank.
+#
+# §16.4 — production items outnumber multiple-choice at least 2:1.
+#
+# Only `correct` (for MCQs) and `concepts` (for everything else) are read by
+# anything: `concepts` is what a learner self-marks against on the check's
+# "A good answer covers" screen. An item without one shows a heading and an
+# empty list. And `micro_artifact` is excluded from the check entirely, so no
+# skill may have micro_artifacts as its only items.
+
+items:
+  # --- summarising-a-distribution --------------------------------------------
+  - slug: mean-vs-median-salary
+    skill: summarising-a-distribution
+    type: explain
+    difficulty: 0.3
+    prompt: >-
+      A company reports a mean salary of £68,000 and a median of £44,000. Say
+      what the gap tells you about the distribution, and which figure belongs in
+      a recruitment advert.
+    answerKey:
+      concepts: [right-skewed-by-high-earners, median-is-the-typical-person, mean-is-pulled-by-the-tail, advert-should-use-the-median]
+
+  - slug: shape-first
+    skill: summarising-a-distribution
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Before choosing between a mean and a median, what is the one thing you
+      look at, and what specifically are you looking for?
+    answerKey:
+      concepts: [look-at-the-distribution-shape, check-for-skew-and-outliers, symmetric-means-either-works]
+
+  - slug: mean-mcq
+    skill: summarising-a-distribution
+    type: mcq
+    difficulty: 0.25
+    prompt: Nine people earn £30k and one earns £1,000,000. Which is closer to what a new joiner should expect?
+    options:
+      - The mean, because it uses every value
+      - The median, because one extreme value dominates the mean
+      - Neither; only the range matters
+      - They are identical here
+    answerKey: { correct: 1 }
+
+  # --- variation-and-spread --------------------------------------------------
+  - slug: spread-delivery
+    skill: variation-and-spread
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Two couriers both average 3 days. One is always 3 days; the other is
+      sometimes 1 and sometimes 9. Explain why the average is the wrong thing to
+      put in a contract, and what you would put instead.
+    answerKey:
+      concepts: [same-mean-different-spread, promise-a-percentile-not-an-average, variability-is-the-customer-experience]
+
+  - slug: spread-report
+    skill: variation-and-spread
+    type: short_text
+    difficulty: 0.4
+    prompt: >-
+      Rewrite "average response time is 200ms" so a reader knows what a bad day
+      looks like. Say what extra figure you added and why that one.
+    answerKey:
+      concepts: [add-a-high-percentile-p95-or-p99, averages-hide-the-tail, tail-is-what-users-notice]
+
+  # --- reading-a-chart -------------------------------------------------------
+  - slug: chart-truncated-axis
+    skill: reading-a-chart
+    type: explain
+    difficulty: 0.35
+    prompt: >-
+      A bar chart of two figures, 51% and 49%, starts its y-axis at 48%. The
+      numbers are correct. Explain what the chart does to the reader anyway, and
+      when starting an axis above zero is legitimate.
+    answerKey:
+      concepts: [truncation-exaggerates-a-small-difference, bars-encode-length-so-must-start-at-zero, lines-tracking-change-may-be-truncated-with-a-label]
+
+  - slug: chart-cumulative
+    skill: reading-a-chart
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A startup shows a smooth rising curve of "total users to date". Why does
+      this chart always go up, and what would you ask to see instead?
+    answerKey:
+      concepts: [cumulative-totals-cannot-fall, hides-a-slowing-rate, ask-for-new-users-per-period]
+
+  - slug: chart-mcq
+    skill: reading-a-chart
+    type: mcq
+    difficulty: 0.3
+    prompt: A chart plots revenue and headcount on two y-axes, and the lines cross. What does the crossing point mean?
+    options:
+      - Revenue per head hit 1:1
+      - The two series became equal
+      - Nothing — the axes are independently scaled
+      - Headcount started driving revenue
+    answerKey: { correct: 2 }
+
+  # --- population-and-sample -------------------------------------------------
+  - slug: population-support
+    skill: population-and-sample
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      "Our users love the redesign — 82% approval." The survey ran in-app to
+      people who logged in during the launch week. State precisely which
+      population that 82% supports a claim about.
+    answerKey:
+      concepts: [only-active-users-during-launch-week, excludes-churned-and-lapsed-users, not-all-users-and-not-prospects]
+
+  - slug: population-mismatch
+    skill: population-and-sample
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      Give an example from your own work where the group measured was not the
+      group the decision was about, and say what the mismatch cost.
+    answerKey:
+      concepts: [names-both-groups, names-the-direction-of-error, consequence-for-the-decision]
+
+  # --- sampling-bias ---------------------------------------------------------
+  - slug: bias-survivorship
+    skill: sampling-bias
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A study of successful founders finds 90% drop out of university. Explain
+      why this says almost nothing about whether dropping out helps, and what
+      data would be needed.
+    answerKey:
+      concepts: [survivorship-only-looks-at-winners, need-the-dropouts-who-failed, base-rate-of-dropping-out-overall]
+
+  - slug: bias-nonresponse
+    skill: sampling-bias
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      A support satisfaction survey gets a 4% response rate and scores 4.6/5.
+      Say who is most likely to have answered, and which direction that pushes
+      the score.
+    answerKey:
+      concepts: [very-happy-and-very-angry-respond-most, silent-majority-missing, score-is-not-representative]
+
+  - slug: bias-mcq
+    skill: sampling-bias
+    type: mcq
+    difficulty: 0.35
+    prompt: Which of these is a self-selection problem rather than a survivorship one?
+    options:
+      - Reviewing only funds that still exist today
+      - Reading only the reviews customers chose to leave
+      - Studying only planes that returned from missions
+      - Analysing only products still on the shelf
+    answerKey: { correct: 1 }
+
+  # --- sample-size-intuition -------------------------------------------------
+  - slug: size-three-users
+    skill: sample-size-intuition
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      A segment shows 100% conversion. It has three users. Explain what you would
+      do before reporting it, and what you expect to find.
+    answerKey:
+      concepts: [tiny-denominator, one-more-user-swings-it-to-75-percent, report-the-count-beside-the-rate, probably-noise]
+
+  - slug: size-difference
+    skill: sample-size-intuition
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      Variant B converts at 11% against A's 10%, on 200 users each. Say whether
+      you would ship B, and what you would need to decide properly.
+    answerKey:
+      concepts: [difference-is-well-inside-noise-at-this-size, needs-far-more-users, do-not-ship-on-this]
+
+  # --- uncertainty-intervals -------------------------------------------------
+  - slug: interval-meaning
+    skill: uncertainty-intervals
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      A result is reported as "12% (95% CI: 8–16%)". Say what that range is
+      claiming, and name one thing people commonly think it claims that it does
+      not.
+    answerKey:
+      concepts: [range-of-values-compatible-with-the-data, not-a-95-percent-chance-the-truth-is-in-this-range, wider-means-less-certain]
+
+  - slug: interval-rewrite
+    skill: uncertainty-intervals
+    type: short_text
+    difficulty: 0.5
+    prompt: >-
+      Rewrite "churn is 4.7%" for a board paper, given it came from one quarter
+      of data on a small cohort.
+    answerKey:
+      concepts: [give-a-range-not-a-point, drop-the-false-precision, state-the-period-and-cohort-size]
+
+  # --- significance-misread --------------------------------------------------
+  - slug: significance-correct
+    skill: significance-misread
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      "The result was highly significant (p < 0.001), so the effect is large."
+      Correct this sentence, and say what p actually tells you.
+    answerKey:
+      concepts: [significance-is-about-noise-not-size, large-samples-make-tiny-effects-significant, report-the-effect-size-separately]
+
+  - slug: significance-mcq
+    skill: significance-misread
+    type: mcq
+    difficulty: 0.5
+    prompt: "A test returns p = 0.03. Which statement is correct?"
+    options:
+      - There is a 3% chance the result is wrong
+      - There is a 97% chance the effect is real
+      - Data this extreme would be uncommon if there were no effect
+      - The effect is small but certain
+    answerKey: { correct: 2 }
+
+  # --- multiple-comparisons --------------------------------------------------
+  - slug: comparisons-dashboard
+    skill: multiple-comparisons
+    type: explain
+    difficulty: 0.6
+    prompt: >-
+      An analyst slices a dashboard by 20 segments and reports the one that shows
+      a 30% lift. Explain why this is weak evidence, and what would make it
+      strong.
+    answerKey:
+      concepts: [testing-many-things-guarantees-a-winner, the-finding-was-selected-not-predicted, pre-register-and-retest-on-fresh-data]
+
+  - slug: comparisons-fix
+    skill: multiple-comparisons
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      You genuinely need to check 15 segments. Name two things you would do so
+      the exercise still produces something trustworthy.
+    answerKey:
+      concepts: [decide-the-segments-before-looking, adjust-the-threshold-or-expect-false-positives, confirm-on-a-later-period]
+
+  # --- correlation-and-cause -------------------------------------------------
+  - slug: cause-confounder
+    skill: correlation-and-cause
+    type: explain
+    difficulty: 0.45
+    prompt: >-
+      "Customers who use our mobile app churn less, so we should push everyone to
+      install it." Name the most likely confounder and what would test the claim.
+    answerKey:
+      concepts: [engaged-users-install-apps-anyway, direction-may-be-reversed, randomised-test-of-prompting-installs]
+
+  - slug: cause-reverse
+    skill: correlation-and-cause
+    type: short_text
+    difficulty: 0.45
+    prompt: >-
+      Give a plausible example where B causes A rather than A causing B, from a
+      claim you have actually heard at work.
+    answerKey:
+      concepts: [states-both-directions, says-which-is-more-plausible-and-why]
+
+  - slug: cause-mcq
+    skill: correlation-and-cause
+    type: mcq
+    difficulty: 0.35
+    prompt: Ice cream sales and drowning deaths rise together. The best description is…
+    options:
+      - Ice cream causes drowning
+      - Drowning causes ice cream sales
+      - Both are driven by a third factor
+      - The correlation is a coincidence with no cause
+    answerKey: { correct: 2 }
+
+  # --- base-rates ------------------------------------------------------------
+  - slug: base-rate-test
+    skill: base-rates
+    type: explain
+    difficulty: 0.65
+    prompt: >-
+      A fraud detector is 99% accurate. Fraud occurs in 1 of every 1,000
+      transactions. Of the transactions it flags, roughly what share are actually
+      fraud? Show your reasoning in plain numbers.
+    answerKey:
+      concepts: [work-with-a-concrete-100000-transactions, about-100-real-frauds-and-about-1000-false-alarms, so-under-10-percent-of-flags-are-real, rarity-dominates-accuracy]
+
+  - slug: base-rate-short
+    skill: base-rates
+    type: short_text
+    difficulty: 0.55
+    prompt: >-
+      Why does an accurate test for a rare condition produce mostly false alarms?
+      Answer in two sentences without algebra.
+    answerKey:
+      concepts: [far-more-negatives-than-positives-exist, a-small-error-rate-on-a-huge-group-swamps-the-small-group]
+
+  # --- experiment-basics -----------------------------------------------------
+  - slug: experiment-control
+    skill: experiment-basics
+    type: explain
+    difficulty: 0.5
+    prompt: >-
+      A team ships a change to everyone and compares the week after against the
+      week before. Name two things that could explain a lift other than the
+      change.
+    answerKey:
+      concepts: [seasonality-or-day-of-week, other-releases-or-marketing-in-the-same-window, no-control-group-means-no-comparison]
+
+  - slug: experiment-peeking
+    skill: experiment-basics
+    type: short_text
+    difficulty: 0.6
+    prompt: >-
+      A test is checked daily and stopped the first day it looks significant.
+      Explain what this does to the false-positive rate.
+    answerKey:
+      concepts: [repeated-looks-are-repeated-tests, stopping-on-a-win-selects-for-noise, fix-the-sample-size-in-advance]
+
+  # --- reporting-a-number ----------------------------------------------------
+  - slug: report-precision
+    skill: reporting-a-number
+    type: short_text
+    difficulty: 0.35
+    prompt: >-
+      Rewrite "conversion improved by 23.4718%" for a board paper, and say what
+      was wrong with the original.
+    answerKey:
+      concepts: [round-to-the-precision-the-data-supports, false-precision-implies-false-confidence, give-the-baseline-it-improved-from]
+
+  - slug: report-denominator
+    skill: reporting-a-number
+    type: explain
+    difficulty: 0.4
+    prompt: >-
+      Why is "40% of respondents" almost useless on its own, and what two things
+      must sit beside it?
+    answerKey:
+      concepts: [how-many-respondents, out-of-how-many-asked, who-was-excluded]
+
+  # --- challenging-a-claim ---------------------------------------------------
+  - slug: challenge-questions
+    skill: challenging-a-claim
+    type: explain
+    difficulty: 0.55
+    prompt: >-
+      List the four questions you ask of any data-backed claim, in the order you
+      ask them, and say what each one is for.
+    answerKey:
+      concepts: [what-population, how-many, compared-to-what, what-would-change-my-mind]
+
+  - slug: challenge-rewrite
+    skill: challenging-a-claim
+    type: micro_artifact
+    difficulty: 0.7
+    prompt: >-
+      Take a data-backed claim from your own organisation. Write the two
+      paragraphs you would send to challenge it — one naming the load-bearing
+      assumption, one proposing what would settle it. Stay collaborative.
+    answerKey:
+      concepts: [names-one-assumption-not-five, proposes-a-concrete-test, tone-invites-a-reply]

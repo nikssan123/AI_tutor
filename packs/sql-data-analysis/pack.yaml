@@ -9,7 +9,7 @@
 
 slug: sql-data-analysis
 name: SQL & Data Analysis
-taxonomyParent: technical-entry
+taxonomyParent: technology
 maturity: curated # §7.1 — "Deeply supported" badge
 evalTier: 1 # §7.2 — execute the query, assert the result, then review quality
 workspace: query-sheet # §7.3 — result table + formula inspector

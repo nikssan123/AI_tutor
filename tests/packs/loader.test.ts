@@ -195,9 +195,11 @@ describe("loadAllPacks", () => {
     // disk fails here instead of quietly shrinking the product.
     expect(loadAllPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
+      "personal-finance",
       "photography",
       "python-fundamentals",
       "sql-data-analysis",
+      "statistics-data-literacy",
     ]);
   });
 });

@@ -10,7 +10,7 @@
 
 slug: business-writing
 name: Business Writing & Communication
-taxonomyParent: professional-business
+taxonomyParent: business
 maturity: curated
 # §7.2 Tier 2 — "Assessed against the rubric." Multi-pass LLM rubric grading
 # with a verifier pass. Confidence 0.65–0.85, and the UI says so.

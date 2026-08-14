@@ -17,9 +17,10 @@
 
 slug: python-fundamentals
 name: Python Fundamentals
-# The same branch as SQL: it drives the subject icon, and an unrecognised value
-# falls back to the neutral grid rather than guessing at a metaphor.
-taxonomyParent: technical-entry
+# §7.1's taxonomy branch, from the one vocabulary in `content/categories.ts`.
+# It drives the subject icon and the grouping on /learn and /subjects; a branch
+# no category claims falls into "Everything else" rather than disappearing.
+taxonomyParent: technology
 maturity: standard
 evalTier: 2
 workspace: code

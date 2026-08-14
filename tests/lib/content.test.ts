@@ -30,9 +30,11 @@ describe("allPacks", () => {
     expect(allPacks()).toBe(allPacks());
     expect(allPacks().map((p) => p.slug).sort()).toEqual([
       "business-writing",
+      "personal-finance",
       "photography",
       "python-fundamentals",
       "sql-data-analysis",
+      "statistics-data-literacy",
     ]);
   });
 
@@ -57,13 +59,13 @@ describe("allPacks", () => {
     };
 
     has(packs.map((p) => p.taxonomyParent), [
-      "technical-entry",
-      "professional-business",
+      "technology",
+      "business",
       "creative",
     ]);
     has(packs.map((p) => p.evalTier), [1, 2, 3]);
     has(packs.map((p) => p.workspace), ["query-sheet", "text", "media"]);
-    expect(packs.filter((p) => p.taxonomyParent !== "technical-entry").length)
+    expect(packs.filter((p) => p.taxonomyParent !== "technology").length)
       .toBeGreaterThanOrEqual(2);
   });
 

@@ -14,6 +14,7 @@ import { LinkCard, MaturityBadge, Meta, stagger } from "@/components/ui";
 import { allProjects, allTopics, search } from "@/lib/content";
 import { CUSTOM_PATH_HREF } from "@/lib/goals/custom-path";
 import { breadcrumbs } from "@/lib/seo/jsonld";
+import { groupByCategory } from "@/lib/content/categories";
 import { marketingMetadata } from "@/lib/seo/metadata";
 import { canonical } from "@/lib/site";
 
@@ -153,8 +154,23 @@ export default async function LearnIndexPage({
             title="Every subject we cover"
             icon={<GridIcon />}
           />
-          <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
-            {topics.map((topic, i) => (
+          {/*
+           * Grouped by §7.1's branch. The catalogue is the one marketing screen
+           * whose *shape* is part of what it communicates: "is there anything
+           * here for me" is answered by the headings, before a single card is
+           * read. Ungrouped, six subjects read as a list and sixty would read
+           * as a wall.
+           */}
+          {groupByCategory(topics).map(({ category, topics: inGroup }) => (
+            <section key={category.slug} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                  {category.name}
+                </h3>
+                <Meta>{category.blurb}</Meta>
+              </div>
+              <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2 lg:grid-cols-3">
+                {inGroup.map((topic, i) => (
               <li key={topic.slug} className="rise" style={stagger(i)}>
                 <LinkCard href={`/learn/${topic.slug}`} className="gap-4 p-6">
                   <span className="flex size-10 items-center justify-center rounded-[var(--radius-control)] bg-accent-weak text-accent">
@@ -177,8 +193,10 @@ export default async function LearnIndexPage({
                   </span>
                 </LinkCard>
               </li>
-            ))}
-          </ul>
+                ))}
+              </ul>
+            </section>
+          ))}
         </section>
 
         <section className="flex flex-col gap-8">

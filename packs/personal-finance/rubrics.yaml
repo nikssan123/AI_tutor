@@ -1,0 +1,140 @@
+# Rubrics.
+#
+# §4.2 law 2 — public before the work is done.
+#
+# **No criterion scores whether a financial decision was right.** That is
+# regulated advice and it is also unknowable from here. Every criterion below
+# marks the reasoning: does the arithmetic hold, are the assumptions stated, are
+# the risks named, does the plan survive its own stress test. A learner can
+# score Strong on every one of these and still make a choice we would not — that
+# is correct, and it is the line this pack keeps.
+
+rubrics:
+  - slug: financial-position
+    version: 1
+    isPublic: true
+    criteria:
+      - id: reconciles
+        name: The numbers reconcile
+        description: >-
+          Totals add up, and the statement ties back to something real — a
+          statement balance, a payslip, a bill.
+        weight: 0.3
+        bands:
+          absent: Totals do not add up, or nothing ties back to a source.
+          developing: Adds up internally but is not reconciled to anything external.
+          competent: Adds up and reconciles to a named source.
+          strong: Reconciles, and any residual difference is identified rather than absorbed.
+      - id: complete
+        name: Irregular and annual items are present
+        description: >-
+          Costs that do not arrive monthly appear anyway, apportioned, rather
+          than being discovered later.
+        weight: 0.25
+        bands:
+          absent: Monthly items only; annual costs missing entirely.
+          developing: Some annual costs present, others obviously absent.
+          competent: Irregular costs identified and apportioned.
+          strong: Apportioned, with the method stated and a line for the unexpected.
+      - id: exclusions-stated
+        name: It says what it leaves out
+        description: A figure with an unstated scope cannot be checked by anyone.
+        weight: 0.25
+        bands:
+          absent: No statement of scope.
+          developing: Scope implied but not written down.
+          competent: Exclusions listed explicitly.
+          strong: Listed, with a note on which would most change the picture.
+      - id: usable
+        name: A person could act on it
+        description: The artefact is legible to its owner a month later, not only on the day it was built.
+        weight: 0.2
+        bands:
+          absent: Unlabelled figures; no one could reuse it.
+          developing: Understandable only with the author present.
+          competent: Labelled and self-explanatory.
+          strong: Structured so next month's version is a small edit rather than a rebuild.
+
+  - slug: projection-quality
+    version: 1
+    isPublic: true
+    criteria:
+      - id: arithmetic-holds
+        name: The arithmetic is right
+        description: Compounding, inflation adjustment and totals are computed correctly and shown.
+        weight: 0.3
+        bands:
+          absent: A method error — simple interest for compound growth, or nominal and real mixed.
+          developing: Correct method, an arithmetic slip that changes the conclusion.
+          competent: Correct throughout, with the working visible.
+          strong: Correct, visible, and sense-checked against a rough estimate.
+      - id: assumptions-listed
+        name: Every assumption is stated with its value
+        description: Return, inflation, contributions, horizon — each named, each with the number used.
+        weight: 0.3
+        bands:
+          absent: A result with no assumptions given.
+          developing: Some assumptions stated, at least one load-bearing one missing.
+          competent: All of them, each with the value used.
+          strong: All of them, with the most sensitive one flagged as such.
+      - id: basis-declared
+        name: Nominal or real, said out loud
+        description: A long-horizon figure without this word is not interpretable.
+        weight: 0.2
+        bands:
+          absent: Neither stated, and the two are mixed in the working.
+          developing: Stated once but not applied consistently.
+          competent: Declared and applied consistently.
+          strong: Declared, consistent, and the figure also given on the other basis for comparison.
+      - id: no-recommendation
+        name: It reasons without prescribing
+        description: >-
+          The submission draws conclusions about the *numbers* and stops short of
+          telling a reader what to buy. This is a criterion, not a caveat.
+        weight: 0.2
+        bands:
+          absent: Recommends a specific product, provider or allocation.
+          developing: Implies a course of action without stating the reasoning behind it.
+          competent: Conclusions confined to what the arithmetic supports.
+          strong: Confined, and explicitly names what a reader would still need to decide for themselves.
+
+  - slug: plan-under-stress
+    version: 1
+    isPublic: true
+    criteria:
+      - id: scenario-concrete
+        name: The adverse scenario is specific
+        description: A named, quantified shock with a start date and a duration — not "things get worse".
+        weight: 0.25
+        bands:
+          absent: A vague downturn with no numbers.
+          developing: Quantified but with no timing.
+          competent: Quantified, timed, and plausible.
+          strong: Plausible, and justified from something that has actually happened.
+      - id: breaks-identified
+        name: The first failure is located
+        description: The submission says what gives way first, and when — not merely that the plan fails eventually.
+        weight: 0.3
+        bands:
+          absent: Reports only that the plan survives or does not.
+          developing: Names a failure without saying when it happens.
+          competent: Names the first thing to break and the month it does.
+          strong: Names it, the month, and the margin by which it fails.
+      - id: response-stated
+        name: There is a response, decided in advance
+        description: What the plan's owner would do at the point of failure, chosen now rather than in the moment.
+        weight: 0.25
+        bands:
+          absent: No response considered.
+          developing: A response that is a hope rather than an action.
+          competent: A concrete action, available at the time it would be needed.
+          strong: Concrete, with its own cost acknowledged.
+      - id: honest-about-limits
+        name: It says what it could not model
+        description: Every stress test omits something. The submission names what it left out.
+        weight: 0.2
+        bands:
+          absent: Presented as complete.
+          developing: A general disclaimer.
+          competent: Specific omissions named.
+          strong: Named, with a view on which omission would matter most.
