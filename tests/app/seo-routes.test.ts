@@ -64,30 +64,48 @@ describe("robots.txt", () => {
 });
 
 describe("sitemap.xml", () => {
-  it("lists the hubs plus any authored indexable page", async () => {
-    // The filter lives in the query, so there is no code path that can emit a
-    // non-indexable authored page by accident.
+  /**
+   * These asserted the sitemap's exact contents, which was a way of asserting
+   * that no pack had been signed off yet. Signing one off inverted them. What
+   * the sitemap owes is structural: the three hubs, every authored indexable
+   * row, and pack pages exactly when the pack's own gate is open.
+   */
+  it("lists the hubs first, then pack pages, then authored rows", async () => {
     selectMock.mockResolvedValue([
       { slug: "/guides/wrong-grain", updatedAt: new Date("2026-08-02") },
     ]);
 
     const { default: sitemap } = await import("@/app/sitemap");
-    const entries = await sitemap();
+    const urls = (await sitemap()).map((e) => e.url);
 
-    expect(entries.map((e) => e.url)).toEqual([
+    expect(urls.slice(0, 3)).toEqual([
       "https://example.com",
       "https://example.com/learn",
       "https://example.com/projects",
-      "https://example.com/guides/wrong-grain",
     ]);
+    expect(urls.at(-1)).toBe("https://example.com/guides/wrong-grain");
+    expect(new Set(urls).size, "no duplicate URLs").toBe(urls.length);
   });
 
-  it("omits pack pages while the pack is unreviewed (§12.1)", async () => {
-    // The SQL pack is Curated but not human-reviewed, so its topic and project
-    // pages are served and deliberately not submitted for indexing.
+  it("omits every page of a pack whose gate is shut (§12.1)", async () => {
+    // A Curated pack with no recorded reviewer is served and deliberately not
+    // submitted for indexing. Asserted per pack rather than as "the list is
+    // empty", which only held while nothing had been signed off.
     selectMock.mockResolvedValue([]);
+    const { allTopics, allProjects } = await import("@/lib/content");
     const { packPages } = await import("@/app/sitemap");
-    expect(packPages()).toEqual([]);
+    const urls = packPages().map((e) => e.url);
+
+    for (const topic of allTopics().filter((t) => !t.indexable)) {
+      expect(urls, topic.slug).not.toContain(
+        `https://example.com/learn/${topic.slug}`,
+      );
+    }
+    for (const project of allProjects().filter((p) => !p.indexable)) {
+      expect(urls, project.slug).not.toContain(
+        `https://example.com/projects/${project.slug}`,
+      );
+    }
   });
 
   it("never lists a per-skill check — that tool still does not exist", async () => {
@@ -125,23 +143,28 @@ describe("sitemap.xml", () => {
     expect(entry.lastModified).toBe(updatedAt);
   });
 
-  it("still lists the hub pages when nothing else is indexable yet", async () => {
+  it("always lists the three hubs, whatever else is or is not indexable", async () => {
+    // The hubs are the top of the internal link graph and never gated.
     selectMock.mockResolvedValue([]);
     const { default: sitemap } = await import("@/app/sitemap");
-    expect((await sitemap()).map((e) => e.url)).toEqual([
-      "https://example.com",
-      "https://example.com/learn",
-      "https://example.com/projects",
-    ]);
+    const urls = (await sitemap()).map((e) => e.url);
+    expect(urls).toContain("https://example.com");
+    expect(urls).toContain("https://example.com/learn");
+    expect(urls).toContain("https://example.com/projects");
   });
 
   it("degrades to the static pages rather than 500ing when the database is down", async () => {
     // A sitemap that errors is worse than a partial one: Google retries a 200
     // far more readily than an error.
     selectMock.mockRejectedValue(new Error("connection refused"));
+    const { packPages } = await import("@/app/sitemap");
     const { default: sitemap } = await import("@/app/sitemap");
     const entries = await sitemap();
-    expect(entries).toHaveLength(3);
+
+    // The hubs plus whatever the packs contribute — everything that does not
+    // need the database. Length rather than 3, which only held while no pack
+    // was signed off.
+    expect(entries).toHaveLength(3 + packPages().length);
     expect(entries[0]!.url).toBe("https://example.com");
   });
 

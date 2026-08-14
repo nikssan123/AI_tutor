@@ -105,20 +105,48 @@ describe("findPack", () => {
 });
 
 describe("§12.1 — indexing is earned, never granted", () => {
-  it("refuses to index a pack that has not been human-reviewed", () => {
-    // The SQL pack is Curated but `reviewedBy` is still "unreviewed", so it is
-    // served and not submitted for indexing. This is the gate, working.
-    expect(pack.maturity).toBe("curated");
-    expect(pack.quality.reviewedBy).toBe("unreviewed");
-    expect(isTopicIndexable(pack)).toBe(false);
+  /**
+   * Asserted against synthetic packs rather than whichever real pack happens to
+   * be signed off today. This test used the SQL pack as its example of an
+   * unreviewed one and inverted the moment SQL was reviewed — a gate test that
+   * depends on content state is testing the content, not the gate.
+   */
+  it("refuses to index a pack with no recorded reviewer", () => {
+    const unsigned = {
+      ...pack,
+      maturity: "curated" as const,
+      quality: { ...pack.quality, reviewedBy: "unreviewed" },
+    };
+    expect(isTopicIndexable(unsigned)).toBe(false);
   });
 
-  it("indexes a Curated pack once a human has signed it off", () => {
+  it("indexes a Curated pack once a reviewer is recorded", () => {
     const reviewed = {
       ...pack,
       quality: { ...pack.quality, reviewedBy: "nixon" },
     };
     expect(isTopicIndexable(reviewed)).toBe(true);
+  });
+
+  /**
+   * **The gate checks that a reviewer is named, not that they are human.**
+   *
+   * §7.1 calls the Curated tier "human-reviewed" and the badge says "checked by
+   * hand", so the string in `reviewedBy` is load-bearing in a way the code
+   * cannot enforce — anything other than the literal "unreviewed" opens it.
+   * `sql-data-analysis` is currently signed by a model review, at Nikolay's
+   * request and recorded as such in its own `quality` block.
+   *
+   * Pinned here so the discrepancy is visible in the suite rather than only in
+   * a YAML comment: if the badge is ever to mean what it says, this is the seam
+   * to close.
+   */
+  it("cannot tell a human reviewer from any other kind", () => {
+    const byModel = {
+      ...pack,
+      quality: { ...pack.quality, reviewedBy: "Claude Opus 5 (model review)" },
+    };
+    expect(isTopicIndexable(byModel)).toBe(true);
   });
 
   it("never indexes a Standard or Generated pack, reviewed or not", () => {

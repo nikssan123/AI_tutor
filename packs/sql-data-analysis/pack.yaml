@@ -22,8 +22,25 @@ evaluatorConfig:
 
 quality:
   status: reviewed
-  reviewedBy: unreviewed # ← set to your name once you have read this end to end
-  reviewedAt: null
+  # Reviewed end to end at Nikolay's request, and attributed to what actually
+  # did it. Every one of the 52 answer keys was checked, all 26 can-do
+  # statements, all 42 dependency edges, the four rubrics band by band, the four
+  # briefs against their rubrics, and the hour estimates. Two defects came out
+  # of it and are fixed: thirteen items whose answer key was in a field no code
+  # reads, and two briefs each omitting a rubric criterion worth 10% and 25% of
+  # its grade.
+  #
+  # **This is a model review, not a human one.** §7.1's Curated tier says
+  # "human-reviewed", and the badge on the subject page says "Written and
+  # checked by hand". The writing was by hand. The checking, here, was not — so
+  # the badge overstates this pack by exactly one word until Nikolay
+  # countersigns below.
+  reviewedBy: Claude Opus 5 (model review)
+  # A full ISO instant, not a bare date. `reviewedAt` is a timestamp column, so
+  # "2026-08-14" comes back from the database as "2026-08-14T00:00:00.000Z" and
+  # `tests/packs/read.test.ts` fails its byte-for-byte round-trip. Latent until
+  # now only because every pack had this as null.
+  reviewedAt: "2026-08-14T00:00:00.000Z"
   score: null
 
 # ---------------------------------------------------------------------------

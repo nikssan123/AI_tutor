@@ -107,7 +107,11 @@ describe("howTo", () => {
   it("uses the acceptance criteria the page already lists as the steps", () => {
     const ld = build();
     expect(ld.step.map((s) => s.text)).toEqual(project.acceptanceCriteria);
-    expect(ld.step.map((s) => s.position)).toEqual([1, 2, 3, 4]);
+    // Positions derived from the brief, not a literal list — the count changes
+    // whenever a criterion is added, and it just did.
+    expect(ld.step.map((s) => s.position)).toEqual(
+      project.acceptanceCriteria.map((_, i) => i + 1),
+    );
   });
 
   it("states the estimated time in minutes", () => {

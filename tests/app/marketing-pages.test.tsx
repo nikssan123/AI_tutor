@@ -479,8 +479,18 @@ describe("/learn/[topic]", () => {
     );
   });
 
-  it("is noindex until the pack is human-reviewed (§12.1)", async () => {
-    const meta = await topic.generateMetadata({ params: p });
+  /**
+   * Both of these used the SQL pack, which is now signed off, so they were
+   * asserting the unreviewed path against reviewed content. They pick a pack
+   * that is genuinely still unreviewed instead — and fail loudly rather than
+   * silently passing if that ever stops being true of any pack.
+   */
+  const unreviewed = allTopics().find((t) => !t.indexable)!;
+
+  it("is noindex until the pack is reviewed (§12.1)", async () => {
+    const meta = await topic.generateMetadata({
+      params: params({ topic: unreviewed.slug }),
+    });
     expect(meta.robots).toEqual({ index: false, follow: true });
     expect(meta.title).toBeTruthy();
     // §13.3 — title ≤60 characters.
@@ -488,8 +498,16 @@ describe("/learn/[topic]", () => {
   });
 
   it("tells the reader why it is not indexed rather than hiding it", async () => {
-    render(await topic.default({ params: p }));
+    render(await topic.default({ params: params({ topic: unreviewed.slug }) }));
     expect(screen.getByText(/Nobody has reviewed this subject/)).toBeDefined();
+  });
+
+  it("drops the noindex once a pack is signed off", async () => {
+    const signed = allTopics().find((t) => t.indexable)!;
+    const meta = await topic.generateMetadata({
+      params: params({ topic: signed.slug }),
+    });
+    expect(meta.robots).toBeUndefined();
   });
 
   it("404s and returns empty metadata for an unknown topic", async () => {
@@ -638,7 +656,28 @@ describe("/projects/[slug] — §4.2 law 2", () => {
   it("describes itself for search without overclaiming", async () => {
     const meta = await project.generateMetadata({ params: p });
     expect(meta.description).toContain("published criteria");
-    expect(meta.robots).toEqual({ index: false, follow: true });
+  });
+
+  it("is noindex while its pack is unreviewed, and indexed once it is not", async () => {
+    // Was asserted against the SQL brief as a permanently-noindex example,
+    // which stopped being true the moment SQL was signed off. Both directions,
+    // from whichever briefs are actually on each side of the gate today.
+    const shut = allProjects().find((x) => !x.indexable);
+    const open = allProjects().find((x) => x.indexable);
+
+    if (shut) {
+      const meta = await project.generateMetadata({
+        params: params({ slug: shut.slug }),
+      });
+      expect(meta.robots, shut.slug).toEqual({ index: false, follow: true });
+    }
+    if (open) {
+      const meta = await project.generateMetadata({
+        params: params({ slug: open.slug }),
+      });
+      expect(meta.robots, open.slug).toBeUndefined();
+    }
+    expect(shut ?? open, "the catalogue has at least one brief").toBeDefined();
   });
 });
 

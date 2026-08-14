@@ -74,6 +74,11 @@ projects:
       - Every finding names the table, column and affected row count.
       - Every finding ships with a query the reader can run themselves.
       - Findings are ranked, and the ranking is justified.
+      # `no-false-positives` carries 25% of this rubric and the brief never
+      # asked for it. A reproducing query is not the same claim as "I checked
+      # this is not an artefact of my own join", and the second is the one
+      # being marked.
+      - Each finding is verified against the source tables, so none of them is an artefact of the audit's own joins.
 
   - slug: slow-query-rescue
     title: Make a slow query fast without changing its answer
@@ -95,3 +100,9 @@ projects:
       - The cause is named and supported by the plan, not guessed.
       - Timings are shown for both versions on comparable data.
       - Equivalence is demonstrated across the full result set, not spot-checked.
+      # `proportionality` is 10% of this rubric and was in no acceptance
+      # criterion, so a learner who followed this list exactly and added three
+      # speculative indexes would lose marks for something nobody told them.
+      # §4.2 law 2 is that the checklist is read before the work is done; a
+      # criterion missing from the brief is not read.
+      - The change is the smallest one that fixes the cause, and any heavier alternative you rejected is named.
