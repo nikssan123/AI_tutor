@@ -49,6 +49,7 @@ const spec = (overrides: Partial<GoalSpec> = {}): GoalSpec => ({
   motivation: "a show in spring",
   constraints: [],
   existingAssets: [],
+  priorDomain: "none",
   depth: "standard",
   clarity: 1,
   ...overrides,

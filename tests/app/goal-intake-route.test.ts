@@ -77,6 +77,7 @@ const TURN: AnalyzerTurn = {
     motivation: null,
     constraints: [],
     existingAssets: [],
+    priorDomain: "none",
     levelSaid: null,
     weeklyHoursSaid: null,
     deadlineSaid: null,

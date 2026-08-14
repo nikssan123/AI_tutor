@@ -33,6 +33,7 @@ import {
   proveAction,
 } from "./actions";
 import { PROVE_ITEM_COUNT, proveOffer } from "@/lib/session/prove";
+import type { PriorDomain } from "@/lib/contracts/goal";
 import { recentSignals } from "@/lib/session/store";
 
 /**
@@ -146,6 +147,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
               sessionId={session.id}
               index={session.blockIndex}
               packSlug={view.goal.packSlug}
+              priorDomain={view.goal.spec.priorDomain}
               userId={user.id}
               now={now}
               error={error}
@@ -244,6 +246,7 @@ interface BodyProps {
   sessionId: string;
   index: number;
   packSlug: string;
+  priorDomain: PriorDomain;
   userId: string;
   now: Date;
   /** Why the last hand-in bounced, if it did. */
@@ -287,6 +290,7 @@ function ExplainBlock(
         <LessonBody
           userId={props.userId}
           packSlug={props.packSlug}
+          priorDomain={props.priorDomain}
           skill={props.skill}
           mastery={props.mastery}
           minutes={props.block.estMinutes}

@@ -109,6 +109,7 @@ async function main() {
       motivation: "I keep having to ask the data team for numbers",
       constraints: [],
       existingAssets: [],
+      priorDomain: "none",
       depth: "standard",
       clarity: 0.8,
     },

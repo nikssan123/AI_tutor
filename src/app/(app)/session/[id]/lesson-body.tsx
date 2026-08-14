@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { getAnthropic, hasApiKey } from "@/lib/ai/client";
 import { lessonForBlock } from "@/lib/session/view";
 import type { EngineSkill, MasteryState } from "@/lib/engine";
+import type { PriorDomain } from "@/lib/contracts/goal";
 import { Lead, Meta, Title } from "@/components/ui";
 
 /**
@@ -21,6 +22,8 @@ export interface LessonBodyProps {
   mastery: MasteryState | undefined;
   minutes: number;
   now: Date;
+  /** The analogy the lesson may reach for — see `PriorDomain`. */
+  priorDomain: PriorDomain;
 }
 
 export async function LessonBody(props: LessonBodyProps) {
@@ -40,6 +43,7 @@ export async function LessonBody(props: LessonBodyProps) {
     mastery: props.mastery,
     minutes: props.minutes,
     now: props.now,
+    priorDomain: props.priorDomain,
   });
 
   // No lesson is shown as no lesson. Filler text would be the product teaching

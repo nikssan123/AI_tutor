@@ -7,6 +7,10 @@ import { activeGoal, masteryFor, type StoredGoal } from "@/lib/goals/store";
 import { initialMastery } from "@/lib/engine/bkt";
 import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
 import type { BlockResponse, LessonContent } from "@/lib/contracts/session";
+import {
+  DEFAULT_PRIOR_DOMAIN,
+  type PriorDomain,
+} from "@/lib/contracts/goal";
 import { logCall } from "@/lib/ai/runlog";
 import { buildLearnerContext, masteryBand } from "./context";
 import {
@@ -165,6 +169,8 @@ export async function lessonForBlock(
     mastery: MasteryState;
     minutes: number;
     now: Date;
+    /** From the goal's spec. Omitted means `none` — see `PriorDomain`. */
+    priorDomain?: PriorDomain | undefined;
   },
 ): Promise<LessonOutcome> {
   const level = masteryBand(input.mastery);
@@ -190,6 +196,7 @@ export async function lessonForBlock(
     level,
     minutes: input.minutes,
     support: supportFor(level, stuck),
+    priorDomain: input.priorDomain ?? DEFAULT_PRIOR_DOMAIN,
   };
 
   const hit = await cachedLesson(db, request);

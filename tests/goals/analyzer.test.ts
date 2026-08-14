@@ -41,6 +41,7 @@ const turn = (over: Partial<AnalyzerTurn> = {}): AnalyzerTurn => ({
     motivation: null,
     constraints: [],
     existingAssets: [],
+    priorDomain: "none",
   },
   clarity: 0,
   done: false,

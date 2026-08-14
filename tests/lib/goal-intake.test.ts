@@ -45,6 +45,9 @@ describe("parseGoalForm", () => {
         motivation: "",
         constraints: [],
         existingAssets: [],
+        // Nor a background control: the analyzer asks about what a learner
+        // already works with, the form does not, so the schema default lands.
+        priorDomain: "none",
         // The form has no depth control, so the schema's default lands here.
         // A goal created before the dial existed reads back the same way, which
         // is what makes `standard` the only safe default: it is the behaviour

@@ -96,6 +96,9 @@ const TURN = {
     motivation: null,
     constraints: [],
     existingAssets: [],
+    // Null is a real answer here: it has not come up yet. `toGoalSpec` reads
+    // that as "none", which is the lesson those learners already get.
+    priorDomain: null,
     levelSaid: "Complete beginner",
     weeklyHoursSaid: null,
     deadlineSaid: null,

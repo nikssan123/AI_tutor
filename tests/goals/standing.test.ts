@@ -39,6 +39,7 @@ const spec = (): GoalSpec => ({
   motivation: "a trip in October",
   constraints: [],
   existingAssets: [],
+  priorDomain: "none",
   depth: "standard",
   clarity: 1,
 });
@@ -92,6 +93,7 @@ live("what a learner has on", () => {
         motivation: null,
         constraints: [],
         existingAssets: [],
+        priorDomain: "none",
       },
       chips: [],
       clarity: 0.4,

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { PRIOR_DOMAINS } from "@/lib/contracts/goal";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   buildLessonPrompt,
+  priorDomainLine,
   generateLesson,
   LESSON_PROMPT,
   LESSON_TOOL_SCHEMA,
@@ -50,6 +52,7 @@ const request: LessonRequest = {
   level: "shaky",
   minutes: 12,
   support: "standard",
+  priorDomain: "none",
 };
 
 const lesson = {
@@ -78,6 +81,67 @@ describe("the lesson cache key", () => {
 
   it("is stable across runs", () => {
     expect(styleHashFor(request)).toBe(styleHashFor(request));
+  });
+
+  /**
+   * PLAN-ADAPTATION step 5 — the fifth and last dimension.
+   *
+   * The point of a *closed* set: the cache fragments into as many buckets as
+   * there are values and stops. Keyed on the free-text `existingAssets` this
+   * came from, every learner would get their own lesson and the hit rate §14.9.4
+   * budgets for would be zero.
+   */
+  it("changes with what the learner already works with", () => {
+    const base = styleHashFor(request);
+    expect(styleHashFor({ ...request, priorDomain: "spreadsheets" })).not.toBe(base);
+    expect(styleHashFor({ ...request, priorDomain: "programming" })).not.toBe(base);
+  });
+
+  it("fragments into as many buckets as the vocabulary has values", () => {
+    const hashes = new Set(
+      PRIOR_DOMAINS.map((priorDomain) => styleHashFor({ ...request, priorDomain })),
+    );
+    expect(hashes.size).toBe(PRIOR_DOMAINS.length);
+  });
+});
+
+describe("the prior-domain line", () => {
+  /**
+   * Lessons for a learner with no stated background have to be byte-for-byte
+   * what was being generated before this dimension existed — otherwise the
+   * whole cache invalidates for the majority of learners to add a line that
+   * says nothing.
+   */
+  it("adds nothing when there is nothing to say", () => {
+    expect(priorDomainLine("none")).toEqual([]);
+    expect(buildLessonPrompt({ ...request, priorDomain: "none" })).toBe(
+      buildLessonPrompt(request),
+    );
+  });
+
+  it("names the background the learner actually has", () => {
+    expect(priorDomainLine("spreadsheets")[0]).toContain("spreadsheets");
+    expect(priorDomainLine("programming")[0]).toContain("programming");
+    expect(priorDomainLine("statistics")[0]).toContain("statistics");
+  });
+
+  /**
+   * The permission to ignore it has to be as explicit as the fact itself. Told
+   * only that a reader knows spreadsheets, a model will reach for a pivot-table
+   * metaphor in a lesson on NULL semantics, where it is worse than no analogy —
+   * the reader unlearns the comparison as well as learning the skill.
+   */
+  it("lets the writer drop the analogy where it does not fit", () => {
+    for (const domain of ["spreadsheets", "programming", "statistics"] as const) {
+      expect(priorDomainLine(domain)[0]).toMatch(/does not|ignore this/i);
+    }
+  });
+
+  it("still says nothing about the particular learner", () => {
+    // The line describes a category, never a person: that is what keeps the
+    // lesson shareable with everyone else who answered the same way.
+    const prompt = buildLessonPrompt({ ...request, priorDomain: "spreadsheets" });
+    expect(prompt).not.toMatch(/\byou(r)?\b/i);
   });
 });
 

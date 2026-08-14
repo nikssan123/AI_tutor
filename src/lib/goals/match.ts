@@ -1,7 +1,11 @@
 import type { Db } from "@/db";
 import { allTopics } from "@/lib/content";
 import { resolvePack } from "@/lib/content/resolve";
-import { GoalSpec, STATED_CLARITY } from "@/lib/contracts/goal";
+import {
+  DEFAULT_PRIOR_DOMAIN,
+  GoalSpec,
+  STATED_CLARITY,
+} from "@/lib/contracts/goal";
 import { slugify } from "@/lib/packs/generate/derive";
 import type { DomainPack } from "@/lib/packs/types";
 import type { CapturedGoal, Message } from "./analyzer";
@@ -106,6 +110,9 @@ export function specFrom(
     motivation: captured.motivation ?? "",
     constraints: captured.constraints,
     existingAssets: captured.existingAssets,
+    // Null means it never came up, which is not the same as being told they
+    // are starting fresh — but it produces the same lesson, so both land here.
+    priorDomain: captured.priorDomain ?? DEFAULT_PRIOR_DOMAIN,
     clarity: Math.min(clarity, STATED_CLARITY),
   });
 

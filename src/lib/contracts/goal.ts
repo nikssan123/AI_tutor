@@ -45,6 +45,40 @@ export const MAX_WEEKLY_HOURS = 40;
  */
 export const CourseDepthSpec = z.enum(COURSE_DEPTHS);
 
+/**
+ * What the learner already works with, as something a cache key can hold
+ * (PLAN-ADAPTATION step 5).
+ *
+ * `existingAssets` has been captured at intake since E3 and read by nothing. It
+ * is free text — "I use pivot tables at work every day" — which is exactly what
+ * makes it useful to a lesson and unusable as a cache dimension: keyed on it,
+ * every learner gets their own lesson, the shared cache dies, and the marginal
+ * cost of content goes from a database read to a model call. §14.9.4 expects a
+ * 40–60% hit rate and that is what pays for generated lessons at all.
+ *
+ * So this is the *closed projection* of it. Four values, so a lesson fragments
+ * into at most four buckets per band instead of one per person, and every
+ * bucket is still shared with everyone who answered the same way. Bounded
+ * personalisation is the only kind that survives a shared cache.
+ *
+ * Deliberately coarse, and deliberately not a taxonomy of everything anyone
+ * might know. It exists to give the lesson generator **one concrete handle** —
+ * something true about the reader it can reach for when an analogy genuinely
+ * fits. `none` is the honest answer for most learners in most subjects, and the
+ * lessons those learners get are the ones written today.
+ */
+export const PRIOR_DOMAINS = [
+  "none",
+  "spreadsheets",
+  "programming",
+  "statistics",
+] as const;
+
+export const PriorDomain = z.enum(PRIOR_DOMAINS);
+export type PriorDomain = z.infer<typeof PriorDomain>;
+
+export const DEFAULT_PRIOR_DOMAIN: PriorDomain = "none";
+
 export const GoalSpec = z.object({
   /** Exactly what the learner typed, stored verbatim and never rewritten. */
   rawGoal: z.string().min(1).max(500),
@@ -64,6 +98,12 @@ export const GoalSpec = z.object({
   motivation: z.string().max(500),
   constraints: z.array(z.string().max(200)).max(20),
   existingAssets: z.array(z.string().max(200)).max(20),
+  /**
+   * The closed reading of `existingAssets`, for the lesson cache. Defaulted, so
+   * every goal written before this existed reads back as `none` — which is the
+   * lesson those learners were already being served.
+   */
+  priorDomain: PriorDomain.default(DEFAULT_PRIOR_DOMAIN),
   /** §8 screen 3 — below 0.6 the Goal Analyzer asks one more question. */
   clarity: z.number().min(0).max(1),
 });

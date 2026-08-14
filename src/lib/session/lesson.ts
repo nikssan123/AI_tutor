@@ -6,6 +6,7 @@ import { lesson as lessonTable } from "@/db/schema";
 import { callStructured, type CallResult } from "@/lib/ai/call";
 import { skillId as packSkillId } from "@/lib/packs/ids";
 import { LessonContent } from "@/lib/contracts/session";
+import type { PriorDomain } from "@/lib/contracts/goal";
 import { stableStringify } from "@/lib/engine/planner";
 
 /**
@@ -87,6 +88,16 @@ export interface LessonRequest {
   level: string;
   minutes: number;
   support: SupportLevel;
+  /**
+   * What the learner already works with, from a closed set (§ PLAN-ADAPTATION
+   * step 5). The fifth and last cache dimension.
+   *
+   * A closed set is the entire point. The free-text `existingAssets` it is
+   * derived from would give a better analogy and a cache hit rate of zero;
+   * four values fragment a lesson into at most four buckets per band, each one
+   * still shared with everyone who answered the same way.
+   */
+  priorDomain: PriorDomain;
 }
 
 /**
@@ -113,11 +124,37 @@ export function styleHashFor(request: LessonRequest): string {
         pack: request.packSlug,
         minutes: minutesBucket(request.minutes),
         support: request.support,
+        priorDomain: request.priorDomain,
         prompt: `${LESSON_PROMPT.name}@${LESSON_PROMPT.version}`,
       }),
     )
     .digest("hex")
     .slice(0, 32);
+}
+
+/**
+ * The analogy the reader already has, offered rather than imposed.
+ *
+ * "Where it genuinely fits" is doing real work in that sentence. Told only that
+ * a reader knows spreadsheets, a model will reach for a pivot-table metaphor in
+ * a lesson about NULL semantics, where it is worse than no analogy at all — the
+ * reader now has to unlearn the comparison as well as learn the skill. The
+ * permission to ignore it has to be as explicit as the fact itself.
+ *
+ * `none` adds no line, so those lessons are byte-for-byte the prompt that was
+ * being sent before this existed.
+ */
+export function priorDomainLine(priorDomain: PriorDomain): string[] {
+  const known: Record<Exclude<PriorDomain, "none">, string> = {
+    spreadsheets: "spreadsheets — formulas, pivot tables, that way of thinking about rows and columns",
+    programming: "programming in some language",
+    statistics: "statistics",
+  };
+
+  if (priorDomain === "none") return [];
+  return [
+    `This learner already works with ${known[priorDomain]}. Where an analogy to that genuinely fits, use it and name it. Where it does not, ignore this entirely — a forced comparison leaves them unlearning it as well as learning the skill.`,
+  ];
 }
 
 export function buildLessonPrompt(request: LessonRequest): string {
@@ -129,6 +166,7 @@ export function buildLessonPrompt(request: LessonRequest): string {
     request.support === "worked_example"
       ? "This learner has tried this skill and not got it yet. Lead with the worked example and keep the explanation behind it short."
       : "Lead with the explanation, then the worked example.",
+    ...priorDomainLine(request.priorDomain),
   ].join("\n");
 }
 

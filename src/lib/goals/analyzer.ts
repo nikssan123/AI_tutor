@@ -9,6 +9,8 @@ import {
   MAX_WEEKLY_HOURS,
   MIN_WEEKLY_HOURS,
   OutcomeType,
+  PRIOR_DOMAINS,
+  PriorDomain,
   StatedLevel,
 } from "@/lib/contracts/goal";
 
@@ -57,6 +59,12 @@ export const CapturedGoal = z.object({
   motivation: z.string().max(500).nullable(),
   constraints: z.array(z.string().max(200)).max(20),
   existingAssets: z.array(z.string().max(200)).max(20),
+  /**
+   * The closed reading of `existingAssets`, asked for here because the analyzer
+   * is already having this conversation — classifying it later would be a
+   * second call to learn something this one was told.
+   */
+  priorDomain: PriorDomain.nullable(),
 
   /*
    * What the learner actually said, for the three fields where our normalised
@@ -176,6 +184,12 @@ export const ANALYZER_TOOL_SCHEMA = {
         motivation: { type: ["string", "null"] },
         constraints: { type: "array", items: { type: "string" } },
         existingAssets: { type: "array", items: { type: "string" } },
+        priorDomain: {
+          type: ["string", "null"],
+          enum: [...PRIOR_DOMAINS, null],
+          description:
+            "Which of these the learner already works with, if any: spreadsheets, programming, statistics. Only when they have actually said so — an interest in a subject is not experience of it, and a wrong guess here puts a strained analogy in front of them. 'none' when they have said they are starting fresh; null when it has not come up.",
+        },
       },
       required: [
         "subject",
@@ -187,6 +201,7 @@ export const ANALYZER_TOOL_SCHEMA = {
         "motivation",
         "constraints",
         "existingAssets",
+        "priorDomain",
         "levelSaid",
         "weeklyHoursSaid",
         "deadlineSaid",

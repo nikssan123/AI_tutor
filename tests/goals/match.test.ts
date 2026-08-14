@@ -28,6 +28,7 @@ const captured = (over: Partial<CapturedGoal> = {}): CapturedGoal => ({
   motivation: null,
   constraints: [],
   existingAssets: [],
+  priorDomain: null,
   ...over,
 });
 
@@ -191,5 +192,37 @@ describe("specFrom", () => {
   it("returns undefined for a conversation that cannot make a valid spec", () => {
     const spec = specFrom(captured(), messages, "", "", 0.5);
     expect(spec).toBeUndefined();
+  });
+});
+
+describe("specFrom and the learner's background", () => {
+  const messages: Message[] = [{ r: "l", t: "learn photography" }];
+
+  /**
+   * PLAN-ADAPTATION step 5. Null means it never came up, which is not the same
+   * as being told they are starting fresh — but the two produce the same
+   * lesson, so both land on `none` rather than the spec carrying a third state
+   * the cache key would have to understand.
+   */
+  it("reads a background the learner never mentioned as none", () => {
+    const spec = specFrom(
+      captured({ priorDomain: null }),
+      messages,
+      "photography",
+      "Photography",
+      0.4,
+    );
+    expect(spec?.priorDomain).toBe("none");
+  });
+
+  it("carries a background they did mention", () => {
+    const spec = specFrom(
+      captured({ priorDomain: "spreadsheets" }),
+      messages,
+      "photography",
+      "Photography",
+      0.4,
+    );
+    expect(spec?.priorDomain).toBe("spreadsheets");
   });
 });

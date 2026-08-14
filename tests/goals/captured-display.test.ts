@@ -22,6 +22,7 @@ const EMPTY: CapturedGoal = {
   motivation: null,
   constraints: [],
   existingAssets: [],
+  priorDomain: "none",
   levelSaid: null,
   weeklyHoursSaid: null,
   deadlineSaid: null,

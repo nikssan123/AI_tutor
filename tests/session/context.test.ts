@@ -32,6 +32,7 @@ const goal: GoalSpec = {
   motivation: "a trip in October",
   constraints: ["phone only"],
   existingAssets: [],
+  priorDomain: "none",
   depth: "standard",
   clarity: 1,
 };

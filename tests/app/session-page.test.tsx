@@ -105,7 +105,11 @@ function view(over: {
       startedAt: new Date(),
       completedAt: over.completedAt ?? null,
     },
-    goal: { id: "g1", packSlug: "sql-data-analysis" },
+    goal: {
+      id: "g1",
+      packSlug: "sql-data-analysis",
+      spec: { priorDomain: "none" },
+    },
     // The real pack: the prove-it offer reads its item bank, and a stub with no
     // items would let a page that crashed on a real one pass here.
     pack: { ...findPack("sql-data-analysis")!, name: "SQL for data analysis" },

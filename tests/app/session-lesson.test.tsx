@@ -54,6 +54,7 @@ const props = {
   mastery,
   minutes: 12,
   now: new Date("2026-08-13T09:00:00.000Z"),
+  priorDomain: "none" as const,
 };
 
 beforeEach(() => {

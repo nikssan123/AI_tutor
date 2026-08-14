@@ -113,6 +113,7 @@ const captured = (over: Partial<CapturedGoal> = {}): CapturedGoal => ({
   motivation: null,
   constraints: [],
   existingAssets: [],
+  priorDomain: "none",
   ...over,
 });
 

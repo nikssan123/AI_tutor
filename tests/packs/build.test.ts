@@ -279,6 +279,7 @@ live("pack builds and intake", () => {
       motivation: "changing jobs",
       constraints: [],
       existingAssets: [],
+      priorDomain: "none",
     };
 
     it("is empty for a learner who has not started", async () => {

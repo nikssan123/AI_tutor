@@ -82,6 +82,7 @@ const spec = (overrides: Partial<GoalSpec> = {}): GoalSpec => ({
   motivation: "",
   constraints: [],
   existingAssets: [],
+  priorDomain: "none",
   depth: "standard",
   clarity: 1,
   ...overrides,
@@ -805,6 +806,7 @@ live("the session view and its lesson", () => {
     level: "shaky",
     minutes: 12,
     support: "worked_example",
+    priorDomain: "none",
   };
 
   async function newUser(): Promise<string> {
@@ -1052,6 +1054,7 @@ live("the session view and its lesson", () => {
       level: "solid",
       minutes: 12,
       support: "worked_example",
+      priorDomain: "none",
     };
     await saveLesson(db, escalated, lesson, NOW);
 
