@@ -20,6 +20,8 @@
     "dev": "next dev",
     "inngest:dev": "inngest-cli dev",
     "lint": "eslint .",
+    "guides:sources": "tsx scripts/guides-sources.ts",
+    "guides:validate": "tsx scripts/guides-validate.ts",
     "packs:seed": "tsx scripts/packs-seed.ts",
     "packs:validate": "tsx scripts/packs-validate.ts",
     "calibrate": "tsx scripts/calibration.ts",
@@ -31,7 +33,7 @@
     "tokens:build": "tsx scripts/build-tokens.ts",
     "tokens:check": "tsx scripts/build-tokens.ts --check",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm typecheck && pnpm lint && pnpm tokens:check && pnpm coverage:audit && pnpm actions:audit && pnpm packs:validate && pnpm coverage"
+    "verify": "pnpm typecheck && pnpm lint && pnpm tokens:check && pnpm coverage:audit && pnpm actions:audit && pnpm packs:validate && pnpm guides:validate && pnpm coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",

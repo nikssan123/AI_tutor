@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChecklistIcon, GridIcon, SubjectIcon } from "@/components/icons";
+import {
+  ChecklistIcon,
+  GridIcon,
+  StepsIcon,
+  SubjectIcon,
+} from "@/components/icons";
 import {
   EvalTierNote,
   JsonLdScript,
@@ -22,6 +27,8 @@ import {
   skillDetails,
   topicSummary,
 } from "@/lib/content";
+import { allGuides } from "@/lib/guides";
+import { guidesForSubject } from "@/lib/guides/links";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { breadcrumbs, course } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
@@ -75,6 +82,7 @@ export default async function TopicPage({
 
   // Group by area so the page reads as a curriculum rather than a list of 26.
   const areas = [...new Set(skills.map((s) => s.area))];
+  const guides = guidesForSubject(pack.slug, allGuides());
 
   return (
     <>
@@ -232,6 +240,36 @@ export default async function TopicPage({
             ))}
           </ul>
         </section>
+
+        {/* ── 03 The questions asked before the course ─────────────────────
+            §13.3's internal-link rule from the other side. A guide earns this
+            link by quoting this subject's real figures — that reference is the
+            evidence it is genuinely about this subject, so nobody authors a
+            link table and no guide can add itself here by asserting relevance.
+            It is also where §13.3's "≥2 inbound" comes from for the guides:
+            without it they could only link to each other, which is a ring, not
+            a graph. */}
+        {guides.length > 0 ? (
+          <section className="flex flex-col gap-8">
+            <SectionHead
+              step="03"
+              label="Before you start"
+              title="Questions people ask about this"
+              icon={<StepsIcon />}
+            />
+            <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
+              {guides.map((guide, i) => (
+                <li key={guide.slug} className="reveal" style={revealAt(i)}>
+                  <LinkCard href={`/guides/${guide.slug}`}>
+                    <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                      {guide.h1}
+                    </span>
+                  </LinkCard>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {!summary.indexable ? (
           <Meta>

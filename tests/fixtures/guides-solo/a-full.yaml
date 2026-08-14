@@ -1,0 +1,89 @@
+# The control fixture: a guide that clears every §12.2 dimension we can measure.
+#
+# Every other guide fixture is this one with something removed, so a failing
+# assertion names the missing thing rather than a pile of unrelated noise.
+slug: a-full
+title: Does rereading actually work?
+description: >-
+  A short answer with the evidence behind it, the two habits that replace
+  rereading, and a way to find out which of your own skills survived the week.
+h1: Does rereading actually work?
+
+answer: >-
+  Not as well as it feels like it does, and the difference between reading and
+  retrieving is why. This page explains what changes when you close the book
+  first, what the evidence supports, and how to tell the two apart in your own
+  week without buying anything or signing up for anything.
+
+tool:
+  path: /check/valid-minimal
+  label: Find out what survived
+  pitch: >-
+    A short check across {{topic:valid-minimal.skills}} skills that asks you to
+    retrieve rather than recognise.
+
+sections:
+  - heading: Familiarity is not recall
+    body: >-
+      Rereading makes a page feel known, and that feeling is *not* the same as
+      being able to produce the thing later.[^one]
+
+
+      The gap is the whole subject of this page.
+    list:
+      - Rereading feels productive and changes little.
+      - Retrieval feels bad and works.
+    links:
+      - to: /learn/valid-minimal
+        type: related
+        anchor: the skills this applies to
+      - to: /projects/minimal-project
+        type: project_for
+        anchor: a brief with its rubric published
+
+  - heading: What to do instead
+    body: >-
+      Close the material, write what you remember, then check. Repeat after a
+      gap and let the gap grow.[^two]
+    links:
+      - to: /check/valid-minimal/alpha
+        type: check_for
+        anchor: try one skill cold
+
+  - heading: What we do about it here
+    body: >-
+      Every session opens with retrieval drawn from earlier work, across
+      {{topic:valid-minimal.skills}} skills,
+      {{topic:valid-minimal.projects}} graded briefs and about
+      {{topic:valid-minimal.hours}} hours.[^three]
+    links:
+      - to: /guides/b-thin
+        type: next_step
+        anchor: the next question
+
+sources:
+  - id: one
+    url: https://example.org/one
+    title: A first source
+    note: Worth reading for the shape of the finding, not the exact numbers.
+  - id: two
+    url: https://example.net/two
+    title: A second source
+    note: Free summary; the full monograph is paywalled and unnecessary.
+  - id: three
+    url: https://example.com/three
+    title: A third source
+    note: A practitioner site, useful and openly selling something.
+
+faqs:
+  - question: Is this about memory or about skill?
+    answer: Both, but skill needs producing rather than answering.
+  - question: How long should the gap be?
+    answer: Longer each time, and long enough that recall is effortful.
+  - question: Do flashcards count?
+    answer: For vocabulary yes, for judgement much less so.
+
+review:
+  reviewedBy: A Human
+  reviewKind: human
+  reviewedAt: "2026-08-14"

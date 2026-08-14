@@ -1,0 +1,49 @@
+# `a-full` with everything optional taken away: no sources, no FAQs, no list,
+# no project brief, one data reference, three outbound links, and nobody has
+# signed it. It exists to hold the low end of every §12.2 dimension open, and to
+# be the second guide `a-full` needs in order to have anything to be unlike.
+slug: b-thin
+title: What should I learn next?
+description: >-
+  The shortest honest answer to the question everyone asks second, and the
+  reason a good answer to it depends on what you have already proved you can do.
+h1: What should I learn next?
+
+answer: >-
+  Whatever your current work is blocked on, which is almost never the next
+  chapter of anything. The useful version of this question is answered by
+  looking at what you have already demonstrated rather than by looking at a
+  syllabus, and that is a different question than most people ask.
+
+tool:
+  path: /
+  label: Start somewhere
+  pitch: The front door, which is a deliberately generic answer for a fixture.
+
+sections:
+  - heading: The syllabus is not the answer
+    body: A syllabus is an order somebody else needed.
+
+  - heading: Blocked work is the answer
+    body: >-
+      Look at what you tried to do last and could not finish, across
+      {{topic:valid-minimal.skills}} skills.
+    links:
+      - to: /learn/valid-minimal
+        type: related
+        anchor: the skill list
+
+  - heading: How to tell
+    body: Try the thing. The place you stop is the answer.
+    links:
+      - to: /guides/a-full
+        type: related
+        anchor: why it did not stick
+      - to: /check/valid-minimal
+        type: check_for
+        anchor: find out where you are
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

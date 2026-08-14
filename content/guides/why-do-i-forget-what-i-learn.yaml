@@ -1,0 +1,165 @@
+slug: why-do-i-forget-what-i-learn
+title: Why do I forget what I learn?
+description: >-
+  Forgetting is the default, not a personal failing. What the evidence says
+  about why it happens, and the two habits that reliably stop most of it.
+h1: Why do I forget what I learn?
+
+answer: >-
+  Because reading something is not the same as being able to retrieve it, and
+  only retrieval builds the path back. Memory for passively studied material
+  drops sharply within a day. Two habits reverse most of it: testing yourself
+  instead of rereading, and spacing those tests out rather than massing them.
+
+tool:
+  path: /check/sql-data-analysis
+  label: Test yourself instead of rereading
+  pitch: >-
+    A ten-minute check that asks you to retrieve rather than recognise, and
+    reports per skill across {{topic:sql-data-analysis.skills}} of them, so you
+    can see exactly which ones did not come back.
+
+sections:
+  - heading: Forgetting is the default state, and it is fast
+    body: >-
+      The forgetting curve is one of the oldest results in psychology and one of
+      the few that has survived being re-run. The modern replication found most
+      of the loss happens inside the first day, with a small jump upwards around
+      the 24-hour mark that the authors put down to sleep.[^ebbinghaus]
+
+
+      Two caveats, because this is the graph most often oversold. It was
+      measured on nonsense syllables, so the exact percentages do not transfer
+      to anything meaningful you are learning. And it describes material that
+      was studied and then left alone — which is precisely the condition the
+      rest of this page is about avoiding. The shape is real. The numbers are
+      not yours.
+    links:
+      - to: /guides/how-long-does-it-take-to-learn-sql
+        type: related
+        anchor: what this does to a course estimate
+
+  - heading: The feeling of knowing is not knowing
+    body: >-
+      Rereading a chapter makes it feel familiar, and familiarity feels exactly
+      like competence from the inside. This is why the most popular study
+      habits are the least effective ones: in the review that ranked ten
+      techniques by evidence, underlining, rereading and mnemonic devices all
+      came out with surprisingly low utility, while practice testing and
+      distributed practice were the two rated as broadly useful across ages and
+      abilities.[^dunlosky]
+
+
+      The uncomfortable part is that the effective techniques feel worse while
+      you do them. Retrieving something you half-know is effortful and it
+      produces errors, and that effort is the mechanism rather than a side
+      effect.[^retrieval] If a study session feels smooth, it is usually
+      recognition wearing recall's clothes.
+    list:
+      - Rereading — feels productive, changes little.
+      - Highlighting — feels like triage, mostly marks what you already noticed.
+      - Retrieval from a blank page — feels bad, works.
+      - The same retrieval a week later — feels worse, works better.
+
+  - heading: What to do instead, in the order that matters
+    body: >-
+      Two habits carry almost all of the effect, and neither of them needs an
+      app. The first is to close the material and write down what you remember
+      before you look. The second is to do that again after a gap, and to let
+      the gap grow.
+
+
+      The third thing, which is the one people skip, is to produce something
+      rather than to answer about something. A quiz question tests whether the
+      idea comes back. A piece of real work tests whether it comes back *in the
+      right place*, under the conditions you will actually need it, and that is
+      a different and harder question. The brief below is
+      {{project:data-quality-audit.minutes}} minutes and is marked against
+      {{project:data-quality-audit.criteria}} published criteria, which is the
+      difference between a retrieval attempt and a graded one.
+    list:
+      - Close the book. Write what you remember. Then check.
+      - Repeat after a day, then a week, then a month.
+      - Do the harder version — build the thing, do not answer about the thing.
+      - When you get it wrong, write the correction in your own words.
+    links:
+      - to: /projects/data-quality-audit
+        type: project_for
+        anchor: a brief that makes you produce rather than answer
+      - to: /check/sql-data-analysis/group-by-grain
+        type: check_for
+        anchor: try retrieving a single skill cold
+
+  - heading: How this product handles it, so you can copy it or ignore it
+    body: >-
+      Every session here opens with retrieval items drawn from work you did
+      earlier, scheduled by when the system expects you to be about to lose
+      them rather than by a fixed calendar. Skills you have proved decay in the
+      record if you never touch them again, and the ones close to lapsing come
+      back round.
+
+
+      That is a mechanism you can run yourself on paper, and the paper version
+      works. What the paper version cannot easily do is notice that a skill you
+      proved in March is about to stop counting in June, across
+      {{topic:sql-data-analysis.skills}} skills at once, while you are busy
+      learning something else. The same scheduling runs on every subject here,
+      {{catalogue.subjects}} of them, because none of this is specific to what
+      you happen to be studying.
+    links:
+      - to: /learn/sql-data-analysis
+        type: related
+        anchor: how the skills are laid out
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: build a schedule with the gaps already in it
+
+sources:
+  - id: ebbinghaus
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0120644
+    title: "Murre & Dros (2015), Replication and Analysis of Ebbinghaus' Forgetting Curve"
+    note: >-
+      The replication that makes the curve worth citing at all. Read it for the
+      shape and for the 24-hour discontinuity, not for numbers to quote.
+  - id: dunlosky
+    url: https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html
+    title: "Dunlosky et al. (2013), Improving Students' Learning With Effective Learning Techniques"
+    note: >-
+      Ten techniques ranked by evidence. The free summary carries the finding;
+      the full monograph is paywalled and you do not need it.
+  - id: retrieval
+    url: https://www.retrievalpractice.org/
+    title: "Agarwal, Retrieval Practice — research library and free downloads"
+    note: >-
+      A cognitive scientist's practitioner site. Useful because it translates
+      the research into things you can do on a Tuesday; it sells books, which is
+      worth knowing while you read it.
+
+faqs:
+  - question: Is a bad memory the reason I keep forgetting?
+    answer: >-
+      Almost never. The forgetting curve is the normal case for material that
+      was studied and then left alone, and it is steep for everybody. What
+      varies between people is mostly whether they retrieve and space, not
+      raw memory.
+  - question: How long should the gap between reviews be?
+    answer: >-
+      Longer each time, and long enough that recall is effortful. A day, then
+      about a week, then about a month is a reasonable start. If it comes back
+      instantly the gap was too short to be doing much.
+  - question: Do flashcards work for skills, not just facts?
+    answer: >-
+      Partly. They are excellent for the vocabulary layer — what a term means,
+      what a function does — and weak for anything with judgement in it. For
+      those, the retrieval that works is producing a small piece of the real
+      thing.
+  - question: Why do I remember things I struggled with?
+    answer: >-
+      Because struggling *is* retrieval. Effortful recall, including recall that
+      fails and then gets corrected, is what strengthens the route back.[^retrieval]
+      Smooth study sessions feel better and leave less behind.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

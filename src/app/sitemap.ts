@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { seoPage } from "@/db/schema";
 import { allProjects, allTopics, findPack, skillDetails } from "@/lib/content";
+import { allGuideSummaries } from "@/lib/guides";
+import { GUIDES_PATH } from "@/lib/guides/links";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { canonical } from "@/lib/site";
 
@@ -65,6 +67,32 @@ export function packPages(): MetadataRoute.Sitemap {
   return entries;
 }
 
+/**
+ * §10 D — the authored guides, on the same rule as everything else here.
+ *
+ * A guide is indexable only once it scores ≥75 on §12.2 with no outstanding
+ * problems *and* somebody has recorded that they read it, so a draft sitting in
+ * the repository is invisible to a crawler by construction rather than by
+ * anyone remembering to keep it out.
+ *
+ * The `/guides` hub follows its contents: a hub whose every child is a draft is
+ * a page listing things we are not asking anyone to rank, and submitting it
+ * would be submitting a thin page. It joins the moment the first guide does.
+ */
+export function guidePages(): MetadataRoute.Sitemap {
+  const published = allGuideSummaries().filter((g) => g.indexable);
+  if (published.length === 0) return [];
+
+  return [
+    { url: canonical(GUIDES_PATH), changeFrequency: "weekly", priority: 0.8 },
+    ...published.map((guide) => ({
+      url: canonical(`${GUIDES_PATH}/${guide.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+  ];
+}
+
 export async function indexablePages(): Promise<MetadataRoute.Sitemap> {
   const rows = await getDb()
     .select({ slug: seoPage.slug, updatedAt: seoPage.updatedAt })
@@ -93,7 +121,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const base = [...hubs, ...packPages()];
+  const base = [...hubs, ...packPages(), ...guidePages()];
 
   try {
     return [...base, ...(await indexablePages())];

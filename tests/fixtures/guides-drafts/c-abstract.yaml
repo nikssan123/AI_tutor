@@ -1,0 +1,33 @@
+# A corpus with nothing published and nothing about any particular subject.
+# It holds two absences open: a `/guides` hub with no published child, and a
+# subject page with no guide that has earned a link on it.
+slug: c-abstract
+title: Is learning a skill worth it?
+description: >-
+  A question about motivation rather than about any subject in particular, so
+  nothing on this page quotes a course and no course links back to it.
+h1: Is learning a skill worth it?
+
+answer: >-
+  Usually, but not for the reason people give when they ask. The honest answer
+  depends on whether there is something you want to be able to do at the end of
+  it, and a fixture guide is not the place to settle that. This paragraph exists
+  to be exactly long enough.
+
+tool:
+  path: /
+  label: Have a look
+  pitch: The front door, which is a deliberately generic answer for a fixture.
+
+sections:
+  - heading: It depends on the outcome
+    body: If there is nothing you want to do with it, probably not.
+  - heading: It depends on the time
+    body: Three hours a week is a real commitment for a year.
+  - heading: It depends on the proof
+    body: Being able to show the work is what changes the answer.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

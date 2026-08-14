@@ -1,0 +1,190 @@
+slug: how-long-does-it-take-to-learn-sql
+title: How long does it take to learn SQL?
+description: >-
+  A straight answer in hours rather than weeks, the pace maths behind it, and
+  the specific skills that decide whether you are actually finished or not.
+h1: How long does it take to learn SQL?
+
+# §11 item 1 — the 40–60 word direct answer.
+answer: >-
+  About {{topic:sql-data-analysis.hours}} hours of focused work covers
+  {{topic:sql-data-analysis.skills}} skills, from a first SELECT to window
+  frames and query plans. At five hours a week that is around ten weeks; at one
+  hour a week it is closer to a year. Hours are the honest unit here. The
+  calendar is not.
+
+tool:
+  path: /tools/learning-roadmap-generator
+  label: Put your own hours in
+  pitch: >-
+    Tell it how many hours a week you actually have and it prices the same
+    {{topic:sql-data-analysis.skills}} skills against your pace, in weeks, with
+    the checkpoints dated.
+
+sections:
+  - heading: The number is hours, and only you own the second number
+    body: >-
+      Every "learn SQL in X weeks" headline is doing the same trick: it picks a
+      weekly pace for you, hides it, and prints the result. The pace is the part
+      that varies by a factor of ten between two real people, so the result is
+      the least reliable half of the sentence.
+
+
+      Our own SQL course is {{topic:sql-data-analysis.hours}} hours across
+      {{topic:sql-data-analysis.skills}} skills. That figure is the sum of the
+      per-skill estimates in the course itself, not a marketing number — it
+      moves when the course does. What it turns into on a calendar is entirely
+      about the hours you genuinely have, and the honest version of the answer
+      shows its working.
+    list:
+      - Ten hours a week — about five weeks, if the ten hours are real.
+      - Five hours a week — about ten weeks. This is the common case.
+      - Two hours a week — about six months.
+      - One hour a week — about a year, and you will lose ground between
+        sessions unless you review.
+    links:
+      - to: /tools/learning-roadmap-generator
+        type: next_step
+        anchor: price it against your own week
+      - to: /learn/sql-data-analysis
+        type: related
+        anchor: the full SQL course, skill by skill
+
+  - heading: Why the published estimates are all wrong in the same direction
+    body: >-
+      They measure exposure, not retention. Sitting through
+      {{topic:sql-data-analysis.hours}} hours of SQL video is not
+      {{topic:sql-data-analysis.hours}} hours of learning SQL, and the gap is
+      not small.
+
+
+      Memory for material you have merely read decays fast and it decays on a
+      curve that has been measured repeatedly since 1885 — the modern
+      replication puts most of the loss inside the first day, with a
+      discontinuity around the 24-hour mark that the authors attribute to
+      sleep.[^ebbinghaus] So an estimate built on hours-in-front-of-material is
+      counting something that partly evaporates before the next session.
+
+
+      The two techniques that survive review as reliably useful are practice
+      testing and spreading study out over time; rereading and highlighting,
+      which is what most self-paced study actually consists of, come out with
+      surprisingly low utility.[^dunlosky] An honest hours figure therefore has
+      to be hours of *doing*, which is what ours counts and why it looks larger
+      than a course catalogue's.
+    links:
+      - to: /guides/why-do-i-forget-what-i-learn
+        type: related
+        anchor: what to do about the forgetting itself
+
+  - heading: What "I know SQL" has to mean before the number means anything
+    body: >-
+      "Learned SQL" is not one thing, which is the real reason the estimates
+      disagree. Writing a SELECT with clear aliases is an hour. Joining three
+      tables at the right grain and proving the totals were not inflated by
+      fan-out is three, and it is the skill that separates someone who can query
+      from someone you can trust with a number.
+
+
+      The course states a can-do sentence for every one of its
+      {{topic:sql-data-analysis.skills}} skills, and the sentence is the bar —
+      each one is written so it can be settled by looking at a piece of work
+      rather than by asking someone whether they feel confident. The heaviest
+      ones are worth naming, because they are where the hours actually go.
+
+
+      The last of them is the one people underestimate most. Reading a query
+      plan is a separate skill from writing queries, it is documented rather
+      than intuited, and the documentation is free.[^explain] Budget the three
+      hours; it is what turns a query that works into a query you can put in
+      front of a database somebody depends on.
+    list:
+      - Grain — state what one row of your result represents, and write the
+        GROUP BY that produces it. 2.5 hours.
+      - Join grain — join three tables without inflating the totals, and prove
+        it. 3 hours.
+      - Cohort analysis — build a retention table from a raw event log. 3 hours.
+      - Query performance — read an EXPLAIN plan, name why it is slow, and fix
+        it. 3 hours.
+    links:
+      - to: /projects/cohort-retention-table
+        type: project_for
+        anchor: the cohort brief, with the rubric it is marked against
+      - to: /check/sql-data-analysis/join-grain
+        type: check_for
+        anchor: check whether you can already do join grain
+
+  - heading: How to find out where you actually are
+    body: >-
+      The fastest way to shorten the number is to stop paying for the parts you
+      already know. Our skill check runs in about ten minutes, needs no account,
+      and reports per skill rather than as a single score — so what comes out is
+      a list of what to skip, not a percentage.
+
+
+      Then the hours that remain are the ones worth spending, and the estimate
+      stops being about SQL in general and starts being about you. There are
+      {{topic:sql-data-analysis.projects}} graded briefs in this course, each
+      with its marking checklist published before you start, which is what makes
+      "finished" a thing somebody can check rather than a thing you decide.
+    links:
+      - to: /check/sql-data-analysis
+        type: check_for
+        anchor: take the ten-minute SQL check
+      - to: /projects/slow-query-rescue
+        type: project_for
+        anchor: the query-performance brief
+
+sources:
+  - id: ebbinghaus
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0120644
+    title: "Murre & Dros (2015), Replication and Analysis of Ebbinghaus' Forgetting Curve"
+    note: >-
+      A careful modern replication of the 1885 experiment. Worth reading for the
+      shape of the curve rather than the exact percentages, which come from
+      nonsense syllables and not from SQL.
+  - id: dunlosky
+    url: https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html
+    title: "Dunlosky et al. (2013), Improving Students' Learning With Effective Learning Techniques"
+    note: >-
+      The review that ranked ten study techniques by evidence. The summary is
+      free; the full monograph is paywalled, and the summary is honestly enough.
+  - id: explain
+    url: https://www.postgresql.org/docs/current/using-explain.html
+    title: "PostgreSQL, Using EXPLAIN"
+    note: >-
+      The primary source for reading a query plan, and short. Postgres-specific
+      in its output format, but the concepts carry to every engine you will meet.
+
+faqs:
+  - question: Can I learn SQL in a weekend?
+    answer: >-
+      You can learn to write a SELECT with a filter and a sort in a weekend, and
+      that is a real, useful thing. You cannot get to joins at the right grain,
+      window frames or query plans, which is about
+      {{topic:sql-data-analysis.hours}} hours of work in total.
+  - question: Is SQL harder than Python?
+    answer: >-
+      Different, and shorter. Our SQL course is
+      {{topic:sql-data-analysis.hours}} hours against
+      {{topic:python-fundamentals.hours}} for Python fundamentals. SQL has fewer
+      concepts but they interact — NULLs, grain and joins go wrong together, and
+      that interaction is where the time goes.
+  - question: Do I need to learn SQL if I already use Excel well?
+    answer: >-
+      The concepts transfer better than people expect — a pivot table is a GROUP
+      BY, and a VLOOKUP is a join with one row on one side. What does not
+      transfer is grain and NULL behaviour, which is where confident spreadsheet
+      users get wrong answers rather than errors.
+  - question: How do I know when I have actually finished?
+    answer: >-
+      When you can hand in work that clears the published checklist for it.
+      There are {{topic:sql-data-analysis.projects}} graded briefs on this
+      course, and the rubric for each is on its page before you start, so
+      finishing is something a marker agrees with rather than something you
+      declare.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

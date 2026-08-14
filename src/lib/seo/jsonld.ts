@@ -166,6 +166,28 @@ export function webApplication(input: {
   };
 }
 
+/**
+ * §13.3 — `FAQPage`, "where a real FAQ exists".
+ *
+ * The caller passes the same array the page renders below the fold, so the
+ * rule at the top of this file holds without anyone having to remember it: a
+ * question that is not visible on the page cannot reach the markup, because
+ * there is no second list to draw from.
+ */
+export function faqPage(
+  faqs: Array<{ question: string; answer: string }>,
+): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
+  };
+}
+
 /** Serialises for a `<script type="application/ld+json">` tag. */
 export function serialise(...blocks: JsonLd[]): string {
   return JSON.stringify(blocks.length === 1 ? blocks[0] : blocks);
