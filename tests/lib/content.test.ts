@@ -240,12 +240,12 @@ describe("topicSummary", () => {
 describe("allTopics", () => {
   it("sorts by name so the listing is stable", () => {
     /*
-     * Compared with the same comparator `allTopics` uses. This asserted against
-     * a bare `.sort()`, which orders by UTF-16 code unit — so it agreed only
-     * while no two names differed by case in their first few characters. "SQL &
-     * Data Analysis" and "Spanish: Reading & Writing" are the pair that broke
-     * it: a bare sort puts SQL first because 'Q' (81) precedes 'p' (112), and a
-     * reader looking for an alphabetical list expects Spanish first.
+     * Compared with the same comparator `allTopics` uses, not with a bare
+     * `.sort()`. The two disagree whenever two names differ by case early on,
+     * because a bare sort orders by UTF-16 code unit and puts every capital
+     * ahead of every lowercase letter — so "SQL …" sorts before "Sa…", which is
+     * not what a reader scanning an alphabetical list expects. No pair in the
+     * current catalogue triggers it; this is here so the next one cannot.
      */
     const names = allTopics().map((t) => t.name);
     expect([...names].sort((a, b) => a.localeCompare(b))).toEqual(names);

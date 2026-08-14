@@ -230,7 +230,7 @@ You chose horizontal. That is a market-coverage decision, not a marketing decisi
 | Technical / entry | Python basics, SQL, web dev, Excel | 1 | High | **Depth pack** |
 | Professional & business | Marketing, finance, PM, negotiation, analytics | 2 | High | **Depth pack** |
 | Academic | Maths, statistics, physics, exam prep | 1–2 | Medium | Depth pack |
-| Languages | Spanish, German, English | 4 | Medium-high | Standard (voice = phase 2) |
+| ~~Languages~~ | — | — | — | **Declined.** See `content/categories.ts`: strong incumbents learners already like, and the half that would differentiate us (speaking) needs §7.3's Conversation workspace. A learner who asks still gets a Generated pack; we do not author one. |
 | Creative | Photography, music, writing, design | 3 | Medium | Standard |
 | Practical / lifestyle | Cooking, fitness, chess, DIY | 3 | Low-medium | Generated pack |
 | Communication | Public speaking, interviewing, sales | 4 | High | Standard (voice = phase 2) |

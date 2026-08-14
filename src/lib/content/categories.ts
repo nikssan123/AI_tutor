@@ -59,9 +59,9 @@ export const CATEGORIES: Category[] = [
  * speaking — is the half §7.3 cannot reach until the Conversation workspace
  * ships.
  *
- * A learner who asks for Spanish is still served: §7.1's Generated tier writes
- * it on request and it lands under "Everything else". What we do not do is
- * author one by hand or put a front door on it.
+ * A learner who asks for one is still served: §7.1's Generated tier writes it on
+ * request and it lands under "Everything else". What we do not do is author one
+ * by hand or put a front door on it.
  */
 
 /**
