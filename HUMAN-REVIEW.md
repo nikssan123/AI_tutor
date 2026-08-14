@@ -24,7 +24,8 @@ E12's first pages and is by far the smallest.
 > been measured and is met; see below.
 
 None is long. Together they are roughly **one focused day** for the SQL pack
-alone, which is enough to launch on; part C adds about twenty minutes.
+alone, which is enough to launch on; part C adds twenty minutes for the two
+pages worth publishing first.
 
 ---
 
@@ -320,27 +321,30 @@ written and the stability half is measured and met.
 
 ---
 
-# C. The guide read — unblocks the first five SEO pages
+# C. The guide read — unblocks the first eight SEO pages
 
 New, and much the smallest of the three. §12.1 rule 5 is *"no page ships without
 a human read"*, and it is the only §12 defence that cannot be automated. The
-other four are: the volume is 5 pages and not 5,000, every page carries a
+other four are: the volume is 8 pages and not 5,000, every page carries a
 working tool, the prose is hand-written, and `noindex` is the default.
 
 ## What it gates
 
 `isGuideIndexable` asks for three things: a §12.2 score of ≥75, an empty problem
-list, and a recorded reviewer. **The first two are already met.** All five
+list, and a recorded reviewer. **The first two are already met.** All eight
 guides score 100/100 on every dimension that can be measured, have no
-outstanding problems, and all sixteen of their cited sources return 200.
+outstanding problems, and all twenty-five of their cited sources return 200.
 
 So the pages exist, render, and are one line each away from the sitemap.
 
 ```
 content/guides/why-do-i-forget-what-i-learn.yaml
 content/guides/why-am-i-stuck-in-tutorial-hell.yaml
+content/guides/how-many-hours-a-week-to-learn-a-new-skill.yaml
 content/guides/how-do-i-know-if-im-actually-improving.yaml
+content/guides/best-way-to-learn-a-skill-as-an-adult.yaml
 content/guides/how-long-does-it-take-to-learn-sql.yaml
+content/guides/how-long-does-it-take-to-learn-python.yaml
 content/guides/what-should-i-learn-after-python-basics.yaml
 ```
 
@@ -378,11 +382,19 @@ on. Four are worth your attention specifically:
 | SQL hours | Grain and NULL behaviour are where confident spreadsheet users get *wrong answers* rather than errors |
 | After Python basics | The four that matter next are traceback, exceptions, tests and structured data — **not** a framework |
 | After Python basics | Names-and-references is the skill most courses skip, and the pair with mutable defaults is where confident beginners come apart |
+| Python hours | "Learn Python" is three different courses — scripting, data, web — sharing one core |
+| Hours per week | Below about two hours a week, split across two sittings, most adults lose ground faster than they gain it |
+| Adult learning | Deep on one subject, mixed within it; two subjects at once halves your spacing on both |
 
 The Python ordering claim is the strongest one on any of these pages and the one
 I would most like challenged. It is defensible from our own skill graph, which
 is where the dependency order comes from — but the graph is a model review, not
 a hand-checked one.
+
+The **two-hours-a-week floor** is the other one worth arguing with. The
+direction is well supported and the specific number is a judgement, presented as
+one ("about two"). If you think it discourages people who would have been fine
+on one hour, that is a fair objection and the sentence should change.
 
 ### 2. Does it sound like you?
 This is the only copy on the site that argues rather than states. If a sentence
@@ -420,15 +432,21 @@ signing changes is whether we ask Google to rank it.
    is learning science with a citation behind it.
 2. `why-am-i-stuck-in-tutorial-hell` — same, plus one argument of ours (that the
    missing skill is *choosing*, not knowledge).
-3. `how-do-i-know-if-im-actually-improving` — the thesis page. Judge it as
+3. `how-many-hours-a-week-to-learn-a-new-skill` — cited throughout; the one
+   judgement in it is the two-hour floor, above.
+4. `how-do-i-know-if-im-actually-improving` — the thesis page. Judge it as
    positioning as much as prose; it is the one that says out loud why there is
    no percentage anywhere in the product.
-4. `how-long-does-it-take-to-learn-sql` — two uncited SQL claims, above.
-5. `what-should-i-learn-after-python-basics` — the strongest uncited claim on
+5. `best-way-to-learn-a-skill-as-an-adult` — mostly cited. Worth checking the
+   10,000-hours correction reads as useful rather than pedantic.
+6. `how-long-does-it-take-to-learn-sql` — two uncited SQL claims, above.
+7. `how-long-does-it-take-to-learn-python` — the three-destinations framing is
+   ours and load-bearing.
+8. `what-should-i-learn-after-python-basics` — the strongest uncited claim on
    the site. Read it last and read it hardest.
 
-If you only have twenty minutes, do 1 and 2. Two indexed pages that are
-certainly right beat five that are probably right, and the rest keep in the
+If you only have twenty minutes, do 1 and 2. **Two indexed pages that are
+certainly right beat eight that are probably right**, and the rest keep in the
 repository as drafts indefinitely at no cost.
 
 ---

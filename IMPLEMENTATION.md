@@ -3006,19 +3006,56 @@ citation superscripts anchored to their sources, and `BreadcrumbList` +
 working: unsigned means unpublished, and `follow` still lets its outbound links
 be crawled.
 
+## Three defects the substrate had, found by writing against it
+
+Guides six through eight were written a day after the substrate, and writing
+them broke it in three places. All three are the same class of bug — a rule
+applied in one place and not another — and none was visible on a rendered page.
+
+**Link anchors were not resolved.** `resolveGuide` walked headings, bodies,
+lists and FAQs and stopped there, so a `{{…}}` in an anchor reached the reader
+as braces. Link text is the one string on a page nobody proof-reads.
+
+**"All the text" existed twice, and had already drifted.** `prose()` in
+`quality.ts` and an inline join in `subjectsCited` both meant "every word on the
+page", and within an hour of existing they disagreed: one counted link anchors
+and the other did not, so a figure quoted in a link was proprietary data to one
+gate and invisible to the other. It is one `guideProse` in `types.ts` now, and
+consolidating it caught a third omission neither copy had — **the tool pitch**,
+which renders above the fold and was invisible to both.
+
+**A subject page was showing seven guide cards.** SQL is cited by seven of the
+eight guides. Seven cards in one band is a directory, not a section (§8.5.1).
+
+The cap is four, and *where* it lives is the part worth recording: it is in
+`guidesForSubject`, not in the page. `inboundLinks` is computed from that same
+list, so a cap applied only at render would have left §13.3's "≥2 inbound"
+counting links the page does not draw — a metric that is worse than no metric,
+because it reads as evidence. Ordering is by how often a guide quotes that
+subject's own figures, which is the only non-arbitrary signal available and
+needs no authoring: SQL's page leads with the SQL hours guide, Python's with the
+Python one.
+
+**It bit immediately, and correctly.** `best-way-to-learn-a-skill-as-an-adult`
+fell off SQL's top four and dropped to one inbound link. The fix was to earn the
+second from `why-am-i-stuck-in-tutorial-hell` — where a reader would actually
+follow it — rather than to inflate its reference count until it climbed back
+onto the subject page.
+
 ## Still open
 
-E12 is five pages of fifty. The substrate, the score, the link graph and the
-templates are done, and the remaining work is authoring — three more of §10 D's
-ten can be answered honestly against the packs that exist, three cannot be
-answered honestly at all (no ML pack; no outcome data for the bootcamp and
-portfolio questions). §10 C (`/learn/{topic}-for-{audience}`) and §10 F
-(`/roadmaps/{slug}`) have no route yet.
+E12 is eight pages of fifty, and §10 D is finished as far as it honestly can be. Eight of its ten questions are written; the
+other two cannot be answered honestly — one needs an ML pack we do not have, two
+need outcome data we have not collected — and they stay unwritten until that
+changes. §10 C (`/learn/{topic}-for-{audience}`) and §10 F (`/roadmaps/{slug}`)
+have no route yet, and they are the next thing E12 owes.
 
-All five need Nikolay's read before any can be indexed. That is
-`HUMAN-REVIEW.md` part C, which now names the four uncited subject-matter claims
-worth his attention and says which two pages are cheapest to judge — twenty
-minutes for the first two, about an hour for all five.
+All eight need Nikolay's read before any can be indexed. `HUMAN-REVIEW.md` part
+C names the seven uncited subject-matter claims worth his attention, flags the
+two-hours-a-week floor as the one judgement most worth arguing with, and puts
+the eight in cheapest-to-judge order. Twenty minutes on the first two is a
+complete outcome — two pages that are certainly right beat eight that are
+probably right.
 
 Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
 behind a deployed origin.
