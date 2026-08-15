@@ -13,11 +13,12 @@ import { SubjectList } from "@/components/subject-list";
 import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import {
   Button,
-  Card,
+  ButtonLink,
   EmptyState,
   HeroBand,
   Lead,
   Meta,
+  Signal,
   stagger,
   Status,
   Title,
@@ -26,6 +27,7 @@ import {
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { nudgeAt } from "@/lib/billing/gate";
+import { buildInFlightFor } from "@/lib/packs/build";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
 
@@ -162,7 +164,8 @@ export default async function TodayPage({ searchParams }: Props) {
 
   const { minutes, error } = await searchParams;
   const requested = Number(minutes);
-  const view = await todayFor(getDb(), session.user.id, new Date(), {
+  const now = new Date();
+  const view = await todayFor(getDb(), session.user.id, now, {
     availableMinutes:
       Number.isFinite(requested) && requested > 0 ? requested : undefined,
   });
@@ -184,6 +187,21 @@ export default async function TodayPage({ searchParams }: Props) {
     error === "sessions"
       ? await nudgeAt(getDb(), session.user.id, session.user.plan, "sessions_spent")
       : undefined;
+
+  /*
+   * A second subject being authored while this course runs — the one important
+   * event in the product that had no surface at all.
+   *
+   * `nothingRunningYet` reads it through `standingFor`, so the learner between
+   * courses is told. The learner who already has a course was told nothing,
+   * anywhere: the most expensive thing the product does was happening on their
+   * behalf and the only screen that mentioned it was a wait page they would have
+   * had to remember the URL of. Fetched after the plan rather than beside it —
+   * the empty branch below asks `standingFor` for the same row, and running both
+   * would buy a duplicate query on every visit to pay for one round trip on a
+   * screen that is doing six already.
+   */
+  const building = await buildInFlightFor(getDb(), session.user.id, now);
 
   return (
     <AppFrame>
@@ -217,6 +235,35 @@ export default async function TodayPage({ searchParams }: Props) {
       {spent ? <UpgradeNudge nudge={spent} /> : null}
 
       {/*
+       * Above the session band, and it is the one thing allowed to be: a run
+       * executing on their behalf right now outranks a session that will wait.
+       * Its own band, so the deadline Signal further down is a band away rather
+       * than a second marked edge in the same one.
+       */}
+      {building ? (
+        <Signal
+          className="rise"
+          tone="verified"
+          live
+          state="Being written"
+          title={`We’re writing your ${building.subject} course`}
+          action={
+            <ButtonLink
+              href={`/start/building?subject=${encodeURIComponent(building.slug)}`}
+              variant="text"
+            >
+              See how it’s going
+            </ButtonLink>
+          }
+        >
+          <Meta>
+            It keeps building whether or not you watch. Today&rsquo;s session
+            below is on {pack.name} and is unaffected.
+          </Meta>
+        </Signal>
+      ) : null}
+
+      {/*
        * The session band is the one thing on this screen, so it is the only
        * thing carrying the accent field. The bands under it are the context you
        * read *after* deciding to start.
@@ -229,7 +276,18 @@ export default async function TodayPage({ searchParams }: Props) {
            sentence on the screen, so it gets the accent field and the largest
            type in the band rather than sitting in the same grey as everything
            else. */
-        field={<Title className="text-ink">{planned.reason}</Title>}
+        field={
+          <>
+            <Title className="text-ink">{planned.reason}</Title>
+            {/* An unfinished session was said in one place only — the footer
+                button quietly reading "Carry on" instead of "Start session" —
+                which is a difference you can only see if you already know both
+                labels exist. The field is where the learner is looking. */}
+            {openSessionId ? (
+              <Status tone="attention">Already started</Status>
+            ) : null}
+          </>
+        }
         footer={
           <>
             {/* A form, not a link: starting a session writes rows. The action
@@ -284,11 +342,21 @@ export default async function TodayPage({ searchParams }: Props) {
         )}
       </HeroBand>
 
+      {/* A plan that has been cut to fit a date is the second-loudest thing
+          this screen ever has to say, and it used to be its quietest: a status
+          dot and 13px of grey, in a plain card, below the fold. §4.2 law 5 —
+          silent scope reduction is the thing we refuse to do, so the telling
+          has to be visible enough to count as telling. */}
       {planned.compression ? (
-        <Card className="rise flex flex-col gap-2" style={stagger(3)}>
-          <Status tone="attention">Deadline</Status>
-          <Meta>{planned.compression.message}</Meta>
-        </Card>
+        <Signal
+          className="rise"
+          style={stagger(3)}
+          tone="attention"
+          state="Deadline"
+          title="Your deadline is deciding what fits"
+        >
+          <Lead>{planned.compression.message}</Lead>
+        </Signal>
       ) : null}
 
       <section className="rise flex flex-col gap-6" style={stagger(4)}>

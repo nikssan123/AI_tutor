@@ -23,6 +23,7 @@ import {
   Row,
   RowList,
   SelectField,
+  Signal,
   Skeleton,
   stagger,
   Status,
@@ -208,6 +209,97 @@ describe("Status — a dot plus a word (§8.5.5)", () => {
     expect(container.querySelector('[aria-hidden="true"]')!.className).toContain(
       expected,
     );
+  });
+
+  it("holds still unless something is actually happening", () => {
+    // A dot that pulses where nothing is moving is a dot people stop seeing,
+    // and then the one that means something goes past unnoticed too.
+    const { container } = render(<Status tone="verified">Ready</Status>);
+    expect(container.querySelector('[aria-hidden="true"]')!.className).not.toContain(
+      "animate-pulse",
+    );
+  });
+
+  it("breathes the dot for a state that is changing as you look at it", () => {
+    const { container } = render(
+      <Status tone="verified" live>
+        Being written
+      </Status>,
+    );
+    expect(container.querySelector('[aria-hidden="true"]')!.className).toContain(
+      "animate-pulse",
+    );
+  });
+});
+
+/**
+ * §8.5.5 — a deliberate addition to the vocabulary, so it is held to the same
+ * bans as everything already on the list. The two that bite here are colour as
+ * the sole carrier of meaning, and badge soup.
+ */
+describe("Signal — Status at card scale", () => {
+  it("cannot draw its rule without a word saying what the rule means", () => {
+    const { container } = render(
+      <Signal tone="attention" state="Left unfinished" title="You were partway through" />,
+    );
+
+    // The rule is decorative; `state` is the meaning, and it is a required
+    // prop rather than an optional one for exactly this reason.
+    expect(screen.getByText("Left unfinished")).toBeDefined();
+    expect(screen.getByText("You were partway through")).toBeDefined();
+    expect(
+      container.querySelector('[aria-hidden="true"].bg-attention'),
+    ).not.toBeNull();
+  });
+
+  it("defaults to the attention tone", () => {
+    // The common case by a distance: something is waiting on the learner.
+    const { container } = render(<Signal state="Waiting" title="Something" />);
+    expect(
+      container.querySelector('[aria-hidden="true"].bg-attention'),
+    ).not.toBeNull();
+  });
+
+  it.each([
+    ["verified", "bg-accent"],
+    ["attention", "bg-attention"],
+    ["problem", "bg-problem"],
+  ] as const)("marks the %s tone with its own token", (tone, expected) => {
+    const { container } = render(<Signal tone={tone} state="s" title="t" />);
+    // Two elements carry the tone — the edge rule and the Status dot — and
+    // both are decorative. Neither may be the only thing saying so.
+    expect(container.querySelectorAll(`[aria-hidden="true"].${expected}`).length).toBe(2);
+  });
+
+  it("titles at title size, so it outranks the cards around it", () => {
+    render(<Signal state="Being written" title="We’re writing your course" />);
+    expect(
+      screen.getByRole("heading", { level: 2 }).textContent,
+    ).toBe("We’re writing your course");
+  });
+
+  it("carries its supporting copy and its one way to act", () => {
+    render(
+      <Signal
+        state="Being written"
+        title="We’re writing your course"
+        action={<ButtonLink href="/start/building">See how it’s going</ButtonLink>}
+      >
+        <Lead>It takes a few minutes.</Lead>
+      </Signal>,
+    );
+
+    expect(screen.getByText("It takes a few minutes.")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "See how it’s going" }).getAttribute("href"),
+    ).toBe("/start/building");
+  });
+
+  it("passes `live` through to the dot", () => {
+    const { container } = render(
+      <Signal tone="verified" live state="Being written" title="Yours is being written" />,
+    );
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
   });
 });
 

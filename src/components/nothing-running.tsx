@@ -1,4 +1,12 @@
-import { ButtonLink, Card, Lead, Meta, stagger, Title } from "@/components/ui";
+import {
+  ButtonLink,
+  Card,
+  Lead,
+  Meta,
+  Signal,
+  stagger,
+  Title,
+} from "@/components/ui";
 import { CourseList, type CourseSummary } from "@/components/course-list";
 import { SectionHead } from "@/components/app-shell";
 import type { LearnerStanding } from "@/lib/goals/standing";
@@ -37,69 +45,110 @@ export function NothingRunning({
   catalogue?: boolean;
 }) {
   const { building, resume } = standing;
+  const footnote = note ? <Meta>{note}</Meta> : null;
 
-  return (
-    <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
-      {building ? (
-        <>
-          <Title>We&rsquo;re writing your course now</Title>
-          <Lead>
-            Nobody had written {building.subject} for us, so we&rsquo;re building
-            it — the skills, what depends on what, and the questions that work
-            out where you already are. It takes a few minutes.
-          </Lead>
-          {/* The wait screen, which is the only place that knows how far along
-              it is. Offering "build it" here — which is what `/today` did —
-              hands the learner a button that fails, because they already have
-              a course being built. */}
+  /*
+   * The first two branches are `Signal`s and the third is not, which is the
+   * whole distinction the old card could not draw: two of these are about
+   * something the learner has *already started* and can walk back into, and one
+   * is an invitation to somebody who has started nothing. Drawn identically —
+   * which is how they were drawn — the unfinished thing reads as an advert, and
+   * "resume the build" was routinely scrolled past on the one screen that
+   * exists to say what to do next.
+   */
+  if (building) {
+    return (
+      <Signal
+        className="rise"
+        style={stagger(1)}
+        /* Accent, not `attention`: nothing is wrong and nothing is owed. Amber
+           on a screen that is quietly working for you would be a warning about
+           the product doing exactly what it promised. */
+        tone="verified"
+        /* The one genuinely live thing in the product: a run is executing on
+           their behalf while they read this. */
+        live
+        state="Being written"
+        title="We’re writing your course now"
+        /* The wait screen, which is the only place that knows how far along it
+           is. Offering "build it" here — which is what `/today` did — hands the
+           learner a button that fails, because they already have a course being
+           built. */
+        action={
           <ButtonLink
             href={`/start/building?subject=${encodeURIComponent(building.slug)}`}
           >
-            See how it&rsquo;s going
+            See how it’s going
           </ButtonLink>
-        </>
-      ) : resume ? (
-        <>
-          <Title>
-            {resume.ready
-              ? "Your course is ready to build"
-              : "You were partway through"}
-          </Title>
-          <Lead>
-            {resume.subject
-              ? `We were talking about ${resume.subject}.`
-              : "We were working out what you wanted."}{" "}
-            {resume.ready
-              ? "Nothing more to answer — it just needs building."
-              : `${resume.turns} of ${resume.ofTurns} questions answered.`}
-          </Lead>
+        }
+      >
+        <Lead>
+          Nobody had written {building.subject} for us, so we&rsquo;re building
+          it — the skills, what depends on what, and the questions that work out
+          where you already are. It takes a few minutes.
+        </Lead>
+        {footnote}
+      </Signal>
+    );
+  }
+
+  if (resume) {
+    return (
+      <Signal
+        className="rise"
+        style={stagger(1)}
+        /* The two offers §8 screen 6a separates, given two different tones for
+           the same reason it gave them two different sentences: "we have
+           everything, it just needs building" is the better thing to have
+           walked away from, and it should not be wearing the colour that means
+           something is at risk. */
+        tone={resume.ready ? "verified" : "attention"}
+        state={resume.ready ? "Waiting on you" : "Left unfinished"}
+        title={
+          resume.ready
+            ? "Your course is ready to build"
+            : "You were partway through"
+        }
+        action={
           <ButtonLink href="/start">
             {resume.ready ? "Build it" : "Carry on"}
           </ButtonLink>
-        </>
-      ) : (
-        <>
-          <Title>Pick something to get good at</Title>
-          <Lead>
-            Tell us in your own words and we&rsquo;ll work out what to do first —
-            and what to skip because you can already do it. If we don&rsquo;t
-            cover it yet, we&rsquo;ll build it.
-          </Lead>
-          {/* One filled button (§8.5.5). The catalogue is the quieter door,
-              for the learner who would rather see what exists than describe
-              what they want. */}
-          <div className="flex w-full flex-wrap items-center gap-3">
-            <ButtonLink href="/start">Tell us what you want</ButtonLink>
-            {catalogue ? (
-              <ButtonLink href="/subjects" variant="text">
-                Pick a subject
-              </ButtonLink>
-            ) : null}
-          </div>
-        </>
-      )}
+        }
+      >
+        <Lead>
+          {resume.subject
+            ? `We were talking about ${resume.subject}.`
+            : "We were working out what you wanted."}{" "}
+          {resume.ready
+            ? "Nothing more to answer — it just needs building."
+            : `${resume.turns} of ${resume.ofTurns} questions answered.`}
+        </Lead>
+        {footnote}
+      </Signal>
+    );
+  }
 
-      {note ? <Meta>{note}</Meta> : null}
+  return (
+    <Card className="rise flex flex-col items-start gap-4" style={stagger(1)}>
+      <Title>Pick something to get good at</Title>
+      <Lead>
+        Tell us in your own words and we&rsquo;ll work out what to do first —
+        and what to skip because you can already do it. If we don&rsquo;t cover
+        it yet, we&rsquo;ll build it.
+      </Lead>
+      {/* One filled button (§8.5.5). The catalogue is the quieter door, for the
+          learner who would rather see what exists than describe what they
+          want. */}
+      <div className="flex w-full flex-wrap items-center gap-3">
+        <ButtonLink href="/start">Tell us what you want</ButtonLink>
+        {catalogue ? (
+          <ButtonLink href="/subjects" variant="text">
+            Pick a subject
+          </ButtonLink>
+        ) : null}
+      </div>
+
+      {footnote}
     </Card>
   );
 }

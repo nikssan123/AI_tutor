@@ -426,7 +426,13 @@ describe("with a plan", () => {
     );
     render(await TodayPage({ searchParams: search() }));
 
+    // §4.2 law 5 — scope reduction is never silent, so the telling has to be
+    // loud enough to count as telling. The planner's own sentence, under a
+    // claim that says what it is about.
     expect(screen.getByText("Dropped 3 skills to make 1 December.")).toBeDefined();
+    expect(
+      screen.getByText("Your deadline is deciding what fits"),
+    ).toBeDefined();
   });
 
   it("lists what was skipped and why (§8 screen 5)", async () => {
@@ -482,6 +488,54 @@ describe("with a plan", () => {
 
     expect(screen.getByRole("button", { name: "Carry on" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "Start session" })).toBeNull();
+    // And said where they are looking, not only on the button. A label that
+    // reads "Carry on" instead of "Start session" is a difference you can only
+    // notice if you already know both labels exist.
+    expect(screen.getByText("Already started")).toBeDefined();
+  });
+
+  it("says nothing about an open session when there isn't one", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+    expect(screen.queryByText("Already started")).toBeNull();
+  });
+
+  /**
+   * The one important event in the product that had no surface at all.
+   *
+   * A learner between courses is told their subject is being written —
+   * `standingFor` reads the row and `NothingRunning` says so. A learner who
+   * already had a course running was told nothing, anywhere: the build was
+   * happening on their behalf and the only screen that mentioned it was a wait
+   * page they would have had to remember the URL of.
+   */
+  it("says a second subject is being written while a course runs", async () => {
+    todayForMock.mockResolvedValue(view());
+    buildInFlightForMock.mockResolvedValue({
+      slug: "kite-surfing",
+      subject: "Kite surfing",
+      requestedBy: "u1",
+      status: "building" as const,
+      stage: null,
+      detail: null,
+      startedAt: new Date("2026-08-13T09:00:00.000Z"),
+    });
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(
+      screen.getByText("We’re writing your Kite surfing course"),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: /See how it/ }).getAttribute("href"),
+    ).toBe("/start/building?subject=kite-surfing");
+    // And it does not leave them wondering which course today's session is on.
+    expect(screen.getByText(/is on Photography and is unaffected/)).toBeDefined();
+  });
+
+  it("draws no build band when nothing is being built", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+    expect(screen.queryByRole("link", { name: /See how it/ })).toBeNull();
   });
 
   it("copes with a plan that has no blocks left to give", async () => {

@@ -683,9 +683,21 @@ export type StatusTone = "verified" | "attention" | "problem" | "neutral";
  */
 export function Status({
   tone = "neutral",
+  live = false,
   children,
 }: {
   tone?: StatusTone;
+  /**
+   * The dot breathes, for a state that is changing *while you are looking at
+   * it* — a course being written, work being marked.
+   *
+   * Deliberately not "this one is important". A dot that pulses on a screen
+   * where nothing is actually moving is a dot people stop seeing, and then the
+   * one that means something moves past unnoticed too. The wait screen already
+   * applies this rule to its step marker: the only moving thing is the only
+   * thing that is happening.
+   */
+  live?: boolean;
   children: React.ReactNode;
 }) {
   const colour = {
@@ -699,10 +711,110 @@ export function Status({
     <span className="inline-flex items-center gap-2 text-[length:var(--text-label-size)] text-ink">
       <span
         aria-hidden="true"
-        className={cx("inline-block size-2 rounded-full", colour)}
+        className={cx(
+          "inline-block size-2 rounded-full",
+          colour,
+          // Clamped to one cycle under reduced motion by the global rule in
+          // tokens.css, which is the right failure: it stops moving, and the
+          // word beside it still says everything the movement was saying.
+          live && "animate-pulse",
+        )}
       />
       {children}
     </span>
+  );
+}
+
+/** The edge rule. `neutral` is absent on purpose — see `Signal`. */
+const SIGNAL_RULE: Record<Exclude<StatusTone, "neutral">, string> = {
+  verified: "bg-accent",
+  attention: "bg-attention",
+  problem: "bg-problem",
+};
+
+/**
+ * One thing that is waiting on the learner, or happening for them right now.
+ *
+ * A deliberate addition to §8.5.5's vocabulary, and the card-level counterpart
+ * of `Status`: that component says a *row* has a state, and there was nothing
+ * that said a whole card does. The gap showed. A learner who walked away
+ * mid-conversation, or who has a subject being authored for them at this
+ * moment, was told so in a plain `Card` with a `Title` and a button — the same
+ * shape, the same weight and the same white as the invitation shown to somebody
+ * who has never started anything. Two very different sentences, drawn
+ * identically, and the one that mattered was routinely scrolled past.
+ *
+ * **What makes it louder is a 6px rule down its leading edge, and nothing
+ * else.** That is the whole of the mechanism, and the restraint is the reason
+ * it works: it is the only element on a product screen that carries a colour on
+ * its edge, so a marked card is unmistakably not one of the cards around it.
+ *
+ * The ban it must not reopen is badge soup, so it takes `Figure`'s governing
+ * rule and for the same reason: **one per scroll band, never a stack of them.**
+ * It goes to something *unfinished* — waiting on the learner, running for them,
+ * or stopped — never to something merely interesting. Four marked edges on one
+ * screen is four things shouting, which is silence.
+ *
+ * `state` is mandatory, and that is the ban on colour-as-meaning (§8.5.5) made
+ * structural: the rule cannot be drawn without a word saying what it means.
+ * `neutral` is not an available tone for the same reason a neutral signal is
+ * not a signal — a grey rule says "look here" about nothing.
+ *
+ * The tones are the three things that can be true of unfinished work:
+ * `verified` — it is ready, or it is being made for you; `attention` — it is
+ * waiting on you, or it is at risk; `problem` — it stopped.
+ */
+export function Signal({
+  tone = "attention",
+  state,
+  title,
+  live = false,
+  action,
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
+  tone?: Exclude<StatusTone, "neutral">;
+  /** The dot's word. Two or three words — "Left unfinished", never a sentence. */
+  state: string;
+  /** What is waiting, in one line. The loudest thing in the card. */
+  title: string;
+  /** Passed to `Status`: only for something changing as they watch. */
+  live?: boolean;
+  /** The one way to act on it. Filled where the screen has no other primary. */
+  action?: React.ReactNode;
+}) {
+  return (
+    <Card
+      className={cx(
+        // `pl-8` rather than `Card`'s own `p-6`: the rule takes 6px of the
+        // padding and text set 18px off a coloured edge reads as crowded.
+        "relative flex flex-col items-start gap-4 overflow-hidden pl-8",
+        className,
+      )}
+      {...props}
+    >
+      {/* Decorative — `state` below is what carries the meaning. `inset-y-0`
+          rather than a border so the rule keeps the card's own corner radius
+          instead of squaring off its left edge. */}
+      <span
+        aria-hidden="true"
+        className={cx(
+          "absolute inset-y-0 left-0 w-1.5",
+          SIGNAL_RULE[tone],
+        )}
+      />
+
+      <Status tone={tone} live={live}>
+        {state}
+      </Status>
+
+      <Title>{title}</Title>
+
+      {children}
+
+      {action}
+    </Card>
   );
 }
 

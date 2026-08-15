@@ -17,6 +17,7 @@ import {
   HeroBand,
   Lead,
   Meta,
+  Signal,
   Skeleton,
   stagger,
   Status,
@@ -156,18 +157,43 @@ export default async function SubmissionPage({ params }: Props) {
         }
       />
 
+      {/*
+        Two caveats on the verdict above, and both were mis-drawn in the same
+        way: §8.5.5's `Status` is "a dot plus a word", and each of these was a
+        two-clause sentence wearing one — a dot, then 14px of running prose
+        floating between two bands with no surface under it. A qualification on
+        the number the whole product exists to produce is not a status; it is
+        the reason that number is not yet what it looks like.
+
+        Only ever one at a time in practice, and if both fired they would be
+        saying different things about the same verdict, which is exactly when a
+        reader needs them separated rather than run together.
+      */}
       {stored.status === "human_review" ? (
-        <Status tone="attention">
-          A person is checking this one before it counts. The two passes
-          disagreed, so we would rather be slow than wrong.
-        </Status>
+        <Signal
+          tone="attention"
+          live
+          state="With a person"
+          title="This one doesn’t count yet"
+        >
+          <Lead>
+            The two passes disagreed, so somebody is checking it before it goes
+            on your record. We would rather be slow than wrong.
+          </Lead>
+        </Signal>
       ) : null}
 
       {stored.truncated ? (
-        <Status tone="attention">
-          Your work was longer than we can mark and was cut off, so this only
-          covers the first part of it.
-        </Status>
+        <Signal
+          tone="attention"
+          state="Partly marked"
+          title="We only marked the first part of this"
+        >
+          <Lead>
+            Your work was longer than we can mark in one go and was cut off, so
+            the verdict above covers the beginning of it and not the rest.
+          </Lead>
+        </Signal>
       ) : null}
 
       {/* ── The criteria ─────────────────────────────────────────────────── */}

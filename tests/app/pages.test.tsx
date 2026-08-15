@@ -161,6 +161,13 @@ describe("/design — the drift guard (§8.5.8)", () => {
       "--shadow-lifted",
       "Prove you learned it.",
       "— this is the pass mark",
+      // Signal, in all three tones it is allowed to take. A component that
+      // ships without appearing here is a component nobody can review against
+      // the spec — and this one's whole job is to be the loudest thing on a
+      // screen, which is exactly the kind of claim that needs reviewing.
+      "Being written",
+      "Left unfinished",
+      "Stopped",
     ]) {
       // getAllByText: "Demonstrated" legitimately appears twice — once as the
       // confidence label and once inside the row list demonstrating it.

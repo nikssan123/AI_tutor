@@ -463,8 +463,14 @@ describe("checkpoints", () => {
     render(await CalendarPage({ searchParams: search() }));
 
     expect(screen.getByText("More work than time")).toBeDefined();
+    // The date is named in the claim itself, not only in the sentence under it:
+    // a verdict that says "you will not make it" without saying what it is you
+    // will not make is the half of the warning nobody can act on.
     expect(
-      screen.getByText(/a checkpoint lands after 20 August 2026/),
+      screen.getByText("The plan does not fit 20 August 2026"),
+    ).toBeDefined();
+    expect(
+      screen.getByText(/a week you set aside, a checkpoint lands after it/),
     ).toBeDefined();
   });
 
@@ -478,7 +484,10 @@ describe("checkpoints", () => {
 
     expect(screen.getByText("Behind the pace, not the plan")).toBeDefined();
     expect(screen.queryByText("More work than time")).toBeNull();
-    expect(screen.getByText(/The plan fits 1 September 2026/)).toBeDefined();
+    expect(
+      screen.getByText("At last week’s pace you miss 1 September 2026"),
+    ).toBeDefined();
+    expect(screen.getByText(/The plan itself fits/)).toBeDefined();
   });
 
   it("claims nothing about a deadline the shown work clears", async () => {

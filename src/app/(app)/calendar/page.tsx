@@ -21,6 +21,7 @@ import {
   Meta,
   Row,
   RowList,
+  Signal,
   stagger,
   Status,
   Title,
@@ -371,29 +372,44 @@ export default async function CalendarPage({ searchParams }: Props) {
                 </li>
               ))}
             </ol>
-            {/* Two different problems, so two different sentences. A plan that
-                does not fit is the planner's to compress; a pace that does not
-                keep up is the learner's to decide about. */}
+            {/*
+              Two different problems, so two different sentences. A plan that
+              does not fit is the planner's to compress; a pace that does not
+              keep up is the learner's to decide about.
+
+              Both are Signals, and this is the band that most needed one: the
+              single actionable fact on a screen of dates — *you will not make
+              it* — was a status dot and 13px of grey, in a plain card, at the
+              bottom of the longest screen in the product. The two are mutually
+              exclusive by construction (`deadlineVerdict` returns one verdict),
+              so the band still carries at most one marked edge.
+            */}
             {late?.verdict === "plan" ? (
-              <Card className="flex flex-col gap-2">
-                <Status tone="attention">More work than time</Status>
-                <Meta>
+              <Signal
+                tone="attention"
+                state="More work than time"
+                title={`The plan does not fit ${formatDeadline(late.deadline)}`}
+              >
+                <Lead>
                   Even at the {hours(commitment.weeklyHours)} a week you set
-                  aside, a checkpoint lands after {formatDeadline(late.deadline)}.
-                  Today&rsquo;s session already takes the date into account, and
-                  will drop work to make it rather than let you arrive late.
-                </Meta>
-              </Card>
+                  aside, a checkpoint lands after it. Today&rsquo;s session
+                  already takes the date into account, and will drop work to
+                  make it rather than let you arrive late.
+                </Lead>
+              </Signal>
             ) : null}
             {late?.verdict === "pace" ? (
-              <Card className="flex flex-col gap-2">
-                <Status tone="attention">Behind the pace, not the plan</Status>
-                <Meta>
-                  The plan fits {formatDeadline(late.deadline)}. At the{" "}
+              <Signal
+                tone="attention"
+                state="Behind the pace, not the plan"
+                title={`At last week’s pace you miss ${formatDeadline(late.deadline)}`}
+              >
+                <Lead>
+                  The plan itself fits. At the{" "}
                   {hours(commitment.thisWeekHours)} you did last week it does
-                  not — a checkpoint lands after it.
-                </Meta>
-              </Card>
+                  not — a checkpoint lands after the date.
+                </Lead>
+              </Signal>
             ) : null}
           </>
         ) : (

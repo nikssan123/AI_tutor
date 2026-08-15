@@ -31,6 +31,7 @@ import {
   Meta,
   Row,
   RowList,
+  Signal,
   Skeleton,
   stagger,
   Status,
@@ -319,14 +320,66 @@ export default function DesignPage() {
 
       <Section
         title="Status"
-        note="A dot plus a word — never a badge, and never colour alone."
+        note="A dot plus a word — never a badge, and never colour alone. `live` breathes the dot, and only for something changing while you look at it."
       >
         <Card className="flex flex-wrap gap-6">
           <Status tone="verified">Verified</Status>
           <Status tone="attention">Needs work</Status>
           <Status tone="problem">Failed</Status>
           <Status tone="neutral">Not started</Status>
+          <Status tone="verified" live>
+            Being written
+          </Status>
         </Card>
+      </Section>
+
+      <Section
+        title="Signal"
+        note="Status, at card scale: one unfinished thing, marked with a 6px rule down its leading edge. One per scroll band. The state word is mandatory — the rule cannot be drawn without something saying what it means. No neutral tone, because a grey rule says look-here about nothing."
+      >
+        <div className="flex flex-col gap-4">
+          <Signal
+            tone="verified"
+            live
+            state="Being written"
+            title="We’re writing your course now"
+            /* `text`, though the product draws this one filled: the catalogue
+               spends its single filled button on the hero band above, for the
+               reason noted there. What this demonstrates is the slot. */
+            action={
+              <ButtonLink href="/design" variant="text">
+                See how it’s going
+              </ButtonLink>
+            }
+          >
+            <Lead>
+              Nobody had written Kilnwork for us, so we’re building it — the
+              skills, what depends on what, and the questions that work out
+              where you already are.
+            </Lead>
+          </Signal>
+
+          <Signal
+            tone="attention"
+            state="Left unfinished"
+            title="You were partway through"
+          >
+            <Lead>
+              We were talking about Photography. 3 of 6 questions answered.
+            </Lead>
+          </Signal>
+
+          <Signal
+            tone="problem"
+            state="Stopped"
+            title="We couldn’t build this one"
+          >
+            <Lead>
+              Nothing you answered is lost. Our team has been told and will look
+              at this one.
+            </Lead>
+          </Signal>
+        </div>
       </Section>
 
       <Section
