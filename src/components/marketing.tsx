@@ -180,27 +180,35 @@ export async function SiteHeader() {
 
   return (
     <header className="border-b border-hairline">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-5">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-5 sm:gap-6">
         <Link href="/">
           <Wordmark />
         </Link>
-        {/* §8.5.5 — three destinations, flat, no nesting. */}
-        <nav aria-label="Main" className="flex items-center gap-6">
+        {/*
+         * §8.5.5 — three destinations, flat, no nesting.
+         *
+         * `whitespace-nowrap` and a tighter gap under `sm` because the widest
+         * label is "Keep learning", and at 390px the wordmark plus three links
+         * plus three 24px gaps overran the line: the last link broke across two
+         * rows and took the header's height with it. A destination that wraps
+         * mid-phrase reads as two destinations.
+         */}
+        <nav aria-label="Main" className="flex items-center gap-4 sm:gap-6">
           <Link
             href="/learn"
-            className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
+            className="whitespace-nowrap text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
           >
             Learn
           </Link>
           <Link
             href="/projects"
-            className="text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
+            className="whitespace-nowrap text-[length:var(--text-label-size)] text-ink-muted hover:text-accent"
           >
             Projects
           </Link>
           <Link
             href={user ? DEFAULT_DESTINATION : "/sign-in"}
-            className="text-[length:var(--text-label-size)] font-[550] text-accent"
+            className="whitespace-nowrap text-[length:var(--text-label-size)] font-[550] text-accent"
           >
             {user ? "Keep learning" : "Sign in"}
           </Link>

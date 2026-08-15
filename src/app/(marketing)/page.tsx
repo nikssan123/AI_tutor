@@ -992,7 +992,15 @@ export default async function HomePage() {
               work that proves you arrived.
             </Lead>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/*
+              `w-full` here, not just on the buttons. §8.5.5 wants a filled
+              button full-width on mobile and `buttonClass` asks for exactly
+              that — but this card is `items-start`, so the row shrank to its
+              content and `w-full` resolved to *that*, leaving a 160px pill
+              floating in a 390px card with the text button centred under it.
+              The row has to claim the width before the button can fill it.
+            */}
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
               <ButtonLink href="/sign-up">Start free</ButtonLink>
               <ButtonLink href="/start" variant="text">
                 Have a subject built
