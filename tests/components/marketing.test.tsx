@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 const currentUserMock = vi.fn();
@@ -348,6 +348,130 @@ describe("goalSearchScript", () => {
     // Not a second hand-written "/start?topic=" that can drift from the one
     // /learn and /start agree on.
     expect(goalSearchScript).toContain(JSON.stringify(CUSTOM_PATH_HREF));
+  });
+});
+
+/*
+ * The same script, actually running.
+ *
+ * Everything above reads its source, which catches a renamed selector and very
+ * little else — the panel opening off the bottom of the screen passed every one
+ * of those assertions. These bind it to the document, render the control under
+ * it, and use the field the way a person does.
+ *
+ * The geometry is stubbed because jsdom measures everything as zero. The
+ * numbers are a 779px-tall laptop window, which is where the landing page's
+ * input sits ~75px above the fold.
+ */
+describe("goalSearchScript, running", () => {
+  const subjects = [
+    { label: "SQL & Data Analysis", href: "/learn/sql-data-analysis" },
+    { label: "Photography", href: "/learn/photography" },
+  ];
+
+  beforeAll(() => {
+    new Function(goalSearchScript)();
+  });
+
+  /** The control, with the field pinned where `top`/`bottom` say it is. */
+  function mount(
+    box: { top: number; bottom: number },
+    { content = 400, viewport = 779 } = {},
+  ) {
+    const { container } = render(<GoalSearch suggestions={subjects} />);
+    const input = container.querySelector<HTMLInputElement>("input[name=q]")!;
+    const list = container.querySelector<HTMLElement>("[data-goal-list]")!;
+
+    Object.defineProperty(window, "innerHeight", {
+      value: viewport,
+      configurable: true,
+    });
+    input.getBoundingClientRect = () => ({ ...box }) as DOMRect;
+    Object.defineProperty(list, "scrollHeight", {
+      value: content,
+      configurable: true,
+    });
+
+    return {
+      input,
+      list,
+      custom: container.querySelector<HTMLElement>("[data-goal-custom]")!,
+    };
+  }
+
+  const press = (el: Element) =>
+    el.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+
+  function type(input: HTMLInputElement, value: string) {
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  it("drops the panel under the field when there is room under it", () => {
+    // 779 − 256 − 16 = 507px below. Nothing to correct, so the stylesheet's
+    // own `top` stands and no inline placement is written at all.
+    const { input, list } = mount({ top: 200, bottom: 256 });
+    press(input);
+
+    expect(list.hidden).toBe(false);
+    expect(list.style.top).toBe("");
+    expect(list.style.bottom).toBe("");
+  });
+
+  it("flips it above the field when the fold is right underneath", () => {
+    // The landing page: 58px below the input, 633 above it. Dropping down
+    // spent all but one row of the list off-screen.
+    const { input, list } = mount({ top: 649, bottom: 705 });
+    press(input);
+
+    expect(list.style.top).toBe("auto");
+    expect(list.style.bottom).toBe("calc(100% + 0.5rem)");
+  });
+
+  it("would rather scroll than flip on a near miss", () => {
+    // 208px below — short of the 400px list, but four rows is still a list
+    // worth reading, and there are only 24px above. Flipping on an exact fit
+    // makes the panel change sides between one keystroke and the next.
+    const { input, list } = mount({ top: 40, bottom: 96 }, { viewport: 320 });
+    press(input);
+
+    expect(list.style.bottom).toBe("");
+    // And it stops at the window's edge rather than running past it.
+    expect(list.style.maxHeight).toBe("208px");
+  });
+
+  it("clears the build-it row's rule when it is the only row left", () => {
+    const { input, custom } = mount({ top: 200, bottom: 256 });
+
+    type(input, "sql");
+    // A rule between the subjects we have and the offer to write one we don't.
+    expect(custom.style.borderTopWidth).toBe("");
+
+    type(input, "zzz");
+    // Nothing above it to divide it from: the rule was drawing a hairline
+    // across the top of the panel, just under the panel's own border.
+    expect(custom.style.borderTopWidth).toBe("0px");
+    expect(custom.style.marginTop).toBe("0px");
+  });
+
+  it("closes on Escape without emptying the field", () => {
+    const { input, list } = mount({ top: 200, bottom: 256 });
+    press(input);
+    type(input, "zzz");
+
+    const escape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(escape);
+
+    expect(list.hidden).toBe(true);
+    // Escape's native behaviour on a `type=search` field is to empty it, which
+    // fires `input`, which re-opens the panel we just shut — so the press wiped
+    // the query and left the list standing, both halves backwards.
+    expect(escape.defaultPrevented).toBe(true);
+    expect(input.value).toBe("zzz");
   });
 });
 

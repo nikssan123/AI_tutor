@@ -441,6 +441,13 @@ export function GoalSearch({
            * The row the native control could not have. §7.1's Generated tier
            * is the product's actual answer to a subject we do not cover, and a
            * search box that only ever offers three things hides it.
+           *
+           * The rule above it separates it from the subjects we already have,
+           * so it is only a rule when there are any: on a query that matches
+           * nothing — the case this row exists for — it was drawing a hairline
+           * across the top of the panel, a hand's width under the panel's own
+           * border, dividing the list from nothing. `sift` clears it and the
+           * margin with it whenever this is the only row left.
            */}
           <li
             id={`goal-opt-${suggestions.length}`}

@@ -388,7 +388,25 @@ export default async function HomePage() {
                 checklist your work gets marked against.
               </Lead>
 
-              <div className="rise flex w-full flex-col gap-3" style={stagger(3)}>
+              {/*
+               * `relative z-10` is what keeps the search's dropdown on top,
+               * and it is not decoration.
+               *
+               * `.rise` animates a transform, and an element with a transform
+               * animation is a stacking context — so the panel's own `z-20`
+               * only orders it *inside this div*. Against the steps rail and
+               * the specimen card, both of which are `.rise`/`.drift` and both
+               * of which come later in the DOM, it lost on document order: the
+               * suggestions rendered underneath them, with "Say what you want
+               * to learn" printed straight through the middle of the list.
+               *
+               * Lifting the wrapper — not the panel — is the fix, because the
+               * wrapper is the context that actually competes.
+               */}
+              <div
+                className="rise relative z-10 flex w-full flex-col gap-3"
+                style={stagger(3)}
+              >
                 <GoalSearch suggestions={suggestions} autoFocus size="hero" />
                 {/* Precise about *which* thing is free of an account: the check
                     on a subject we have written is anonymous, and having one

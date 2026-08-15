@@ -127,6 +127,28 @@ describe("landing page (§8 screen 1)", () => {
     }
   });
 
+  it("keeps the search's dropdown above the rest of the fold", async () => {
+    const { container } = render(await HomePage());
+    // `.rise` animates a transform, so every element carrying it is a stacking
+    // context of its own and the panel's `z-20` only orders it *inside* its
+    // wrapper. Without a z-index on the wrapper, document order decides, and
+    // the steps rail and the specimen card — both `.rise`/`.drift`, both later
+    // in the DOM — printed straight through the middle of the suggestions.
+    const wrapper = container
+      .querySelector("[data-goal-search]")!
+      .closest<HTMLElement>(".rise")!;
+
+    expect(wrapper.className).toContain("relative");
+    expect(wrapper.className).toMatch(/\bz-10\b/);
+
+    // And it has to win against something: the rail really does come after it.
+    const rail = container.querySelector("ol.rise")!;
+    expect(
+      wrapper.compareDocumentPosition(rail) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("walks through what happens, in order, one line per step", async () => {
     render(await HomePage());
     for (const phrase of [
