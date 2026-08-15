@@ -112,7 +112,17 @@ async function dispatchBuild(
       data: { slug: input.slug, subject: input.subject, userId: input.userId },
     });
     return true;
-  } catch {
+  } catch (error) {
+    /*
+     * Logged as well as recorded, because the two readers need different
+     * things. The learner gets the sentence below — true, and useless for
+     * debugging. Whoever is running the server gets the cause, which is the
+     * half that was missing when this first happened: the action threw
+     * `fetch failed` with no indication that the thing it could not reach was
+     * the Inngest dev server nobody had started.
+     */
+    console.error("[packs] could not queue a build for", input.slug, error);
+
     await finishBuild(db, input.slug, {
       status: "failed",
       detail:

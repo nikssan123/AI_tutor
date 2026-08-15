@@ -1117,10 +1117,20 @@ describe("turning the conversation into a goal", () => {
      */
     intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
     sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(buildFromConversationAction()).rejects.toThrow(
       "REDIRECT:/start/building?subject=rust-programming",
     );
+
+    // Logged as well as recorded: the learner's sentence is true and useless
+    // for debugging, and whoever is running the server needs the cause.
+    expect(logged).toHaveBeenCalledWith(
+      "[packs] could not queue a build for",
+      "rust-programming",
+      expect.any(TypeError),
+    );
+    logged.mockRestore();
 
     // Marked failed rather than left claimed: that is the state the wait screen
     // renders with a "Try again" button, and the retry reuses this same slug —
@@ -1137,8 +1147,10 @@ describe("turning the conversation into a goal", () => {
     // an unexplained failure in production. The learner gets a sentence.
     intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
     sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(buildFromConversationAction()).rejects.toThrow("REDIRECT:");
+    logged.mockRestore();
 
     const detail = finishBuildMock.mock.calls[0]![2] as { detail: string };
     expect(detail.detail).toMatch(/try again/i);
