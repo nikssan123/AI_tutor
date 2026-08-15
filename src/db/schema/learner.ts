@@ -69,6 +69,23 @@ export const goalIntake = pgTable("goal_intake", {
     .references(() => user.id, { onDelete: "cascade" }),
   /** `Message[]` — see `goals/analyzer.ts`. */
   messages: jsonb("messages").notNull(),
+  /**
+   * The course they arrived having already chosen, or null when they arrived
+   * with nothing but a sentence.
+   *
+   * A learner who clicks a graded brief, or "Start this path" on a subject
+   * page, has picked the pack — the page they were reading names exactly one.
+   * Without this the conversation threw that away and the analyzer had to
+   * *guess it back* from prose at the end, which is a model call that can miss:
+   * clicking a SQL brief could end in a generated pack for "sql", and the
+   * opening question was "what do you want to get good at?" asked of someone
+   * who had just said.
+   *
+   * Nullable because the other way in is real and is the point of the screen:
+   * someone typing a subject we do not have yet is not choosing a pack, and
+   * `matchSubject` is still what decides for them.
+   */
+  packSlug: text("pack_slug"),
   /** The analyzer's latest `captured`, so a refresh does not lose the sidebar. */
   captured: jsonb("captured"),
   /** Chips offered with the last question, so a refresh keeps them tappable. */

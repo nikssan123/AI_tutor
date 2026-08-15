@@ -1,0 +1,1 @@
+ALTER TABLE "goal_intake" ADD COLUMN "pack_slug" text;
