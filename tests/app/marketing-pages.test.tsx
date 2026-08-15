@@ -148,47 +148,51 @@ describe("landing page (§8 screen 1)", () => {
    * reader who believed every word of bands 01–04 still did not know what it
    * cost and still had the objection none of them answered.
    *
-   * Five, where the ninth cut had six: the catalogue and the offer to write a
-   * subject nobody has written are one band now. They were two because they
-   * answer different questions, and nobody reads them as different questions —
-   * on a phone the second was 1,300px of explaining that the first is not the
-   * limit.
+   * Four, from the ninth cut's six. The catalogue and the offer to write a
+   * subject nobody has written are one band; `How it works` is gone entirely,
+   * its five steps moved to the fold as names.
    *
-   * The close is deliberately *not* 06: it carries no eyebrow and no rule,
+   * The close is deliberately *not* 05: it carries no eyebrow and no rule,
    * because a numbered band promises another one after it and there isn't one.
    */
   it("separates its sections with numbered headings", async () => {
     render(await HomePage());
     for (const label of [
-      /01 · How it works/,
-      /02 · What marking looks like/,
-      /03 · Subjects/,
-      /04 · What it costs/,
-      /05 · Questions/,
+      /01 · What marking looks like/,
+      /02 · Subjects/,
+      /03 · What it costs/,
+      /04 · Questions/,
     ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
     }
-    expect(screen.queryByText(/06 · /)).toBeNull();
+    expect(screen.queryByText(/05 · /)).toBeNull();
   });
 
   /**
    * The fold used to be a headline, an input, and half a screen of nothing —
    * so the first thing a visitor learned about the product was whatever they
-   * inferred from six words. These three sentences are the answer to "what is
-   * this", above the point most people stop scrolling.
+   * inferred from six words. Then it was three promises. It is the whole
+   * sequence now, because the order *is* the content: "check, then plan, then
+   * work, then marked" says what the product is, and three unordered claims
+   * said the same things with the shape taken out.
+   *
+   * An `<ol>`, not a `<ul>` — the numbering is meaning, not decoration, which
+   * is also why the drawn chips beside each step are `aria-hidden`.
    */
-  it("states what the product is on the fold, under the input", async () => {
+  it("walks the whole sequence across the fold, in order", async () => {
     const { container } = render(await HomePage());
-    for (const promise of [
-      "You read the checklist before you start",
-      "You hand in real work, not a quiz",
-      "Every score quotes the part it came from",
-    ]) {
-      expect(screen.getByText(promise), promise).toBeDefined();
-    }
-    // In the hero, not somewhere further down dressed as a summary.
     const hero = container.querySelector("section")!;
-    expect(hero.textContent).toContain("You hand in real work, not a quiz");
+    const steps = [...hero.querySelectorAll("ol li")].map((li) =>
+      li.textContent!.replace(/^\d/, ""),
+    );
+
+    expect(steps).toEqual([
+      "Say what you want to learn",
+      "Take a ten-minute check",
+      "Get a plan that skips what you know",
+      "Do a real piece of work",
+      "Get it marked, with the evidence",
+    ]);
   });
 
   /**
@@ -663,18 +667,25 @@ describe("the landing page's price band (§8 screen 1, band 05)", () => {
   });
 
   /**
-   * The three quantities `plan-copy.ts` guarantees lead every card in the same
-   * order — marked work, sessions, tutor questions. They are the axis a visitor
-   * scans down, and the only slice of that list which means anything out of
-   * context.
+   * The two quantities that *bound* a plan, which `plan-copy.ts` guarantees
+   * lead every card in the same order: graded work, then sessions. The third
+   * (tutor turns) is a limit inside a session rather than a size of plan, and
+   * belongs on the page asking for the sale.
+   *
+   * Free's session line is the one that must never be dropped for space —
+   * `plan-copy.ts` is explicit that a learner who discovers on their third
+   * session that free stops at two has been misled by a list that mentioned
+   * only what was included. Asserted by name rather than by index so that
+   * trimming the slice again cannot quietly take it.
    */
-  it("shows the same three quantities on every card, from the catalog", async () => {
+  it("shows the two bounding quantities on every card, from the catalog", async () => {
     render(await HomePage());
     for (const planId of ["free", "learner", "pro"] as const) {
-      for (const feature of PLAN_COPY[planId].features.slice(0, 3)) {
+      for (const feature of PLAN_COPY[planId].features.slice(0, 2)) {
         expect(screen.getAllByText(feature).length, feature).toBeGreaterThan(0);
       }
     }
+    expect(screen.getByText(/2 learning sessions a month/)).toBeDefined();
   });
 
   /**
