@@ -365,3 +365,39 @@ export async function markBuildNotified(
     .set({ notifiedAt: now })
     .where(eq(packBuild.slug, slug));
 }
+
+/**
+ * Gives up on a subject: removes the build row, and the learner's claim on it.
+ *
+ * The other half of the operator's queue, and the one that matters to a free
+ * account. The lifetime quota is a count of build rows, so a build that failed
+ * leaves a learner pinned — no conversation, because `mayUseIntake` reads the
+ * same count, and no way to spend their one custom subject on something that
+ * can actually be built. Nothing else releases it: `discardPack` looks the pack
+ * up in `generatedPacks`, and a build that failed never created one.
+ *
+ * So this is the decision "we are not going to build this", written down by
+ * deleting the row it was recorded in. The learner gets their subject back.
+ *
+ * **Only a build that has stopped.** A run still going is not a decision
+ * anybody is in a position to make — deleting its row would free the quota
+ * while the worker carried on spending against a slug nothing now claims, and
+ * the next learner to ask for the subject would start a second one.
+ */
+export async function giveUpOnBuild(
+  db: Db,
+  slug: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const build = await findBuild(db, slug);
+  if (!build) return false;
+
+  const stalled =
+    build.status === "building" &&
+    now.getTime() - build.startedAt.getTime() > BUILD_TIMEOUT_MINUTES * 60_000;
+
+  if (build.status !== "failed" && !stalled) return false;
+
+  await db.delete(packBuild).where(eq(packBuild.slug, slug));
+  return true;
+}

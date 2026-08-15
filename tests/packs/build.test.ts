@@ -7,6 +7,7 @@ import {
   MAX_CONCURRENT_BUILDS_PER_USER,
   activeBuildsFor,
   buildInFlightFor,
+  giveUpOnBuild,
   markBuildNotified,
   stoppedBuilds,
   buildsCommissionedBy,
@@ -310,6 +311,47 @@ live("pack builds and intake", () => {
 
       const rust = (await stoppedBuilds(db)).find((b) => b.slug === "rust")!;
       expect(rust.notifiedAt?.toISOString()).toBe(NOW.toISOString());
+    });
+  });
+
+  describe("giveUpOnBuild", () => {
+    it("removes a failed build, handing back the learner's subject", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "failed", detail: "too thin" });
+
+      expect(await giveUpOnBuild(db, "rust")).toBe(true);
+      expect(await findBuild(db, "rust")).toBeUndefined();
+      // The quota is a count of build rows, so removing it is what frees them.
+      expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(0);
+    });
+
+    it("removes a run that stalled without ever saying why", async () => {
+      const longAgo = new Date(Date.now() - (BUILD_TIMEOUT_MINUTES + 5) * 60_000);
+      await startBuild(
+        db,
+        { slug: "welding", subject: "Welding", userId: IDS[0]! },
+        longAgo,
+      );
+
+      expect(await giveUpOnBuild(db, "welding")).toBe(true);
+      expect(await findBuild(db, "welding")).toBeUndefined();
+    });
+
+    it("refuses to give up on a run that is merely slow", async () => {
+      /*
+       * Not a decision anybody is in a position to make yet. Deleting the row
+       * would free the quota while the worker carried on spending against a
+       * slug nothing now claims, and the next learner to ask for the subject
+       * would start a second run of it.
+       */
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect(await giveUpOnBuild(db, "rust")).toBe(false);
+      expect(await findBuild(db, "rust")).toBeDefined();
+    });
+
+    it("says so rather than throwing for a subject with no build", async () => {
+      expect(await giveUpOnBuild(db, "never-asked-for")).toBe(false);
     });
   });
 

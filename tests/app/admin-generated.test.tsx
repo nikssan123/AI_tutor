@@ -42,11 +42,13 @@ const findBuildMock = vi.fn(async () => ({
   startedAt: new Date(),
 }));
 const startBuildMock = vi.fn(async () => ({ kind: "started" as const }));
+const giveUpMock = vi.fn(async () => true);
 vi.mock("@/lib/packs/build", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/packs/build")>()),
   stoppedBuilds: () => stoppedMock(),
   findBuild: () => findBuildMock(),
   startBuild: (...a: unknown[]) => startBuildMock(...(a as [])),
+  giveUpOnBuild: (...a: unknown[]) => giveUpMock(...(a as [])),
 }));
 const sendMock = vi.fn(async () => undefined);
 vi.mock("@/lib/inngest/client", async (importOriginal) => ({
@@ -63,9 +65,12 @@ vi.mock("@/lib/admin/generated", async (importOriginal) => ({
 }));
 
 const { default: PacksIndexPage } = await import("@/app/admin/packs/page");
-const { discardPackAction, promotePackAction, retryBuildAction } = await import(
-  "@/app/admin/packs/actions"
-);
+const {
+  discardPackAction,
+  giveUpBuildAction,
+  promotePackAction,
+  retryBuildAction,
+} = await import("@/app/admin/packs/actions");
 
 const stopped = (over: Record<string, unknown> = {}) => ({
   slug: "net-development",
@@ -370,5 +375,51 @@ describe("retryBuildAction", () => {
     startBuildMock.mockResolvedValueOnce({ kind: "already" } as never);
     await retryBuildAction(form("net-development"));
     expect(sendMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("giveUpBuildAction", () => {
+  const form = (slug: string) => {
+    const data = new FormData();
+    data.set("slug", slug);
+    return data;
+  };
+
+  it("checks the admin role first", async () => {
+    requireAdminMock.mockRejectedValueOnce(new Error("NOT_ADMIN"));
+    await expect(giveUpBuildAction(form("net-development"))).rejects.toThrow(
+      "NOT_ADMIN",
+    );
+    expect(giveUpMock).not.toHaveBeenCalled();
+  });
+
+  it("removes the build, which is what frees the learner", async () => {
+    /*
+     * The lifetime quota counts build rows, so until the row goes a free
+     * learner has no conversation (`mayUseIntake` reads the same count) and
+     * nothing to spend their one custom subject on. Nothing else releases it —
+     * `discardPack` looks the pack up in `generatedPacks`, and a build that
+     * failed never created one.
+     */
+    await giveUpBuildAction(form("net-development"));
+
+    expect(giveUpMock).toHaveBeenCalled();
+    expect(revalidateMock).toHaveBeenCalledWith("/admin/packs");
+  });
+
+  it("ignores a form with no slug", async () => {
+    await giveUpBuildAction(new FormData());
+    expect(giveUpMock).not.toHaveBeenCalled();
+  });
+
+  it("is offered beside the retry, not instead of it", async () => {
+    // Two different decisions: try this again, and we are not going to build
+    // this. Only an operator is in a position to make the second.
+    stoppedMock.mockResolvedValue([stopped()]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Give up" })).toBeDefined();
   });
 });

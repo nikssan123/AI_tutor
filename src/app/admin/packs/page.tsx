@@ -20,6 +20,7 @@ import {
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import {
   discardPackAction,
+  giveUpBuildAction,
   promotePackAction,
   retryBuildAction,
 } from "./actions";
@@ -165,12 +166,26 @@ export default async function PacksIndexPage() {
                 </span>
                 {build.detail ? <Meta>{build.detail}</Meta> : null}
               </span>
-              <form action={retryBuildAction}>
-                <input type="hidden" name="slug" value={build.slug} />
-                <Button type="submit" variant="text">
-                  Retry
-                </Button>
-              </form>
+              <span className="flex shrink-0 items-center gap-2">
+                <form action={retryBuildAction}>
+                  <input type="hidden" name="slug" value={build.slug} />
+                  <Button type="submit" variant="text">
+                    Retry
+                  </Button>
+                </form>
+                {/*
+                  The other decision, and the one only an operator can make: we
+                  are not going to build this. It deletes the row, which is what
+                  hands a free learner back the custom subject the failure was
+                  spent on — nothing else releases it.
+                */}
+                <form action={giveUpBuildAction}>
+                  <input type="hidden" name="slug" value={build.slug} />
+                  <Button type="submit" variant="text">
+                    Give up
+                  </Button>
+                </form>
+              </span>
             </Row>
           ))}
         </RowList>

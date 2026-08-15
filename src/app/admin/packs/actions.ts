@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { requireAdmin } from "@/lib/admin/guard";
 import { discardPack, promotePack } from "@/lib/admin/generated";
-import { findBuild, startBuild } from "@/lib/packs/build";
+import { findBuild, giveUpOnBuild, startBuild } from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
@@ -84,5 +84,27 @@ export async function retryBuildAction(formData: FormData): Promise<void> {
     });
   }
 
+  revalidatePath("/admin/packs");
+}
+
+/**
+ * Decides a subject is not going to be built, and hands the learner back the
+ * custom subject it was spent on.
+ *
+ * Admin-only, and there is no learner-facing equivalent on purpose. It is not
+ * the "close this ticket" half of Retry — it is a judgement that this subject
+ * cannot be authored well enough to ship, which is exactly the call the quality
+ * floor makes and the learner has no way to make.
+ *
+ * What it actually does is delete a row, and that row is what pins a free
+ * account: the lifetime quota counts build rows, so until it goes the learner
+ * has no conversation and nothing to spend their one subject on.
+ */
+export async function giveUpBuildAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (slug.length === 0) return;
+
+  await giveUpOnBuild(getDb(), slug);
   revalidatePath("/admin/packs");
 }
