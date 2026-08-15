@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createClient } from "@/db";
 import {
@@ -281,6 +281,27 @@ live("the session store", () => {
   });
 
   describe("a lesson when the month's ceiling is reached", () => {
+    /*
+     * Both cases below turn on the lesson *not* being cached, so the absence
+     * has to be arranged rather than assumed.
+     *
+     * `cachedLesson` keys on (skill, level, styleHash) and nothing about the
+     * learner — that is the whole point of §14.9.4 layer 2, one lesson shared
+     * by every learner at a band. It also means any test anywhere that saves a
+     * photography skill-0 lesson at this band silently turns both of these into
+     * assertions about a cache hit, and the row outlives the run that wrote it.
+     * That is exactly what happened: a test added below writes this key, and
+     * from the next run onwards these two failed on a clean checkout with no
+     * code change to explain it.
+     */
+    beforeEach(async () => {
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+      await db
+        .delete(lessonTable)
+        .where(eq(lessonTable.skillId, skillId(pack.slug, skill.id)));
+    });
+
     it("declines to generate, and says so distinctly from a failure", async () => {
       // §14.9.7 limit 1. The lesson generator runs on Sonnet (§14.9.3), so
       // there is no cheaper tier to fall to — over the cap it declines rather
@@ -408,6 +429,17 @@ live("the session store", () => {
       expect(outcome.content).toBeDefined();
       expect(outcome.cached).toBe(true);
       expect((await lessonsDeliveredOn(db, userId, pack.slug)).size).toBe(1);
+
+      /*
+       * Left behind, this row breaks the ceiling tests above on every later
+       * run: they assert a cache *miss* on this exact key, and the `lesson`
+       * table is shared by every learner and every suite. They now clear it
+       * themselves, so this is belt and braces — but a test that seeds a global
+       * cache and walks away is worth not writing twice.
+       */
+      await db
+        .delete(lessonTable)
+        .where(eq(lessonTable.skillId, skillId(pack.slug, skill.id)));
     });
 
     it("locks the second lesson on the same course", async () => {
