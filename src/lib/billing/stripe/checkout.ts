@@ -1,84 +1,35 @@
-import type { EnvLike } from "@/lib/env-types";
 import { canonical } from "@/lib/site";
 import type { Interval } from "../catalog";
-import { type Currency, type PaidPlanId, requirePrice } from "../prices";
+import {
+  type Currency,
+  type PaidPlanId,
+  type Price,
+  requirePrice,
+  taxBehavior,
+} from "../prices";
 import type { StripeClient } from "./client";
 
 /**
  * Starting a checkout — PLAN-MONETIZATION §3 and §7.
  *
- * Two things happen here that are not "call Stripe": the price the page showed
- * is checked against the price Stripe holds, and the €3 trial is expressed as a
- * subscription rather than as a product of its own.
+ * **There is no price catalogue in Stripe.** Every line carries its own
+ * `price_data`, built from `prices.ts` when the session is created, so Stripe
+ * never holds a copy of a number this product could disagree with. That is §6.3
+ * rule 1 — *the displayed price must equal the charged price* — met by
+ * construction rather than by a check. The previous shape kept eight Price ids
+ * in the environment and read each amount back off Stripe before selling; the
+ * mismatch it guarded against is now unrepresentable, and eight environment
+ * variables per mode went with it.
+ *
+ * What that costs is Stripe's own bookkeeping: products and prices are created
+ * ad-hoc per session, so the Dashboard's product reports are noise. Revenue by
+ * plan comes from `metadata.planId`, which every session and every subscription
+ * carries, and which the webhook already reads.
  */
-
-/** The subset of Stripe's Price object this needs. */
-export interface StripePrice {
-  id: string;
-  unit_amount: number | null;
-  currency: string;
-}
 
 export interface CheckoutSession {
   id: string;
   url: string | null;
-}
-
-export class PriceMismatchError extends Error {
-  constructor(
-    readonly expected: { amountCents: number; currency: Currency },
-    readonly actual: { amountCents: number | null; currency: string },
-  ) {
-    super(
-      `The price on the page and the price in Stripe disagree: page says ${expected.amountCents} ${expected.currency}, Stripe says ${actual.amountCents} ${actual.currency}. Refusing to create a checkout session.`,
-    );
-    this.name = "PriceMismatchError";
-  }
-}
-
-/**
- * §6.3 rule 1, enforced in code rather than by hope.
- *
- * *"If the pricing page shows €25 and checkout charges $25, that is a P0 bug,
- * not a rounding difference."* The page renders from `prices.ts`; Stripe holds
- * the amount it will actually charge; this is the only moment the two can be
- * compared before somebody's card is touched.
- *
- * It throws rather than falling back to Stripe's number. Charging an amount the
- * customer was never shown is the failure being prevented, not a recovery from
- * it — and a silent correction would make the bug invisible for exactly as long
- * as it took to become a chargeback.
- */
-export function assertPriceMatches(
-  expected: { amountCents: number; currency: Currency },
-  actual: StripePrice,
-): void {
-  if (
-    actual.unit_amount !== expected.amountCents ||
-    actual.currency.toLowerCase() !== expected.currency
-  ) {
-    throw new PriceMismatchError(expected, {
-      amountCents: actual.unit_amount,
-      currency: actual.currency,
-    });
-  }
-}
-
-/**
- * The Stripe Price id for a row in our table.
- *
- * Ids live in the environment because they differ between test and live mode;
- * amounts live in `prices.ts` because a static page has to render one without a
- * network call. `envVar` is the join between them.
- */
-export function priceIdFor(envVar: string, env: EnvLike = process.env): string {
-  const id = env[envVar];
-  if (!id) {
-    throw new Error(
-      `${envVar} is not set, so there is no Stripe price to charge. Create the price in Stripe and put its id in the environment.`,
-    );
-  }
-  return id;
 }
 
 export interface CheckoutInput {
@@ -97,95 +48,121 @@ export interface CheckoutInput {
 export const TRIAL_DAYS = 4;
 
 /**
+ * What the receipt calls each thing.
+ *
+ * Deliberately not `PLAN_COPY[planId].name`. Those strings are card headings —
+ * "Try Pro" is an instruction to a reader — and these are read a year later on
+ * a bank statement beside a charge somebody is deciding whether to dispute.
+ * They have to name a product, so they are written once, here.
+ */
+export const PRODUCT_NAMES: Record<PaidPlanId, string> = {
+  trial: "MeritKeep Pro — 4-day trial",
+  learner: "MeritKeep Learner",
+  pro: "MeritKeep Pro",
+};
+
+/**
+ * One line item, priced inline.
+ *
+ * `tax_behavior` is the field that must not be got wrong: euro amounts are
+ * VAT-inclusive because EU consumer law requires the price shown to be the
+ * price paid, dollar amounts are net with sales tax added on top (§6.2). It is
+ * derived from the currency rather than passed in, so the two columns cannot
+ * drift apart at the one call site that spends money.
+ *
+ * `recurring` is absent for the trial fee, and that absence is the whole trial
+ * mechanic: a one-off line on a subscription session lands on the **first**
+ * invoice only, and during a trial that invoice is issued immediately — so €3
+ * is taken today and the €24.99 beside it is not.
+ */
+export function lineItem(
+  price: Price,
+  name: string,
+  recurring: boolean,
+): Record<string, unknown> {
+  return {
+    quantity: 1,
+    price_data: {
+      currency: price.currency,
+      unit_amount: price.amountCents,
+      tax_behavior: taxBehavior(price.currency),
+      // No `tax_code`: the account's default from Tax Settings applies, which
+      // is one place to set it rather than one per line.
+      product_data: { name },
+      ...(recurring ? { recurring: { interval: price.interval } } : {}),
+    },
+  };
+}
+
+/**
  * Build the Checkout Session body.
  *
- * Separated from the call so the shape can be asserted in a test without a
- * client, because the shape *is* the product decision: a trial that bills €3
- * now and €24.99 on day 4 is three fields in this object and nothing else.
+ * Separated from the call so the shape can be asserted without a client,
+ * because the shape *is* the product decision: "€3 today, €24.99 on day 4" is a
+ * second line item and one field, and nothing else in the system says it.
  *
- * For the trial:
- * - the line item is the **Pro** price, because that is what renews;
- * - `trial_period_days` stops Stripe charging it today;
- * - `add_invoice_items` puts the €3 fee on the first invoice, which during a
- *   trial is issued immediately at €0 — so €3 is taken now.
- *
- * That last step is the one mechanic in this plan asserted from documentation
- * rather than measurement. §15 step 3 verifies it in test mode before anything
- * depends on it.
+ * For the trial the recurring line is the **Pro** price, because Pro is what
+ * renews; `trial_period_days` stops Stripe charging it today; the fee rides
+ * alongside as the one-off described on `lineItem`.
  */
-export function checkoutBody(
-  input: CheckoutInput,
-  ids: { subscriptionPriceId: string; trialFeePriceId?: string },
-): Record<string, unknown> {
+export function checkoutBody(input: CheckoutInput): Record<string, unknown> {
   const isTrial = input.planId === "trial";
+  const subscriptionPlan: PaidPlanId = isTrial ? "pro" : input.planId;
+
+  const lineItems = [
+    lineItem(
+      requirePrice(subscriptionPlan, input.interval, input.currency),
+      PRODUCT_NAMES[subscriptionPlan],
+      true,
+    ),
+  ];
+
+  if (isTrial) {
+    lineItems.push(
+      lineItem(
+        requirePrice("trial", "month", input.currency),
+        PRODUCT_NAMES.trial,
+        false,
+      ),
+    );
+  }
 
   return {
     mode: "subscription",
     // Stripe Tax computes destination VAT. It does not file it — see
     // `stripe/client.ts` and §13 risk 1.
     automatic_tax: { enabled: true },
-    line_items: [{ price: ids.subscriptionPriceId, quantity: 1 }],
+    line_items: lineItems,
     success_url: canonical(input.successPath ?? "/today") + "?checkout=done",
     cancel_url: canonical(input.cancelPath ?? "/pricing"),
     ...(input.customerId
-      ? { customer: input.customerId }
+      ? {
+          customer: input.customerId,
+          // Without this, a returning customer is taxed on whatever address
+          // Stripe already had rather than the one they just typed — someone
+          // who moved country pays the old country's VAT.
+          customer_update: { address: "auto" },
+        }
       : { customer_email: input.email ?? undefined }),
     // Carried so the webhook can attribute a session to an account without
     // trusting anything the browser sent back.
     client_reference_id: input.userId,
     subscription_data: {
       metadata: { userId: input.userId, planId: input.planId },
-      ...(isTrial
-        ? {
-            trial_period_days: TRIAL_DAYS,
-            add_invoice_items: [{ price: ids.trialFeePriceId }],
-          }
-        : {}),
+      ...(isTrial ? { trial_period_days: TRIAL_DAYS } : {}),
     },
     metadata: { userId: input.userId, planId: input.planId },
   };
 }
 
-/**
- * Create the session, having first checked that Stripe agrees about the price.
- *
- * The trial reads the **Pro** price row, because Pro is what the subscription
- * will charge; the €3 fee is a separate line whose amount is checked in the
- * same way.
- */
+/** Create the session. */
 export async function createCheckoutSession(
   stripe: StripeClient,
   input: CheckoutInput,
-  env: EnvLike = process.env,
 ): Promise<CheckoutSession> {
-  const isTrial = input.planId === "trial";
-  const subscriptionPlan: PaidPlanId = isTrial ? "pro" : input.planId;
-
-  const subscriptionPrice = requirePrice(
-    subscriptionPlan,
-    input.interval,
-    input.currency,
-  );
-  const subscriptionPriceId = priceIdFor(subscriptionPrice.envVar, env);
-
-  assertPriceMatches(
-    subscriptionPrice,
-    await stripe.get<StripePrice>(`/prices/${subscriptionPriceId}`),
-  );
-
-  let trialFeePriceId: string | undefined;
-  if (isTrial) {
-    const fee = requirePrice("trial", "month", input.currency);
-    trialFeePriceId = priceIdFor(fee.envVar, env);
-    assertPriceMatches(
-      fee,
-      await stripe.get<StripePrice>(`/prices/${trialFeePriceId}`),
-    );
-  }
-
   return stripe.post<CheckoutSession>(
     "/checkout/sessions",
-    checkoutBody(input, { subscriptionPriceId, trialFeePriceId }),
+    checkoutBody(input),
     // One in-flight checkout per account per plan and currency. A double-submit
     // returns the same session rather than creating a second subscription.
     `checkout:${input.userId}:${input.planId}:${input.interval}:${input.currency}`,

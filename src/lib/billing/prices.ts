@@ -48,16 +48,21 @@ export interface Price {
   readonly currency: Currency;
   /** Minor units — cents for both currencies. */
   readonly amountCents: number;
-  /**
-   * The env var holding the Stripe Price id, **not the id itself**.
-   *
-   * §6.3 rule 4 — "do not hard-code prices in two places". The amount lives
-   * here because a page must render it without a network call; the id lives in
-   * the environment because it differs between test and live mode. What keeps
-   * the two honest is `assertPriceMatches` in `stripe/checkout.ts`, which reads
-   * the amount back off Stripe before creating a session.
-   */
-  readonly envVar: string;
+}
+
+/**
+ * Whether the amount above already contains the tax, in Stripe's vocabulary.
+ *
+ * The currency decides it because the law does: EUR is `inclusive` (§6.2 — EU
+ * consumer law requires the displayed price to be the paid price), USD is
+ * `exclusive` (net, with sales tax added at checkout where nexus exists).
+ *
+ * It is a function of the row rather than a column on it so that adding a
+ * currency forces the question to be answered here, in the one place that
+ * explains why, instead of being copied from the row above.
+ */
+export function taxBehavior(currency: Currency): "inclusive" | "exclusive" {
+  return currency === "eur" ? "inclusive" : "exclusive";
 }
 
 /**
@@ -71,56 +76,48 @@ export const PRICES: readonly Price[] = [
     interval: "month",
     currency: "usd",
     amountCents: 349,
-    envVar: "STRIPE_PRICE_TRIAL_FEE_USD",
   },
   {
     planId: "trial",
     interval: "month",
     currency: "eur",
     amountCents: 300,
-    envVar: "STRIPE_PRICE_TRIAL_FEE_EUR",
   },
   {
     planId: "learner",
     interval: "month",
     currency: "usd",
     amountCents: 1_499,
-    envVar: "STRIPE_PRICE_LEARNER_MONTH_USD",
   },
   {
     planId: "learner",
     interval: "month",
     currency: "eur",
     amountCents: 1_299,
-    envVar: "STRIPE_PRICE_LEARNER_MONTH_EUR",
   },
   {
     planId: "pro",
     interval: "month",
     currency: "usd",
     amountCents: 2_799,
-    envVar: "STRIPE_PRICE_PRO_MONTH_USD",
   },
   {
     planId: "pro",
     interval: "month",
     currency: "eur",
     amountCents: 2_499,
-    envVar: "STRIPE_PRICE_PRO_MONTH_EUR",
   },
   {
     planId: "pro",
     interval: "year",
     currency: "usd",
     amountCents: 21_900,
-    envVar: "STRIPE_PRICE_PRO_YEAR_USD",
   },
   {
     planId: "pro",
     interval: "year",
     currency: "eur",
     amountCents: 19_900,
-    envVar: "STRIPE_PRICE_PRO_YEAR_EUR",
   },
 ];
 

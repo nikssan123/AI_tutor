@@ -11,6 +11,7 @@ import {
   PRICES,
   requirePrice,
   resolveCurrency,
+  taxBehavior,
 } from "@/lib/billing/prices";
 import { LOCALES } from "@/lib/i18n/locales";
 
@@ -41,9 +42,11 @@ describe("PRICES", () => {
     expect(PRICES.some((p) => (p.planId as string) === "free")).toBe(false);
   });
 
-  it("names a distinct env var for every row", () => {
-    const names = PRICES.map((p) => p.envVar);
-    expect(new Set(names).size).toBe(PRICES.length);
+  it("has one row per plan, interval and currency", () => {
+    // Two rows for the same three keys means `findPrice` picks by array order,
+    // which is a coin toss over what somebody is charged.
+    const keys = PRICES.map((p) => `${p.planId}:${p.interval}:${p.currency}`);
+    expect(new Set(keys).size).toBe(PRICES.length);
   });
 
   it("stores amounts in minor units", () => {
@@ -102,6 +105,16 @@ describe("PRICES", () => {
       expect(ratio).toBeGreaterThan(1.05);
       expect(ratio).toBeLessThan(1.25);
     }
+  });
+});
+
+describe("taxBehavior", () => {
+  it("marks euro amounts as containing the tax and dollar amounts as net", () => {
+    // Swap these two and every EU checkout adds VAT on top of a price that
+    // already contained it — the page says €24.99 and the card is charged
+    // €30.24, which is §6.3 rule 1 broken by a one-word setting.
+    expect(taxBehavior("eur")).toBe("inclusive");
+    expect(taxBehavior("usd")).toBe("exclusive");
   });
 });
 

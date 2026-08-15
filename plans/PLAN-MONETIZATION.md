@@ -276,7 +276,9 @@ Each writes `subscription`, reconciles `user.plan`, and emits its §25.1 event. 
 
 ### Env
 
-A Billing block in `.env.example`: `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` · `STRIPE_PRICE_PRO_MONTH_USD`/`_EUR` · `STRIPE_PRICE_PRO_YEAR_USD`/`_EUR` · `STRIPE_PRICE_LEARNER_MONTH_USD`/`_EUR` · `STRIPE_PRICE_TRIAL_FEE_USD`/`_EUR`.
+A Billing block in `.env.example`: `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET`. That is all of it.
+
+**Amended 2026-08-15: there are no `STRIPE_PRICE_*` variables and no Price objects in Stripe.** This section originally listed eight ids, one per row of the price table, with `assertPriceMatches` reading each amount back off Stripe before a session was created. Line items now carry `price_data` inline from `prices.ts`, which makes §6.3 rule 1 — *displayed price equals charged price* — true by construction instead of true by a check, and removes eight variables that had to be recreated when the account went live. The cost is Stripe's own product reporting, which is replaced by `metadata.planId`; see `STRIPE-SETUP.md`.
 
 ---
 
@@ -284,9 +286,11 @@ A Billing block in `.env.example`: `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET
 
 One Checkout Session in `subscription` mode:
 
-- line item: the **Pro monthly** price, in the resolved currency;
-- `subscription_data.trial_period_days: 4`;
-- `subscription_data.add_invoice_items: [{ price: TRIAL_FEE_PRICE }]` — the €3/$3 one-off, which lands on the **first** invoice. During a trial that invoice is issued immediately at €0, so €3 is charged now and €24.99 renews on day 4.
+- line item 1: the **Pro monthly** price, in the resolved currency, `recurring`;
+- line item 2: the €3/$3 fee, **not** `recurring` — Stripe puts a one-time line on the **first** invoice only. During a trial that invoice is issued immediately, so €3 is charged now and €24.99 renews on day 4;
+- `subscription_data.trial_period_days: 4`.
+
+**Amended 2026-08-15:** the fee was specified as `subscription_data.add_invoice_items`, which is a Subscriptions API parameter — Checkout Sessions do not accept it, and Stripe rejects unknown parameters outright. A second line item is the documented Checkout equivalent, and the invoice timing the fee depends on is unchanged.
 
 **This is the one mechanic in this plan asserted from documentation rather than measurement.** Verify it in Stripe test mode before building on it (§15 step 3). The house rule is "measured rather than estimated", and invoice timing is exactly the kind of behaviour that is 95% as documented and 5% surprising.
 
@@ -502,7 +506,7 @@ Ordered by dependency, in the style of `PLAN.md` §24.
 | 5 | **Four tiers on one page depress conversion** — §20.1's stated objection | 🟡 Medium | Accepted deliberately (§1 decision 4). Instrument per-plan `checkout_started`; if Learner takes <5% of starts it is decoration and should be moved to the cancellation flow |
 | 6 | **Learner cannibalises Pro** | 🟡 Medium | The gap is the meter: 3 evaluations vs 10. Watch the Learner→Pro upgrade rate and the share of Learner accounts hitting their quota; a high quota-hit rate at a low upgrade rate means the gap is priced wrong |
 | 7 | **`user.plan` desynchronises from `subscription`** | 🟡 Medium | Exactly one function reconciles it, called only from the webhook. Admin comps go through `plan_grant`, never a direct write. A nightly reconciliation job is the fallback if drift is ever observed |
-| 8 | **The trial's Stripe mechanics do not behave as documented** | 🟡 Medium | §15 step 3 verifies it in test mode **before** B6 depends on it. If `add_invoice_items` does not bill immediately, fall back to a one-off €3 Payment Intent plus a scheduled subscription |
+| 8 | **The trial's Stripe mechanics do not behave as documented** | 🟡 Medium | §15 step 3 verifies it in test mode **before** B6 depends on it. If the one-time line item does not bill immediately, fall back to a one-off €3 Payment Intent plus a scheduled subscription |
 | 9 | **Six more emails × four locales stalls launch** | 🟡 Medium | Flagged into `HUMAN-REVIEW.md` part D with its status changed from "not urgent" to launch-gating for `de`/`es`/`bg`. English ships regardless; a locale without billing copy does not open |
 | 10 | **Charm prices contradict two written plans** | 🟢 Low | Amend §20.1 and `PLAN-LOCALIZATION` §6.1 in the same change (§11 B-list step 10 of the approved plan). One canonical table, in `prices.ts`, with the documents pointing at it |
 
