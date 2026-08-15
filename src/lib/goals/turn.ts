@@ -67,7 +67,22 @@ export function contextFor(
 }
 
 /**
- * Stores the outcome, whichever way it went, and says whether it worked.
+ * How a turn ended, for the caller that has to decide what happens next.
+ *
+ * Two facts rather than one, because "it worked" and "it was the last one" send
+ * the learner to two different places: a turn that closed the conversation ends
+ * on the button that builds the plan, and every other turn ends on the question
+ * it just produced.
+ */
+export interface TurnOutcome {
+  /** The model answered and the turn was recorded in full. */
+  ok: boolean;
+  /** That answer closed the conversation — there is nothing left to ask. */
+  done: boolean;
+}
+
+/**
+ * Stores the outcome, whichever way it went, and says how it went.
  *
  * A model that could not answer is not a reason to lose what they typed, so
  * the failure path still saves the conversation — one message longer than it
@@ -79,26 +94,27 @@ export async function recordTurn(
   intake: Intake,
   messages: Message[],
   result: CallResult<AnalyzerTurn>,
-): Promise<boolean> {
+): Promise<TurnOutcome> {
   if (result.status !== "ok") {
     await saveIntake(db, userId, { ...intake, messages });
-    return false;
+    return { ok: false, done: false };
   }
 
   const turn = result.value;
   const withReply: Message[] = [...messages, { r: "a", t: turn.reply }];
+  const done = isComplete(turn, withReply);
 
   await saveIntake(db, userId, {
     messages: withReply,
     captured: turn.captured,
     chips: turn.chips,
     clarity: turn.clarity,
-    done: isComplete(turn, withReply),
+    done,
     // Carried rather than re-derived. Everything else here is this turn's
     // output; the chosen course is the learner's, from before the conversation
     // started, and a turn is not allowed to change it.
     packSlug: intake.packSlug,
   });
 
-  return true;
+  return { ok: true, done };
 }

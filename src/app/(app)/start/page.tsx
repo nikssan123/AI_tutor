@@ -11,7 +11,7 @@ import {
   displayHours,
   displayLevel,
 } from "@/lib/goals/captured-display";
-import { LATEST } from "@/lib/goals/anchors";
+import { LATEST, READY } from "@/lib/goals/anchors";
 import { customPathHref } from "@/lib/goals/custom-path";
 import {
   PACK_FIELD,
@@ -28,7 +28,9 @@ import {
   ButtonLink,
   Card,
   cx,
+  Lead,
   Meta,
+  Signal,
   Status,
   Title,
   stagger,
@@ -76,6 +78,16 @@ type Props = {
  * back more than it is going to send.
  */
 const MAX_TOPIC = 500;
+
+/**
+ * Ties the build button to the sentence above it.
+ *
+ * The button is what a fragment lands on and what `autofocus` takes, so on
+ * every arrival that matters it is announced *first* and on its own — "Build my
+ * plan, button" — with the heading and the sentence that explain it never read
+ * at all. Describing it puts them back in the announcement.
+ */
+const READY_LEAD = "ready-lead";
 
 /**
  * Every way this screen can hand somebody back to itself, said in full.
@@ -514,25 +526,66 @@ export default async function StartPage({ searchParams }: Props) {
               </ol>
 
               {intake.done ? (
-                <Card className="flex flex-col items-start gap-4">
-                  {/*
-                   * The wall, where it can still be acted on.
-                   *
-                   * Not `UpgradeNudge`: that component is for a limit hit
-                   * *beside* something that still works — a lesson that reads
-                   * without the tutor, a plan that exists without a new
-                   * session. Here the limit is standing on the only button on
-                   * the screen, and the button has to say so rather than sit
-                   * next to something that does.
-                   *
-                   * `startFreshAction` is not offered as the way out. The
-                   * subject is the thing they asked for; suggesting they pick
-                   * a different one to get past a price is the sort of nudge
-                   * §7.2 exists to keep out of this product.
-                   */}
-                  <form action={buildFromConversationAction}>
-                    <Button type="submit">Build my plan</Button>
-                  </form>
+                /*
+                 * The end of the conversation, drawn as the one thing left to
+                 * do rather than as a button after some chat.
+                 *
+                 * It used to be a plain `Card` holding a bare "Build my plan" —
+                 * the same surface, the same weight and the same white as every
+                 * message above it, at the bottom of a scroll six exchanges
+                 * long. `Signal` is the component for exactly this: something
+                 * unfinished, waiting on the learner, marked with a rule down
+                 * its edge so it cannot be read as one more bubble. It is the
+                 * shape `/today` already uses to say a plan was left ready, so
+                 * the offer looks the same on the screen that points here and
+                 * on the screen it points at.
+                 *
+                 * `startFreshAction` is not offered as the way out. The subject
+                 * is the thing they asked for; suggesting they pick a different
+                 * one to get past a price is the sort of nudge §7.2 exists to
+                 * keep out of this product.
+                 */
+                <div className="flex flex-col items-start gap-4">
+                  <Signal
+                    className="rise w-full"
+                    style={stagger(1)}
+                    /* Ready, not at risk: nothing has gone wrong and nothing is
+                       owed. The same tone `/today` gives this same offer. */
+                    tone="verified"
+                    state="Waiting on you"
+                    title="Your plan is ready to build"
+                    action={
+                      <form action={buildFromConversationAction}>
+                        <Button
+                          type="submit"
+                          /*
+                           * The landing spot, and it is the button rather than
+                           * the card because a fragment only *focuses* a target
+                           * that can hold focus — see `anchors.ts`. `autoFocus`
+                           * covers the client-side arrival, where no fragment is
+                           * ever processed.
+                           */
+                          id={READY}
+                          autoFocus
+                          /* Enough room above it for the card it belongs to.
+                             Landing with the button flush to the top edge shows
+                             a control and none of the sentence explaining it. */
+                          className="scroll-mt-48"
+                          aria-describedby={READY_LEAD}
+                        >
+                          Build my plan
+                        </Button>
+                      </form>
+                    }
+                  >
+                    <Lead id={READY_LEAD}>
+                      {captured?.subject
+                        ? `Nothing more to answer about ${captured.subject}.`
+                        : "Nothing more to answer."}{" "}
+                      We&rsquo;ll turn what you told us into a path — what to do
+                      first, and what to skip because you can already do it.
+                    </Lead>
+                  </Signal>
                   <form action={restartAction}>
                     <button
                       type="submit"
@@ -541,7 +594,7 @@ export default async function StartPage({ searchParams }: Props) {
                       Start over
                     </button>
                   </form>
-                </Card>
+                </div>
               ) : (
                 /*
                  * Pinned to the bottom of the viewport, and the one part of

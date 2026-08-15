@@ -18,3 +18,30 @@ export const LATEST = "latest";
 
 /** The intake screen, opened at the newest turn. */
 export const INTAKE_AT_LATEST = `/start#${LATEST}`;
+
+/**
+ * The button that builds the plan, once the conversation has closed on one.
+ *
+ * It sits at the end of a conversation that can be six exchanges long, and
+ * everything that sends somebody back to it — the closing turn's own redirect,
+ * and "Build it" on every screen that says they left one ready — was landing
+ * them at the top of that scroll instead. The one thing left to do on the
+ * screen was below the fold, on the screen whose entire remaining purpose is
+ * that one thing.
+ *
+ * **The id goes on the button itself, not on the card around it, and that is
+ * the whole mechanism.** A fragment whose target is focusable is focused as
+ * well as scrolled to, so `#ready` puts a keyboard on the button with no script
+ * running at all. Pointing it at the card instead scrolls there and *cancels*
+ * the button's `autofocus` — verified in Chrome — which is the version of this
+ * that looks right and does half the job.
+ *
+ * `autofocus` is still on the button, for the arrival this cannot cover: a
+ * client-side navigation from `/today` never re-parses the document, so no
+ * fragment is processed and React's mount is the only thing that can move
+ * focus. The two mechanisms never both apply, and both end in the same place.
+ */
+export const READY = "ready";
+
+/** The intake screen, opened on the button that builds the plan. */
+export const INTAKE_AT_READY = `/start#${READY}`;

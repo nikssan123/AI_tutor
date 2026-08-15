@@ -10,7 +10,7 @@ import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
 import { cookieName } from "@/lib/check/session";
 import { runAnalyzer } from "@/lib/goals/analyzer";
-import { INTAKE_AT_LATEST } from "@/lib/goals/anchors";
+import { INTAKE_AT_LATEST, INTAKE_AT_READY } from "@/lib/goals/anchors";
 import { catalogueFor, matchChosen, specFrom } from "@/lib/goals/match";
 import { clearIntake, loadIntake, saveIntake } from "@/lib/goals/intake-store";
 import {
@@ -281,7 +281,7 @@ export async function replyAction(formData: FormData): Promise<void> {
     await runAnalyzer(getAnthropic(), contextFor(intake, messages)),
   );
 
-  const ok = await recordTurn(db, userId, intake, messages, result);
+  const { ok, done } = await recordTurn(db, userId, intake, messages, result);
   /*
    * Back to the brief, when that is where they came from.
    *
@@ -301,9 +301,15 @@ export async function replyAction(formData: FormData): Promise<void> {
     redirect(brief ? projectStartHref(brief, "analyzer") : "/start?error=analyzer");
   }
 
-  // To the new question rather than the top of the page — the pinned composer
-  // covers the tail of the conversation otherwise.
-  redirect(INTAKE_AT_LATEST);
+  /*
+   * To the new question rather than the top of the page — the pinned composer
+   * covers the tail of the conversation otherwise.
+   *
+   * Unless that answer was the last one, in which case there is no new question
+   * and the composer is gone: the turn that closes the conversation lands on the
+   * button that builds the plan, which is now the only thing left to do here.
+   */
+  redirect(done ? INTAKE_AT_READY : INTAKE_AT_LATEST);
 }
 
 /** Opens the conversation, so the first question comes from the analyzer. */

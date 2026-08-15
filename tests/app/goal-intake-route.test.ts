@@ -129,7 +129,7 @@ beforeEach(() => {
   loadIntakeMock.mockResolvedValue({ ...INTAKE });
   saveIntakeMock.mockResolvedValue(undefined);
   logCallMock.mockResolvedValue(undefined);
-  recordTurnMock.mockResolvedValue(true);
+  recordTurnMock.mockResolvedValue({ ok: true, done: false });
   analyzerStreamMock.mockReturnValue(streamOf(["How many ", "hours?"], OK));
   runAnalyzerMock.mockResolvedValue(OK);
 });
@@ -244,9 +244,22 @@ describe("POST /api/goal-intake", () => {
   });
 
   it("says the turn failed when it could not be recorded", async () => {
-    recordTurnMock.mockResolvedValue(false);
+    recordTurnMock.mockResolvedValue({ ok: false, done: false });
     const body = await readAll(await POST(post({ reply: "Rust" })));
     expect(body.endsWith(`${OUTCOME_SEPARATOR}${TURN_FAILED}`)).toBe(true);
+  });
+
+  /**
+   * The turn that closes the conversation streams like any other one.
+   *
+   * The verdict says whether the turn worked and nothing else — where the
+   * learner ends up is the refreshed page's business, and that page is what
+   * knows there is a button on it now.
+   */
+  it("says nothing extra about the turn that ends the conversation", async () => {
+    recordTurnMock.mockResolvedValue({ ok: true, done: true });
+    const body = await readAll(await POST(post({ reply: "Rust" })));
+    expect(body.endsWith(`${OUTCOME_SEPARATOR}${TURN_OK}`)).toBe(true);
   });
 
   /**

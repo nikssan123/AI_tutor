@@ -156,7 +156,7 @@ describe("before there is anything to date", () => {
     expect(screen.getByText(/2 of 6 questions answered/)).toBeDefined();
     expect(
       screen.getByRole("link", { name: "Carry on" }).getAttribute("href"),
-    ).toBe("/start");
+    ).toBe("/start#latest");
     expect(screen.queryByText("Pick something to get good at")).toBeNull();
   });
 

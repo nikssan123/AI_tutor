@@ -9,6 +9,7 @@ import {
 } from "@/components/ui";
 import { CourseList, type CourseSummary } from "@/components/course-list";
 import { SectionHead } from "@/components/app-shell";
+import { INTAKE_AT_LATEST, INTAKE_AT_READY } from "@/lib/goals/anchors";
 import type { LearnerStanding } from "@/lib/goals/standing";
 
 /**
@@ -109,8 +110,14 @@ export function NothingRunning({
             ? "Your course is ready to build"
             : "You were partway through"
         }
+        /* Both of these used to point at a bare `/start`, which opens at the
+           top of a conversation that can be six exchanges long — so "Build it"
+           landed on the first question they were asked and left the button it
+           promised somewhere below the fold. The anchors carry them to the
+           thing the sentence just offered: the newest question, or the button
+           that builds it. */
         action={
-          <ButtonLink href="/start">
+          <ButtonLink href={resume.ready ? INTAKE_AT_READY : INTAKE_AT_LATEST}>
             {resume.ready ? "Build it" : "Carry on"}
           </ButtonLink>
         }

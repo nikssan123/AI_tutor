@@ -713,17 +713,77 @@ describe("the screen", () => {
     expect(screen.getByText(/cover this one already/)).toBeDefined();
   });
 
-  it("offers to build the plan once the conversation has closed", async () => {
+  /** A finished conversation, which is the state the whole end of the screen
+      turns on. */
+  const closed = () => {
     intake = {
       ...EMPTY_INTAKE,
       messages: [{ r: "a", t: "That's everything I need." }],
       captured: captured(),
       done: true,
     };
+  };
+
+  it("offers to build the plan once the conversation has closed", async () => {
+    closed();
     render(await StartPage({ searchParams: search() }));
 
     expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
     expect(screen.queryByPlaceholderText("Type your answer…")).toBeNull();
+  });
+
+  /**
+   * The button used to be the whole of the offer: a bare "Build my plan" in a
+   * plain card, the same weight and the same white as the six bubbles above it,
+   * at the bottom of the scroll. It is now the shape the product uses for
+   * something waiting on the learner — the same one `/today` uses to say a plan
+   * was left ready, so the offer looks the same on both ends of that link.
+   */
+  it("says the plan is ready rather than just showing a button", async () => {
+    closed();
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByText("Your plan is ready to build")).toBeDefined();
+    expect(screen.getByText("Waiting on you")).toBeDefined();
+    // Their subject, in the analyzer's wording, so the offer is about the thing
+    // they spent five questions describing.
+    expect(
+      screen.getByText(/Nothing more to answer about Rust programming/),
+    ).toBeDefined();
+  });
+
+  /**
+   * Where every "Build it" on the product points, and it has to be the button
+   * itself: a fragment focuses its target only when the target can hold focus,
+   * so an id on the card around it would scroll there and leave the keyboard
+   * where it was — and cancel the `autofocus` below into the bargain.
+   */
+  it("puts the anchor on the button, and the focus with it", async () => {
+    closed();
+    render(await StartPage({ searchParams: search() }));
+
+    const build = screen.getByRole("button", { name: "Build my plan" });
+    expect(build.id).toBe("ready");
+    // The arrival no fragment can reach: a client-side navigation never
+    // re-parses the document, so React's mount is the only thing left to move
+    // focus. jsdom runs the same `autoFocus` commit the browser does.
+    expect(document.activeElement).toBe(build);
+
+    // Announced with the sentence that explains it, rather than as two words on
+    // their own — being focused on arrival is exactly what makes that the whole
+    // announcement.
+    expect(build.getAttribute("aria-describedby")).toBe("ready-lead");
+    expect(
+      document.getElementById("ready-lead")!.textContent,
+    ).toContain("Nothing more to answer");
+  });
+
+  it("does not name a subject the analyzer never settled on", async () => {
+    closed();
+    intake = { ...intake, captured: undefined };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByText(/^Nothing more to answer\./)).toBeDefined();
   });
 
   it("shows an error the action handed back", async () => {
@@ -967,6 +1027,23 @@ describe("the conversation actions", () => {
 
     intake = { ...EMPTY_INTAKE };
     await expect(openAction()).rejects.toThrow("REDIRECT:/start#latest");
+  });
+
+  /**
+   * The one turn that has no new question to land on.
+   *
+   * `#latest` would put them on the analyzer's closing sentence with the button
+   * that acts on it somewhere below — on a conversation six exchanges long,
+   * below the fold. The turn that ends the conversation ends on the offer.
+   */
+  it("lands the closing turn on the button rather than on the last sentence", async () => {
+    intake = { ...EMPTY_INTAKE, messages: [{ r: "a", t: "Anything else?" }] };
+    runAnalyzerMock.mockResolvedValue(turn({ done: true, clarity: 0.9 }));
+
+    await expect(replyAction(form({ reply: "no" }))).rejects.toThrow(
+      "REDIRECT:/start#ready",
+    );
+    expect(saveIntakeMock.mock.calls[0]![2].done).toBe(true);
   });
 
   it("records what the learner said and what came back", async () => {

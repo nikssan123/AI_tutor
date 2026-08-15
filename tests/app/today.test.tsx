@@ -293,9 +293,11 @@ describe("with a conversation left unfinished", () => {
     // sample below, which is a different offer about the same word.
     expect(screen.getByText(/We were talking about Photography/)).toBeDefined();
     expect(screen.getByText(/1 of 6 questions answered/)).toBeDefined();
+    // To the question they stopped on, not the top of a conversation they have
+    // already had — `/start` opens at the first thing they were asked.
     expect(
       screen.getByRole("link", { name: "Carry on" }).getAttribute("href"),
-    ).toBe("/start");
+    ).toBe("/start#latest");
   });
 
   it("does not name a subject the analyzer never settled on", async () => {
@@ -316,7 +318,14 @@ describe("with a conversation left unfinished", () => {
 
     expect(screen.getByText("Your course is ready to build")).toBeDefined();
     expect(screen.getByText(/just needs building/i)).toBeDefined();
-    expect(screen.getByRole("link", { name: "Build it" })).toBeDefined();
+    /*
+     * Onto the button, not onto the intake screen and good luck. The offer is
+     * "build it"; landing at the top of six exchanges with the button below the
+     * fold makes the reader hunt for the thing the link just promised.
+     */
+    expect(
+      screen.getByRole("link", { name: "Build it" }).getAttribute("href"),
+    ).toBe("/start#ready");
   });
 
   it("is not offered for a conversation that never had a turn in it", async () => {

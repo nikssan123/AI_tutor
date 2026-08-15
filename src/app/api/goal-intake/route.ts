@@ -95,7 +95,9 @@ export async function POST(request: Request): Promise<Response> {
           }
 
           await logCall(db, userId, result);
-          ok = await recordTurn(db, userId, intake, messages, result);
+          // Only whether it worked: the client refreshes either way, and the
+          // page it re-reads is what knows the conversation has closed.
+          ({ ok } = await recordTurn(db, userId, intake, messages, result));
         } catch {
           // Keeps what they typed rather than losing it to a failure that was
           // never theirs. `ok` stays false, so the client lands on the banner.
