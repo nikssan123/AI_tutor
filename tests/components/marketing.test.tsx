@@ -26,6 +26,7 @@ import {
   CheckStartOffer,
   EvalTierNote,
   CustomPathOffer,
+  FaqList,
   GoalSearch,
   GuideStartOffer,
   JsonLdScript,
@@ -550,6 +551,106 @@ describe("SectionHead", () => {
 
     expect(onGround.querySelector("span")!.className).toContain("bg-accent-weak");
     expect(onField.querySelector("span")!.className).toContain("bg-surface");
+  });
+
+  /**
+   * The rule a band opens with is drawn on the way in rather than printed —
+   * `.rule-draw` in globals.css sweeps a pseudo-element from the left as the
+   * band arrives, which is the cheapest way to make ten marketing routes answer
+   * to the scroll for zero JavaScript.
+   *
+   * The field is the exception, and it is not a stylistic one: `onField` is
+   * only ever used inside the pinned band, and a pinned element's own `view()`
+   * timeline is frozen by definition. A sweep in there would stick half-drawn,
+   * which reads as a rendering fault rather than as an effect — so that one
+   * keeps the static border it always had.
+   */
+  it("draws its rule on the scroll, except where the scroll has stopped", () => {
+    const { container: onGround } = render(
+      <SectionHead {...props} icon={<StepsIcon />} />,
+    );
+    const { container: onField } = render(
+      <SectionHead {...props} icon={<StepsIcon />} onField />,
+    );
+
+    expect(onGround.firstElementChild!.className).toContain("rule-draw");
+    expect(onGround.firstElementChild!.className).not.toContain("border-t");
+
+    expect(onField.firstElementChild!.className).toContain("border-t");
+    expect(onField.firstElementChild!.className).not.toContain("rule-draw");
+  });
+});
+
+/**
+ * The FAQ's whole reason for being `<details>` rather than a scripted accordion
+ * is that the answers are in the DOM whether or not they are open — the
+ * `FAQPage` markup beside it promises Google exactly that, and a widget that
+ * mounted an answer on click would quietly make the promise a lie. Every
+ * assertion here is about that promise or about the disclosure being operable
+ * without JavaScript.
+ */
+describe("FaqList", () => {
+  const faqs = [
+    { question: "Can I trust the marking?", answer: "You can check it." },
+    { question: "What do I hand in?", answer: "Something you made." },
+    { question: "What does it cost?", answer: "Nothing, to start." },
+  ];
+
+  it("puts every answer in the DOM, open or not", () => {
+    render(<FaqList faqs={faqs} />);
+    for (const faq of faqs) {
+      expect(screen.getByText(faq.answer), faq.answer).toBeDefined();
+    }
+  });
+
+  /** Without one open, the pattern is a list of headings nobody knows to press. */
+  it("opens the first and leaves the rest shut", () => {
+    const { container } = render(<FaqList faqs={faqs} />);
+    const open = [...container.querySelectorAll("details")].map((d) => d.open);
+    expect(open).toEqual([true, false, false]);
+  });
+
+  /**
+   * The question is a heading inside the summary, which the spec allows —
+   * `summary` takes "phrasing content, optionally intermixed with heading
+   * content". It keeps the page outline intact and keeps each question
+   * addressable by a reader navigating by headings, which is what the markup
+   * claims about it.
+   */
+  it("makes each question a heading and the whole row the control", () => {
+    const { container } = render(<FaqList faqs={faqs} />);
+    const summaries = [...container.querySelectorAll("summary")];
+
+    expect(summaries).toHaveLength(faqs.length);
+    for (const [i, summary] of summaries.entries()) {
+      expect(summary.querySelector("h2")!.textContent).toBe(faqs[i]!.question);
+      // §8.5.5's touch minimum: a 13px question is not a 44px target on its own.
+      expect(summary.className).toContain("min-h-[var(--touch-min)]");
+    }
+  });
+
+  /**
+   * A scroll-driven stagger rather than a delay, because a view timeline has no
+   * clock to be late against — the same mechanism every other band on the
+   * marketing surface uses.
+   */
+  it("staggers on the scroll rather than on a clock", () => {
+    const { container } = render(<FaqList faqs={faqs} />);
+    expect(container.querySelector(".rise")).toBeNull();
+    expect(
+      [...container.querySelectorAll(".reveal")].map((el) =>
+        el.getAttribute("style"),
+      ),
+    ).toEqual([
+      "--reveal-start: 0%;",
+      "--reveal-start: 6%;",
+      "--reveal-start: 12%;",
+    ]);
+  });
+
+  it("draws nothing but the rule when there is nothing to ask", () => {
+    const { container } = render(<FaqList faqs={[]} />);
+    expect(container.querySelectorAll("details")).toHaveLength(0);
   });
 });
 

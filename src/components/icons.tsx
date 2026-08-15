@@ -77,6 +77,33 @@ export function GridIcon({ className }: IconProps) {
   );
 }
 
+/** A price tag: what the thing costs. */
+export function PriceIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4 11.2V5.5a1.5 1.5 0 0 1 1.5-1.5h5.7a1.5 1.5 0 0 1 1.06.44l7.3 7.3a1.5 1.5 0 0 1 0 2.12l-5.7 5.7a1.5 1.5 0 0 1-2.12 0l-7.3-7.3A1.5 1.5 0 0 1 4 11.2Z" />
+      <circle cx="8.25" cy="8.25" r="1.25" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/**
+ * A speech bubble with a question in it: the things people ask.
+ *
+ * The question mark is drawn as a hook and a dot rather than set as text — a
+ * glyph inside an SVG would take the page's font, and the one thing every rule
+ * in this file is protecting is that an icon looks the same wherever it lands.
+ */
+export function QuestionIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M20 13.5A5.5 5.5 0 0 1 14.5 19H9l-4 2.5V17A5.5 5.5 0 0 1 4 13V9a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5Z" />
+      <path d="M10.4 9.4a1.75 1.75 0 1 1 2.35 1.9c-.5.2-.75.62-.75 1.2v.25" />
+      <circle cx="12" cy="15.4" r=".85" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 /* ── Navigation icons ───────────────────────────────────────────────────── */
 
 /**
@@ -180,6 +207,25 @@ export function CloseIcon({ className }: IconProps) {
   return (
     <Svg className={className}>
       <path d="M6 6l12 12M18 6 6 18" />
+    </Svg>
+  );
+}
+
+/**
+ * One item on a list of what you get — the pricing cards and the billing
+ * screen's "what your plan includes".
+ *
+ * A bare tick rather than `ChecklistIcon`'s clipboard: that one names the
+ * marking rubric, which is a specific thing in this product, and reusing it for
+ * "included in your plan" would blur the one word the whole pitch rests on.
+ *
+ * Decorative, like the rest of the set. The line beside it is the claim; a
+ * screen reader that also announced "tick" per row would read the list twice.
+ */
+export function TickIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="m5 12.5 4.5 4.5L19 7" />
     </Svg>
   );
 }

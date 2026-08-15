@@ -3,6 +3,7 @@ import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { SiteFooter, SiteHeader } from "@/components/marketing";
+import { allAudienceSummaries } from "@/lib/audiences";
 import {
   allProjects,
   allTopics,
@@ -11,6 +12,12 @@ import {
   findProject,
 } from "@/lib/content";
 import { EVAL_TIER_CLAIM } from "@/lib/claims";
+import { PLAN_COPY } from "@/lib/billing/plan-copy";
+import {
+  annualSavingPercent,
+  formatMoney,
+  requirePrice,
+} from "@/lib/billing/prices";
 import { tierFor } from "@/lib/evaluation/tier";
 
 const notFoundMock = vi.fn(() => {
@@ -78,8 +85,8 @@ describe("marketing layout", () => {
 });
 
 describe("landing page (§8 screen 1)", () => {
-  it("leads with a plain statement of the problem and one input", () => {
-    render(<HomePage />);
+  it("leads with a plain statement of the problem and one input", async () => {
+    render(await HomePage());
     // Not "Prove it" — the old headline was a slogan, and a visitor could not
     // tell from it what the product does. Nor a riddle: the headline before
     // this one ("Anyone can teach you. Almost no one checks whether you
@@ -91,8 +98,8 @@ describe("landing page (§8 screen 1)", () => {
     expect(screen.getAllByRole("search")).toHaveLength(1);
   });
 
-  it("suggests only subjects the product actually teaches", () => {
-    const { container } = render(<HomePage />);
+  it("suggests only subjects the product actually teaches", async () => {
+    const { container } = render(await HomePage());
     const options = [
       ...container.querySelectorAll<HTMLElement>("#goal-listbox [role=option]"),
     ];
@@ -107,8 +114,8 @@ describe("landing page (§8 screen 1)", () => {
     }
   });
 
-  it("walks through what happens, in order, one line per step", () => {
-    render(<HomePage />);
+  it("walks through what happens, in order, one line per step", async () => {
+    render(await HomePage());
     for (const phrase of [
       /Say what you want to learn/,
       /Take a ten-minute check/,
@@ -124,22 +131,26 @@ describe("landing page (§8 screen 1)", () => {
    * The page reads as "a long list of stuff" the moment sections stop being
    * visually distinct, so the numbered heads are structural, not decorative.
    *
-   * Four, where there were five. The old 04 drew a card per category linking to
-   * `/learn` and the old 05 drew the hand-written subjects; between them they
-   * said "we have subjects" twice, and because 05 was the only band that listed
-   * anything, a reader counted three and concluded the site had three.
+   * Six, and the last two are the ones the page spent four cuts without. A
+   * reader who believed every word of bands 01–04 still did not know what it
+   * cost and still had the objection none of them answered.
+   *
+   * The close is deliberately *not* 07: it carries no eyebrow and no rule,
+   * because a numbered band promises another one after it and there isn't one.
    */
-  it("separates its sections with numbered headings", () => {
-    render(<HomePage />);
+  it("separates its sections with numbered headings", async () => {
+    render(await HomePage());
     for (const label of [
       /01 · How it works/,
       /02 · What marking looks like/,
       /03 · Any subject/,
       /04 · What's here/,
+      /05 · What it costs/,
+      /06 · Questions/,
     ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
     }
-    expect(screen.queryByText(/05 · /)).toBeNull();
+    expect(screen.queryByText(/07 · /)).toBeNull();
   });
 
   /**
@@ -148,8 +159,8 @@ describe("landing page (§8 screen 1)", () => {
    * inferred from six words. These three sentences are the answer to "what is
    * this", above the point most people stop scrolling.
    */
-  it("states what the product is on the fold, under the input", () => {
-    const { container } = render(<HomePage />);
+  it("states what the product is on the fold, under the input", async () => {
+    const { container } = render(await HomePage());
     for (const promise of [
       "You read the checklist before you start",
       "You hand in real work, not a quiz",
@@ -168,8 +179,8 @@ describe("landing page (§8 screen 1)", () => {
    * failure the "any subject" band was introduced to fix, reappearing because
    * the only band that listed anything listed a subset.
    */
-  it("says how many subjects exist, not how many were hand-written", () => {
-    render(<HomePage />);
+  it("says how many subjects exist, not how many were hand-written", async () => {
+    render(await HomePage());
     const curated = allTopics().filter((t) => t.maturity === "curated");
     expect(curated.length).toBeLessThan(allTopics().length);
 
@@ -180,7 +191,7 @@ describe("landing page (§8 screen 1)", () => {
 
   it("names every category the catalogue actually spans", async () => {
     const { groupByCategory } = await import("@/lib/content/categories");
-    render(<HomePage />);
+    render(await HomePage());
 
     for (const { category } of groupByCategory(allTopics())) {
       expect(screen.getByText(category.name), category.slug).toBeDefined();
@@ -196,8 +207,8 @@ describe("landing page (§8 screen 1)", () => {
    * who counted came away with the wrong number both times. One row list names
    * every category *and* every subject, so counting it gives the right answer.
    */
-  it("names and links every subject from the catalogue band", () => {
-    const { container } = render(<HomePage />);
+  it("names and links every subject from the catalogue band", async () => {
+    const { container } = render(await HomePage());
     const band = [...container.querySelectorAll("section")].find((s) =>
       s.querySelector("h2")?.textContent?.includes("grouped by kind"),
     )!;
@@ -215,8 +226,8 @@ describe("landing page (§8 screen 1)", () => {
    * somebody is actually choosing; what stays here is the sentence that names
    * both kinds and says every subject is labelled.
    */
-  it("says the catalogue holds two kinds of subject, not one", () => {
-    render(<HomePage />);
+  it("says the catalogue holds two kinds of subject, not one", async () => {
+    render(await HomePage());
     const line = screen.getByText(/Some of these were written and checked/);
     expect(line.textContent).toContain("the rest are written when someone asks");
     expect(line.textContent).toContain("Every subject says which it is");
@@ -229,8 +240,8 @@ describe("landing page (§8 screen 1)", () => {
    * below the fold. The band that answers the headline is now structural, and
    * these assertions are what stop it drifting back into a footnote.
    */
-  it("answers 'anything' with a band of its own, above the catalogue", () => {
-    const { container } = render(<HomePage />);
+  it("answers 'anything' with a band of its own, above the catalogue", async () => {
+    const { container } = render(await HomePage());
     const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
 
     expect(heads).toContain("If nobody has written yours, we write it");
@@ -250,8 +261,8 @@ describe("landing page (§8 screen 1)", () => {
    * paragraphs of small print about generation quality floors — so the most
    * convincing artefact the product owns was the last thing a visitor met.
    */
-  it("shows what marking is before it explains what gets written", () => {
-    const { container } = render(<HomePage />);
+  it("shows what marking is before it explains what gets written", async () => {
+    const { container } = render(await HomePage());
     const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
 
     expect(
@@ -272,7 +283,7 @@ describe("landing page (§8 screen 1)", () => {
       MIN_GENERATED_SKILLS,
       MIN_ITEMS_PER_SKILL,
     } = await import("@/lib/contracts/pack");
-    render(<HomePage />);
+    render(await HomePage());
 
     expect(
       screen.getByText(
@@ -293,23 +304,23 @@ describe("landing page (§8 screen 1)", () => {
    * only honest while the two things a built one may never claim are on the
    * same screen as the offer.
    */
-  it("says what a built subject is called and what it cannot claim", () => {
-    render(<HomePage />);
+  it("says what a built subject is called and what it cannot claim", async () => {
+    render(await HomePage());
     expect(screen.getByText("Experimental — help us improve it")).toBeDefined();
     expect(screen.getByText(/we stop and tell you/)).toBeDefined();
     expect(screen.getByText(/can’t claim the strongest kind of marking/)).toBeDefined();
   });
 
-  it("sends someone who wants one built to the conversation that builds it", () => {
-    render(<HomePage />);
+  it("sends someone who wants one built to the conversation that builds it", async () => {
+    render(await HomePage());
     for (const label of ["Have one built", "ask for a subject"]) {
       expect(screen.getByText(label).getAttribute("href"), label).toBe("/start");
     }
   });
 
   /** The catalogue band's other exit — the full list, with the labels on it. */
-  it("sends anyone who wants the labelled list to the hub that has them", () => {
-    render(<HomePage />);
+  it("sends anyone who wants the labelled list to the hub that has them", async () => {
+    render(await HomePage());
     expect(
       screen.getByText(`See all ${allTopics().length}`).getAttribute("href"),
     ).toBe("/learn");
@@ -325,8 +336,8 @@ describe("landing page (§8 screen 1)", () => {
    * and the two naming the same piece of work is the point rather than a
    * duplicate.
    */
-  it("shows one real task, every criterion, and every weight", () => {
-    render(<HomePage />);
+  it("shows one real task, every criterion, and every weight", async () => {
+    render(await HomePage());
     const featured = featuredProject();
     expect(screen.getAllByText(featured.title).length).toBeGreaterThan(0);
     expect(
@@ -361,8 +372,8 @@ describe("landing page (§8 screen 1)", () => {
    * which the product genuinely publishes, and not a mocked-up dashboard or an
    * invented screenshot of somebody's graded submission.
    */
-  it("puts a real artefact on the fold, not just a search box", () => {
-    const { container } = render(<HomePage />);
+  it("puts a real artefact on the fold, not just a search box", async () => {
+    const { container } = render(await HomePage());
     const hero = container.querySelector("section")!;
     const featured = featuredProject();
 
@@ -387,8 +398,8 @@ describe("landing page (§8 screen 1)", () => {
    * the scene and the stage are both present and that the rungs that build
    * during the pin are inside it.
    */
-  it("pins the marking band and builds the ladder inside it", () => {
-    const { container } = render(<HomePage />);
+  it("pins the marking band and builds the ladder inside it", async () => {
+    const { container } = render(await HomePage());
     const scene = container.querySelector(".pin-scene")!;
 
     expect(scene.querySelector(".pin-stage")).not.toBeNull();
@@ -403,8 +414,8 @@ describe("landing page (§8 screen 1)", () => {
     ]);
   });
 
-  it("links to the full checklist rather than reproducing all of it", () => {
-    render(<HomePage />);
+  it("links to the full checklist rather than reproducing all of it", async () => {
+    render(await HomePage());
     const link = screen.getByText("Read the full checklist");
     expect(link.getAttribute("href")).toBe(
       `/projects/${featuredProject().slug}`,
@@ -417,8 +428,8 @@ describe("landing page (§8 screen 1)", () => {
    * work is held to, published before it is done (§4.2 law 2) — and a visitor
    * can only check us against a standard they can read.
    */
-  it("shows what the grades mean, not just that grading happens", () => {
-    render(<HomePage />);
+  it("shows what the grades mean, not just that grading happens", async () => {
+    render(await HomePage());
     const heaviest = [...featuredProject().rubricDetail.criteria].sort(
       (a, b) => b.weight - a.weight,
     )[0]!;
@@ -429,8 +440,8 @@ describe("landing page (§8 screen 1)", () => {
     expect(screen.getByText(/this is the pass mark/)).toBeDefined();
   });
 
-  it("shows what finishing the task means, from the brief itself", () => {
-    render(<HomePage />);
+  it("shows what finishing the task means, from the brief itself", async () => {
+    render(await HomePage());
     for (const line of featuredProject().acceptanceCriteria) {
       expect(screen.getByText(line), line).toBeDefined();
     }
@@ -441,8 +452,8 @@ describe("landing page (§8 screen 1)", () => {
    * page is the one place that input is the entire proposition, so it gets the
    * hero treatment; anywhere else it is a filter and must not.
    */
-  it("gives the goal input hero weight and the headline the hero size", () => {
-    const { container } = render(<HomePage />);
+  it("gives the goal input hero weight and the headline the hero size", async () => {
+    const { container } = render(await HomePage());
     expect(container.querySelector('input[name="q"]')!.className).toContain(
       "h-14",
     );
@@ -464,8 +475,8 @@ describe("landing page (§8 screen 1)", () => {
    * offset rather than a delay. Still zero JavaScript, which is the whole
    * reason neither one is a library.
    */
-  it("staggers its entrance in CSS rather than JavaScript", () => {
-    const { container } = render(<HomePage />);
+  it("staggers its entrance in CSS rather than JavaScript", async () => {
+    const { container } = render(await HomePage());
     expect(container.querySelector("script[src]")).toBeNull();
 
     const styles = (selector: string) =>
@@ -496,8 +507,8 @@ describe("landing page (§8 screen 1)", () => {
    * click. What must not happen is the landing page keeping the flattering half
    * — a blanket claim over a catalogue whose subjects do not all support it.
    */
-  it("makes no blanket evaluation claim over the whole catalogue (§7.2)", () => {
-    const { container } = render(<HomePage />);
+  it("makes no blanket evaluation claim over the whole catalogue (§7.2)", async () => {
+    const { container } = render(await HomePage());
     const band = [...container.querySelectorAll("section")].find((s) =>
       s.querySelector("h2")?.textContent?.includes("grouped by kind"),
     )!;
@@ -507,13 +518,13 @@ describe("landing page (§8 screen 1)", () => {
     }
   });
 
-  it("states no tier-1 claim anywhere on it, whatever a pack declares", () => {
-    render(<HomePage />);
+  it("states no tier-1 claim anywhere on it, whatever a pack declares", async () => {
+    render(await HomePage());
     expect(screen.queryByText(CLAIM[1]!)).toBeNull();
   });
 
-  it("shows a non-technical subject first, so it cannot read as a dev tool", () => {
-    render(<HomePage />);
+  it("shows a non-technical subject first, so it cannot read as a dev tool", async () => {
+    render(await HomePage());
     const names = allTopics().map((t) => t.name);
     expect(names[0]).toBe("Business Writing & Communication");
     // getAll, because a subject is both a card and a row in the search
@@ -531,6 +542,253 @@ describe("landing page (§8 screen 1)", () => {
     // half of the product a search result has to convey in one line.
     expect(metadata.openGraph?.title).toContain("Learn anything");
     expect(metadata.openGraph?.description).toContain("nobody has written");
+  });
+
+  /**
+   * The counts, above the headline.
+   *
+   * A stranger cannot tell from a headline promising "anything" whether there
+   * is anything here at all, and the honest answer to that is a count of what
+   * exists — not a vanity figure about users, which we would have to invent.
+   * Both numbers are counted from the packs at render, so the chip cannot
+   * outlive the catalogue it describes.
+   */
+  it("opens with counts it took from the catalogue, not from a slogan", async () => {
+    const { container } = render(await HomePage());
+    const hero = container.querySelector("section")!;
+    expect(hero.textContent).toContain(
+      `${allTopics().length} subjects · ${allProjects().length} graded briefs`,
+    );
+  });
+});
+
+/**
+ * §17 / PLAN-MONETIZATION §8, on the page that reaches the most strangers.
+ *
+ * The landing page is an easier place than the price list to tell a lie by
+ * accident, because nobody thinks of it as the place the prices live. So the
+ * rule `/pricing` is built on is asserted here too, and asserted the same way:
+ * the amounts come out of `prices.ts`, the quotas out of `PLAN_COPY`, and
+ * nothing on the page is allowed to be a number somebody typed.
+ */
+describe("the landing page's price band (§8 screen 1, band 05)", () => {
+  const money = (planId: "trial" | "learner" | "pro") =>
+    formatMoney(requirePrice(planId, "month", "usd").amountCents, "usd");
+
+  it("draws a card per plan, and no card for the trial", async () => {
+    render(await HomePage());
+
+    for (const planId of ["free", "learner", "pro"] as const) {
+      expect(
+        screen.getAllByText(PLAN_COPY[planId].name).length,
+        planId,
+      ).toBeGreaterThan(0);
+    }
+    // The trial is not a plan — `checkoutBody` puts the *Pro* price on the line
+    // item and the fee rides the first invoice. A fourth column would ask a
+    // visitor to compare four days against three monthly rates.
+    expect(screen.queryByText(PLAN_COPY.trial.name)).toBeNull();
+  });
+
+  /**
+   * Read, never typed. This is the assertion that would have caught the USD
+   * column moving under a page that had written "$24.99" into its own copy.
+   */
+  it("quotes every amount from the price table, in the resolved currency", async () => {
+    const { container } = render(await HomePage());
+    const band = [...container.querySelectorAll("section")].find((s) =>
+      s.textContent?.includes("· What it costs"),
+    )!;
+
+    for (const planId of ["trial", "learner", "pro"] as const) {
+      expect(band.textContent, planId).toContain(money(planId));
+    }
+    // Free is a real offer with a real price, not a marketing asterisk.
+    expect(band.textContent).toContain(formatMoney(0, "usd"));
+    // Computed and rounded down, so the page can never overstate its own
+    // discount — the one number on a price list that gets quoted back at you.
+    expect(band.textContent).toContain(`${annualSavingPercent("usd")}%`);
+  });
+
+  /**
+   * §13 risk 3 — an unexpected renewal is a chargeback rather than revenue, and
+   * the defence is not burying the fee. It is never letting the fee appear
+   * without the price it turns into, or without the two words that say the
+   * charge arrives on its own.
+   */
+  it("never states the trial fee without the renewal that follows it", async () => {
+    const { container } = render(await HomePage());
+    const strip = [...container.querySelectorAll("div")].find((d) =>
+      d.textContent?.startsWith(`Try Pro for ${money("trial")}`),
+    )!;
+
+    expect(strip.textContent).toContain(money("pro"));
+    expect(strip.textContent).toContain("renews automatically");
+    expect(strip.textContent).toContain("until you cancel");
+  });
+
+  /**
+   * The three quantities `plan-copy.ts` guarantees lead every card in the same
+   * order — marked work, sessions, tutor questions. They are the axis a visitor
+   * scans down, and the only slice of that list which means anything out of
+   * context.
+   */
+  it("shows the same three quantities on every card, from the catalog", async () => {
+    render(await HomePage());
+    for (const planId of ["free", "learner", "pro"] as const) {
+      for (const feature of PLAN_COPY[planId].features.slice(0, 3)) {
+        expect(screen.getAllByText(feature).length, feature).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  /**
+   * Free is the only plan that can be acted on from here — there is nothing to
+   * charge. The other two open the price list, and their labels say so:
+   * `PLAN_COPY`'s own CTAs are "Choose Learner" and "Choose Pro", which would
+   * be a lie on a card that does not open a checkout.
+   */
+  it("sends free to sign-up and the paid plans to the price list", async () => {
+    render(await HomePage());
+    /*
+     * `closest("a")` rather than the matched node, because on a price card the
+     * whole card is the link and this label is a span inside it — three buttons
+     * in a row would be three primary actions, and the choice being made here
+     * is which *card* you want.
+     *
+     * `getAll`, because the close asks for the same thing in the same words
+     * further down the page. Two routes to sign-up under one label is a landing
+     * page working; two *different* labels for it would be the drift.
+     */
+    for (const label of screen.getAllByText("Start free")) {
+      expect(label.closest("a")!.getAttribute("href")).toBe("/sign-up");
+    }
+    for (const label of ["See Learner", "See Pro"]) {
+      expect(
+        screen.getByText(label).closest("a")!.getAttribute("href"),
+        label,
+      ).toBe("/pricing");
+    }
+    expect(screen.queryByText(PLAN_COPY.pro.cta)).toBeNull();
+  });
+
+  /**
+   * §13.3 — the offer markup describes the page it is on, and every offer in it
+   * is rendered visibly. The annual price is named here as a saving rather than
+   * as an amount, so it is deliberately not in the list; `/pricing` carries the
+   * full graph including the year.
+   */
+  it("marks up exactly the offers it renders, and no more", async () => {
+    const { container } = render(await HomePage());
+    const blocks = JSON.parse(
+      container.querySelector('script[type="application/ld+json"]')!.textContent!,
+    ) as Array<Record<string, unknown>>;
+
+    const app = blocks.find((b) => b["@type"] === "WebApplication")!;
+    const offers = app.offers as Record<string, string | number>;
+    expect(offers.lowPrice).toBe("0.00");
+    expect(offers.highPrice).toBe(
+      (requirePrice("pro", "month", "usd").amountCents / 100).toFixed(2),
+    );
+    expect(offers.priceCurrency).toBe("USD");
+  });
+});
+
+/**
+ * §8 screen 1's last two jobs, which the page went four cuts without.
+ *
+ * A reader who believed every word of bands 01–04 still had the objection none
+ * of them answered, and then reached the bottom with nothing to press.
+ */
+describe("the landing page's questions and its close", () => {
+  it("answers the hardest question first, not the easiest", async () => {
+    render(await HomePage());
+    const questions = [...document.querySelectorAll("details h2")].map(
+      (h) => h.textContent,
+    );
+
+    expect(questions[0]).toBe("Is this just a chatbot with a syllabus on top?");
+    expect(questions).toContain("Can I trust the marking?");
+  });
+
+  /**
+   * The same array feeds the markup and the page, so a question cannot reach
+   * Google without being visible to a reader — which is the promise `FAQPage`
+   * makes on our behalf.
+   */
+  it("marks up every question it renders, and renders every one it marks up", async () => {
+    const { container } = render(await HomePage());
+    const blocks = JSON.parse(
+      container.querySelector('script[type="application/ld+json"]')!.textContent!,
+    ) as Array<Record<string, unknown>>;
+
+    const faq = blocks.find((b) => b["@type"] === "FAQPage")!;
+    const marked = (
+      faq.mainEntity as Array<{ name: string; acceptedAnswer: { text: string } }>
+    ).map((q) => q.name);
+
+    const rendered = [...container.querySelectorAll("details h2")].map(
+      (h) => h.textContent,
+    );
+    expect(marked).toEqual(rendered);
+    expect(marked.length).toBeGreaterThan(3);
+  });
+
+  /**
+   * Three of the answers quote numbers, and none of them may be typed: how long
+   * the subjects here run, what the free plan includes, and the generator's own
+   * floor. Same rule as the price cards, on the half of the page that reads as
+   * prose and is therefore the easier place to forget it.
+   */
+  it("quotes the catalogue and the catalog rather than round numbers", async () => {
+    render(await HomePage());
+    const hours = allTopics().map((t) => t.totalHours);
+
+    expect(
+      screen.getByText(
+        new RegExp(
+          `between ${Math.min(...hours)} and ${Math.max(...hours)} hours`,
+        ),
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText(
+        new RegExp(`includes ${PLAN_COPY.free.features[0]!.replace(/\s/g, "\\s")}`),
+      ),
+    ).toBeDefined();
+  });
+
+  /** Billing questions live on the price list; this page must not fork them. */
+  it("sends billing questions to the one page that answers them", async () => {
+    render(await HomePage());
+    expect(screen.getByText("price list").getAttribute("href")).toBe("/pricing");
+    expect(screen.queryByText(/What happens when the/)).toBeNull();
+  });
+
+  /**
+   * The page used to end on a caption under a list of subjects, which is a page
+   * that stops rather than a page that closes.
+   *
+   * It asks for a *capability* rather than a subject, because that is what the
+   * intake opens with and what produces a usable path — "write a launch email
+   * that gets replies" plans, "learn marketing" does not.
+   */
+  it("closes on the ask, with somewhere to press", async () => {
+    const { container } = render(await HomePage());
+    const sections = [...container.querySelectorAll("section")];
+    const last = sections[sections.length - 1]!;
+
+    expect(last.textContent).toContain(
+      "Pick one thing you want to be able to do",
+    );
+    expect(
+      last.querySelector<HTMLAnchorElement>('a[href="/sign-up"]'),
+    ).not.toBeNull();
+    expect(
+      last.querySelector<HTMLAnchorElement>('a[href="/start"]'),
+    ).not.toBeNull();
+    // No eyebrow and no rule: a numbered band promises another one after it.
+    expect(last.textContent).not.toMatch(/0\d · /);
   });
 });
 
@@ -662,9 +920,19 @@ describe("/learn/[topic]", () => {
     ).toBe(findPack("sql-data-analysis")!.skills.length);
   });
 
-  it("pre-renders a route for every pack", () => {
+  /**
+   * The segment serves two page types (§13.2 gives `/learn/{topic}` and
+   * `/learn/{topic}-for-{audience}` one flat URL space), so the param list is
+   * both corpora and the assertion has to name both — a version that checked
+   * only the packs would pass while every audience page rendered on demand
+   * instead of at build.
+   */
+  it("pre-renders a route for every pack and every audience page", () => {
     expect(topic.generateStaticParams().map((x) => x.topic).sort()).toEqual(
-      allTopics().map((t) => t.slug).sort(),
+      [
+        ...allTopics().map((t) => t.slug),
+        ...allAudienceSummaries().map((a) => a.slug),
+      ].sort(),
     );
   });
 

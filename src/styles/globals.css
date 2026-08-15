@@ -246,6 +246,125 @@ body {
   }
 }
 
+/*
+ * The field the hero sits on.
+ *
+ * The landing page opened on flat `--ground` with a card floating in the right
+ * half, which is the layout equivalent of starting a sentence with "so". This
+ * is the only atmospheric fill on the site and it is built out of one token:
+ * two soft radials of `--accent-weak`, which is a pale mint over near-white in
+ * light and a near-black jade over near-black in dark. Both are a few percent
+ * off the ground they sit on, so it reads as depth rather than as a coloured
+ * panel — §8.5.4's warning about saturated fills is about the *other* kind.
+ *
+ * `z-index: -1` under `isolation: isolate` keeps it behind the hero's own
+ * content and no further; it cannot slide under the page. It is inset from the
+ * section's box on the inline axis rather than bled past it, because a layer
+ * wider than its parent is a horizontal scrollbar on a phone.
+ */
+.aurora {
+  position: relative;
+  isolation: isolate;
+}
+
+.aurora::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-inline: 0;
+  top: -4rem;
+  height: calc(100% + 6rem);
+  pointer-events: none;
+  background:
+    radial-gradient(
+      42% 46% at 18% 26%,
+      var(--accent-weak) 0%,
+      transparent 70%
+    ),
+    radial-gradient(36% 40% at 86% 10%, var(--accent-weak) 0%, transparent 70%);
+  /*
+   * The mask is not decoration — it is the whole reason this reads as a wash.
+   *
+   * The layer is a box, the radials run off two of its sides, and a gradient
+   * cut by a box edge is a seam: the first cut of this drew a visible vertical
+   * line down the page at `max-w-5xl`'s left margin and a horizontal one under
+   * the header. Fading the layer out before it reaches any edge of itself is
+   * cheaper and safer than bleeding it to `100vw`, which buys a horizontal
+   * scrollbar on every browser that counts the scrollbar inside the unit.
+   */
+  /*
+   * One ramp per axis, intersected, rather than one radial doing both.
+   *
+   * A radial mask cannot be made to reach zero on all four edges without
+   * shrinking to an inscribed oval that crushes the wash it is masking — the
+   * first attempt still sat at ~45% alpha where the box ended, which is a seam
+   * with extra steps. Two linear ramps give each edge its own falloff, and
+   * `intersect` is what makes them both apply; the default `add` would union
+   * them and mask nothing.
+   */
+  mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 16%,
+      black 84%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 14%,
+      black 62%,
+      transparent 100%
+    );
+  mask-composite: intersect;
+}
+
+/* The field lags the page, so the hero has depth rather than a painted back. */
+@keyframes aurora-float {
+  from {
+    transform: translate3d(0, -3%, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(0, 7%, 0) scale(1);
+  }
+}
+
+/*
+ * A section's rule, drawn rather than printed.
+ *
+ * `SectionHead` opened every band with a static `border-t`, so the one element
+ * that says "a new idea starts here" was the one element on the page that never
+ * moved. Now the line sweeps in from the left as the band arrives — the same
+ * gesture as an editorial rule being ruled, and the cheapest possible way to
+ * make ten marketing routes feel like they answer to the scroll.
+ *
+ * A pseudo-element rather than the border it replaces, because `scaleX` needs
+ * something of its own to transform: transforming the head itself would take
+ * the title and the eyebrow with it. `--rule` lets a caller on a tinted field
+ * pick a colour that survives it; the default is the ordinary hairline.
+ */
+.rule-draw {
+  position: relative;
+}
+
+.rule-draw::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--rule, var(--hairline));
+}
+
+@keyframes rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     /*
@@ -283,6 +402,25 @@ body {
       animation: drift linear both;
       animation-timeline: view();
       animation-range: cover;
+    }
+
+    .aurora::before {
+      animation: aurora-float linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+
+    /*
+     * The rule is drawn early — `entry 8%` — because it is the marker that says
+     * a band has started, and a marker that arrives after the heading it marks
+     * is a marker nobody saw. It finishes a quarter of the way up the viewport,
+     * where the reader's eye already is.
+     */
+    .rule-draw::before {
+      transform-origin: left center;
+      animation: rule-draw linear both;
+      animation-timeline: view();
+      animation-range: entry 8% cover 26%;
     }
 
     /*

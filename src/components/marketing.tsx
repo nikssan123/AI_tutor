@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { SubjectIcon } from "@/components/icons";
+import { ChevronIcon, SubjectIcon } from "@/components/icons";
 import { Wordmark } from "@/components/logo";
 import { ThemeToggleStatic } from "@/components/theme-toggle-static";
 import {
@@ -713,7 +713,14 @@ export function SectionHead({
     <div
       className={cx(
         "flex flex-col gap-3 pt-8",
-        onField ? "border-t border-accent/20" : "border-t border-hairline",
+        /*
+         * The rule is drawn on the way in (`.rule-draw` in globals.css) rather
+         * than printed — except on the field, which is the pinned band, and a
+         * pinned element's own `view()` timeline is frozen by definition. A
+         * scroll-driven sweep in there would stick half-drawn, which is a
+         * rendering fault rather than an effect, so that one keeps its border.
+         */
+        onField ? "border-t border-accent/20" : "rule-draw",
       )}
     >
       <div className="flex items-center gap-3">
@@ -732,6 +739,85 @@ export function SectionHead({
       <Title className="text-[length:var(--text-display-size)] leading-[var(--text-display-line)] tracking-[var(--text-display-tracking)]">
         {title}
       </Title>
+    </div>
+  );
+}
+
+/** One question and the answer to it. Both are plain text — see `FaqList`. */
+export interface Faq {
+  question: string;
+  answer: string;
+}
+
+/**
+ * A set of questions, folded away until one is wanted.
+ *
+ * Not cards, and that is a decision rather than a preference. A grid of
+ * surfaces is for things you *compare* — three plans, four days, five steps. A
+ * question is not one of a set: it is one thing you either wanted to know or
+ * did not, and four of them drawn as four floating panels makes a page end on
+ * yet another grid with the answers competing for attention nobody asked them
+ * for. So the register changes — hairlines on the page ground, no elevation,
+ * the answers closed until they are wanted. What a reader sees is the questions
+ * at a glance, which is the actual job: they arrive already knowing which one
+ * is theirs.
+ *
+ * `<details>` rather than anything scripted. §8.5.8 caps this surface at zero
+ * component-library JavaScript, and the platform's own disclosure widget is
+ * keyboard-operable, announces its own expanded state, and — the part that
+ * matters — keeps every answer in the DOM. `faqPage` markup promises Google the
+ * answers are on the page, and an accordion that mounted them on click would
+ * quietly make that a lie.
+ *
+ * The answers are plain strings, not nodes, for the same reason: the same array
+ * feeds the JSON-LD, and a link inside an answer would serialise as nothing.
+ * Whatever a reader needs to click goes under the list, not inside it.
+ *
+ * The first is open, so the pattern is legible without a click.
+ */
+export function FaqList({ faqs }: { faqs: readonly Faq[] }) {
+  return (
+    <div className="flex flex-col border-t border-hairline">
+      {faqs.map((faq, i) => (
+        <details
+          key={faq.question}
+          open={i === 0}
+          style={revealAt(i)}
+          className="reveal group border-b border-hairline"
+        >
+          {/*
+            The heading lives inside the summary, which the spec allows —
+            `summary` takes "phrasing content, optionally intermixed with
+            heading content". It keeps the page outline intact and keeps each
+            question addressable as a heading, which is what the markup claims
+            about it.
+
+            `list-none` plus the webkit pseudo removes the default triangle in
+            both engines; the chevron below replaces it, on the side a reader
+            looks for it.
+          */}
+          <summary
+            className={cx(
+              "flex min-h-[var(--touch-min)] cursor-pointer list-none items-center justify-between gap-6 py-5",
+              "[&::-webkit-details-marker]:hidden",
+              "transition-colors duration-[var(--dur-fast)] hover:text-accent",
+            )}
+          >
+            <h2 className="m-0 text-[length:var(--text-lead-size)] font-semibold leading-[var(--text-lead-line)] tracking-[var(--text-lead-tracking)]">
+              {faq.question}
+            </h2>
+            {/* `ChevronIcon` points right (`m9 6 6 6-6 6`), so a quarter turn
+                puts it face down when the answer is open — the disclosure
+                affordance. A half turn, which is what an already-downward
+                chevron would take, pointed it back at the question instead. */}
+            <ChevronIcon className="shrink-0 text-ink-faint transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-90" />
+          </summary>
+
+          <p className="m-0 max-w-[var(--measure)] pb-6 text-[length:var(--text-body-size)] leading-[var(--text-body-line)] text-ink-muted">
+            {faq.answer}
+          </p>
+        </details>
+      ))}
     </div>
   );
 }
