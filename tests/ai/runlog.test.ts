@@ -383,14 +383,40 @@ live("the AgentRun log", () => {
       await clearAnonymousRunsOn(CAP_NEXT_DAY);
     });
 
+    /**
+     * A delta, asserted against what `real` can actually represent.
+     *
+     * The baseline technique above is the right one — these tests do not own
+     * the day's total, so they measure change rather than absolutes. What was
+     * still wrong is the *comparison*: `toBeCloseTo(before + n, 5)` asks for
+     * five decimal places from a `float4` column, and float4 carries about
+     * seven significant digits total. The smallest step it can represent at
+     * magnitude `v` is `v * 2**-23` — at 1071 cents that is 1.3e-4, twenty-five
+     * times wider than the tolerance being demanded, so the assertion starts
+     * failing on arithmetic rather than on behaviour once a day gets busy.
+     * Postgres agrees: `1071.1189::real - 1071.1188::real` is 0.000122, which
+     * is to say they are the same number.
+     *
+     * The file already carries the scar of the same class of problem — "488
+     * cents of pack-generation probes" under the old fixed date — so this is
+     * that lesson finished rather than a tolerance quietly widened. The delta
+     * is still pinned exactly; one float4 step is simply the tightest true
+     * statement available about it. Two steps of slack because two readings are
+     * rounded, `before` and `after`, and each can move by one.
+     */
+    const expectSpendDelta = (after: number, before: number, delta: number) => {
+      const step = Math.max(Math.abs(after), 1) * 2 ** -23;
+      expect(Math.abs(after - before - delta)).toBeLessThanOrEqual(step * 2);
+    };
+
     it("counts what the free tier spent today, and only today", async () => {
       const before = await anonymousSpentToday(db, NOW);
       await anonRun(3, NOW);
-      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 3, 5);
+      expectSpendDelta(await anonymousSpentToday(db, NOW), before, 3);
 
       // Yesterday's spend is yesterday's problem.
       await anonRun(7, new Date("2026-08-12T09:00:00.000Z"));
-      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 3, 5);
+      expectSpendDelta(await anonymousSpentToday(db, NOW), before, 3);
     });
 
     it("counts nothing that belongs to a learner", async () => {
@@ -406,7 +432,7 @@ live("the AgentRun log", () => {
       );
 
       // A signed-in learner has their own cap; this one is about the free tier.
-      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before, 5);
+      expectSpendDelta(await anonymousSpentToday(db, NOW), before, 0);
     });
 
     /**
@@ -430,7 +456,7 @@ live("the AgentRun log", () => {
         NOW,
       );
 
-      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before, 5);
+      expectSpendDelta(await anonymousSpentToday(db, NOW), before, 0);
     });
 
     it("counts a visitor's run, and counts one that did not say", async () => {
@@ -449,7 +475,7 @@ live("the AgentRun log", () => {
       // conservatively, under-counting leaves it unbounded.
       await anonRun(6, NOW);
 
-      expect(await anonymousSpentToday(db, NOW)).toBeCloseTo(before + 10, 5);
+      expectSpendDelta(await anonymousSpentToday(db, NOW), before, 10);
     });
 
     it("stops the free tier once the day's ceiling is reached", async () => {

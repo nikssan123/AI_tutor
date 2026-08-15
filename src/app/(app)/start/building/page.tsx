@@ -24,19 +24,20 @@ import {
   SLOW_AFTER_MINUTES,
   stepStates,
   type StepState,
+  TYPICAL_MAX_MINUTES,
   TYPICAL_MINUTES,
 } from "./progress";
 
 /**
  * The wait, while §7.1's Generated tier authors a subject nobody curated.
  *
- * Around three minutes and several model calls, so this page's job is to be
- * honest about that rather than to look busy. It refreshes itself with a plain
+ * Several minutes and several model calls, so this page's job is to be honest
+ * about that rather than to look busy. It refreshes itself with a plain
  * `<meta>` tag — no polling script, no bundle, consistent with every other
  * screen here working without JavaScript.
  *
  * What it shows in that time is read from the build row, not invented here.
- * The screen used to say one thing for three minutes — that it was still going
+ * The screen used to say one thing for the whole wait — that it was still going
  * — which is the same thing a hung page says, and it was reported as one. Now
  * the pipeline writes the phase it has reached and this marks it off, so
  * "working" is a claim with evidence behind it. Nothing is timed, estimated or
@@ -253,7 +254,11 @@ export default async function BuildingPage({ searchParams }: Props) {
         facts={
           <>
             <Meta>Started {elapsedWords(runningFor)} ago</Meta>
-            <Meta>Usually about {TYPICAL_MINUTES} minutes</Meta>
+            {/* A range, because the single figure it replaced was the best case
+                presented as the only one — see `TYPICAL_MINUTES`. */}
+            <Meta>
+              Usually {TYPICAL_MINUTES}–{TYPICAL_MAX_MINUTES} minutes
+            </Meta>
           </>
         }
       />
@@ -262,7 +267,7 @@ export default async function BuildingPage({ searchParams }: Props) {
        * Nothing here carries `rise` or `stagger`, and that is deliberate on
        * this one screen. The page reloads itself every six seconds, so a first
        * -render animation is a *re-render* animation to the person watching:
-       * four rows fading up over and over for three minutes. §8.5.6 asks for
+       * four rows fading up over and over for several minutes. §8.5.6 asks for
        * motion that means something, and the only thing moving here is the one
        * thing that is actually happening.
        */}
@@ -351,10 +356,10 @@ export default async function BuildingPage({ searchParams }: Props) {
          */}
         {minutes >= SLOW_AFTER_MINUTES ? (
           <Meta tone="muted">
-            Past the usual {TYPICAL_MINUTES} minutes now. That happens when a
-            first draft doesn’t clear our checks and it gets written again — it
-            has not failed, and if it ever does stop this page says so rather
-            than leaving you here.
+            Past the usual {TYPICAL_MAX_MINUTES} minutes now — which is already
+            a second attempt, so this one has been written twice and is taking
+            its time on both. It has not failed, and if it ever does stop this
+            page says so rather than leaving you here.
           </Meta>
         ) : null}
       </HeroBand>

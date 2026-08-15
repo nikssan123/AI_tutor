@@ -37,7 +37,32 @@ import {
  * `max_uses_exceeded` and the model writes up what it already found, which is
  * the degradation we want. A prompt asking politely for restraint is not a cap.
  */
-export const MAX_SEARCHES = 8;
+/**
+ * How many searches the reading list may run, and the wall clock it has to do
+ * it in.
+ *
+ * Both were measured rather than guessed. At eight searches a live run took
+ * **4m45s and 46.12¢** — the single most expensive call in the pipeline and
+ * comfortably its slowest, on the one artefact `generatePack` describes as
+ * additive: "nothing in the diagnostic, the planner or the grader reads them".
+ * It ran twice, because a failed quality floor re-runs the whole attempt, and
+ * the two together would not have fitted inside `BUILD_TIMEOUT_MINUTES` — the
+ * wait screen would have called the build stopped while it was still spending.
+ *
+ * Halving the searches halves the part of the bill that scales with them, and
+ * it compounds: every result stays in the conversation, and a paused turn
+ * re-sends that conversation on each resume, so the search count drives the
+ * input tokens of every later request too.
+ *
+ * The budget is the backstop for what the count cannot bound — a search that
+ * is slow rather than numerous. Three minutes is well clear of the measured
+ * time at four searches and still leaves two attempts inside the fifteen the
+ * wait screen allows. Overrunning costs a reading list, not a pack.
+ */
+export const MAX_SEARCHES = 4;
+
+/** @see MAX_SEARCHES — the wall clock, for the half a count cannot bound. */
+export const RESOURCE_BUDGET_MS = 3 * 60_000;
 
 /**
  * The search tool, frozen as a module constant.
@@ -190,6 +215,7 @@ export async function generateResources(
     system: PACK_RESOURCES_PROMPT.text,
     user: buildResourcesContext(input),
     serverTools: [WEB_SEARCH_TOOL],
+    budgetMs: RESOURCE_BUDGET_MS,
     tool: {
       name: "submit_resources",
       description: "Submit the resources you found and checked.",

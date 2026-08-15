@@ -51,11 +51,18 @@ function reply(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
   } as Anthropic.Message;
 }
 
-/** A stub whose `messages.create` returns each queued reply in turn. */
+/**
+ * A stub whose `messages.create` returns each queued reply in turn.
+ *
+ * The second parameter is the SDK's per-request options, which is where a
+ * budgeted call puts what is left of its wall clock — see "the budget" below.
+ */
 function stub(replies: Anthropic.Message[]) {
   const create = vi.fn(
-    async (_body: Anthropic.MessageCreateParamsNonStreaming) =>
-      replies.shift() ?? reply(),
+    async (
+      _body: Anthropic.MessageCreateParamsNonStreaming,
+      _options?: { timeout?: number },
+    ) => replies.shift() ?? reply(),
   );
   return {
     client: { messages: { create } } as unknown as Anthropic,
@@ -484,5 +491,94 @@ describe("server tools", () => {
     expect(create.mock.calls.length).toBe(
       MAX_SCHEMA_ATTEMPTS * (MAX_PAUSE_RESUMES + 1),
     );
+  });
+
+  /* ── The wall clock ─────────────────────────────────────────────────────── */
+
+  describe("the budget", () => {
+    /*
+     * `budgetMs` exists because the resume loop above is the one place in the
+     * product where a single call's *duration* is unbounded by anything token
+     * limits can see. A measured reading-list call spent 4m45s and 46¢ in it —
+     * ten requests' worth of ceiling, on the one artefact a pack does not need.
+     *
+     * A fake clock rather than timers: `callStructured` takes one for exactly
+     * this, and a test that really waited three minutes would be a test nobody
+     * runs.
+     */
+    const paused = () =>
+      reply({
+        stop_reason: "pause_turn",
+        content: [
+          { type: "server_tool_use", id: "srv", name: "web_search", input: {} },
+        ],
+      } as Partial<Anthropic.Message>);
+
+    /** A clock that advances a fixed step on every reading. */
+    const ticking = (stepMs: number) => {
+      let now = 0;
+      return () => {
+        const at = now;
+        now += stepMs;
+        return at;
+      };
+    };
+
+    it("stops resuming once the wall clock is gone", async () => {
+      // Twenty paused replies queued and nowhere near that many taken: without
+      // the budget this runs the full ten requests, as the test above proves.
+      const { client, create } = stub(Array.from({ length: 20 }, paused));
+
+      const result = await callStructured(
+        client,
+        { ...searching, budgetMs: 100 },
+        ticking(60),
+      );
+
+      expect(result.status).toBe("invalid");
+      // Named as a budget overrun rather than "out of resumes", because the two
+      // want different fixes and read identically from the response alone.
+      expect(result.status === "invalid" && result.detail).toContain("budget");
+      expect(create.mock.calls.length).toBeLessThan(
+        MAX_SCHEMA_ATTEMPTS * (MAX_PAUSE_RESUMES + 1),
+      );
+    });
+
+    it("puts what is left of the budget on the request itself", async () => {
+      /*
+       * Stopping between requests is only half of it. The SDK's default is ten
+       * minutes per request with two transport retries behind it, so one hung
+       * call would outlast any ceiling the loop kept on its own.
+       */
+      const { client, create } = stub([reply()]);
+
+      await callStructured(client, { ...searching, budgetMs: 5_000 }, ticking(0));
+
+      expect(create.mock.calls[0]![1]).toEqual({ timeout: 5_000 });
+    });
+
+    it("leaves an unbudgeted call exactly as it was", async () => {
+      // Every other step in the product is unbudgeted, so the absence of the
+      // option is the assertion that they were not quietly given a deadline.
+      const { client, create } = stub([reply()]);
+
+      const result = await callStructured(client, searching);
+
+      expect(result.status).toBe("ok");
+      expect(create.mock.calls[0]![1]).toBeUndefined();
+    });
+
+    it("spends nothing at all on a budget that was already gone", async () => {
+      const { client, create } = stub([reply()]);
+
+      const result = await callStructured(
+        client,
+        { ...searching, budgetMs: 0 },
+        ticking(1),
+      );
+
+      expect(result.status).toBe("invalid");
+      expect(create).not.toHaveBeenCalled();
+    });
   });
 });

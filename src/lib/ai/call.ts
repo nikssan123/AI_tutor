@@ -85,6 +85,25 @@ export interface StructuredCall<T> {
    * plan wrote it down.
    */
   effort?: "low" | "medium" | "high" | "xhigh" | "max" | null;
+  /**
+   * A wall clock for the whole call, resumes and schema retries included.
+   *
+   * Unset on every step but one, and that is the point: this exists for a call
+   * whose *duration* is unbounded in a way token limits do not catch. A server
+   * tool can pause the turn, and each resume re-sends the conversation so far —
+   * so `MAX_SCHEMA_ATTEMPTS` × (1 + `MAX_PAUSE_RESUMES`) is ten requests, each
+   * with its own transport retries behind it. A measured reading-list call sat
+   * in that loop for 4m45s and 46¢, which is most of a pack build's budget
+   * spent on the one artefact the pack does not need (see `resources.ts`).
+   *
+   * `max_tokens` cannot bound this — the cost is in the *number* of requests,
+   * not the size of any one of them. So the ceiling is time, enforced in two
+   * places: no attempt or resume starts once it has passed, and each request
+   * carries what is left of it as its own timeout, so an in-flight one cannot
+   * outlive the budget either. Overrunning returns `invalid` like any other
+   * unusable answer, which callers already handle.
+   */
+  budgetMs?: number;
 }
 
 export type ParseOutcome<T> =
@@ -269,8 +288,32 @@ export async function callStructured<T>(
     latencyMs: clock() - startedAt,
   });
 
+  /*
+   * What is left of `budgetMs`, or null for a call that has no ceiling.
+   *
+   * Read fresh every time rather than computed once: the whole point is that it
+   * shrinks as the loop runs, and a value captured at the top would let the
+   * last request start with the budget it had at the first.
+   */
+  const deadline =
+    call.budgetMs === undefined ? null : startedAt + call.budgetMs;
+  const msLeft = (): number | null =>
+    deadline === null ? null : deadline - clock();
+  const spent = (): boolean => {
+    const left = msLeft();
+    return left !== null && left <= 0;
+  };
+
   for (let attempt = 1; attempt <= MAX_SCHEMA_ATTEMPTS; attempt += 1) {
     attempts = attempt;
+
+    // Checked before the request rather than after it, so an overrun costs
+    // nothing further. The first attempt can only trip this on a budget that
+    // was already gone when the call started.
+    if (spent()) {
+      lastError = `the ${call.budgetMs}ms budget ran out`;
+      break;
+    }
     const messages: Anthropic.MessageParam[] = [
       { role: "user", content: call.user },
     ];
@@ -286,8 +329,25 @@ export async function callStructured<T>(
       );
     }
 
+    /*
+     * The budget rides on the request as its own timeout, because stopping
+     * between requests is only half of it: the SDK's default is ten minutes per
+     * request with two transport retries behind it, so one hung call could
+     * outlast any ceiling this loop tried to keep on its own.
+     */
+    const options = () => {
+      const left = msLeft();
+      // Floored at 1ms rather than passed through: the clock moves between the
+      // check above and this line, and a zero or negative timeout makes the SDK
+      // abort by *throwing* — which would leave `generatePack` on the exception
+      // path, where a deterministic failure looks transient to the queue and
+      // gets retried at full price. An overrun must return, not throw.
+      return left === null ? undefined : { timeout: Math.max(left, 1) };
+    };
+
     let response = await client.messages.create(
       structuredRequest(call, messages),
+      options(),
     );
     usage = addUsage(usage, response.usage);
 
@@ -301,11 +361,19 @@ export async function callStructured<T>(
      */
     for (
       let resumes = 0;
-      response.stop_reason === "pause_turn" && resumes < MAX_PAUSE_RESUMES;
+      response.stop_reason === "pause_turn" &&
+      resumes < MAX_PAUSE_RESUMES &&
+      // The resume loop is where an unbounded call actually spends its time, so
+      // this is the condition the budget most needs to sit in: each pass
+      // re-sends everything the last one accumulated.
+      !spent();
       resumes += 1
     ) {
       messages.push({ role: "assistant", content: response.content });
-      response = await client.messages.create(structuredRequest(call, messages));
+      response = await client.messages.create(
+        structuredRequest(call, messages),
+        options(),
+      );
       usage = addUsage(usage, response.usage);
     }
 
@@ -326,9 +394,18 @@ export async function callStructured<T>(
      */
     const block = response.content.find((b) => b.type === "tool_use");
     if (!block) {
+      /*
+       * Three ways to end a turn with nothing to parse, and they are worth
+       * telling apart in the log: the model ran out of resumes, the *budget*
+       * ran out from under it mid-search, or it simply answered without
+       * calling the tool. The second reads identically to the first from the
+       * response alone, which is why `spent()` is asked rather than inferred.
+       */
       lastError =
         response.stop_reason === "pause_turn"
-          ? `still working after ${MAX_PAUSE_RESUMES} resumes`
+          ? spent()
+            ? `still working when the ${call.budgetMs}ms budget ran out`
+            : `still working after ${MAX_PAUSE_RESUMES} resumes`
           : "no tool call was made";
       continue;
     }

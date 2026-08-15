@@ -500,7 +500,7 @@ export function GoalSearch({
  * they want something we lack was the one screen that never said so.
  *
  * The questions are listed rather than promised vaguely, because the honest
- * version of "we'll build it" includes the three minutes it costs.
+ * version of "we'll build it" includes the minutes it costs.
  */
 export function CustomPathOffer({ topic }: { topic: string }) {
   const asks = [
@@ -517,7 +517,7 @@ export function CustomPathOffer({ topic }: { topic: string }) {
       <Lead>
         Tell us a bit more and we write the skills, work out what depends on
         what, and put together the questions that find where you already are. It
-        takes about three minutes.
+        takes a few minutes.
       </Lead>
 
       <ul className="flex list-none flex-col gap-2 p-0 m-0">
@@ -639,8 +639,9 @@ export function GuideStartOffer() {
         there.
       </Lead>
       <Meta tone="muted">
-        About three minutes. If we do not cover your subject yet, we will write
-        it — and say it is Experimental until somebody has checked it.
+        About three minutes to set up. If we do not cover your subject yet,
+        writing it takes a few minutes more — and we say it is Experimental
+        until somebody has checked it.
       </Meta>
       <Link href={CUSTOM_PATH_HREF} className={CTA_LINK}>
         Build my path

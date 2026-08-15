@@ -12,11 +12,13 @@ import {
 import {
   MAX_SEARCHES,
   PACK_RESOURCES_PROMPT,
+  RESOURCE_BUDGET_MS,
   WEB_SEARCH_TOOL,
   buildResourcesContext,
   generateResources,
 } from "@/lib/packs/generate/resources";
-import { withRefs } from "@/lib/packs/generate";
+import { MAX_PACK_ATTEMPTS, withRefs } from "@/lib/packs/generate";
+import { BUILD_TIMEOUT_MINUTES } from "@/lib/packs/build";
 import type { DraftResource, DraftSkill, PackGraphDraft } from "@/lib/contracts/pack";
 import { DomainPackSchema } from "@/lib/packs/types";
 
@@ -298,6 +300,28 @@ describe("the researcher's prompt", () => {
       type: "web_search_20260209",
       max_uses: MAX_SEARCHES,
     });
+  });
+
+  it("keeps a whole build's worth of research inside the wait screen's cut-off", () => {
+    /*
+     * The constraint the two constants exist to satisfy, asserted as a
+     * relationship rather than as their values — because the values are only
+     * ever wrong relative to this.
+     *
+     * A build gets `MAX_PACK_ATTEMPTS` goes and each one may buy a reading
+     * list, while `/start/building` calls a run past `BUILD_TIMEOUT_MINUTES`
+     * stopped. At eight searches and no ceiling a measured run spent 4m45s here
+     * *per attempt*, and two of those plus a graph, a bank and a rubric could
+     * not fit — the learner would have been shown "this one stopped partway"
+     * while the run was still going and still spending.
+     *
+     * Carrying the list across attempts (see `retargetResources`) means the
+     * second attempt usually pays none of this. The margin below is what
+     * happens when it does.
+     */
+    expect(MAX_PACK_ATTEMPTS * RESOURCE_BUDGET_MS).toBeLessThan(
+      BUILD_TIMEOUT_MINUTES * 60_000,
+    );
   });
 });
 

@@ -4,7 +4,7 @@ import { BUILD_STAGES, type BuildStage } from "@/lib/packs/build";
  * What the wait screen says, kept out of the screen itself so it can be tested
  * as what it is: a mapping from a row in the database to four sentences.
  *
- * §7.1's Generated tier takes about three minutes, and for all of that time the
+ * §7.1's Generated tier takes several minutes, and for all of that time the
  * screen had one thing to say — that it was still going. That is
  * indistinguishable from a page that has hung, and it was reported as exactly
  * that. What follows is the honest alternative: the phases the build actually
@@ -12,19 +12,44 @@ import { BUILD_STAGES, type BuildStage } from "@/lib/packs/build";
  * timer that knows nothing about the run.
  */
 
-/** How long an authoring run usually takes, in the words the screen uses. */
+/**
+ * How long an authoring run takes, as a range, in the words the screen uses.
+ *
+ * **It was a single number, and the number was wrong.** "About three minutes"
+ * described the best case as though it were the only case: a measured run took
+ * 7m18s on its first attempt alone, and a build that fails the quality floor
+ * gets a second one. So the screen told people three minutes, went quiet past
+ * five, and left anybody on an ordinary two-attempt build watching a page that
+ * had — by its own account — already overrun. A promise that specific is worse
+ * than no promise, because it is the thing they measure the wait against.
+ *
+ * The range is what the pipeline actually does. The floor is a clean single
+ * attempt: the graph, then the longest of the bank, the rubrics and the reading
+ * list, which now genuinely run together. The ceiling is that plus a second
+ * attempt, which re-authors everything except the reading list — it is carried,
+ * so a retry no longer pays the slowest call in the run twice.
+ *
+ * Both ends move if the pipeline does. `RESOURCE_BUDGET_MS` bounds the slowest
+ * call, and `tests/packs/resources.test.ts` holds the whole thing under
+ * `BUILD_TIMEOUT_MINUTES` — past which this screen stops calling it a wait and
+ * starts calling it stopped.
+ */
 export const TYPICAL_MINUTES = 3;
+
+/** The other end of it — a build that needed its second attempt. */
+export const TYPICAL_MAX_MINUTES = 8;
 
 /**
  * When to say out loud that this one is slow.
  *
  * Past this the screen stops repeating the usual figure and explains the
- * overrun instead. Set above `TYPICAL_MINUTES` rather than at it, so the
- * ordinary two-and-a-half-minute build never sees it — a reassurance shown to
- * everybody is not reassurance, it is noise that trains people to expect a
- * problem.
+ * overrun instead. Set above `TYPICAL_MAX_MINUTES` rather than at it, so an
+ * ordinary two-attempt build never sees it — a reassurance shown to everybody
+ * is not reassurance, it is noise that trains people to expect a problem. That
+ * was the old value's real fault: at five minutes it fired on builds that were
+ * behaving exactly as designed.
  */
-export const SLOW_AFTER_MINUTES = 5;
+export const SLOW_AFTER_MINUTES = 9;
 
 export interface BuildStep {
   stage: BuildStage;

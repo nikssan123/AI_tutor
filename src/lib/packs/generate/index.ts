@@ -2,7 +2,11 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { logCall, shouldDegrade } from "@/lib/ai/runlog";
 import { degradesGeneration, type PlanId } from "@/lib/billing/catalog";
-import type { DraftItem, PackGraphDraft } from "@/lib/contracts/pack";
+import type {
+  DraftItem,
+  DraftResource,
+  PackGraphDraft,
+} from "@/lib/contracts/pack";
 import type { BuildStage } from "../build";
 import type { DomainPack } from "../types";
 import type { ValidationReport } from "../validate";
@@ -108,6 +112,47 @@ async function gatherItems(
   return results.flatMap((r) => (r.status === "ok" ? r.value.items : []));
 }
 
+/**
+ * Rewrites a reading list's skill references as skill *names*, so it can
+ * outlive the graph it was written against.
+ *
+ * This is what makes carrying the list across a retry safe, and skipping it
+ * would be a silent correctness bug rather than a missed optimisation.
+ * `skillRef` is deliberately positional — `s0`, `s1`, `s2`, opaque so a model
+ * cannot "tidy" it — and `assemblePack` resolves those refs against the graph
+ * *it* is assembling. A second attempt re-authors the graph from scratch, so
+ * `s7` still resolves, just to a different skill: the pack would ship with
+ * reading material attached to the wrong skills, and nothing would flag it,
+ * because a ref that resolves is indistinguishable from a ref that resolves
+ * correctly.
+ *
+ * Names survive that, because `nameResolver` takes them: exact match first,
+ * then `slugify` for the punctuation a model tidies. A skill the new graph
+ * simply does not have resolves to nothing and the resource is dropped with
+ * the reason already written for it — "covers no skill this pack contains".
+ *
+ * Done once, when the list is first cached rather than when it is reused, so
+ * what is carried is always name-shaped and re-carrying it cannot double-map.
+ */
+export function retargetResources(
+  resources: DraftResource[],
+  graph: PackGraphDraft,
+): DraftResource[] {
+  const nameAt = new Map(
+    graph.skills.map((skill, i) => [skillRef(i), skill.name]),
+  );
+
+  return resources.map((resource) => ({
+    ...resource,
+    // A ref this graph has no skill for is dropped here rather than carried as
+    // a string the next resolver would fail on anyway.
+    skills: resource.skills.flatMap((ref) => {
+      const name = nameAt.get(ref);
+      return name ? [name] : [];
+    }),
+  }));
+}
+
 export async function generatePack(
   deps: PackGenerateDeps,
   input: PackGenerateInput,
@@ -127,6 +172,14 @@ export async function generatePack(
   // quality floor, *what was dropped* is the whole explanation, and throwing it
   // away leaves "7 items" with no way to find out why.
   let dropped: string[] = [];
+  /*
+   * The reading list, once any attempt has one, in name form.
+   *
+   * The one thing worth keeping across a retry — see the `Promise.all` below
+   * for why it is skipped rather than re-bought, and `retargetResources` for
+   * why what is kept is names rather than the refs the model returned.
+   */
+  let carried: DraftResource[] | null = null;
 
   while (attempts < MAX_PACK_ATTEMPTS) {
     attempts += 1;
@@ -160,27 +213,64 @@ export async function generatePack(
     // answer, so reporting them separately would report a race.
     await deps.onStage?.("writing");
 
+    /*
+     * `.then(logCall)` rather than `logCall(db, userId, await …)`, and the
+     * difference is the whole point: **the previous shape did not run these in
+     * parallel at all.**
+     *
+     * Array elements evaluate left to right, so an `await` written *inside* the
+     * literal suspends the function before the next element is even
+     * constructed. `generateRubrics` ran to completion, and only then did
+     * `generateResources` start — `Promise.all` received three already-settled
+     * or already-running promises and had nothing left to overlap. Only
+     * `gatherItems` was ever concurrent, because it is the one element that was
+     * not awaited inline.
+     *
+     * The run that exposed it is unambiguous: rubrics finished at 22:53:28.502
+     * and the reading list's 285,681ms latency puts its start at 22:53:28.5 —
+     * the same instant, back to back. Two of the three calls in a fan-out
+     * written to be a fan-out were a queue, costing the longer of them in wall
+     * clock on every attempt.
+     */
     const [items, rubrics, researched] = await Promise.all([
       gatherItems(deps, graph.value, input.subject, degraded),
-      logCall(
-        deps.db,
-        deps.userId,
-        await generateRubrics(
-          deps.client,
-          { subject: input.subject, skills: withRefs(graph.value) },
-          { degraded },
-        ),
-      ),
-      logCall(
-        deps.db,
-        deps.userId,
-        await generateResources(
-          deps.client,
-          { subject: input.subject, skills: withRefs(graph.value) },
-          { degraded },
-        ),
-      ),
+      generateRubrics(
+        deps.client,
+        { subject: input.subject, skills: withRefs(graph.value) },
+        { degraded },
+      ).then((result) => logCall(deps.db, deps.userId, result)),
+      /*
+       * Skipped outright when a previous attempt already found one.
+       *
+       * The reading list is the most expensive call in the pipeline (46¢, and
+       * nearly five minutes of the fifteen the wait screen allows) and the only
+       * one whose output does not depend on the graph being re-authored — it is
+       * material about the *subject*, and the subject did not change. Paying
+       * for it again on every retry was most of what made two attempts
+       * impossible to fit inside `BUILD_TIMEOUT_MINUTES`.
+       */
+      carried
+        ? null
+        : generateResources(
+            deps.client,
+            { subject: input.subject, skills: withRefs(graph.value) },
+            { degraded },
+          ).then((result) => logCall(deps.db, deps.userId, result)),
     ]);
+
+    /*
+     * Cached before the rubrics are judged, not after.
+     *
+     * The reading list has already been bought by this point, and the two calls
+     * have nothing to do with each other — so letting a rubrics failure carry
+     * it out of scope would throw away the most expensive result in the run
+     * over an unrelated one, and buy it again on the next attempt. In name form
+     * the moment it arrives; see `retargetResources` for why the refs cannot be
+     * what travels.
+     */
+    if (researched?.status === "ok") {
+      carried = retargetResources(researched.value.resources, graph.value);
+    }
 
     if (rubrics.status !== "ok") {
       reasons = [`the rubrics could not be written (${rubrics.status})`];
@@ -206,24 +296,28 @@ export async function generatePack(
     // it is only about waiting for a model.
     await deps.onStage?.("checking");
 
-    const resources =
-      researched.status === "ok"
-        ? await checkDrafts(researched.value.resources, deps.linkCheck)
-        : [];
+    // Re-checked every attempt even when the list is carried: a link that
+    // answered four minutes ago is not a link that answers now, and the whole
+    // value of this phase is that a shipped citation was actually tried.
+    const resources = carried
+      ? await checkDrafts(carried, deps.linkCheck)
+      : [];
 
     // Built fresh per attempt and combined at the end, so `dropped` keeps
     // saying what the *last* attempt lost rather than accumulating every
     // attempt's losses into one list nobody can read.
-    const researchDrops =
-      researched.status === "ok"
-        ? []
-        : [
-            `no reading list — the research call ${
-              researched.status === "refused"
-                ? "was declined"
-                : "returned nothing usable"
-            }`,
-          ];
+    const researchDrops = carried
+      ? []
+      : [
+          // `researched` is only null when the call was skipped, and it is only
+          // skipped when a list was already carried — so this branch always has
+          // a real outcome to report.
+          `no reading list — the research call ${
+            researched?.status === "refused"
+              ? "was declined"
+              : "returned nothing usable"
+          }`,
+        ];
 
     const assembled = assemblePack({
       slug: input.slug,

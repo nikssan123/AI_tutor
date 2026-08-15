@@ -129,7 +129,7 @@ export const metadata: Metadata = marketingMetadata({
   // neither is cut mid-promise in a result. Both halves of the offer have to
   // survive the truncation, which is what decides the wording here.
   description:
-    "Ask for any subject. If nobody has written it, we write it in about three minutes — then your work is marked against a checklist you read first.",
+    "Ask for any subject. If nobody has written it, we write it in a few minutes — then your work is marked against a checklist you read first.",
   path: "/",
   social: {
     description:
@@ -718,7 +718,7 @@ export default async function HomePage() {
                 </h3>
                 <Meta tone="muted">
                   Ask for a subject nobody has written and it gets written to
-                  order in about three minutes: {MIN_GENERATED_SKILLS} to{" "}
+                  order in a few minutes: {MIN_GENERATED_SKILLS} to{" "}
                   {MAX_GENERATED_SKILLS} skills in the order they depend on each
                   other, at least {MIN_ITEMS_PER_SKILL} questions per skill and{" "}
                   {MIN_GENERATED_ITEMS} in all, and a real task with the

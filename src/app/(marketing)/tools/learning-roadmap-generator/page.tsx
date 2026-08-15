@@ -393,7 +393,7 @@ export default async function RoadmapToolPage({ searchParams }: Params) {
                 <Link href="/start" className={INLINE_LINK}>
                   Ask for it
                 </Link>{" "}
-                — that one does need an account, and about three minutes.
+                — that one does need an account, and a few minutes.
               </Meta>
             </section>
           </>

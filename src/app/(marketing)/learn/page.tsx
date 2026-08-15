@@ -66,7 +66,7 @@ export async function generateMetadata({
   return marketingMetadata({
     title: "What you can learn — and prove",
     description:
-      "Every subject here has a full list of skills, real questions written for it, and work we can mark. Ask for one that isn’t — we write it in three minutes.",
+      "Every subject here has a full list of skills, real questions written for it, and work we can mark. Ask for one that isn’t — we write it in minutes.",
     path: "/learn",
   });
 }
@@ -137,7 +137,7 @@ export default async function LearnIndexPage({
                 <Link href={CUSTOM_PATH_HREF} className={INLINE_LINK}>
                   Ask for it
                 </Link>{" "}
-                and we write it, in about three minutes.
+                and we write it, in a few minutes.
               </Meta>
             </div>
           }
@@ -275,7 +275,7 @@ export default async function LearnIndexPage({
           <Lead className="text-ink-muted">
             The list above is what exists today, not what you can learn. Tell us
             what you want to be able to do, and we write the skills, the
-            questions and the checklist — about three minutes.
+            questions and the checklist — a few minutes.
           </Lead>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <Link

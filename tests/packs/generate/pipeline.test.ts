@@ -17,7 +17,7 @@ import {
   buildRubricsContext,
   generateRubrics,
 } from "@/lib/packs/generate/rubrics";
-import { generatePack, withRefs } from "@/lib/packs/generate";
+import { generatePack, retargetResources, withRefs } from "@/lib/packs/generate";
 import { skillRef } from "@/lib/packs/generate/derive";
 import type {
   DraftSkill,
@@ -393,6 +393,55 @@ function modelByTool(answers: {
   return { client: { messages: { create } } as unknown as Anthropic, create };
 }
 
+describe("retargetResources", () => {
+  /*
+   * The correctness half of carrying a reading list across a retry, and the
+   * reason the carrying is not simply `researched` kept in a variable.
+   *
+   * `skillRef` is positional and deliberately opaque — `s0`, `s1`, `s2`, so a
+   * model has nothing to "tidy" — and `assemblePack` resolves those refs
+   * against the graph *it* is assembling. A second attempt re-authors the graph
+   * from scratch, so a carried `s7` would still resolve, just to a different
+   * skill: reading material silently attached to the wrong skills, with nothing
+   * in the drop log to show for it, because a ref that resolves looks exactly
+   * like a ref that resolves correctly.
+   */
+  it("rewrites positional refs as the names they pointed at", () => {
+    const [rewritten] = retargetResources(
+      [{ ...RESOURCES.resources[0]!, skills: [skillRef(2), skillRef(5)] }],
+      GRAPH,
+    );
+
+    expect(rewritten!.skills).toEqual(["Skill 2", "Skill 5"]);
+  });
+
+  it("drops a reference the graph that wrote it has no skill for", () => {
+    // A hallucinated ref would otherwise be carried as a string the next
+    // resolver fails on anyway — dropped here, it reaches assembly as a
+    // resource covering nothing, which already has a drop message written.
+    const [rewritten] = retargetResources(
+      [{ ...RESOURCES.resources[0]!, skills: [skillRef(0), skillRef(99)] }],
+      GRAPH,
+    );
+
+    expect(rewritten!.skills).toEqual(["Skill 0"]);
+  });
+
+  it("leaves everything that is not a skill reference alone", () => {
+    // The URL especially: §7.1's reading list is only worth anything because
+    // the link was checked, and a rewritten one would not be the link we tried.
+    const original = RESOURCES.resources[0]!;
+    const [rewritten] = retargetResources([original], GRAPH);
+
+    expect(rewritten).toMatchObject({
+      url: original.url,
+      title: original.title,
+      publisher: original.publisher,
+      kind: original.kind,
+    });
+  });
+});
+
 describe("generatePack", () => {
   const deps = (over: Record<string, unknown> = {}) => ({
     db,
@@ -414,6 +463,101 @@ describe("generatePack", () => {
     expect(outcome.pack!.slug).toBe("rust");
     expect(outcome.report!.passed).toBe(true);
     expect(outcome.pack!.resources).toHaveLength(4);
+  });
+
+  it("asks for the rubrics and the reading list together, not one after the other", async () => {
+    /*
+     * The regression this exists for, and it hid in plain sight for the life of
+     * the function: the fan-out below `onStage("writing")` was written as a
+     * `Promise.all`, but each element `await`ed its call *inside the array
+     * literal*. Array elements evaluate left to right, so the rubrics call ran
+     * to completion before the reading-list call was even constructed, and
+     * `Promise.all` was handed two settled promises with nothing to overlap.
+     *
+     * A live run proved it: rubrics finished at 22:53:28.502 and the reading
+     * list's 285,681ms latency puts its start at the same instant.
+     *
+     * So the assertion is not "both were called" — the broken version called
+     * both too. It is that the reading list starts *while the rubrics call is
+     * still outstanding*, which only the real fan-out can do.
+     */
+    const { client } = modelByTool({});
+    const messages = (
+      client as unknown as {
+        messages: {
+          create: (
+            body: Anthropic.MessageCreateParamsNonStreaming,
+          ) => Promise<unknown>;
+        };
+      }
+    ).messages;
+
+    const answer = messages.create;
+    const started: string[] = [];
+    let release!: () => void;
+    const heldRubrics = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    messages.create = async (body) => {
+      const tools = body.tools as Array<{ name: string }>;
+      const asked = tools[tools.length - 1]!.name;
+      started.push(asked);
+      // The rubrics call never settles until this test says so. Under the old
+      // shape that stalled the reading list behind it forever.
+      if (asked === "submit_rubrics") await heldRubrics;
+      return answer(body);
+    };
+
+    const run = generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
+
+    // Long enough for everything that *can* start to have started, without
+    // depending on how many item batches land first.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(started).toContain("submit_rubrics");
+    expect(started).toContain("submit_resources");
+
+    release();
+    expect((await run).source).toBe("generated");
+  });
+
+  it("buys the reading list once, however many attempts it takes", async () => {
+    /*
+     * The most expensive call in the pipeline — 46¢ and nearly five minutes on
+     * a measured run — and the only one whose answer does not depend on the
+     * graph being re-authored: it is material about the subject, and a retry
+     * does not change the subject. Paying for it twice is most of what made two
+     * attempts impossible to fit inside `BUILD_TIMEOUT_MINUTES`.
+     *
+     * The rubrics are what fail here, because that is a failure *after* the
+     * fan-out — so attempt 1 has already bought a reading list by the time the
+     * attempt is abandoned, which is exactly the case worth not re-buying.
+     */
+    const { client, create } = modelByTool({ rubrics: [REFUSED, RUBRICS] });
+
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
+
+    expect(outcome.attempts).toBe(2);
+    expect(outcome.source).toBe("generated");
+
+    const asked = create.mock.calls.map((c) => {
+      const tools = c[0].tools as Array<{ name: string }>;
+      return tools[tools.length - 1]!.name;
+    });
+    expect(asked.filter((n) => n === "submit_resources")).toHaveLength(1);
+    // And the second attempt really did re-buy everything else, so the saving
+    // above is the reading list specifically rather than a skipped attempt.
+    expect(asked.filter((n) => n === "submit_rubrics")).toHaveLength(2);
+    // The carried list still reaches the pack, rather than being saved and lost.
+    expect(outcome.pack!.resources.length).toBeGreaterThan(0);
   });
 
   it("asks for the graph on the deep tier and the rest on standard", async () => {

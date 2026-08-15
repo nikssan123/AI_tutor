@@ -1503,7 +1503,14 @@ describe("the wait screen", () => {
         searchParams: Promise.resolve({ subject: "rust-programming" }),
       }),
     );
-    expect(screen.getByText(/Usually about 3 minutes/)).toBeDefined();
+    /*
+     * A range, and the range is the assertion. It used to say "about 3
+     * minutes" — the best case quoted as the only one, when a measured first
+     * attempt alone ran 7m18s and a build that misses the quality floor gets a
+     * second. The old copy left an ordinary two-attempt build looking overdue
+     * against a figure this screen had invented for it.
+     */
+    expect(screen.getByText(/Usually 3–8 minutes/)).toBeDefined();
     // It refreshes itself rather than polling with a script.
     expect(document.querySelector('meta[http-equiv="refresh"]')).toBeTruthy();
   });
@@ -1552,6 +1559,31 @@ describe("the wait screen", () => {
     findBuildMock.mockResolvedValue(
       inFlight({
         stage: "writing",
+        startedAt: new Date(Date.now() - 10 * 60_000),
+      }),
+    );
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(screen.getByText(/Started 10 minutes ago/)).toBeDefined();
+    expect(screen.getByText(/Past the usual 8 minutes/)).toBeDefined();
+  });
+
+  it("stays quiet through a build that is merely on its second attempt", async () => {
+    /*
+     * The other half of the overrun message, and the reason the threshold
+     * moved with the quoted figure. At six minutes a build is very likely on a
+     * second attempt and behaving exactly as designed — the old cut-off fired
+     * there, so the reassurance was shown to people who had nothing to be
+     * reassured about, which is how a signal stops meaning anything.
+     */
+    findBuildMock.mockResolvedValue(
+      inFlight({
+        stage: "writing",
         startedAt: new Date(Date.now() - 6 * 60_000),
       }),
     );
@@ -1563,7 +1595,7 @@ describe("the wait screen", () => {
     );
 
     expect(screen.getByText(/Started 6 minutes ago/)).toBeDefined();
-    expect(screen.getByText(/has not failed/)).toBeDefined();
+    expect(screen.queryByText(/Past the usual/)).toBeNull();
   });
 
   it("says a build has stopped rather than waiting on it forever", async () => {
