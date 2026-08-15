@@ -273,47 +273,62 @@ body {
   z-index: -1;
   inset-inline: 0;
   top: -4rem;
-  height: calc(100% + 6rem);
+  /*
+   * Deliberately taller than the hero, and that is the whole point of the
+   * number. At `100% + 6rem` the layer ended a few pixels past the promises
+   * row, so the wash ran out exactly where the text did — which the eye reads
+   * as a shape with a bottom rather than as light. It now spills a good way
+   * into band 01, where nothing is competing for the same pixels: that band
+   * paints no background of its own, so the tail simply shows through behind
+   * the five steps.
+   */
+  height: calc(100% + 16rem);
   pointer-events: none;
   background:
     radial-gradient(
-      42% 46% at 18% 26%,
+      54% 54% at 18% 26%,
       var(--accent-weak) 0%,
-      transparent 70%
+      transparent 72%
     ),
-    radial-gradient(36% 40% at 86% 10%, var(--accent-weak) 0%, transparent 70%);
+    radial-gradient(46% 46% at 86% 12%, var(--accent-weak) 0%, transparent 72%);
   /*
    * The mask is not decoration — it is the whole reason this reads as a wash.
    *
-   * The layer is a box, the radials run off two of its sides, and a gradient
-   * cut by a box edge is a seam: the first cut of this drew a visible vertical
-   * line down the page at `max-w-5xl`'s left margin and a horizontal one under
-   * the header. Fading the layer out before it reaches any edge of itself is
-   * cheaper and safer than bleeding it to `100vw`, which buys a horizontal
-   * scrollbar on every browser that counts the scrollbar inside the unit.
-   */
-  /*
-   * One ramp per axis, intersected, rather than one radial doing both.
+   * The layer is a box, the radials run off its sides, and a gradient cut by a
+   * box edge is a seam: the first cut drew a visible vertical line down the
+   * page at `max-w-5xl`'s left margin and a horizontal one under the header.
+   * Fading the layer out before it reaches any edge of itself is cheaper and
+   * safer than bleeding it to `100vw`, which buys a horizontal scrollbar on
+   * every browser that counts the scrollbar inside the unit.
    *
-   * A radial mask cannot be made to reach zero on all four edges without
-   * shrinking to an inscribed oval that crushes the wash it is masking — the
-   * first attempt still sat at ~45% alpha where the box ended, which is a seam
-   * with extra steps. Two linear ramps give each edge its own falloff, and
-   * `intersect` is what makes them both apply; the default `add` would union
+   * One ramp per axis, intersected, rather than one radial doing both. A radial
+   * mask cannot reach zero on all four edges without shrinking to an inscribed
+   * oval that crushes the wash it is masking — an earlier attempt still sat at
+   * ~45% alpha where the box ended, which is a seam with extra steps.
+   * `intersect` is what makes both ramps apply; the default `add` would union
    * them and mask nothing.
+   *
+   * The vertical tail is eased over four stops instead of running straight from
+   * black to transparent. A linear ramp changes slope abruptly at both ends,
+   * and the eye finds that discontinuity and calls it an edge — which is the
+   * clean cut this is spread out to remove. Long and eased, it has nowhere to
+   * announce itself.
    */
   mask-image: linear-gradient(
       to right,
       transparent 0%,
-      black 16%,
-      black 84%,
+      black 15%,
+      black 85%,
       transparent 100%
     ),
     linear-gradient(
       to bottom,
       transparent 0%,
-      black 14%,
-      black 62%,
+      black 11%,
+      black 44%,
+      rgb(0 0 0 / 0.62) 62%,
+      rgb(0 0 0 / 0.26) 79%,
+      rgb(0 0 0 / 0.07) 91%,
       transparent 100%
     );
   mask-composite: intersect;
