@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { seoPage } from "@/db/schema";
+import { allAudienceSummaries } from "@/lib/audiences";
 import { allProjects, allTopics, findPack, skillDetails } from "@/lib/content";
 import { allGuideSummaries } from "@/lib/guides";
 import { GUIDES_PATH } from "@/lib/guides/links";
@@ -93,6 +94,27 @@ export function guidePages(): MetadataRoute.Sitemap {
   ];
 }
 
+/**
+ * §10 C — the audience pages, on the same gate as everything else here.
+ *
+ * A page is included once it clears §12.2 with no outstanding problems, somebody
+ * has recorded a read, *and* the pack it re-cuts is itself indexable. That last
+ * condition is the one specific to this page type: an audience page is a
+ * shorter route through one subject's curriculum, so submitting it while the
+ * subject is still a draft would be asking Google to rank a draft by the back
+ * door. There is no hub to include — these live under `/learn/{slug}` and the
+ * subject page is their index.
+ */
+export function audiencePages(): MetadataRoute.Sitemap {
+  return allAudienceSummaries()
+    .filter((audience) => audience.indexable)
+    .map((audience) => ({
+      url: canonical(`/learn/${audience.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    }));
+}
+
 export async function indexablePages(): Promise<MetadataRoute.Sitemap> {
   const rows = await getDb()
     .select({ slug: seoPage.slug, updatedAt: seoPage.updatedAt })
@@ -129,7 +151,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: canonical("/privacy"), changeFrequency: "yearly", priority: 0.2 },
   ];
 
-  const base = [...hubs, ...packPages(), ...guidePages()];
+  const base = [...hubs, ...packPages(), ...audiencePages(), ...guidePages()];
 
   try {
     return [...base, ...(await indexablePages())];

@@ -1,0 +1,60 @@
+# The control fixture: an audience page that satisfies every schema rule.
+#
+# Its third claim covers a skill the minimal pack does not have, which is
+# deliberate — the schema is pack-agnostic by design (the loader never opens a
+# pack), so this file is also what proves `audiencePath` is the layer that
+# catches a claim about a skill nobody teaches.
+slug: renamed-for-nobody
+topic: valid-minimal
+audience: testers
+
+title: Minimal for testers
+description: >-
+  A control fixture for the audience schema, long enough to clear the lower
+  bound that every real page has to clear as well, and not a character
+  longer.
+h1: Minimal for testers
+
+answer: >-
+  This is the control fixture for the audience page schema, and it exists to be
+  parsed rather than read. It carries the required number of words for a direct
+  answer, which is the window a featured snippet will show before it truncates,
+  and it names no figure that could ever go stale on it.
+
+ifYou:
+  - You are a test, and you would like to be parsed correctly.
+  - You have read the schema and expect it to hold.
+
+claims:
+  - claim: You already know what the alpha thing is, more or less.
+    verdict: known
+    covers: [alpha]
+  - claim: You have done something shaped like the beta thing before.
+    verdict: transfers
+    note: The resemblance stops at the part where it has to be correct.
+    covers: [beta]
+  - claim: The gamma thing is one you have never heard of, under any name.
+    verdict: transfers
+    note: It does not exist in the pack, which is the point of this fixture.
+    covers: [gamma]
+
+faqs:
+  - question: Is this a real page?
+    answer: No. It is a fixture, and it says so in every field it can.
+  - question: Why does it name a skill that does not exist?
+    answer: >-
+      So a test can prove the path layer refuses it, rather than assuming the
+      schema would have.
+  - question: Does it cite anything?
+    answer: One source, once, so the citation branch has something to resolve.
+
+sources:
+  - id: postgres-null
+    url: https://www.postgresql.org/docs/current/functions-comparison.html
+    title: PostgreSQL, Comparison Functions and Operators
+    note: Cited nowhere in this fixture, which is itself worth a test.
+
+review:
+  reviewedBy: null
+  reviewKind: null
+  reviewedAt: null

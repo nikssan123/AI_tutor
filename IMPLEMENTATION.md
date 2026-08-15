@@ -3186,3 +3186,149 @@ the cheapest thing on this list that could change what we do next.
 
 Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
 behind a deployed origin.
+
+---
+
+# Delivery record — pass 31: a shorter path, and the arithmetic that refuses to flatter
+
+§10 C, the page type §9.1 ranks third and pass 30 called the higher-value of
+E12's two remaining routes: `/learn/{topic}-for-{audience}`. Two pages, both cut
+from the SQL pack, both live.
+
+## Why this one rather than more guides
+
+It is the only marketing page that *demonstrates* the thesis instead of
+describing it. Personalising a curriculum to what a learner already has is what
+the product does; this page does it in public, for a whole audience at once,
+with no signup and no account. Everything else on the marketing surface argues
+that we would do it.
+
+It is also the page type that is mostly derived. A guide is prose with figures
+resolved into it. An audience page is a *re-cut of a skill graph* with prose
+attached: the claims are hand-written, and the classification, the hours, the
+frontier, the surviving briefs and the link graph all fall out of the pack.
+
+## The rule the whole schema is built around
+
+> A page may assert what an audience already knows. It may not assert that any
+> individual reader knows it.
+
+So a claim is authored as a hypothesis, and every skill it covers renders next
+to the check that settles it. That is the difference between this and the "you
+already know X, skip to Y" article, which is guessing and cannot tell you it
+guessed wrong. The conditions under which any of it is true about *you* are the
+first thing on the page, above the arithmetic and above the check — and if they
+do not hold, the page says so and sends you to the subject page that assumes
+nothing.
+
+## The honest number, which is not the flattering one
+
+A product manager who pulls their own numbers arrives with **three of
+twenty-six skills**. About three hours come off a forty-seven hour estimate.
+
+Every competing "SQL for PMs" result opens by telling that reader how much they
+already know. The arithmetic here refuses to support it, and the page leads with
+the refusal. What it is actually worth to that reader is the *order* — five
+skills are open on day one, and the ones that bite are about grain rather than
+syntax — which is a claim the graph can back and a discount is not.
+
+The Excel page goes further and credits nothing at all: somebody who has never
+written SQL has nothing to skip. Ten of the twenty-six are things they already
+do under another name, which is worth the difference between thirty-three hours
+and forty-seven, and the page says both halves in that order.
+
+## Four things the build found that the plan did not anticipate
+
+**A page cannot be alone.** §13.3 asks for ≥2 contextual inbound links. An
+audience page's only honest sources are the subject page and the *other* cuts of
+that subject, so a lone one scores 1 and stays out of the index until it has a
+sibling. Left able to fail on purpose: a single "for people who already know Y"
+page has nothing to be compared against, and comparison is what stops two cuts
+of one pack being the same page.
+
+**The duplicate check had to be about claims, not sentences.** Two audience
+pages on one pack can share no wording at all and still be one page, because
+what a reader takes away is the classification. So the gate compares the
+(skill, verdict) pairs and refuses two pages agreeing on more than half of them.
+It earned its place immediately: the *test fixtures* failed it — two synthetic
+pages differing only in their claims still shared 63% of their prose — which is
+the rule catching the person who wrote it.
+
+**No number may be typed into the prose.** Every figure here is arithmetic over
+the claims in the same file, so "four of twenty-six skills" is wrong the moment
+a fifth claim is added three lines below, and nothing about that edit would
+remind anyone. The schema rejects a digit in any authored string and the page
+writes `{{known}}` or `{{hours.low}}` instead. Stricter than the guides, which
+allow a literal figure in a title; the difference is that a guide quotes a
+subject and this page quotes itself.
+
+**The graph can contradict the prose, and only it can notice.** If a page
+credits a reader with a skill while leaving that skill's hard prerequisites
+unclaimed, it is asserting something incoherent about its own reader. That is
+checked against the dependency edges and blocks publication. It is the one check
+on this page type a proof-reader genuinely cannot perform — it needs the
+transitive shape of a 42-edge graph in your head — and it is never rendered.
+
+## A branch that could not be tested, and the fix that deleted it
+
+`AudienceClaim` began as one object with an optional `note`, with two
+`superRefine` checks: required on a `transfers` claim, banned on a `known` one.
+That left the renderer drawing the caveat behind `entry.claim.note ? … : null`,
+whose false arm the schema made unreachable — an untestable branch, and the kind
+that gets bought back with an ignore comment.
+
+It is a discriminated union now. The rule lives in the type, the renderer draws
+the caveat unconditionally, and the branch is gone rather than excused. AGENTS.md
+says to delete an unreachable branch rather than ignore it; this is what that
+looks like when the branch is load-bearing.
+
+## What the two-skill fixture could not test
+
+The unit tests use the minimal pack, as the guide tests do. Two dimensions of
+§12.2 refused to be tested that way, and both are about scale: whether a page
+re-cuts *enough* of a graph to be worth publishing, and whether two pages cut one
+graph the same way. Neither question means anything where the graph has two
+skills. Those run against the real SQL pack, with their inputs derived from it
+rather than named, so a curriculum edit moves the test instead of breaking it.
+
+## Notes
+
+- The route dispatches inside `learn/[topic]/page.tsx` rather than nesting under
+  `/learn/{topic}/for/{audience}`, because §13.2 gives both page types one flat
+  URL space and "sql for product managers" is the query. An audience slug must
+  contain `-for-`, and `audiencePath` refuses one that matches a pack — not for
+  the collision, which the regex makes unreachable, but because the route
+  resolves audiences first, so such a page would *replace* a subject page with
+  no error anywhere.
+- `citations()` is exported from `guides/quality.ts` rather than copied. Two
+  definitions of what counts as a citation means a footnote one gate resolves
+  and the other calls dangling, which is the `guideProse` lesson again.
+- The OG card for this type carries the page's *review* state, not the pack's
+  maturity: both are true, and only one is a claim about the thing being shared.
+- Three sessions were in the tree again. One of them caught a red `tsc` inside
+  the window between changing the claim schema and fixing its three readers —
+  typecheck is whole-project, so a half-migrated schema blocks everyone. Run it
+  after each schema-shaped edit, not at the end of a batch.
+- `pnpm audiences:validate` joins `verify`, beside `guides:validate`, with the
+  same severity rule: an unsigned page prints warnings, and every one of them
+  becomes blocking the moment somebody records a reviewer.
+
+## Still open
+
+E12 is ten pages of fifty — eight guides and two audience pages. §10 C wants ten
+of these and has two; the eight that are missing all need a Curated, reviewed
+pack that does not exist yet, so **the next audience page is a pack, not a
+page**. §10 F (`/roadmaps/{slug}`) still has no route.
+
+**§2.6's week-1 keyword verification has still never been done.** Ten pages now
+target unverified demand rather than eight. It needs a Google Ads account and
+about an hour, and it remains the cheapest thing on this list that could change
+what we build next.
+
+`HUMAN-REVIEW.md` part E has the one question about these two pages that nothing
+mechanical can answer: whether the reader really does arrive with the skills the
+page credits them with. The product-manager page is the weaker of the two and
+the one worth challenging.
+
+Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
+behind a deployed origin.

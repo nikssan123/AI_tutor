@@ -98,6 +98,46 @@ export function subjectCard(topic: TopicSummary): OgCard {
   };
 }
 
+/**
+ * `/learn/{topic}-for-{audience}` — §10 C.
+ *
+ * The card a person pastes into the channel where their colleagues already
+ * work, which is the whole distribution story for this page type, so it says
+ * the one thing that page is *for*: how much of a subject somebody arriving
+ * from a particular job does not have to start from scratch on.
+ *
+ * The badge is the page's review state rather than the pack's maturity. Both
+ * are true and only one is a claim about the page being shared: a reader has no
+ * way to check who read the sentences from inside a feed.
+ */
+export function audienceCard(input: {
+  h1: string;
+  topicName: string;
+  known: number;
+  transfers: number;
+  low: number;
+  high: number;
+  badge: Claim;
+}): OgCard {
+  return {
+    eyebrow: clamp(input.topicName, 40),
+    title: clamp(input.h1, 90),
+    // A page that credits the reader with nothing still has something to say,
+    // and it is the more interesting half of what this page type does. Saying
+    // "0 skipped" in a lead would read as a broken template.
+    lead:
+      input.known > 0
+        ? "What we would skip for you, what transfers under another name, and what is genuinely new."
+        : "Nothing here is skippable — but you have done most of it already, under other names.",
+    facts: [
+      ...(input.known > 0 ? [`${input.known} skipped`] : []),
+      `${input.transfers} already yours`,
+      `${input.low}–${input.high} hours`,
+    ],
+    badge: input.badge,
+  };
+}
+
 /** `/projects/{slug}`. */
 export function projectCard(project: ProjectDetail): OgCard {
   return {

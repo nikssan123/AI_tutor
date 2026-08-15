@@ -578,3 +578,64 @@ Everything else is short and mechanical.
 Do this when you have a native speaker to hand and not before — there is no
 deadline, and no German or Spanish learner exists yet. Bulgarian is the locale
 that will matter first, and Bulgarian is already right.
+
+---
+
+# E. The audience pages — optional, and one question is genuinely only yours
+
+> **Added 2026-08-15 with §10 C.** Two pages, both cut from the SQL pack:
+> `content/audiences/sql-for-product-managers.yaml` and
+> `sql-for-excel-users.yaml`. Both are signed `reviewKind: model` and both are
+> live and in the sitemap, on the same badge part C explains — **"Sources
+> checked, not expert-reviewed"**. Nothing below blocks anything.
+
+An audience page says what a reader arriving from a particular job already has,
+what only looks familiar, and what that is worth in hours. Everything numeric on
+it is arithmetic over the pack, checked mechanically. What cannot be checked
+mechanically is the premise: **whether that reader really does arrive with those
+skills.**
+
+## What the machine already checks — do not spend time on these
+
+`pnpm audiences:validate`, and the same suite that guards the guides:
+
+every claim names a skill the pack actually teaches · no skill claimed twice ·
+no `known` claim resting on a prerequisite the page leaves unclaimed (the graph
+check no proof-reader can do) · no near-duplicate of the other cut of the same
+subject, measured over claims as well as prose · every figure resolved from the
+pack, because the schema forbids a digit in the prose · ≥4 outbound and ≥2
+inbound links · every cited source declared and every declared source cited.
+
+Both pages score 100/100 on the eight dimensions that can be measured.
+
+## What only you can check
+
+**One question, and it is the premise of the whole page type.**
+
+| Page | The claim nothing can check |
+|---|---|
+| SQL for product managers | That a PM who pulls their own numbers can already write `SELECT`, `WHERE` and `ORDER BY` — and, more riskily, that they *cannot* reliably state the grain of a result |
+| SQL for Excel users | That the ten mappings land: pivot → `GROUP BY`, lookup → join, Remove Duplicates → `DISTINCT`, and the rest |
+
+The product-manager one is the weaker of the two and the one I would most like
+challenged. You have been a PM's counterparty; I have not. If the answer is
+"most PMs I know cannot write `WHERE` either", the fix is one line — move that
+claim from `known` to `transfers` — and the arithmetic on the page rewrites
+itself.
+
+The Excel one rests on documented behaviour of spreadsheet functions, which is
+cited, so the risk there is smaller.
+
+The other two questions from part C apply unchanged and need no SQL: **does it
+sound like you**, and **would this be useful to somebody who never signs up**.
+The product-manager page deliberately leads with bad news — three skills of
+twenty-six, three hours off forty-seven — because every competing page in that
+search result leads with flattery. If that reads as false modesty rather than
+as the honest answer, say so; it is the one editorial decision on the page.
+
+## Then, if you sign
+
+Same as part C: set `reviewKind: human` with your name, run
+`pnpm audiences:validate && DATABASE_URL=… pnpm verify`, and the badge upgrades
+from "Sources checked" to "Read and checked by hand". The pages stay live either
+way.

@@ -1,0 +1,160 @@
+# §10 C — SQL for product managers.
+#
+# The first of this page type, and the one that set its tone. The draft it
+# replaced opened by telling the reader how much they already knew, which is
+# what every competing "SQL for PMs" page does and what the arithmetic here
+# refuses to support: this audience arrives with three of twenty-six skills, and
+# the honest headline is that almost nothing comes off the estimate.
+#
+# That is a better page. A reader who has been told the truth about the size of
+# the job is a reader who can decide, and the one thing this site sells is
+# finding out where you actually are.
+
+slug: sql-for-product-managers
+topic: sql-data-analysis
+audience: product managers
+
+title: SQL for product managers
+description: >-
+  You already write SELECT and WHERE against your own dashboards. Here is what
+  that covers of the subject, what transfers under another name, and where to
+  start.
+h1: SQL for product managers
+
+answer: >-
+  If you already pull your own numbers with SELECT and WHERE, {{known}} of this
+  subject's {{skills}} skills are behind you and about {{hours.known}} hours come
+  off the estimate. Less than you hoped. What changes is not the length but the
+  order: {{frontier}} skills are open to you today, and the ones that bite are
+  about grain, not syntax.
+
+ifYou:
+  - You type your own queries into a dashboard's query box rather than asking an
+    analyst for every number.
+  - You can read a query somebody else wrote well enough to argue with the
+    definition inside it.
+  - You have never had to prove that a total was not inflated by a join.
+
+claims:
+  - claim: >-
+      You choose columns, filter rows and sort them already — that is what every
+      question you type into a query box is made of.
+    verdict: known
+    covers: [select-projection, filtering, sorting-limiting]
+
+  - claim: >-
+      You read averages and counts every week, so the functions themselves are
+      familiar.
+    verdict: transfers
+    note: >-
+      Familiar until a column has blanks in it. Aggregate functions ignore
+      missing values rather than complaining about them,[^postgres-aggregates]
+      so an average over a column with gaps is an average of a smaller
+      population than the one you think you are looking at — and different
+      engines disagree about the edges.[^sqlite-nulls]
+    covers: [aggregate-functions]
+
+  - claim: >-
+      You already say *per user per week* in a spec, which is the hard half of
+      grouping.
+    verdict: transfers
+    note: >-
+      Saying the grain and proving it are different jobs. A result at the wrong
+      grain looks exactly like a result at the right one — same columns,
+      plausible numbers, no warning — and the only defence is being able to
+      state what one row means and check that it does.
+    covers: [group-by-grain]
+
+  - claim: >-
+      You define cohorts for a living; the retention curve in your review is one.
+    verdict: transfers
+    note: >-
+      Defining a cohort is not building one. From a raw event log it means a
+      first touch per person, a truncation to the period you care about, a join
+      back to everything that happened later, and a decision about what counts
+      as active — each of which can be wrong on its own.
+    covers: [cohort-analysis]
+
+  - claim: >-
+      You know what a wrong number costs in a review, which is the instinct
+      behind checking one.
+    verdict: transfers
+    note: >-
+      The instinct is not the method. Validating a result means knowing which
+      totals have to reconcile, which row counts must not change across a join,
+      and what order of magnitude you expected before you ran it.
+    covers: [result-validation]
+
+  - claim: >-
+      The pivoted table in your weekly deck is conditional aggregation with a
+      different name on it.
+    verdict: transfers
+    note: >-
+      A spreadsheet builds those columns from whatever it happens to find. In a
+      query you name every column in advance, which forces a decision the sheet
+      made for you: what happens to a category that first appears next month.
+    covers: [conditional-aggregation]
+
+faqs:
+  - question: Do I need to know any SQL to take the check?
+    answer: >-
+      No, and it needs no account. It adapts as you go — if the early questions
+      are easy it stops asking them, and if they are not it stops guessing and
+      tells you where you actually are. SQLBolt is a decent way to test the same
+      ground yourself first.[^sqlbolt]
+  - question: How is this different from the ordinary subject page?
+    answer: >-
+      Same skills, same graded briefs, same marking checklists. What differs is
+      the order and the starting point — this page names what we would skip for
+      you and what we would not, and the check is what settles whether we were
+      right about you in particular.
+  - question: Why is so little of it skippable?
+    answer: >-
+      Because reading a number and producing one are different skills. The parts
+      of this subject that go wrong quietly — grain, missing values, a join that
+      inflates a total — are invisible from a dashboard, which is exactly why
+      the estimate does not shrink much.
+  - question: What if I already know more than this page assumes?
+    answer: >-
+      Then the check says so and the path gets shorter. Everything here is a
+      hypothesis about you rather than a finding, and nothing in the product
+      acts on it until you have answered questions that settle it.
+
+sources:
+  - id: postgres-aggregates
+    url: https://www.postgresql.org/docs/current/functions-aggregate.html
+    title: PostgreSQL, Aggregate Functions
+    note: >-
+      The reference, and the place the null-skipping rule is stated plainly
+      rather than discovered in a review.
+  - id: sqlite-nulls
+    url: https://www.sqlite.org/nulls.html
+    title: NULL Handling in SQLite Versus Other Database Engines
+    note: >-
+      Short, and useful precisely because it shows the rules are not universal —
+      worth reading once so you stop assuming they are.
+  - id: sqlbolt
+    url: https://sqlbolt.com/
+    title: SQLBolt — interactive SQL lessons
+    note: >-
+      Free, interactive, and the fastest way to check whether the skills this
+      page credits you with are really there before we ask you.
+
+review:
+  # Read end to end against the rendered page, not against this file. What that
+  # covered: every claim checked against the skill it names and the can-do
+  # statement behind it; the three cited facts checked against their sources;
+  # the arithmetic checked by hand against the pack (three skills off a
+  # forty-seven hour estimate, five skills open on day one); and every sentence
+  # read for a claim about product managers that the check could not settle.
+  #
+  # **This is a model review, not a human one**, and the badge on the page says
+  # so: `reviewKind: model` earns "Sources checked, not expert-reviewed" rather
+  # than "Read and checked by hand", which is reserved for a person. The gap it
+  # names is real and specific here — whether product managers *do* arrive
+  # knowing SELECT, WHERE and ORDER BY is a claim about a job, and no source was
+  # consulted for it beyond the page's own hedging. `HUMAN-REVIEW.md` part E has
+  # it as the first question worth Nikolay's twenty minutes.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-15T00:00:00.000Z"

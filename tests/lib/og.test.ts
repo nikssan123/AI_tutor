@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  audienceCard,
   brandCard,
   clamp,
   OG_SIZE,
@@ -7,7 +8,7 @@ import {
   subjectCard,
   titleFontSize,
 } from "@/lib/seo/og";
-import { maturityClaim } from "@/lib/claims";
+import { guideClaim, maturityClaim } from "@/lib/claims";
 import { findPack, findProject, topicSummary } from "@/lib/content";
 import type { ProjectDetail, TopicSummary } from "@/lib/content";
 
@@ -118,6 +119,40 @@ describe("subjectCard", () => {
     const long: TopicSummary = { ...summary, name: "Subject ".repeat(20) };
     expect(subjectCard(long).title.length).toBeLessThanOrEqual(91);
     expect(subjectCard(long).title.endsWith("…")).toBe(true);
+  });
+});
+
+describe("audienceCard", () => {
+  const card = (known: number) =>
+    audienceCard({
+      h1: "SQL for testers",
+      topicName: pack.name,
+      known,
+      transfers: 5,
+      low: 30,
+      high: 44,
+      badge: guideClaim("model"),
+    });
+
+  it("leads with what a reader arriving from a job does not have to do", () => {
+    expect(card(3).lead).toMatch(/what we would skip/i);
+    expect(card(3).facts).toEqual(["3 skipped", "5 already yours", "30–44 hours"]);
+    expect(card(3).eyebrow).toBe(pack.name);
+  });
+
+  /**
+   * The page that credits a reader with nothing is the more interesting half of
+   * this page type, not a broken one — "0 skipped" in a feed would read as a
+   * template that failed rather than as the finding it is.
+   */
+  it("says something true rather than zero when nothing is skippable", () => {
+    expect(card(0).facts).toEqual(["5 already yours", "30–44 hours"]);
+    expect(card(0).lead).toMatch(/nothing here is skippable/i);
+  });
+
+  it("carries who read the page, not how deep the pack is", () => {
+    expect(card(3).badge).toEqual(guideClaim("model"));
+    expect(card(3).badge).not.toEqual(maturityClaim(summary.maturity, summary.reviewKind));
   });
 });
 

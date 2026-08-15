@@ -56,11 +56,15 @@ describe("every card route", () => {
     // share re-renders the PNG. The lists have to match the pages' own, because
     // an image route does not inherit its segment's params.
     const { allPacks, allProjects } = await import("@/lib/content");
+    const { allAudiences } = await import("@/lib/audiences");
 
+    // The subject segment serves §10 C's pages as well, so its image route has
+    // to cover both or every audience page's card renders on the first unfurl.
     const subject = await import("@/app/(marketing)/learn/[topic]/opengraph-image");
-    expect(subject.generateStaticParams()).toEqual(
-      allPacks().map((p) => ({ topic: p.slug })),
-    );
+    expect(subject.generateStaticParams()).toEqual([
+      ...allPacks().map((p) => ({ topic: p.slug })),
+      ...allAudiences().map((a) => ({ topic: a.slug })),
+    ]);
 
     const project = await import("@/app/(marketing)/projects/[slug]/opengraph-image");
     expect(project.generateStaticParams()).toEqual(
@@ -99,6 +103,26 @@ describe("the subject card route", () => {
 
     expect(card().eyebrow).toBeNull();
     expect(card().badge).toBeNull();
+  });
+
+  /**
+   * §10 C shares the segment and makes a different claim on the card: not what
+   * a subject covers, but how much of it somebody arriving from a job does not
+   * have to start from scratch on.
+   */
+  it("builds an audience card for the same segment's other page type", async () => {
+    const { allAudiences } = await import("@/lib/audiences");
+    const audience = allAudiences()[0]!;
+    expect(audience).toBeDefined();
+
+    const { default: Image } = await import(
+      "@/app/(marketing)/learn/[topic]/opengraph-image"
+    );
+    await Image({ params: Promise.resolve({ topic: audience.slug }) });
+
+    expect(card().title).toBe(audience.h1);
+    expect(card().eyebrow).not.toBe("Subject");
+    expect(card().facts.some((f) => f.includes("hours"))).toBe(true);
   });
 });
 

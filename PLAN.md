@@ -1002,6 +1002,36 @@ Each: brief, **full public rubric**, acceptance criteria, common failure modes, 
 
 Explicitly personalized-curriculum pages: what to skip because you already know it, what transfers, what's genuinely new. This directly demos the product thesis.
 
+> **The template and two of these are built**, both cut from the SQL pack:
+> `sql-for-product-managers` and `sql-for-excel-users`. Four things this list
+> did not anticipate:
+>
+> - **`sql-for-excel-users` substitutes for `python-for-excel-users`**, the same
+>   swap §10 D made and for the same reason: `isTopicIndexable` requires a
+>   Curated *and* reviewed pack, and SQL is the only one with a working check
+>   behind it. The Python page keeps its place on the list.
+> - **A page cannot be alone.** §13.3's "≥2 inbound" is satisfied by the subject
+>   page and by *sibling* cuts of the same subject, so a lone audience page
+>   scores one and stays out of the index. That is deliberate: a subject worth
+>   cutting one way is worth cutting two, and a single "for people who already
+>   know Y" page has nothing to be compared against — which is exactly the
+>   near-duplicate risk §12 is about, seen from the other side.
+> - **The duplicate check had to be about claims, not prose.** Two audience
+>   pages on one pack can be written in entirely different words and still be
+>   the same page, because what a reader gets from either is the classification.
+>   The gate compares the (skill, verdict) pairs and refuses two pages that
+>   agree on more than half of them.
+> - **No number may be typed into the prose.** Every figure is arithmetic over
+>   the claims in the same file, so the schema rejects a digit anywhere in an
+>   authored string and the page quotes `{{known}}`, `{{hours.low}}` and the
+>   rest instead. Stricter than the guides, which allow a literal in a title.
+>
+> The honest result on the first page is worth recording, because it is not the
+> one a conversion-shaped page would have produced: a product manager arrives
+> with **three of twenty-six skills**, and about three hours come off a
+> forty-seven hour estimate. What the page is actually worth to that reader is
+> the order, not the discount.
+
 ### D. Problem & time intent — `/guides/{question}` (10 pages, P2/P3)
 `how-long-does-it-take-to-learn-python` · `how-long-does-it-take-to-learn-machine-learning` · `why-am-i-stuck-in-tutorial-hell` · `what-should-i-learn-after-python-basics` · `how-do-i-know-if-im-actually-improving` · `self-taught-vs-bootcamp` · `how-many-hours-a-week-to-learn-a-new-skill` · `portfolio-projects-that-actually-get-interviews` · `best-way-to-learn-a-skill-as-an-adult` · `why-do-i-forget-what-i-learn`
 

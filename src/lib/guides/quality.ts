@@ -58,7 +58,13 @@ const HUBS = new Set(["/", "/learn", "/projects", GUIDES_PATH]);
 /** All the prose on the page, which is what most dimensions read. */
 export { guideProse as prose } from "./types";
 
-function citations(text: string): string[] {
+/**
+ * Exported because §10 C's pages cite the same way and are drawn by the same
+ * `Prose` renderer. A second copy of this regex is the `guideProse` mistake
+ * again: two definitions of "what counts as a citation" means a footnote that
+ * one gate resolves and the other calls dangling.
+ */
+export function citations(text: string): string[] {
   return [...text.matchAll(/\[\^([a-z0-9-]+)\]/g)].map((m) => m[1]!);
 }
 

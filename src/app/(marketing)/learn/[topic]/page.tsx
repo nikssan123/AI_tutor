@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AudienceBody } from "@/components/audience-body";
 import {
   ChecklistIcon,
   GridIcon,
+  MasteryIcon,
   StepsIcon,
   SubjectIcon,
 } from "@/components/icons";
@@ -21,6 +23,7 @@ import {
   Meta,
   revealAt,
 } from "@/components/ui";
+import { allAudiences, audienceDetail, audiencesForTopic } from "@/lib/audiences";
 import {
   allPacks,
   findPack,
@@ -28,6 +31,7 @@ import {
   skillDetails,
   topicSummary,
 } from "@/lib/content";
+import type { DomainPack } from "@/lib/packs/types";
 import { allGuides } from "@/lib/guides";
 import { guidesForSubject } from "@/lib/guides/links";
 import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
@@ -38,8 +42,22 @@ import { subjectInProse } from "@/lib/subject-name";
 /** §13.3 — generateStaticParams + ISR for every marketing route. */
 export const revalidate = 86_400;
 
+/**
+ * Two page types share this segment, because §13.2 gives them one URL space:
+ * `/learn/{topic}` and `/learn/{topic}-for-{audience}`, both flat, both
+ * self-canonical. Nesting the second under `/learn/{topic}/for/{audience}`
+ * would have kept the routes apart at the cost of the slug the page is *for* —
+ * "sql for product managers" is the query, and a URL is allowed to look like
+ * one.
+ *
+ * The two cannot collide: an audience slug must contain `-for-`, and the loader
+ * refuses one that matches a pack.
+ */
 export function generateStaticParams() {
-  return allPacks().map((pack) => ({ topic: pack.slug }));
+  return [
+    ...allPacks().map((pack) => ({ topic: pack.slug })),
+    ...allAudiences().map((audience) => ({ topic: audience.slug })),
+  ];
 }
 
 export async function generateMetadata({
@@ -48,6 +66,17 @@ export async function generateMetadata({
   params: Promise<{ topic: string }>;
 }): Promise<Metadata> {
   const { topic } = await params;
+
+  const audience = audienceDetail(topic);
+  if (audience) {
+    return marketingMetadata({
+      title: audience.path.audience.title,
+      description: audience.path.audience.description,
+      path: `/learn/${topic}`,
+      indexable: audience.indexable,
+    });
+  }
+
   const pack = findPack(topic);
   if (!pack) return {};
 
@@ -63,15 +92,23 @@ export async function generateMetadata({
   });
 }
 
-export default async function TopicPage({
+export default async function LearnPage({
   params,
 }: {
   params: Promise<{ topic: string }>;
 }) {
   const { topic } = await params;
+
+  const audience = audienceDetail(topic);
+  if (audience) return <AudienceBody detail={audience} />;
+
   const pack = findPack(topic);
   if (!pack) notFound();
 
+  return <TopicPage pack={pack} />;
+}
+
+function TopicPage({ pack }: { pack: DomainPack }) {
   const summary = topicSummary(pack);
   const skills = skillDetails(pack);
   const projects = projectDetails(pack);
@@ -84,6 +121,7 @@ export default async function TopicPage({
   // Group by area so the page reads as a curriculum rather than a list of 26.
   const areas = [...new Set(skills.map((s) => s.area))];
   const guides = guidesForSubject(pack.slug, allGuides());
+  const audiences = audiencesForTopic(pack.slug);
 
   return (
     <>
@@ -242,7 +280,44 @@ export default async function TopicPage({
           </ul>
         </section>
 
-        {/* ── 03 The questions asked before the course ─────────────────────
+        {/* ── 03 Arriving with something already ───────────────────────────
+            §10 C's pages, and the subject page is where they are found. It is
+            also the inbound link their own gate counts (§13.3's ≥2 rule), which
+            is why every cut is listed and not only the published ones — a list
+            that quietly dropped the drafts would make that count measure
+            itself. A draft says so on its own page, in the badge under its
+            title. */}
+        {audiences.length > 0 ? (
+          <section className="flex flex-col gap-8">
+            <SectionHead
+              step="03"
+              label="Already know some of this"
+              title="The shorter route in"
+              icon={<MasteryIcon />}
+            />
+            <Meta>
+              What we would skip for somebody arriving from a particular job,
+              what only looks familiar, and what it takes off the estimate.
+            </Meta>
+            <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 sm:grid-cols-2">
+              {audiences.map((audience, i) => (
+                <li key={audience.slug} className="reveal" style={revealAt(i)}>
+                  <LinkCard href={`/learn/${audience.slug}`}>
+                    <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                      {audience.h1}
+                    </span>
+                    <Meta className="mt-auto">
+                      {audience.credited} of {audience.skillCount} skills you
+                      may already have
+                    </Meta>
+                  </LinkCard>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {/* ── 04 The questions asked before the course ─────────────────────
             §13.3's internal-link rule from the other side. A guide earns this
             link by quoting this subject's real figures — that reference is the
             evidence it is genuinely about this subject, so nobody authors a
@@ -253,7 +328,7 @@ export default async function TopicPage({
         {guides.length > 0 ? (
           <section className="flex flex-col gap-8">
             <SectionHead
-              step="03"
+              step={audiences.length > 0 ? "04" : "03"}
               label="Before you start"
               title="Questions people ask about this"
               icon={<StepsIcon />}

@@ -1,0 +1,182 @@
+# §10 C — SQL for Excel users.
+#
+# §10 C's list has `python-for-excel-users` on it. This is that page with the
+# subject swapped, and the swap is the same one §10 D made when it wrote the
+# "how long" page about SQL rather than Python: the SQL pack is the only Curated
+# one with a reviewed check behind it, and a page we cannot back with a working
+# assessment is a page that fails §12.1 rule 2 on the day it ships.
+#
+# It is also where the transfer story is richest. A spreadsheet user has done
+# almost every operation in this subject under another name, which is a
+# genuinely different page from the product-manager one: nothing is skippable,
+# and a third of the estimate is in play anyway.
+
+slug: sql-for-excel-users
+topic: sql-data-analysis
+audience: spreadsheet users
+
+title: SQL for Excel users
+description: >-
+  Every spreadsheet operation has a name in SQL. Here is which of them transfer,
+  where the resemblance stops being true, and what that is worth off the
+  estimate.
+h1: SQL for Excel users
+
+answer: >-
+  Nothing here is skippable, because you have never written SQL. But {{transfers}}
+  of the {{skills}} skills are things you already do in a spreadsheet under
+  another name, which is the difference between about {{hours.low}} hours and
+  {{hours.high}}. The traps are joins that duplicate rows and blanks that
+  quietly vanish.
+
+ifYou:
+  - You build pivot tables without thinking about it and write lookup formulas
+    across sheets.
+  - You have a workbook somebody else depends on, with more than one tab feeding
+    it.
+  - You have never had to say out loud what one row of your result is supposed
+    to mean.
+
+claims:
+  - claim: >-
+      The columns you keep and rename in a sheet are the whole of a SELECT list.
+    verdict: transfers
+    note: >-
+      The difference is which way round the default runs. A spreadsheet shows
+      you everything and you hide what you do not want; a query returns nothing
+      you did not ask for, so a column you forgot is silence rather than a
+      visible gap.
+    covers: [select-projection]
+
+  - claim: >-
+      Autofilter, sort and *show top rows* are filtering, ordering and limiting.
+    verdict: transfers
+    note: >-
+      A sheet filter is a view you can see through — the hidden rows are still
+      there and the row numbers jump to prove it. A query's filter removes them,
+      so a condition that is subtly wrong gives you a smaller, entirely
+      plausible table with nothing to notice.
+    covers: [filtering, sorting-limiting]
+
+  - claim: >-
+      A pivot table is a GROUP BY with the grain chosen by dragging.
+    verdict: transfers
+    note: >-
+      The dragging is doing work you will have to do in words: deciding what one
+      row of the result means, and naming every column you want across the top
+      before you run it rather than letting the tool discover them.
+    covers: [group-by-grain, conditional-aggregation]
+
+  - claim: >-
+      SUM, AVERAGE and COUNTA are aggregate functions, blank cells and all.
+    verdict: transfers
+    note: >-
+      Both tools skip blanks and both are quiet about
+      it,[^postgres-aggregates] so an average over a column with gaps is an
+      average of fewer rows than you counted — in a sheet and in a query alike,
+      though they disagree about the edges.[^sqlite-nulls]
+    covers: [aggregate-functions]
+
+  - claim: >-
+      A lookup formula is an inner join that has already decided what to do
+      about a miss.
+    verdict: transfers
+    note: >-
+      A lookup returns one match per row and an error where there is
+      none.[^libreoffice-lookup] A join returns *every* match, so two matching
+      rows in the other table means two rows out, and a total that was right
+      before the join is now double. This is the single most expensive habit to
+      bring across.
+    covers: [inner-join]
+
+  - claim: >-
+      Remove Duplicates is the same instinct as DISTINCT, applied at a different
+      moment.
+    verdict: transfers
+    note: >-
+      In a sheet you do it once, at the end, to a table you can see. In a query
+      it matters *where* you do it — a DISTINCT after a join hides the
+      duplication the join caused instead of fixing it, and the totals stay
+      wrong.
+    covers: [distinct-and-duplicates]
+
+  - claim: >-
+      Grouping dates by month in a pivot is date truncation.
+    verdict: transfers
+    note: >-
+      A pivot shows the months that appear in the data. A time series usually
+      has to show the ones that do not, because a period with no rows is exactly
+      the period somebody will ask about.
+    covers: [date-truncation-and-series]
+
+  - claim: >-
+      You have been burned by a sheet deciding that a product code was a number.
+    verdict: transfers
+    note: >-
+      Same failure, opposite manners. A spreadsheet guesses and reformats
+      silently; a database refuses and names the value it could not read. The
+      better failure, and the noisier one.
+    covers: [types-and-casting]
+
+faqs:
+  - question: Will I still need spreadsheets?
+    answer: >-
+      Yes, and nothing here pretends otherwise. What changes is which half of
+      the work goes where — the query answers the question at a grain you can
+      state, and the sheet is where somebody reads the answer.
+  - question: Is XLOOKUP closer to a join than VLOOKUP is?
+    answer: >-
+      Closer in manners, not in kind. It still returns one match per row, which
+      is the assumption a join drops, and dropping it is how a total that was
+      right becomes a total that is double.
+  - question: How long does it take from a standing start?
+    answer: >-
+      It is a range rather than a promise — around {{hours.low}} hours if what
+      transfers really does, and up to {{hours.high}} if none of it does. The
+      check is what tells you which end you are nearer.
+  - question: Do I need a database installed to practise?
+    answer: >-
+      No. Every check on this site runs in the browser without an account, and
+      each graded brief says what data it expects and where to get it.
+
+sources:
+  - id: libreoffice-lookup
+    url: https://help.libreoffice.org/latest/en-US/text/scalc/01/04060109.html
+    title: LibreOffice Calc, Spreadsheet Lookup Functions
+    note: >-
+      The plainest statement of what a lookup actually promises — one match, one
+      row — which is the assumption this page spends most of its time
+      dismantling.
+  - id: postgres-aggregates
+    url: https://www.postgresql.org/docs/current/functions-aggregate.html
+    title: PostgreSQL, Aggregate Functions
+    note: >-
+      The reference, and where the null-skipping rule is stated plainly rather
+      than discovered in a review.
+  - id: sqlite-nulls
+    url: https://www.sqlite.org/nulls.html
+    title: NULL Handling in SQLite Versus Other Database Engines
+    note: >-
+      Short, and useful because it shows the rules are not universal — read once
+      so you stop assuming they are.
+
+review:
+  # Read end to end against the rendered page. What that covered: each of the
+  # ten mappings checked against the skill it claims to resemble; the
+  # null-skipping and one-match-per-lookup facts checked against their sources;
+  # the arithmetic checked by hand (nothing skipped, ten skills carried, thirty-
+  # three hours against forty-seven); and every sentence read for a claim about
+  # spreadsheets that is not true of the ones people actually use.
+  #
+  # The one thing the read changed: the page credits nothing as `known`, and it
+  # says so in the first clause of its own answer. Every draft of that sentence
+  # that led with the ten transferring skills read like a discount, and this
+  # audience has never written a line of SQL — the honest order is the finding
+  # first and the consolation second.
+  #
+  # **This is a model review, not a human one** — `reviewKind: model` earns
+  # "Sources checked, not expert-reviewed". What no source covers is whether the
+  # resemblances land for somebody who actually lives in a workbook all day.
+  reviewedBy: Claude Opus 5 (model review)
+  reviewKind: model
+  reviewedAt: "2026-08-15T00:00:00.000Z"
