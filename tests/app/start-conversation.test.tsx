@@ -61,7 +61,8 @@ const freshEntitlements = () => ({
     evaluationsPerMonth: 10,
     sessionsPerMonth: null as number | null,
     aiCurriculum: true,
-    generatedPacks: true,
+    lessonsPerCourse: null as number | null,
+    packBuildsLifetime: null as number | null,
     premiumModels: true,
   },
   spendCapCents: 1_500,
@@ -87,10 +88,17 @@ vi.mock("@/lib/goals/intake-store", async (importOriginal) => ({
 vi.mock("@/lib/goals/store", () => ({
   createGoal: (...a: unknown[]) => createGoalMock(...(a as [])),
 }));
+/**
+ * How many packs this account has ever commissioned — the free tier's lifetime
+ * quota. Mocked rather than seeded because every assertion below is about what
+ * the screen does with the number, not about how it is counted.
+ */
+const commissionedMock = vi.fn(async () => 0);
 vi.mock("@/lib/packs/build", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/packs/build")>()),
   startBuild: (...a: unknown[]) => startBuildMock(...(a as [])),
   findBuild: (...a: unknown[]) => findBuildMock(...(a as [])),
+  buildsCommissionedBy: () => commissionedMock(),
 }));
 // The wait screen asks whether the pack exists yet; that is the real answer,
 // and the build row is only how the learner got to the screen.
@@ -727,28 +735,32 @@ describe("the screen", () => {
   it("says what a refused build actually was", async () => {
     render(await StartPage({ searchParams: search({ error: "generated" }) }));
 
-    expect(screen.getByText(/isn’t part of your plan/)).toBeDefined();
+    // Said as a thing they have already had rather than one they were never
+    // offered: free builds one custom subject, and somebody seeing this has
+    // spent it. "Not part of your plan" would be false twice over.
+    expect(screen.getByText(/already had the one custom subject/)).toBeDefined();
     expect(screen.queryByText(/couldn't work out what you wanted/)).toBeNull();
     expect(
       screen
-        .getByRole("link", { name: /which plans include it/ })
+        .getByRole("link", { name: /which plans build more/ })
         .getAttribute("href"),
     ).toBe("/pricing");
   });
 
-  /** A plan with no generated packs, resolved the way the action resolves it. */
+  /** Free, with its one lifetime build already spent — the refusing state. */
   const onFreePlan = () =>
     entitlementsMock.mockResolvedValue({
       ...freshEntitlements(),
       planId: "free",
       entitlements: {
         evaluationsPerMonth: 1,
-        sessionsPerMonth: 3,
+        sessionsPerMonth: 1,
         aiCurriculum: false,
-        generatedPacks: false,
+        lessonsPerCourse: 1,
+        packBuildsLifetime: 1,
         premiumModels: false,
       },
-      spendCapCents: 150,
+      spendCapCents: 120,
     });
 
   /*
@@ -758,8 +770,30 @@ describe("the screen", () => {
    * thing to be the first mention of a limit, five answers into a screen headed
    * "Anything — if we don't already cover it, we'll build it".
    */
+  it("offers the button to a free learner who still has their build", async () => {
+    /*
+     * The change this whole tier turns on. Free used to be refused here
+     * outright, which made it "the seven subjects we happen to have"; it now
+     * gets one custom subject, and the button is how it gets it.
+     */
+    onFreePlan();
+    commissionedMock.mockResolvedValue(0);
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured(),
+      done: true,
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
+    expect(screen.queryByText(/We don’t run Rust programming yet/)).toBeNull();
+  });
+
   it("does not offer a button that its own action will refuse", async () => {
     onFreePlan();
+    // The quota spent: one custom subject per free account, ever.
+    commissionedMock.mockResolvedValue(1);
     // `captured()` names Rust and matches no pack, so this is the gap the
     // Generated tier exists for — the case the plan does not cover.
     intake = {
@@ -772,9 +806,10 @@ describe("the screen", () => {
 
     expect(screen.queryByRole("button", { name: "Build my plan" })).toBeNull();
     expect(screen.getByText(/We don’t run Rust programming yet/)).toBeDefined();
+    expect(screen.getByText(/already had the custom subject/)).toBeDefined();
     expect(
       screen
-        .getByRole("link", { name: /which plans include it/ })
+        .getByRole("link", { name: /which plans build more/ })
         .getAttribute("href"),
     ).toBe("/pricing");
     // The answers are not thrown away by a wall, and saying so is the point.
@@ -793,7 +828,7 @@ describe("the screen", () => {
     render(await StartPage({ searchParams: search() }));
 
     expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
-    expect(screen.queryByText(/isn’t part of your plan/)).toBeNull();
+    expect(screen.queryByText(/already had the one custom subject/)).toBeNull();
   });
 
   it("asks nothing of billing while the conversation is still going", async () => {
@@ -1367,20 +1402,22 @@ describe("forms with fields missing entirely", () => {
   });
 });
 
-describe("commissioning a pack is a paid feature", () => {
-  /** Free: no generated packs. §7.1's tier costs $0.61 against a 150¢ month. */
+describe("a free account may commission one pack, ever", () => {
+  /** Free with its one build already spent — the only state that refuses. */
   const onFree = () => {
+    commissionedMock.mockResolvedValue(1);
     entitlementsMock.mockResolvedValue({
       ...freshEntitlements(),
       planId: "free",
       entitlements: {
         evaluationsPerMonth: 1,
-        sessionsPerMonth: 3,
+        sessionsPerMonth: 1,
         aiCurriculum: false,
-        generatedPacks: false,
+        lessonsPerCourse: 1,
+        packBuildsLifetime: 1,
         premiumModels: false,
       },
-      spendCapCents: 150,
+      spendCapCents: 120,
     });
   };
 
@@ -1397,6 +1434,22 @@ describe("commissioning a pack is a paid feature", () => {
     );
     expect(startBuildMock).not.toHaveBeenCalled();
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("lets a free learner spend the build they still have", async () => {
+    /*
+     * The whole point of the quota being a number rather than a flag: free is
+     * not refused, it is metered. This is the path a free account takes exactly
+     * once, and the build it starts is the one the catalogue pays for.
+     */
+    onFree();
+    commissionedMock.mockResolvedValue(0);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/start/building?subject=rust-programming",
+    );
+    expect(startBuildMock).toHaveBeenCalled();
   });
 
   it("refuses a retry too", async () => {

@@ -707,7 +707,10 @@ describe("the landing page's price band (§8 screen 1, band 05)", () => {
         expect(screen.getAllByText(feature).length, feature).toBeGreaterThan(0);
       }
     }
-    expect(screen.getByText(/2 learning sessions a month/)).toBeDefined();
+    // Singular, and that is the assertion: free went to one session the day it
+    // started giving away a whole plan, and "1 learning sessions" is the kind
+    // of sentence that makes a reader trust the rest of the page less.
+    expect(screen.getByText(/1 learning session a month/)).toBeDefined();
   });
 
   /**

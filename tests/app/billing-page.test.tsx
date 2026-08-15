@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { CANCELLATION_REASONS } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
-import { PLAN_COPY } from "@/lib/billing/plan-copy";
+import { PLAN_COPY, sessionCount } from "@/lib/billing/plan-copy";
 
 /**
  * `/account/billing`.
@@ -160,7 +160,7 @@ describe("what you are on", () => {
     expect(
       screen.getByText(
         new RegExp(
-          `Free also covers ${PLANS.free.entitlements.sessionsPerMonth} learning sessions a month`,
+          `Free also covers ${sessionCount(PLANS.free.entitlements.sessionsPerMonth!)} a month`,
         ),
       ),
     ).toBeTruthy();

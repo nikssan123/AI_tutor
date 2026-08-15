@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -12,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { learningGoal } from "./learner";
-import { skill } from "./domain";
+import { domainPack, skill } from "./domain";
 
 /**
  * §14.4 — the curriculum is a *cached projection* of the plan, never the source
@@ -114,6 +115,44 @@ export const learningSession = pgTable(
     selfReportedDifficulty: integer("self_reported_difficulty"),
   },
   (t) => [index("learning_session_user_idx").on(t.userId)],
+);
+
+/**
+ * Which lessons a learner has actually been *served*, per course.
+ *
+ * The free tier's paywall counts rows here: one lesson per course, and the
+ * second is where the product asks to be paid for. It has to be a record of
+ * what was delivered rather than a count derived from the session's blocks,
+ * because a planned block and a read lesson are different things — a learner
+ * who has a five-block session planned has not been given five lessons, and
+ * counting the plan would lock them out before they read anything.
+ *
+ * Keyed by `(user_id, skill_id)` so it is idempotent by construction: the
+ * lesson body is a server component and re-renders on every refresh, and an
+ * insert that counted twice would spend the allowance on a page reload.
+ * `pack_id` is denormalised off the skill so the count is one indexed read on
+ * a path a learner is waiting on.
+ */
+export const lessonDelivery = pgTable(
+  "lesson_delivery",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skill.id, { onDelete: "cascade" }),
+    packId: uuid("pack_id")
+      .notNull()
+      .references(() => domainPack.id, { onDelete: "cascade" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.skillId] }),
+    index("lesson_delivery_user_pack_idx").on(t.userId, t.packId),
+  ],
 );
 
 /**

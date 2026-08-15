@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLANS, type PlanId } from "@/lib/billing/catalog";
-import { PLAN_COPY, TRIAL_TERMS } from "@/lib/billing/plan-copy";
+import { PLAN_COPY, sessionCount, TRIAL_TERMS } from "@/lib/billing/plan-copy";
 
 /**
  * The words on the price cards.
@@ -95,6 +95,22 @@ describe("the roll-up lines", () => {
 
   it("does not put one on Free, which has nothing beneath it", () => {
     expect(rollUp("free")).toBeUndefined();
+  });
+});
+
+describe("sessionCount", () => {
+  it("counts one session in the singular", () => {
+    // Free is one, and "1 learning sessions a month" on a pricing card is the
+    // kind of sentence that makes a reader trust the rest of the page less.
+    expect(sessionCount(1)).toBe("1 learning session");
+  });
+
+  it("counts anything else in the plural", () => {
+    // Exercised directly rather than through a plan, because no plan currently
+    // has a finite allowance above one — and the helper still has to be right
+    // the day one does, which is exactly when nobody will be looking.
+    expect(sessionCount(3)).toBe("3 learning sessions");
+    expect(sessionCount(0)).toBe("0 learning sessions");
   });
 });
 

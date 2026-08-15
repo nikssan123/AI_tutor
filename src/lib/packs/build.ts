@@ -127,6 +127,38 @@ export async function buildInFlightFor(
   return row ? toBuild(row) : undefined;
 }
 
+/**
+ * Packs this learner has ever commissioned, for the free tier's lifetime quota.
+ *
+ * No period filter — that is the whole point of the number. A monthly allowance
+ * compounds into twelve subjects a year from an account that never pays; one,
+ * ever, is what bounds a free signup's cost at a single build while still making
+ * "any subject works" true for everybody who arrives.
+ *
+ * Counted from the build rows rather than from a ledger of its own, because
+ * `requestedBy` is already the record of who asked and a retry writes no new
+ * row: `startBuild` upserts on the slug, so a learner who retries a failed
+ * subject is still on their first. That is deliberate — the quota is one custom
+ * *subject*, not one attempt at one.
+ *
+ * One imprecision worth naming: if a build fails and a *different* learner later
+ * asks for the same subject, the upsert moves `requestedBy` to them and the
+ * first learner's count drops by one. The outcome is that somebody whose only
+ * build failed, on a subject somebody else also wanted, gets another go. That is
+ * the direction to be wrong in, so it is left alone rather than given a table.
+ */
+export async function buildsCommissionedBy(
+  db: Db,
+  userId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(packBuild)
+    .where(eq(packBuild.requestedBy, userId));
+
+  return Number(row!.n);
+}
+
 export type StartOutcome =
   | { kind: "started" }
   | { kind: "already"; build: PackBuild }

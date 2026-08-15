@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
-import { entitlementsForUser } from "@/lib/billing/store";
+import { buildAllowanceFor } from "@/lib/billing/quota";
 import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
 import { matchChosen } from "@/lib/goals/match";
 import {
@@ -86,8 +86,8 @@ const MAX_TOPIC = 500;
  * my plan" on a subject we do not cover bounced to `?error=generated` and fell
  * through to the `subject` fallback — the screen said we could not work out
  * what you wanted to learn, about a subject it had just spent five questions
- * establishing. The truthful version is that we understood perfectly and the
- * plan does not include building it, which is only useful said next to the way
+ * establishing. The truthful version is that we understood perfectly and there
+ * is no build left on this account, which is only useful said next to the way
  * out of it.
  */
 const ERRORS: Record<string, React.ReactNode> = {
@@ -96,10 +96,10 @@ const ERRORS: Record<string, React.ReactNode> = {
   busy: "You already have a course being built. Give that one a moment.",
   generated: (
     <>
-      Building a course we don&rsquo;t already run isn&rsquo;t part of your
-      plan. Nothing you answered is lost — it is all still here.{" "}
+      You&rsquo;ve already had the one custom subject your plan builds. Nothing
+      you answered is lost — it is all still here.{" "}
       <Link href="/pricing" className="underline underline-offset-4">
-        See which plans include it
+        See which plans build more
       </Link>
       .
     </>
@@ -225,10 +225,19 @@ export default async function StartPage({ searchParams }: Props) {
    */
   const unbuilt =
     gap?.kind === "gap" && gap.slug.length > 0 ? gap.subject : undefined;
+  /*
+   * Whether this account has a build left, asked the same way the action asks.
+   *
+   * A quota rather than a plan flag since free got its one custom subject: the
+   * question stopped being "does your plan include this" and became "have you
+   * used yours", which is a fact about the learner and not about the tier. The
+   * banner below is worth showing only for the second one, and only once the
+   * conversation has actually closed — hence the `unbuilt` guard, which keeps
+   * both lookups off every earlier render.
+   */
   const canBuild =
     unbuilt === undefined ||
-    (await entitlementsForUser(getDb(), session.user.id, undefined))
-      .entitlements.generatedPacks;
+    (await buildAllowanceFor(getDb(), session.user.id)).remaining > 0;
 
   /*
    * A brief takes the screen.
@@ -496,15 +505,22 @@ export default async function StartPage({ searchParams }: Props) {
                   ) : (
                     <>
                       <Title>We don&rsquo;t run {unbuilt} yet</Title>
+                      {/*
+                        Said as a thing they have already had rather than a
+                        thing they were never offered. Free builds one custom
+                        subject, and somebody standing here has spent it — so
+                        "not part of your plan" would be false twice over: they
+                        do get one, and they got it.
+                      */}
                       <Meta>
                         We can build the whole course for it — the skills, the
-                        order they go in, and the graded briefs at the end —
-                        but that isn&rsquo;t part of your plan. Your answers
-                        stay here either way, and the button comes back the
-                        moment your plan covers it.
+                        order they go in, and the graded briefs at the end — but
+                        you&rsquo;ve already had the custom subject your plan
+                        builds. Your answers stay here either way, and the
+                        button comes back the moment your plan covers another.
                       </Meta>
                       <ButtonLink href="/pricing" variant="text">
-                        See which plans include it
+                        See which plans build more
                       </ButtonLink>
                     </>
                   )}

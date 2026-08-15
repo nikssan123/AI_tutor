@@ -141,6 +141,13 @@
       "when": 1786796060566,
       "tag": "0019_busy_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786798604081,
+      "tag": "0020_sloppy_midnight",
+      "breakpoints": true
     }
   ]
 }

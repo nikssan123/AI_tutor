@@ -40,6 +40,16 @@ const marked = (planId: PlanId): string => {
 };
 
 /**
+ * "1 learning session" / "3 learning sessions", counted correctly.
+ *
+ * Exported because the billing screen builds the same phrase inside a different
+ * sentence, and two places interpolating a number next to a hard-coded plural
+ * is exactly how one of them ends up reading "1 learning sessions a month".
+ */
+export const sessionCount = (n: number): string =>
+  `${n} learning ${n === 1 ? "session" : "sessions"}`;
+
+/**
  * The session line, read from the catalog like every other number here.
  *
  * "Unlimited" is only ever written for a plan whose `sessionsPerMonth` is
@@ -49,9 +59,13 @@ const marked = (planId: PlanId): string => {
  */
 const sessions = (planId: PlanId): string => {
   const n = PLANS[planId].entitlements.sessionsPerMonth;
-  return n === null
-    ? "As many learning sessions as you want"
-    : `${n} learning sessions a month`;
+  if (n === null) return "As many learning sessions as you want";
+
+  // Pluralised rather than interpolated blind. Free went to one the day the
+  // free tier started giving away a whole plan and its first lesson, and the
+  // card read "1 learning sessions a month" — the kind of sentence that makes
+  // a reader trust the rest of the page slightly less.
+  return `${sessionCount(n)} a month`;
 };
 
 /**
@@ -92,17 +106,34 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     pitch: "See whether this works on you, without paying to find out.",
     features: [
       // The same three quantities, in the same order, on every card. They are
-      // the axis a visitor scans down: 1/3/10 marked, 2/unlimited/unlimited
+      // the axis a visitor scans down: 1/3/10 marked, 1/unlimited/unlimited
       // sessions, 15/30/30 questions. Reordering them per card — which this
       // list used to do, leading with sessions here and with marking below —
       // makes three cards that have to be read rather than compared.
+      //
+      // **The first two are load-bearing beyond this file.** The landing page's
+      // price band renders `features.slice(0, 2)`, on the documented promise
+      // that they are the bounding quantities; a qualitative line pushed into
+      // those slots would break the comparison the band exists to make.
       marked("free"),
       sessions("free"),
       tutor("free"),
-      // Said plainly rather than omitted. A learner who finds out on their
-      // third session that free stops at two has been misled by a list that
-      // only mentioned what was included — §4.2 law 3 applies to a price list
-      // as much as to a mastery claim.
+      /*
+       * What free stopped being, said on the card.
+       *
+       * It used to be "the seven subjects we happen to have", which is a
+       * dispiriting thing to offer and the reason most visitors who wanted
+       * something specific bounced. It is now any subject at all: the course
+       * gets built, the whole plan is visible, and the first lesson is free.
+       * What is given away is the part that proves the product works on *your*
+       * subject, which is the only part worth giving away.
+       */
+      "Any subject — we'll build the course if we don't have it",
+      // And immediately, where it stops — both places. A learner who discovers
+      // either limit by hitting it has been misled by a list that mentioned
+      // only what was included; §4.2 law 3 applies to a price list as much as
+      // to a mastery claim, and free now has two boundaries rather than one.
+      "Your full plan, and the first lesson of it",
       "The standard path for your subject, not a tailored one",
       "Your mastery ledger, kept as long as you want it",
     ],
@@ -137,7 +168,9 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
       sessions("learner"),
       tutor("learner"),
       "A path built around your diagnostic, not the default order",
-      "Any subject — we'll build the course if we don't have it",
+      // Not "any subject" any more — free has that. What Learner adds is every
+      // lesson on it, and as many subjects as you want to start.
+      "Every lesson on every course, and as many courses as you like",
       inherits("Free", "your mastery ledger"),
     ],
     cta: "Choose Learner",

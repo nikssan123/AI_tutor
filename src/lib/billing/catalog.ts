@@ -76,14 +76,46 @@ export interface Entitlements {
    */
   aiCurriculum: boolean;
   /**
-   * Whether this plan may commission a pack for a subject nobody has curated.
+   * Lessons a learner may be shown on one course, or `null` for as many as the
+   * course has.
    *
-   * §7.1's Generated tier costs **$0.61 a pack** and is the one public surface
-   * where a single click spends more than a month of free allowance. It is
-   * shared — the cost is per subject, not per learner — but the first person to
-   * ask is the one who pays for it, and on free that person has 150¢.
+   * The free tier's shape, and the reason it can offer any subject at all. A
+   * free learner gets the whole plan — `canonicalCurriculum` is arithmetic over
+   * the skill graph and costs nothing — and the *first* lesson on it. The second
+   * is where the product asks to be paid for.
+   *
+   * Per course rather than per month, deliberately. A monthly allowance says
+   * "come back in September"; a per-course one says "this is the course, here is
+   * the beginning of it, the rest is behind the till". The second is a decision
+   * the learner can act on today, which is the only kind of paywall worth
+   * putting in front of somebody who is still deciding whether to trust you.
+   *
+   * **This is a paywall, not a spend control**, and the difference decides where
+   * it is enforced: `lessonForBlock` checks it *before* the cache, unlike
+   * §14.9.7's ceiling which deliberately sits after. A cached lesson costs
+   * nothing to serve, so a cost control must not refuse it — but a free learner
+   * reading a popular pack would otherwise walk through the whole course for
+   * nothing, purely because somebody else had paid for those lessons first.
    */
-  generatedPacks: boolean;
+  lessonsPerCourse: number | null;
+  /**
+   * Packs this account may ever commission, or `null` for no lifetime limit.
+   *
+   * §7.1's Generated tier costs **~78¢ a pack** — the one place a single click
+   * spends more than a free month's whole allowance. The free tier gets exactly
+   * one, ever, and that build is *not* charged to the learner (see
+   * `subsidisesPackBuilds`).
+   *
+   * Lifetime rather than monthly, because a monthly allowance compounds: one
+   * account, twelve months, twelve subjects nobody else asked for. One is the
+   * number that makes "any subject works" true for everyone who signs up while
+   * bounding what a free account can ever cost us at a single build.
+   *
+   * A plan with `null` has no lifetime quota and pays for its own builds; its
+   * monthly spend cap is what bounds it. That is the arrangement every paid
+   * plan is on.
+   */
+  packBuildsLifetime: number | null;
   /**
    * Whether the deep tier is available at all, independent of spend.
    *
@@ -145,20 +177,33 @@ export const ONBOARDING_COST_CENTS = 16;
  * Every number here is derived rather than chosen, and the derivations are
  * worth keeping next to them:
  *
- * - **free — 1 evaluation, 2 sessions, 120¢.** The one evaluation is what keeps
- *   §19.3's activation metric ("first graded submission within 7 days of
- *   signup") reachable without paying, which is what makes §17.3's day-60 kill
- *   criteria mean anything. Everything else about this row is arithmetic:
+ * - **free — 1 evaluation, 1 session, 1 lesson, 1 pack ever, 120¢.** The one
+ *   evaluation is what keeps §19.3's activation metric ("first graded submission
+ *   within 7 days of signup") reachable without paying, which is what makes
+ *   §17.3's day-60 kill criteria mean anything. Everything else is arithmetic:
  *
- *       2 sessions × 17¢   =  34¢
+ *       1 session × 17¢    =  17¢
  *       1 evaluation × 45¢ =  45¢
  *       onboarding, once   =  16¢
  *                            ────
- *                              95¢  ≤ 120¢
+ *                              78¢  ≤ 120¢
  *
- *   **The cap moved off §20.1's 100¢, because 100¢ never paid for what §20.1
- *   promised.** That row read "1 goal · roadmap + full diagnostic · 3
- *   sessions/week · 1 evaluation/month", which is 71¢ of onboarding — the
+ *   **The pack build is not in that sum, and that is the point.** A free learner
+ *   may commission one Generated pack, and it costs ~78¢ — six times what is
+ *   left of their allowance. Charging it to them would mean the first person to
+ *   ask for a subject gets a visibly worse free tier than everyone who takes it
+ *   afterwards, for a reason they could never perceive. So the catalogue absorbs
+ *   it (`subsidisesPackBuilds`) and the lifetime quota bounds it.
+ *
+ *   **What free stopped being is "the seven subjects we happen to have".** It
+ *   was two sessions on a curated pack or nothing, and "nothing" was most
+ *   subjects anyone actually asks for. It is now any subject at all — the whole
+ *   plan, and the first lesson on it — which is a far better thing to be given
+ *   for free and a far clearer thing to be asked to pay for.
+ *
+ *   **The cap stayed at 120¢, off §20.1's 100¢, because 100¢ never paid for
+ *   what §20.1 promised.** That row read "1 goal · roadmap + full diagnostic ·
+ *   3 sessions/week · 1 evaluation/month", which is 71¢ of onboarding — the
  *   curriculum generation alone is 55¢ — plus 221¢ of sessions plus a 45¢
  *   evaluation, against a 100¢ ceiling. It was never a budget, it was two
  *   numbers written in different sections. Free no longer buys the generated
@@ -183,10 +228,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
     listed: true,
     entitlements: {
       evaluationsPerMonth: 1,
-      sessionsPerMonth: 2,
+      sessionsPerMonth: 1,
       tutorTurnsPerSession: 15,
       aiCurriculum: false,
-      generatedPacks: false,
+      lessonsPerCourse: 1,
+      packBuildsLifetime: 1,
       premiumModels: false,
     },
     spendCapCents: 120,
@@ -199,7 +245,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       sessionsPerMonth: null,
       tutorTurnsPerSession: 30,
       aiCurriculum: true,
-      generatedPacks: true,
+      lessonsPerCourse: null,
+      packBuildsLifetime: null,
       premiumModels: true,
     },
     spendCapCents: 450,
@@ -212,7 +259,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       sessionsPerMonth: null,
       tutorTurnsPerSession: 30,
       aiCurriculum: true,
-      generatedPacks: true,
+      lessonsPerCourse: null,
+      packBuildsLifetime: null,
       premiumModels: false,
     },
     spendCapCents: 600,
@@ -225,7 +273,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       sessionsPerMonth: null,
       tutorTurnsPerSession: 30,
       aiCurriculum: true,
-      generatedPacks: true,
+      lessonsPerCourse: null,
+      packBuildsLifetime: null,
       premiumModels: true,
     },
     spendCapCents: 1_500,
@@ -243,6 +292,40 @@ export const PLANS: Record<PlanId, PlanDef> = {
  * whose cap cannot pay for what its own card advertises is advertising numbers
  * the learner will never reach.
  */
+/**
+ * §7.1's Generated tier, at what it costs since the Resource Researcher.
+ *
+ * 61¢ of authoring — graph, items, rubrics — plus ~17¢ of research: ~8¢ of
+ * searches at $10 per 1,000 and the tokens to read the results. Here rather
+ * than in `packs/generate` because it is a *budgeting* fact: it is what makes
+ * "one build is six times what a free learner has left" a number rather than
+ * an impression, and the test asserts free cannot pay for one.
+ */
+export const PACK_BUILD_COST_CENTS = 78;
+
+/**
+ * Whether this plan's pack builds are charged to the catalogue rather than to
+ * the learner who asked.
+ *
+ * Derived from the lifetime quota rather than being a flag of its own, because
+ * the two always travel together and a plan where they disagreed would make no
+ * sense in either direction. A plan with a hard lifetime quota does not also
+ * pay per build — the quota is already the bound, and its spend cap has no room
+ * for one anyway. A plan without a quota pays for its builds out of the monthly
+ * cap that bounds everything else it does.
+ *
+ * "The catalogue pays" means `logCall` is passed no user: the run is written to
+ * `agent_run` in full, with its cost, model and prompt version, so nothing
+ * becomes invisible — it simply lands on no learner's ledger and consumes no
+ * learner's ceiling. That is the same treatment a seed script or a probe gets,
+ * and for the same reason: what is being paid for is not that learner's
+ * consumption, it is a pack every future learner on that subject reads for
+ * free.
+ */
+export function subsidisesPackBuilds(planId: PlanId): boolean {
+  return PLANS[planId].entitlements.packBuildsLifetime !== null;
+}
+
 export function promisedCostCents(planId: PlanId): number | null {
   const { evaluationsPerMonth, sessionsPerMonth } = PLANS[planId].entitlements;
   if (sessionsPerMonth === null) return null;

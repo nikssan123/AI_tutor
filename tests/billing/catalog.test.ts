@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   degradesGeneration,
   EVALUATION_COST_CENTS,
+  PACK_BUILD_COST_CENTS,
+  subsidisesPackBuilds,
   isPlanId,
   ONBOARDING_COST_CENTS,
   promisedCostCents,
@@ -94,7 +96,9 @@ describe("PLANS", () => {
 
 describe("the free tier's shape", () => {
   it("gives free a session allowance and everyone else the cap", () => {
-    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(2);
+    // One, matching the one lesson. Two sessions where only the first can carry
+    // a new lesson would advertise a second session that has nothing new in it.
+    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(1);
     for (const id of ["trial", "learner", "pro"] as const) {
       expect(PLANS[id].entitlements.sessionsPerMonth).toBeNull();
     }
@@ -110,25 +114,65 @@ describe("the free tier's shape", () => {
     }
   });
 
-  it("keeps the generated curriculum and generated packs off free", () => {
-    // The two most expensive discretionary things a click can start: $0.55 for
-    // a curriculum and $0.61 for a pack, against a 150¢ month.
+  it("keeps the generated curriculum off free, and gives it one pack ever", () => {
+    /*
+     * The two most expensive discretionary things a click can start, treated
+     * differently on purpose. A curriculum is 55¢ *per learner* and there is a
+     * free alternative that is genuinely good — `canonicalCurriculum` is
+     * arithmetic over the same graph — so free does without it. A pack is ~78¢
+     * *per subject*, shared by everyone who ever takes it, and doing without it
+     * meant free was "the seven subjects we happen to have".
+     */
     expect(PLANS.free.entitlements.aiCurriculum).toBe(false);
-    expect(PLANS.free.entitlements.generatedPacks).toBe(false);
+    expect(PLANS.free.entitlements.packBuildsLifetime).toBe(1);
   });
 
-  it("gives every paid plan both", () => {
+  it("gives free exactly one lesson per course, and paid plans no limit", () => {
+    expect(PLANS.free.entitlements.lessonsPerCourse).toBe(1);
+    for (const id of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[id].entitlements.lessonsPerCourse).toBeNull();
+    }
+  });
+
+  it("gives every paid plan the curriculum and no lifetime build quota", () => {
     for (const id of ["trial", "learner", "pro"] as const) {
       expect(PLANS[id].entitlements.aiCurriculum).toBe(true);
-      expect(PLANS[id].entitlements.generatedPacks).toBe(true);
+      expect(PLANS[id].entitlements.packBuildsLifetime).toBeNull();
     }
+  });
+
+  it("subsidises builds exactly where there is a lifetime quota", () => {
+    /*
+     * The two travel together by construction, and this is the assertion that
+     * keeps them together. A plan with a hard quota does not also pay per build
+     * — its cap has no room for one — and a plan without a quota pays for its
+     * own out of the cap that bounds everything else it does. A row where they
+     * disagreed would be either an unbounded free tier or a paid learner
+     * charged for an asset they do not own.
+     */
+    for (const id of PLAN_IDS) {
+      expect(subsidisesPackBuilds(id)).toBe(
+        PLANS[id].entitlements.packBuildsLifetime !== null,
+      );
+    }
+    expect(subsidisesPackBuilds("free")).toBe(true);
+    expect(subsidisesPackBuilds("pro")).toBe(false);
+  });
+
+  it("cannot let free pay for the build it is allowed to commission", () => {
+    // The reason the catalogue absorbs it rather than the learner. What is left
+    // of a free month after its own promises does not cover a single pack, so
+    // charging it would mean the first person to ask for a subject gets a
+    // visibly worse free tier than everyone who takes it afterwards.
+    const spare = PLANS.free.spendCapCents - promisedCostCents("free")!;
+    expect(spare).toBeLessThan(PACK_BUILD_COST_CENTS);
   });
 });
 
 describe("promisedCostCents", () => {
   it("adds sessions, marking and onboarding at §20.2's measured prices", () => {
     expect(promisedCostCents("free")).toBe(
-      2 * SESSION_COST_CENTS + 1 * EVALUATION_COST_CENTS + ONBOARDING_COST_CENTS,
+      1 * SESSION_COST_CENTS + 1 * EVALUATION_COST_CENTS + ONBOARDING_COST_CENTS,
     );
   });
 

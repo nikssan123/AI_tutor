@@ -28,6 +28,8 @@ export interface LessonBodyProps {
   priorDomain: PriorDomain;
   /** §14.9.7 limit 1 — whose ceiling this generation counts against. */
   plan: PlanId;
+  /** The plan's per-course lesson allowance. `null` is unlimited. */
+  lessonsPerCourse: number | null;
 }
 
 export async function LessonBody(props: LessonBodyProps) {
@@ -40,25 +42,56 @@ export async function LessonBody(props: LessonBodyProps) {
     );
   }
 
-  const { content, capped } = await lessonForBlock(getDb(), getAnthropic(), {
-    userId: props.userId,
-    packSlug: props.packSlug,
-    skill: props.skill,
-    mastery: props.mastery,
-    minutes: props.minutes,
-    now: props.now,
-    priorDomain: props.priorDomain,
-    plan: props.plan,
-  });
+  const { content, capped, locked } = await lessonForBlock(
+    getDb(),
+    getAnthropic(),
+    {
+      userId: props.userId,
+      packSlug: props.packSlug,
+      skill: props.skill,
+      mastery: props.mastery,
+      minutes: props.minutes,
+      now: props.now,
+      priorDomain: props.priorDomain,
+      plan: props.plan,
+      lessonsPerCourse: props.lessonsPerCourse,
+    },
+  );
 
   /*
-   * Two ways to have no lesson, and they are not the same sentence.
+   * Three ways to have no lesson, and none of them are the same sentence.
    *
-   * A ceiling is something the learner can act on, so it says so and offers the
-   * way out. A failed generation is ours, so it apologises and does not try to
-   * sell anything — pitching an upgrade on the back of our own error would be
-   * the worst moment in the product to do it.
+   * The paywall is first because it is the only one that is *by design*. It
+   * says where the course stops and what it costs to carry on, and it says it
+   * about this course — a learner who has read one lesson of a plan they can
+   * see all of knows exactly what they would be buying, which is the whole
+   * reason the plan is given away in full.
+   *
+   * A ceiling is something the learner can act on but is not being sold, so it
+   * says so and mentions the reset. A failed generation is ours, so it
+   * apologises and does not try to sell anything — pitching an upgrade on the
+   * back of our own error would be the worst moment in the product to do it.
    */
+  if (!content && locked) {
+    return (
+      <div className="flex flex-col gap-3 rounded-[var(--radius-control)] border border-hairline p-5">
+        <Title>This is where the free course stops</Title>
+        <Meta>
+          You&rsquo;ve read the lesson your free plan includes. The rest of{" "}
+          {props.skill.name} — and every other skill on your plan — is written
+          the same way, and the tutor below can still talk you through this
+          block in the meantime.
+        </Meta>
+        <Link
+          href="/pricing"
+          className="text-accent underline-offset-4 hover:underline"
+        >
+          Unlock the rest of this course
+        </Link>
+      </div>
+    );
+  }
+
   if (!content) {
     return capped ? (
       <Meta>

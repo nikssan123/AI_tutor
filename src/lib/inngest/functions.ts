@@ -8,6 +8,7 @@ import { seedPack } from "@/lib/packs/seed";
 import { finishBuild } from "@/lib/packs/build";
 import { evaluateSubmission } from "@/lib/evaluation";
 import { entitlementsForUser } from "@/lib/billing/store";
+import { subsidisesPackBuilds } from "@/lib/billing/catalog";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
 import { resolvePack } from "@/lib/content/resolve";
 import { masteryFor } from "@/lib/goals/store";
@@ -96,10 +97,10 @@ export const buildPack = inngest.createFunction(
        *
        * `generatePack` has taken a `plan` since E5 and checks the ceiling when
        * it gets one; this call never passed it, so the check was dead code and
-       * a $0.61 authoring run went out on the deep tier whatever the learner
-       * had already spent. `/start` now refuses to *commission* a pack on a
-       * plan that does not include them, and this is the second half: what is
-       * commissioned still runs inside its owner's ceiling.
+       * a ~78¢ authoring run went out on the deep tier whatever the learner had
+       * already spent. `/start` caps how many packs an account may ever
+       * commission, and this is the second half: what a paying learner
+       * commissions still runs inside their own ceiling.
        */
       // `userId` is null for a build nobody asked for — a script, a seed, a
       // probe. There is no ceiling to check because there is nobody to bill,
@@ -108,8 +109,27 @@ export const buildPack = inngest.createFunction(
         ? (await entitlementsForUser(db, userId, undefined)).planId
         : undefined;
 
+      /*
+       * Who this build is billed to, which is not always who asked for it.
+       *
+       * On a plan with a lifetime build quota the catalogue pays: the run is
+       * still written to `agent_run` with its full cost, but it lands on no
+       * learner's ledger and consumes no learner's ceiling. What is being paid
+       * for is not that learner's consumption — it is a pack every future
+       * learner on the subject reads for free, and the person who happened to
+       * ask first should not be the one whose month it comes out of.
+       *
+       * The plan goes with the user id rather than beside it. `generatePack`
+       * only reads `plan` to decide whether to degrade against the ledger, and
+       * a subsidised build has no ledger to check — so it authors at full
+       * quality, which is the right answer for an artefact everyone shares.
+       */
+      const subsidised = plan !== undefined && subsidisesPackBuilds(plan);
+
       const outcome = await generatePack(
-        { client: getAnthropic(), db, userId, plan },
+        subsidised
+          ? { client: getAnthropic(), db, userId: null }
+          : { client: getAnthropic(), db, userId, plan },
         { slug, subject, rawGoal: null },
       );
       return { pack: outcome.pack, reasons: outcome.reasons };

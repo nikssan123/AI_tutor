@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
+import { skillId as packSkillId } from "@/lib/packs/ids";
 import type { DomainPack } from "@/lib/packs/types";
 import { activeGoal, masteryFor, type StoredGoal } from "@/lib/goals/store";
 import { initialMastery } from "@/lib/engine/bkt";
@@ -18,6 +19,8 @@ import { buildLearnerContext, masteryBand } from "./context";
 import {
   cachedLesson,
   generateLesson,
+  lessonsDeliveredOn,
+  recordLessonDelivery,
   saveLesson,
   type LessonRequest,
   type SupportLevel,
@@ -160,6 +163,17 @@ export interface LessonOutcome {
    * cannot be written.
    */
   capped?: boolean;
+  /**
+   * True when the plan's per-course lesson allowance is spent.
+   *
+   * A third outcome rather than a flavour of `capped`, because the two are
+   * different facts and the screen owes a different sentence for each. `capped`
+   * is "you have used this month's budget" — it comes back next month and no
+   * money changes hands. This is "this is where the free course stops", which
+   * is not a limit that lifts on its own and is the one the learner is meant to
+   * act on.
+   */
+  locked?: boolean;
 }
 
 /**
@@ -188,6 +202,13 @@ export async function lessonForBlock(
      * bill and `userId` is theirs, not a customer's.
      */
     plan?: PlanId | undefined;
+    /**
+     * The plan's per-course lesson allowance. `null` is unlimited; omitted
+     * skips the paywall entirely, which is what the calibration and probe
+     * callers want for the same reason they omit `plan` — there is no learner
+     * here to sell anything to.
+     */
+    lessonsPerCourse?: number | null | undefined;
   },
 ): Promise<LessonOutcome> {
   const level = masteryBand(input.mastery);
@@ -216,8 +237,41 @@ export async function lessonForBlock(
     priorDomain: input.priorDomain ?? DEFAULT_PRIOR_DOMAIN,
   };
 
+  /*
+   * The plan's per-course allowance — **before the cache, deliberately.**
+   *
+   * This is the one check in this function that runs ahead of the cache lookup,
+   * and the ordering is the whole difference between a paywall and a spend
+   * control. §14.9.7's ceiling sits *after* the cache because a cached lesson
+   * costs nothing and refusing somebody something free would be absurd. This
+   * one has nothing to do with what a lesson costs us: a free learner on a
+   * popular pack would otherwise read the entire course for nothing, purely
+   * because other people had already paid to generate it.
+   *
+   * A skill they have already been served is let through either way. The
+   * allowance buys a lesson, not one viewing of it, and a learner who reloads
+   * the page or comes back tomorrow to re-read the one lesson they were given
+   * is not asking for a second one.
+   */
+  if (input.lessonsPerCourse !== null && input.lessonsPerCourse !== undefined) {
+    const delivered = await lessonsDeliveredOn(db, input.userId, input.packSlug);
+    const already = delivered.has(packSkillId(input.packSlug, input.skill.id));
+
+    if (!already && delivered.size >= input.lessonsPerCourse) {
+      return { content: undefined, cached: false, locked: true };
+    }
+  }
+
   const hit = await cachedLesson(db, request);
-  if (hit) return { content: hit, cached: true };
+  if (hit) {
+    await recordLessonDelivery(db, {
+      userId: input.userId,
+      packSlug: input.packSlug,
+      skillSlug: input.skill.id,
+      now: input.now,
+    });
+    return { content: hit, cached: true };
+  }
 
   /*
    * §14.9.7 limit 1 — **after the cache, not before it.**
@@ -242,5 +296,13 @@ export async function lessonForBlock(
   if (result.status !== "ok") return { content: undefined, cached: false };
 
   await saveLesson(db, request, result.value, input.now);
+  // After the content is in hand, never before: a generation that failed must
+  // not spend the allowance on a lesson nobody got to read.
+  await recordLessonDelivery(db, {
+    userId: input.userId,
+    packSlug: input.packSlug,
+    skillSlug: input.skill.id,
+    now: input.now,
+  });
   return { content: result.value, cached: false };
 }

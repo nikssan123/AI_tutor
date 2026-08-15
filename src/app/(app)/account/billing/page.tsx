@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { CANCELLATION_REASONS } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
-import { PLAN_COPY } from "@/lib/billing/plan-copy";
+import { PLAN_COPY, sessionCount } from "@/lib/billing/plan-copy";
 import { formatMoney, isCurrency } from "@/lib/billing/prices";
 import { evaluationsRemaining } from "@/lib/billing/quota";
 import { entitlementsForUser, latestSubscription } from "@/lib/billing/store";
@@ -287,7 +287,7 @@ export default async function BillingPage({ searchParams }: Props) {
               ? `You have used all ${limit} of this month's graded ${projects}. `
               : metered === null
                 ? `Lessons, practice and the tutor are not metered — only work you hand in to be marked. `
-                : `${copy.name} also covers ${metered} learning sessions a month; only work you hand in to be marked counts against the ${limit} above. `}
+                : `${copy.name} also covers ${sessionCount(metered)} a month; only work you hand in to be marked counts against the ${limit} above. `}
             {`The count starts again on ${readableDate(nextReset(new Date()))}.`}
           </p>
         </div>

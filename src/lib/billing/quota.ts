@@ -2,6 +2,9 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { spendLedger } from "@/db/schema";
 import { periodOf } from "@/lib/ai/runlog";
+import { buildsCommissionedBy } from "@/lib/packs/build";
+import { entitlementsForUser } from "./store";
+import type { PlanId } from "./catalog";
 
 /**
  * The evaluation meter — §14.9.7 limit 2, "the product's meter (§20.1)".
@@ -111,4 +114,40 @@ export async function evaluationsRemaining(
   now: Date = new Date(),
 ): Promise<number> {
   return Math.max(0, limit - (await evaluationsUsed(db, userId, now)));
+}
+
+/**
+ * The account's remaining custom subjects, for the screens that say so.
+ *
+ * Lifetime rather than per period, so it takes no clock. Everything else in
+ * this file meters a month because a month is what the ledger is keyed by; this
+ * meters an account, because §7.1's Generated tier is the one thing a free
+ * learner gets a fixed number of *ever* rather than a fixed number of again.
+ *
+ * `quota: null` is a plan with no lifetime limit, and `remaining: Infinity`
+ * rather than a sentinel so callers compare it the same way in both cases —
+ * `remaining > 0` is the whole question, and a null-check at every call site is
+ * how one of them ends up asking it backwards.
+ */
+export interface BuildAllowance {
+  /** `null` for a plan bounded by its spend cap instead. */
+  quota: number | null;
+  used: number;
+  remaining: number;
+}
+
+export async function buildAllowanceFor(
+  db: Db,
+  userId: string,
+  plan?: PlanId,
+): Promise<BuildAllowance> {
+  const { entitlements } = await entitlementsForUser(db, userId, plan);
+  const quota = entitlements.packBuildsLifetime;
+  const used = await buildsCommissionedBy(db, userId);
+
+  return {
+    quota,
+    used,
+    remaining: quota === null ? Infinity : Math.max(0, quota - used),
+  };
 }

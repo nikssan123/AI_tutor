@@ -7,6 +7,7 @@ import {
   MAX_CONCURRENT_BUILDS_PER_USER,
   activeBuildsFor,
   buildInFlightFor,
+  buildsCommissionedBy,
   findBuild,
   finishBuild,
   startBuild,
@@ -145,6 +146,56 @@ live("pack builds and intake", () => {
       );
       expect(retry.kind).toBe("started");
       expect((await findBuild(db, "rust-lang"))!.status).toBe("building");
+    });
+  });
+
+  describe("buildsCommissionedBy", () => {
+    it("counts nothing for an account that has never asked", async () => {
+      expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(0);
+    });
+
+    it("counts one per subject, however many attempts it took", async () => {
+      /*
+       * The quota is one custom *subject*, not one attempt at one. `startBuild`
+       * upserts on the slug, so retrying a failed build reuses its row — which
+       * is what keeps the wait screen's "Try again" working for somebody whose
+       * only free build went wrong.
+       */
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "failed", detail: "thin" });
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(1);
+    });
+
+    it("counts a second subject separately", async () => {
+      // Finished first, because `MAX_CONCURRENT_BUILDS_PER_USER` is 1 — a
+      // second subject is only reachable once the first is done, which is also
+      // the only way a free account could ever have exceeded its quota.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "ready" });
+      await startBuild(db, { slug: "welding", subject: "Welding", userId: IDS[0]! });
+
+      expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(2);
+    });
+
+    it("has no period filter — it is a lifetime number", async () => {
+      // A monthly allowance compounds into twelve subjects a year from an
+      // account that never pays. One, ever, bounds a free signup at one build.
+      const longAgo = new Date("2024-01-01T00:00:00.000Z");
+      await startBuild(
+        db,
+        { slug: "rust", subject: "Rust", userId: IDS[0]! },
+        longAgo,
+      );
+
+      expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(1);
+    });
+
+    it("counts each account's own", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect(await buildsCommissionedBy(db, IDS[1]!)).toBe(0);
     });
   });
 

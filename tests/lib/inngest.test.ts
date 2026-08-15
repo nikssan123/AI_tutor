@@ -145,6 +145,17 @@ vi.mock("@/lib/submissions/store", () => ({
   })),
 }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({ client: true }) }));
+
+/**
+ * The plan the build's requester is on, which decides who the build is billed
+ * to. Mocked rather than seeded because the two outcomes are the whole point of
+ * the assertions below and a resolver reading real tables would make them a
+ * property of the fixtures.
+ */
+const planId = vi.fn(() => "free" as string);
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: async () => ({ planId: planId() }),
+}));
 vi.mock("@/lib/packs/generate", () => ({
   generatePack: vi.fn(async () => ({
     pack: { slug: "rust" },
@@ -195,7 +206,7 @@ describe("the registered build function", () => {
     // The db stub grew a query surface for the evaluate tests, so these match
     // on the handle being the real one rather than on its exact shape.
     expect(generatePack).toHaveBeenCalledWith(
-      expect.objectContaining({ client: { client: true }, userId: "u1" }),
+      expect.objectContaining({ client: { client: true } }),
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
     expect(seedPack).toHaveBeenCalledWith(
@@ -206,6 +217,70 @@ describe("the registered build function", () => {
       expect.objectContaining({ db: true }),
       "rust",
       { status: "ready" },
+    );
+  });
+
+  /** Runs the registered function for one requester. */
+  const runFor = async (userId: string | null) =>
+    (
+      buildPack as unknown as {
+        fn: (c: unknown) => Promise<{ status: string }>;
+      }
+    ).fn({
+      event: { data: { slug: "rust", subject: "Rust", userId } },
+      step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
+    });
+
+  it("bills a subsidised plan's build to the catalogue, not the learner", async () => {
+    /*
+     * The free tier's one custom subject. The run is still written to
+     * `agent_run` in full — `logCall` always writes it — but with no user it
+     * lands on no ledger and consumes no ceiling. Charging it to the learner
+     * would mean the first person to ask for a subject gets a visibly worse
+     * free tier than everyone who takes it afterwards.
+     */
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(generatePack).mockClear();
+    planId.mockReturnValue("free");
+
+    await runFor("u1");
+
+    expect(generatePack).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null }),
+      expect.anything(),
+    );
+    // No plan either: `generatePack` reads it only to degrade against a ledger,
+    // and a build nobody is billed for has none to check. It authors at full
+    // quality, which is the right answer for an artefact everyone shares.
+    expect(vi.mocked(generatePack).mock.calls[0]![0]).not.toHaveProperty("plan");
+  });
+
+  it("bills a paying learner's build to their own ceiling", async () => {
+    // The other half of the same rule: a plan with no lifetime quota pays for
+    // its builds out of the monthly cap that bounds everything else it does.
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(generatePack).mockClear();
+    planId.mockReturnValue("pro");
+
+    await runFor("u1");
+
+    expect(generatePack).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", plan: "pro" }),
+      expect.anything(),
+    );
+  });
+
+  it("bills a build nobody asked for to nobody, as it always did", async () => {
+    // A script, a seed, a probe. There is no ceiling to check because there is
+    // nobody to bill — the distinction `RunOrigin` already draws.
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(generatePack).mockClear();
+
+    await runFor(null);
+
+    expect(generatePack).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null }),
+      expect.anything(),
     );
   });
 });

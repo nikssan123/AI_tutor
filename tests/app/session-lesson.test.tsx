@@ -56,6 +56,7 @@ const props = {
   now: new Date("2026-08-13T09:00:00.000Z"),
   priorDomain: "none" as const,
   plan: "free" as const,
+  lessonsPerCourse: 1,
 };
 
 beforeEach(() => {
@@ -112,6 +113,57 @@ describe("the lesson body", () => {
   it("does not try to generate one with no mastery state to level it against", async () => {
     render(await LessonBody({ ...props, mastery: undefined }));
     expect(lessonForBlockMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("when the free course's one lesson is spent", () => {
+  it("says where the course stops and what unlocks it", async () => {
+    /*
+     * The paywall is the only one of the three no-lesson branches that is by
+     * design, so it is the only one that sells. It also has to be a *different*
+     * sentence from the ceiling below: this one does not come back on the 1st,
+     * and telling somebody to wait for a reset that will never help them is
+     * worse than telling them nothing.
+     */
+    lessonForBlockMock.mockResolvedValue({
+      content: undefined,
+      cached: false,
+      locked: true,
+    });
+    render(await LessonBody(props));
+
+    expect(document.body.textContent).toMatch(/where the free course stops/);
+    expect(document.body.textContent).not.toMatch(/resets on the 1st/);
+    expect(
+      screen
+        .getByRole("link", { name: /Unlock the rest of this course/ })
+        .getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("still points at the tutor, because the block is not over", async () => {
+    // The lesson is locked; the session is not. A learner who cannot read the
+    // written lesson can still be talked through the block, and saying so is
+    // the difference between a paywall and a dead end.
+    lessonForBlockMock.mockResolvedValue({
+      content: undefined,
+      cached: false,
+      locked: true,
+    });
+    render(await LessonBody(props));
+
+    expect(document.body.textContent).toMatch(/tutor below/);
+  });
+
+  it("names the skill, so the offer is about this course", async () => {
+    lessonForBlockMock.mockResolvedValue({
+      content: undefined,
+      cached: false,
+      locked: true,
+    });
+    render(await LessonBody(props));
+
+    expect(document.body.textContent).toContain("Join grain");
   });
 });
 

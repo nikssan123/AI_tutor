@@ -344,6 +344,13 @@ function ExplainBlock(
           mastery={props.mastery}
           minutes={props.block.estMinutes}
           now={props.now}
+          /*
+           * Read off the same plan id the ceiling check uses, rather than
+           * resolved separately. Two lookups of "what may this learner have"
+           * on one screen is how one of them ends up a release behind the
+           * other, and this one decides whether a paywall appears.
+           */
+          lessonsPerCourse={PLANS[props.plan].entitlements.lessonsPerCourse}
         />
       </Suspense>
 

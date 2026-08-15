@@ -47,10 +47,13 @@ import {
 } from "@/lib/session/store";
 import {
   cachedLesson,
+  lessonsDeliveredOn,
+  recordLessonDelivery,
   saveLesson,
   styleHashFor,
   type LessonRequest,
 } from "@/lib/session/lesson";
+import { masteryBand } from "@/lib/session/context";
 import { logTurn, transcriptFor, turnsTaken } from "@/lib/session/tutor";
 import { initialMastery } from "@/lib/engine/bkt";
 import { periodOf } from "@/lib/ai/runlog";
@@ -344,6 +347,204 @@ live("the session store", () => {
           minutes: 12,
           now: NOW,
           plan: "free",
+        }),
+      ).rejects.toThrow("must not be called");
+    });
+  });
+
+  describe("the free tier's one lesson per course", () => {
+    const LESSON: LessonContent = {
+      objective: "Know what sets the exposure.",
+      sections: [{ heading: "Light", body: "How much reaches the sensor." }],
+      workedExample: "Meter, then open up a stop and look again.",
+      commonMistake: "Trusting the meter on a mostly-white frame.",
+    };
+
+    /** A client that makes any generation attempt loudly observable. */
+    const explode = {
+      messages: {
+        create: async () => {
+          throw new Error("must not be called");
+        },
+      },
+    } as never;
+
+    it("serves the first lesson and records that it went out", async () => {
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+      const request = {
+        userId,
+        packSlug: pack.slug,
+        skill,
+        mastery: initialMastery(skill.id, skill.bktPriors),
+        minutes: 12,
+        now: NOW,
+        plan: "free" as const,
+        lessonsPerCourse: 1,
+      };
+
+      // Cached, so no model is needed — and the delivery must be recorded on
+      // this path too, or a learner reading a popular pack would never spend
+      // their allowance at all.
+      await saveLesson(
+        db,
+        {
+          packSlug: pack.slug,
+          skillSlug: skill.id,
+          skillName: skill.name,
+          canDoStatement: skill.canDoStatement,
+          level: masteryBand(request.mastery),
+          minutes: 12,
+          support: supportFor(masteryBand(request.mastery)),
+          priorDomain: "none",
+        },
+        LESSON,
+        NOW,
+      );
+
+      const outcome = await lessonForBlock(db, explode, request);
+
+      expect(outcome.content).toBeDefined();
+      expect(outcome.cached).toBe(true);
+      expect((await lessonsDeliveredOn(db, userId, pack.slug)).size).toBe(1);
+    });
+
+    it("locks the second lesson on the same course", async () => {
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const [first, second] = toEngineGraph(pack).skills;
+
+      await recordLessonDelivery(db, {
+        userId,
+        packSlug: pack.slug,
+        skillSlug: first!.id,
+        now: NOW,
+      });
+
+      const outcome = await lessonForBlock(db, explode, {
+        userId,
+        packSlug: pack.slug,
+        skill: second!,
+        mastery: initialMastery(second!.id, second!.bktPriors),
+        minutes: 12,
+        now: NOW,
+        plan: "free",
+        lessonsPerCourse: 1,
+      });
+
+      expect(outcome.locked).toBe(true);
+      expect(outcome.content).toBeUndefined();
+      // Distinct from the ceiling: one comes back on the 1st and the other
+      // does not, and the screen owes a different sentence for each.
+      expect(outcome.capped).toBeUndefined();
+    });
+
+    it("lets them re-read the lesson they were given", async () => {
+      /*
+       * The allowance buys a lesson, not one viewing of it. A learner who
+       * reloads the page, or comes back tomorrow to read it again, is not
+       * asking for a second lesson — and a paywall that forgot that would take
+       * away the one thing free was given.
+       */
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+      const mastery = initialMastery(skill.id, skill.bktPriors);
+      const request = {
+        packSlug: pack.slug,
+        skillSlug: skill.id,
+        skillName: skill.name,
+        canDoStatement: skill.canDoStatement,
+        level: masteryBand(mastery),
+        minutes: 12,
+        support: supportFor(masteryBand(mastery)),
+        priorDomain: "none" as const,
+      };
+
+      await saveLesson(db, request, LESSON, NOW);
+      await recordLessonDelivery(db, {
+        userId,
+        packSlug: pack.slug,
+        skillSlug: skill.id,
+        now: NOW,
+      });
+
+      const outcome = await lessonForBlock(db, explode, {
+        userId,
+        packSlug: pack.slug,
+        skill,
+        mastery,
+        minutes: 12,
+        now: NOW,
+        plan: "free",
+        lessonsPerCourse: 1,
+      });
+
+      expect(outcome.locked).toBeUndefined();
+      expect(outcome.content).toBeDefined();
+    });
+
+    it("counts per course, so a second subject starts fresh", async () => {
+      // Per course rather than per month, which is what makes the offer
+      // "here is the beginning of this course" rather than "come back later".
+      const userId = await newUser();
+      const spent = findPack("photography")!;
+      const other = findPack("business-writing")!;
+
+      await recordLessonDelivery(db, {
+        userId,
+        packSlug: spent.slug,
+        skillSlug: toEngineGraph(spent).skills[0]!.id,
+        now: NOW,
+      });
+
+      expect((await lessonsDeliveredOn(db, userId, other.slug)).size).toBe(0);
+    });
+
+    it("does not spend the allowance twice on a reload", async () => {
+      // The lesson body is a server component and re-renders on every refresh.
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+
+      for (let i = 0; i < 3; i += 1) {
+        await recordLessonDelivery(db, {
+          userId,
+          packSlug: pack.slug,
+          skillSlug: skill.id,
+          now: NOW,
+        });
+      }
+
+      expect((await lessonsDeliveredOn(db, userId, pack.slug)).size).toBe(1);
+    });
+
+    it("does not meter a plan with no per-course limit", async () => {
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skills = toEngineGraph(pack).skills;
+
+      for (const skill of skills.slice(0, 2)) {
+        await recordLessonDelivery(db, {
+          userId,
+          packSlug: pack.slug,
+          skillSlug: skill.id,
+          now: NOW,
+        });
+      }
+
+      // Two already delivered, and a null allowance still reaches the model.
+      await expect(
+        lessonForBlock(db, explode, {
+          userId,
+          packSlug: pack.slug,
+          skill: skills[2]!,
+          mastery: initialMastery(skills[2]!.id, skills[2]!.bktPriors),
+          minutes: 12,
+          now: NOW,
+          plan: "pro",
+          lessonsPerCourse: null,
         }),
       ).rejects.toThrow("must not be called");
     });

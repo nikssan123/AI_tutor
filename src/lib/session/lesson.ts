@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import { lesson as lessonTable } from "@/db/schema";
+import { lessonDelivery, lesson as lessonTable } from "@/db/schema";
 import { callStructured, type CallResult } from "@/lib/ai/call";
-import { skillId as packSkillId } from "@/lib/packs/ids";
+import { packId as packPackId, skillId as packSkillId } from "@/lib/packs/ids";
 import { LessonContent } from "@/lib/contracts/session";
 import type { PriorDomain } from "@/lib/contracts/goal";
 import { stableStringify } from "@/lib/engine/planner";
@@ -251,4 +251,56 @@ export async function saveLesson(
       target: [lessonTable.skillId, lessonTable.level, lessonTable.styleHash],
       set: { content, promptVersion: `${LESSON_PROMPT.name}@${LESSON_PROMPT.version}` },
     });
+}
+
+/* ── The paywall's meter ──────────────────────────────────────────────────── */
+
+/**
+ * Skills this learner has already been served a lesson for, on this course.
+ *
+ * A set rather than a count, because the question is asked two ways and both
+ * matter: *how many* have they had, and *is this one of them*. A learner
+ * returning to the lesson they already read must be let back in — the allowance
+ * buys a lesson, not one viewing of it — and a count alone cannot tell a
+ * re-read from a second lesson.
+ */
+export async function lessonsDeliveredOn(
+  db: Db,
+  userId: string,
+  packSlug: string,
+): Promise<Set<string>> {
+  const rows = await db
+    .select({ skillId: lessonDelivery.skillId })
+    .from(lessonDelivery)
+    .where(
+      and(
+        eq(lessonDelivery.userId, userId),
+        eq(lessonDelivery.packId, packPackId(packSlug)),
+      ),
+    );
+
+  return new Set(rows.map((r) => r.skillId));
+}
+
+/**
+ * Records that a lesson reached a learner.
+ *
+ * Written after the content is in hand rather than before, so a generation that
+ * failed does not spend the allowance on a lesson nobody read. Idempotent by
+ * primary key: the lesson body re-renders on every refresh, and an insert that
+ * counted twice would cost somebody their free lesson for pressing reload.
+ */
+export async function recordLessonDelivery(
+  db: Db,
+  input: { userId: string; packSlug: string; skillSlug: string; now: Date },
+): Promise<void> {
+  await db
+    .insert(lessonDelivery)
+    .values({
+      userId: input.userId,
+      skillId: packSkillId(input.packSlug, input.skillSlug),
+      packId: packPackId(input.packSlug),
+      deliveredAt: input.now,
+    })
+    .onConflictDoNothing();
 }

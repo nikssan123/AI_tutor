@@ -23,7 +23,7 @@ import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
-import { startBuild } from "@/lib/packs/build";
+import { buildsCommissionedBy, startBuild } from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
@@ -73,21 +73,26 @@ async function chosenPack(
 }
 
 /**
- * §7.1's Generated tier is a paid feature, and this is where that is decided.
+ * §7.1's Generated tier, and the quota that lets the free tier have one.
  *
- * Authoring a pack costs **$0.61** (§24 E7.5, measured) — four times what a
- * free month's whole allowance buys — and it is the one click in the product
- * that spends that much in one go. The cost is per *subject* rather than per
- * learner, so the person who asks first pays for everyone who asks later; on
- * free, that person has 150¢.
+ * Authoring a pack costs ~78¢ — six times what is left of a free month's
+ * allowance once onboarding, a session and an evaluation are paid for. It used
+ * to be refused outright on free, which made the free tier "the seven subjects
+ * we happen to have"; it is now allowed exactly once per account, ever, and
+ * charged to the catalogue rather than to the learner (`subsidisesPackBuilds`).
  *
  * Checked before `startBuild`, not after: `startBuild` claims the slug, and a
  * claim we then refuse to honour would lock the subject behind a build that
  * never runs.
  */
-async function requireGeneratedPacks(db: Db, userId: string): Promise<void> {
+async function requireBuildAllowance(db: Db, userId: string): Promise<void> {
   const { entitlements } = await entitlementsForUser(db, userId, undefined);
-  if (!entitlements.generatedPacks) redirect("/start?error=generated");
+  const quota = entitlements.packBuildsLifetime;
+  if (quota === null) return;
+
+  if ((await buildsCommissionedBy(db, userId)) >= quota) {
+    redirect("/start?error=generated");
+  }
 }
 
 /**
@@ -279,7 +284,7 @@ export async function buildFromConversationAction(): Promise<void> {
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");
 
-    await requireGeneratedPacks(db, userId);
+    await requireBuildAllowance(db, userId);
 
     // §7.1's Generated tier. The build is claimed here rather than on the wait
     // screen so that a refresh of that screen cannot start a second one.
@@ -380,7 +385,7 @@ export async function requestBuildAction(formData: FormData): Promise<void> {
   const subject = String(formData.get("subject") ?? "").trim();
   if (slug.length === 0 || subject.length === 0) redirect("/start");
 
-  await requireGeneratedPacks(db, userId);
+  await requireBuildAllowance(db, userId);
 
   const started = await startBuild(db, { slug, subject, userId });
   if (started.kind === "rate-limited") redirect("/start?error=busy");
