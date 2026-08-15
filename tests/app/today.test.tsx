@@ -30,6 +30,8 @@ const buildInFlightForMock = vi.fn();
 /** Check cookies, by name, for the "your check comes with you" promise. */
 const jar = new Map<string, string>();
 
+const nudgeMock = vi.fn(async (..._a: unknown[]) => undefined as unknown);
+
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
   cookies: async () => ({
@@ -46,6 +48,9 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
+vi.mock("@/lib/billing/gate", () => ({
+  nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
+}));
 vi.mock("@/lib/goals/today", () => ({
   todayFor: (...args: unknown[]) => todayForMock(...(args as [])),
 }));
@@ -72,7 +77,8 @@ vi.mock("@/lib/packs/build", async (importOriginal) => ({
 const { default: TodayPage } = await import("@/app/(app)/today/page");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
-const search = (params: { minutes?: string } = {}) => Promise.resolve(params);
+const search = (params: { minutes?: string; error?: string } = {}) =>
+  Promise.resolve(params);
 const pack = findPack("photography")!;
 
 function view(overrides: {
@@ -621,5 +627,43 @@ describe("what the pack is", () => {
 
     render(await TodayPage({ searchParams: search() }));
     expect(screen.getByText(/Experimental/)).toBeDefined();
+  });
+});
+
+describe("when the month's sessions are spent", () => {
+  it("offers the upgrade above the session band", async () => {
+    // The one wall on this screen, so the one thing on it that may ask for
+    // money — and it asks with what a paid plan would have done instead.
+    nudgeMock.mockResolvedValue({
+      reason: "sessions_spent",
+      headline: "That's this month's sessions",
+      body: "On a paid plan you would have carried straight on.",
+      cta: "Compare the plans",
+      href: "/pricing",
+    });
+
+    render(await TodayPage({ searchParams: search({ error: "sessions" }) }));
+
+    expect(
+      screen.getByRole("heading", { name: "That's this month's sessions" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Compare the plans" }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("says nothing on an ordinary visit", async () => {
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(nudgeMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Compare the plans" })).toBeNull();
+  });
+
+  it("says nothing when the resolver declines to sell", async () => {
+    // A plan with no session wall in front of it is never shown a way past one.
+    nudgeMock.mockResolvedValue(undefined);
+    render(await TodayPage({ searchParams: search({ error: "sessions" }) }));
+
+    expect(screen.queryByRole("link", { name: "Compare the plans" })).toBeNull();
   });
 });

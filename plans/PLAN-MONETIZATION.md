@@ -33,7 +33,7 @@ Taken 2026-08-15. The first six override `PLAN.md` or `PLAN-LOCALIZATION.md` exp
 | 4 | Tiers listed | **Free · Trial · Learner · Pro**, all four on `/pricing` | §20.1 *"Launch with one paid tier. Two tiers doubles the decision friction"* |
 | 5 | Prices | **$24.99/€24.99 monthly · $199/€199 annual · $12.99/€12.99 Learner** | §20.1 ($25/$190) · `PLAN-LOCALIZATION` §6.1 (€25/€190) · §20.1's *"under $15"* rejection |
 | 6 | Referral reward | **14 days of Pro to each side** | No referral program exists anywhere in any document |
-| 7 | Free tier | **1 evaluation · 3 sessions · canonical curriculum · no new subjects · 150¢.** Derived from a budget rather than asserted — §20.1's version was never affordable at its own cap (§2) | §20.1's "3 sessions/week" and its 100¢ ceiling |
+| 7 | Free tier | **1 evaluation · 2 sessions · 15 tutor questions · canonical curriculum · no new subjects · 120¢.** Derived from a budget rather than asserted — §20.1's version was never affordable at its own cap (§2) | §20.1's "3 sessions/week" and its 100¢ ceiling |
 | 8 | The meter | **The evaluation**, as §20.1 already says. Never tokens, never messages | — |
 | 9 | Source of truth | The `subscription` row. `user.plan` is a derived fast path, reconciled in one place | — |
 | 10 | Grants | A referral or comp resolves to Pro **entitlements** at the **trial spend cap** | — |
@@ -66,12 +66,12 @@ export type Currency = "usd" | "eur";
 
 **An entitlement is a thing the system refuses to do, not a thing a marketing table claims.** Every column below is checked in code before the spend it governs happens:
 
-| Plan | Listed | **Evaluations/mo** | **Sessions/mo** | Curriculum | New subjects | Models | **Spend cap** |
-|---|---|---|---|---|---|---|---|
-| `free` | ✅ | **1** | **3** | canonical | ✗ | standard | **150¢** |
-| `trial` | ✅ | **5** | ∞ | generated | ✓ | premium | **450¢** |
-| `learner` | ✅ | **3** | ∞ | generated | ✓ | standard | **600¢** |
-| `pro` | ✅ | **10** | ∞ | generated | ✓ | premium | **1500¢** |
+| Plan | Listed | **Evaluations/mo** | **Sessions/mo** | **Tutor Qs/session** | Curriculum | New subjects | Models | **Spend cap** |
+|---|---|---|---|---|---|---|---|---|
+| `free` | ✅ | **1** | **2** | **15** | canonical | ✗ | standard | **120¢** |
+| `trial` | ✅ | **5** | ∞ | 30 | generated | ✓ | premium | **450¢** |
+| `learner` | ✅ | **3** | ∞ | 30 | generated | ✓ | standard | **600¢** |
+| `pro` | ✅ | **10** | ∞ | 30 | generated | ✓ | premium | **1500¢** |
 
 `free` and `pro` are §20.1 and §14.9.7 limits 1 and 2 **unchanged**. `trial` and `learner` are new, and every number is derived rather than guessed:
 
@@ -281,6 +281,42 @@ Checkout starts from a **server action** (`startCheckoutAction`) that redirects 
 The exit-survey reason is **required** — §25.1 marks it mandatory, in bold, and it is the only structured signal this product will get about why people leave. Six options from the brief (too expensive · not enough time · didn't find what I wanted · AI quality · learning experience · other) plus a free-text comment. Writes `cancellation_survey`, then sets `cancel_at_period_end` on Stripe.
 
 Copy says *"You still have Pro until 20 August"*, never *"your subscription has `cancel_at_period_end` set"*. State the consequence, not the mechanism.
+
+---
+
+## 8.5 Asking somebody to pay
+
+Free is a real plan and stays one. What makes it convert is not scarcity but
+**placement**: a learner meets a wall at a moment when the thing on the other
+side of it is obvious, and is told what a paid plan would have done instead.
+
+`src/lib/billing/nudge.ts` is the whole list, in one pure function, so the tone
+can be read at once and the total frequency is something somebody chose rather
+than something that accumulated. `src/components/upgrade-nudge.tsx` renders it
+and is the only place §25.1's `paywall_viewed` is emitted.
+
+**Four moments, ranked by how well they convert:**
+
+| Moment | Where | Why it is the right time |
+|---|---|---|
+| **A graded verdict has just landed** | `/submission/{id}` | §19.3's activation event. The only screen where the ask is "more of what you just had" rather than "trust us". Shown *below* the verdict — somebody reading their own marked work should finish reading it |
+| The month's marking is spent | `/session/{id}?error=quota` | The box below it will not do anything, and unlike an empty hand-in there is nothing to correct |
+| The month's sessions are spent | `/today?error=sessions` | The one wall on that screen |
+| The session's questions are spent | tutor `409` | Quotes the plan's own number |
+
+**Three rules, and the third is the one worth keeping:**
+
+1. **Only at a wall** — never on a timer, never on a page merely visited.
+2. **Only to somebody who could act on it** — every branch checks the
+   entitlement rather than the plan name, so a Learner who has spent three
+   evaluations is treated like a free learner who has spent one, and nobody is
+   sold a sidegrade.
+3. **Never on our own failure.** No nudge for a model that refused, a
+   generation that failed, or a webhook that did not arrive. This is why
+   `lessonForBlock` distinguishes `capped` from a plain absent lesson: one is a
+   limit the learner can act on, the other is ours to apologise for, and
+   selling on the back of a fault is the fastest way to make the paywall feel
+   like the point of the product.
 
 ---
 

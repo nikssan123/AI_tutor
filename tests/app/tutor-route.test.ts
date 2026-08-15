@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PLANS } from "@/lib/billing/catalog";
 
 /**
  * The streaming endpoint. A route handler is a public URL, so the tests that
@@ -38,7 +39,6 @@ vi.mock("@/lib/session/tutor", () => ({
   tutorStream: (...a: unknown[]) => tutorStreamMock(...(a as [])),
   logTurn: (...a: unknown[]) => logTurnMock(...(a as [])),
   turnsTaken: (...a: unknown[]) => turnsTakenMock(...(a as [])),
-  MAX_TUTOR_TURNS: 30,
 }));
 vi.mock("@/lib/ai/runlog", () => ({
   recordAgentRun: (...a: unknown[]) => recordRunMock(...(a as [])),
@@ -209,20 +209,48 @@ describe("tutor signals on the streamed turn", () => {
 });
 
 describe("the limits the tutor is subject to", () => {
-  it("stops a conversation at thirty turns", async () => {
+  it("stops a free conversation at the plan's own number", async () => {
     // §14.9.7 limit 4, and §17.2's "DON'T BUILD: a general chatbot — the tutor
     // is scoped to the session". 409 rather than 403: nothing is forbidden,
     // the conversation is simply finished.
-    turnsTakenMock.mockResolvedValue(30);
+    turnsTakenMock.mockResolvedValue(PLANS.free.entitlements.tutorTurnsPerSession);
 
     const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
     expect(response.status).toBe(409);
-    expect(await response.text()).toMatch(/thirty questions/);
     expect(tutorStreamMock).not.toHaveBeenCalled();
   });
 
-  it("lets the thirtieth through", async () => {
-    turnsTakenMock.mockResolvedValue(29);
+  it("quotes the plan's number rather than a constant", async () => {
+    // The bug this replaced: the catalog said fifteen for free, the route
+    // enforced thirty for everybody, and the message said "thirty" — so a free
+    // learner was told one number, given another, and read a third.
+    turnsTakenMock.mockResolvedValue(PLANS.free.entitlements.tutorTurnsPerSession);
+
+    const body = await (
+      await POST(post({ sessionId: "sess-1", message: "why?" }))
+    ).text();
+
+    expect(body).toContain(
+      String(PLANS.free.entitlements.tutorTurnsPerSession),
+    );
+    expect(body).not.toContain(
+      String(PLANS.pro.entitlements.tutorTurnsPerSession),
+    );
+  });
+
+  it("lets a paid learner carry on past the free ceiling", async () => {
+    currentSessionMock.mockResolvedValue({ user: { id: "u1", plan: "pro" } });
+    turnsTakenMock.mockResolvedValue(PLANS.free.entitlements.tutorTurnsPerSession);
+
+    expect(
+      (await POST(post({ sessionId: "sess-1", message: "why?" }))).status,
+    ).toBe(200);
+  });
+
+  it("lets the last one through", async () => {
+    turnsTakenMock.mockResolvedValue(
+      PLANS.free.entitlements.tutorTurnsPerSession - 1,
+    );
     const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
     expect(response.status).toBe(200);
   });
@@ -248,7 +276,9 @@ describe("the limits the tutor is subject to", () => {
   it("checks the turn count before the ceiling", async () => {
     // Cheaper, and a better message: somebody who has simply talked a lot
     // should be told that, not sold a subscription.
-    turnsTakenMock.mockResolvedValue(30);
+    turnsTakenMock.mockResolvedValue(
+      PLANS.free.entitlements.tutorTurnsPerSession,
+    );
     aiAccessMock.mockResolvedValue({
       overCap: true,
       degraded: true,

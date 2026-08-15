@@ -55,6 +55,21 @@ const sessions = (planId: PlanId): string => {
 };
 
 /**
+ * The tutor line, in the learner's unit rather than ours.
+ *
+ * A "turn" is our word — `turnsTaken` counts `role = "user"` rows, which is
+ * literally one thing the learner asked — and nobody counts their own turns.
+ * So the card says questions.
+ *
+ * On every card, including the ones where the number is the same, because a
+ * conversation limit somebody was never told about produces exactly the
+ * "found out on my fourth session" experience the free card's own line exists
+ * to prevent.
+ */
+const tutor = (planId: PlanId): string =>
+  `${PLANS[planId].entitlements.tutorTurnsPerSession} questions to the tutor in a session`;
+
+/**
  * The one claim worth repeating on every card, phrased the same way each time.
  *
  * §4.2 law 1 — a mark is only worth anything if it is anchored in the learner's
@@ -72,6 +87,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     features: [
       sessions("free"),
       marked("free"),
+      tutor("free"),
       GRADING_LINE,
       // Said plainly rather than omitted. A learner who finds out on their
       // fourth session that free stops at three has been misled by a list that
@@ -90,6 +106,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     features: [
       `${PLANS.trial.entitlements.evaluationsPerMonth} graded projects across four days`,
       sessions("trial"),
+      tutor("trial"),
       "A path built around your diagnostic, not the default order",
       "Our most capable models on the work that needs them",
       "Cancel before it renews and pay nothing more",
@@ -104,6 +121,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     features: [
       marked("learner"),
       sessions("learner"),
+      tutor("learner"),
       "A path built around your diagnostic, not the default order",
       "Any subject — we'll build the course if we don't have it",
       "Everything in Free",
@@ -118,6 +136,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     features: [
       marked("pro"),
       sessions("pro"),
+      tutor("pro"),
       "Our most capable models on the work that needs them",
       "Priority marking",
       "Everything in Learner",

@@ -3,7 +3,7 @@ import { inArray } from "drizzle-orm";
 import { createClient } from "@/db";
 import { agentRun, spendLedger, user } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
-import { aiAccess, overCapMessage } from "@/lib/billing/gate";
+import { aiAccess, nudgeAt, overCapMessage } from "@/lib/billing/gate";
 
 /**
  * §14.9.7 limit 1, for the six call sites that never checked it.
@@ -160,6 +160,49 @@ live("against a real database", () => {
       expect((await aiAccess(db, LEARNER, "free", "standard")).blocked).toBe(
         false,
       );
+    });
+  });
+
+  describe("nudgeAt", () => {
+    it("asks a free learner who has spent their marking", async () => {
+      await db.insert(spendLedger).values({
+        userId: LEARNER,
+        period: "2026-08",
+        costCents: 0,
+        evaluationsUsed: PLANS.free.entitlements.evaluationsPerMonth,
+        updatedAt: NOW,
+      });
+
+      const nudge = await nudgeAt(db, LEARNER, "free", "evaluation_landed", NOW);
+      expect(nudge?.reason).toBe("evaluation_landed");
+      expect(nudge?.href).toBe("/pricing");
+    });
+
+    it("stays silent while they still have marking left", async () => {
+      expect(
+        await nudgeAt(db, LEARNER, "free", "evaluation_landed", NOW),
+      ).toBeUndefined();
+    });
+
+    it("stays silent for somebody already on the plan being sold", async () => {
+      await db.insert(spendLedger).values({
+        userId: LEARNER,
+        period: "2026-08",
+        costCents: 0,
+        evaluationsUsed: PLANS.pro.entitlements.evaluationsPerMonth,
+        updatedAt: NOW,
+      });
+
+      expect(
+        await nudgeAt(db, LEARNER, "pro", "evaluation_landed", NOW),
+      ).toBeUndefined();
+    });
+
+    it("defaults its clock to the present", async () => {
+      // The default parameter is a branch like any other.
+      expect(
+        await nudgeAt(db, LEARNER, "free", "evaluation_landed"),
+      ).toBeUndefined();
     });
   });
 });

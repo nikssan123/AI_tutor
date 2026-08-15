@@ -1,6 +1,10 @@
 import { spentThisPeriod } from "@/lib/ai/runlog";
 import type { Db } from "@/db";
+import { sessionsThisPeriod } from "@/lib/session/store";
 import { degradesGeneration, PLANS, type PlanId } from "./catalog";
+import { nudgeFor, type Nudge, type NudgeReason } from "./nudge";
+import { evaluationsUsed } from "./quota";
+import { entitlementsForUser } from "./store";
 
 /**
  * §14.9.7 limit 1, applied to every call rather than to three of them.
@@ -82,6 +86,41 @@ export async function aiAccess(
     spentCents,
     capCents,
   };
+}
+
+/**
+ * The nudge for a learner who has just hit a wall, with their usage loaded.
+ *
+ * The deciding is in `nudge.ts` and stays pure; this is the two queries that
+ * pure function needs. It lives here rather than in `store.ts` because a nudge
+ * is a fact about what somebody may still do, which is what this module is
+ * already for.
+ *
+ * Returns nothing whenever `nudgeFor` does — a plan with no wall in front of it
+ * is never sold a way past one — so a caller can render the result without
+ * asking whether it should.
+ */
+export async function nudgeAt(
+  db: Db,
+  userId: string,
+  plan: unknown,
+  reason: NudgeReason,
+  now: Date = new Date(),
+): Promise<Nudge | undefined> {
+  const resolved = await entitlementsForUser(db, userId, plan, now);
+
+  const [evaluations, sessions] = await Promise.all([
+    evaluationsUsed(db, userId, now),
+    sessionsThisPeriod(db, userId, now),
+  ]);
+
+  return nudgeFor(reason, {
+    planId: resolved.planId,
+    entitlements: resolved.entitlements,
+    paying: resolved.source !== "plan" || resolved.planId !== "free",
+    evaluationsUsed: evaluations,
+    sessionsUsed: sessions,
+  });
 }
 
 /**

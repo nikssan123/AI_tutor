@@ -6,6 +6,9 @@ import { getDb } from "@/db";
 import { hasApiKey } from "@/lib/ai/client";
 import { requireUser } from "@/lib/account/session";
 import { resolvePlanId, type PlanId } from "@/lib/billing/catalog";
+import { nudgeAt } from "@/lib/billing/gate";
+import type { Nudge } from "@/lib/billing/nudge";
+import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { sessionView } from "@/lib/session/view";
 import { transcriptFor } from "@/lib/session/tutor";
 import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
@@ -77,6 +80,14 @@ export default async function SessionPage({ params, searchParams }: Props) {
 
   const { session, block, skill } = view;
   const position = Math.min(session.blockIndex + 1, session.blocks.length);
+
+  // `submitWorkAction` sends them back here when the month's marking is gone.
+  // Loaded only on that path: a nudge costs two queries, and every other visit
+  // to this screen is somebody getting on with the work.
+  const quotaNudge =
+    error === "quota"
+      ? await nudgeAt(db, user.id, user.plan, "evaluations_spent")
+      : undefined;
 
   // PLAN-ADAPTATION step 4. Derived on every render rather than stored: the
   // offer is a function of what the tutor heard and what the session already
@@ -153,6 +164,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
               plan={resolvePlanId(user.plan)}
               now={now}
               error={error}
+              quotaNudge={quotaNudge}
             />
           </div>
         </Card>
@@ -255,6 +267,8 @@ interface BodyProps {
   now: Date;
   /** Why the last hand-in bounced, if it did. */
   error?: string;
+  /** Shown in place of an error when the month's marking is already spent. */
+  quotaNudge?: Nudge;
 }
 
 function BlockBody(props: BodyProps) {
@@ -392,6 +406,14 @@ function ApplyBlock(
           in again.
         </Status>
       ) : null}
+
+      {/*
+        The month's marking is spent, so the box below will not do anything.
+        Said as an offer rather than as an error, because unlike the empty-box
+        case there is nothing for the learner to correct — the only thing that
+        changes the outcome is a bigger plan or the 1st of the month.
+      */}
+      {props.quotaNudge ? <UpgradeNudge nudge={props.quotaNudge} /> : null}
 
       {/* §24 E8. A form POST, so handing work in needs no JavaScript either. */}
       <form action={submitWorkAction} className="flex flex-col gap-3">

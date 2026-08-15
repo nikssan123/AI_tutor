@@ -122,8 +122,23 @@ export const TRANSCRIPT_DEPTH = 20;
  * become a chat, which §17.2 lists under **DON'T BUILD** ("a general chatbot —
  * the tutor is scoped to the session").
  */
-export const MAX_TUTOR_TURNS = 30;
-export const TUTOR_TURN_WARNING = 25;
+/**
+ * **The number lives on the plan**, not here: `tutorTurnsPerSession` in
+ * `src/lib/billing/catalog.ts`, read by `api/tutor/route.ts`. Fifteen on free,
+ * thirty on everything paid.
+ *
+ * There was briefly a `MAX_TUTOR_TURNS = 30` constant here and it was worse
+ * than useless — the catalog said fifteen for free and the route enforced
+ * thirty for everybody, so a free learner was told one number and given
+ * another. A flat constant beside a per-plan entitlement is a second source of
+ * truth waiting to disagree with the first.
+ *
+ * **Still unbuilt: §14.9.7's soft warning at five to go.** The hard stop is
+ * enforced; the warning that ought to precede it is not, because it belongs in
+ * the tutor panel, which is a client component with no view of the count. It is
+ * not written here as an unused helper, because an exported function nothing
+ * calls reads as "implemented" to the next person to grep for it.
+ */
 
 /**
  * How many questions this learner has asked in this session.

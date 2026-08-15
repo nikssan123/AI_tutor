@@ -40,8 +40,8 @@ describe("PLANS", () => {
     // 100¢ could not: §20.1's free row is 71¢ of onboarding plus 221¢ of
     // sessions plus a 45¢ evaluation. The two numbers were written in
     // different sections and never reconciled.
-    expect(PLANS.free.spendCapCents).toBe(150);
-    expect(promisedCostCents("free")).toBeLessThanOrEqual(150);
+    expect(PLANS.free.spendCapCents).toBe(120);
+    expect(promisedCostCents("free")).toBeLessThanOrEqual(120);
   });
 
   it.each(PLAN_IDS)("lets %s afford the evaluations it advertises", (id) => {
@@ -94,9 +94,19 @@ describe("PLANS", () => {
 
 describe("the free tier's shape", () => {
   it("gives free a session allowance and everyone else the cap", () => {
-    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(3);
+    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(2);
     for (const id of ["trial", "learner", "pro"] as const) {
       expect(PLANS[id].entitlements.sessionsPerMonth).toBeNull();
+    }
+  });
+
+  it("gives free half the tutor turns, which is what §20.2 actually priced", () => {
+    // "Learning session (content + ~15 tutor turns) | $0.17". Permitting thirty
+    // on free meant the free budget quoted a figure that assumed half the
+    // conversation.
+    expect(PLANS.free.entitlements.tutorTurnsPerSession).toBe(15);
+    for (const id of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[id].entitlements.tutorTurnsPerSession).toBe(30);
     }
   });
 
@@ -118,7 +128,7 @@ describe("the free tier's shape", () => {
 describe("promisedCostCents", () => {
   it("adds sessions, marking and onboarding at §20.2's measured prices", () => {
     expect(promisedCostCents("free")).toBe(
-      3 * SESSION_COST_CENTS + 1 * EVALUATION_COST_CENTS + ONBOARDING_COST_CENTS,
+      2 * SESSION_COST_CENTS + 1 * EVALUATION_COST_CENTS + ONBOARDING_COST_CENTS,
     );
   });
 

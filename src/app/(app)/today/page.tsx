@@ -24,6 +24,8 @@ import {
   MaturityBadge,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
+import { UpgradeNudge } from "@/components/upgrade-nudge";
+import { nudgeAt } from "@/lib/billing/gate";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
 
@@ -150,13 +152,15 @@ async function nothingRunningYet(userId: string) {
   );
 }
 
-type Props = { searchParams: Promise<{ minutes?: string }> };
+type Props = {
+  searchParams: Promise<{ minutes?: string; error?: string }>;
+};
 
 export default async function TodayPage({ searchParams }: Props) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const { minutes } = await searchParams;
+  const { minutes, error } = await searchParams;
   const requested = Number(minutes);
   const view = await todayFor(getDb(), session.user.id, new Date(), {
     availableMinutes:
@@ -169,6 +173,17 @@ export default async function TodayPage({ searchParams }: Props) {
   if (!view) return nothingRunningYet(session.user.id);
 
   const { pack, projection, session: planned, skillNames, openSessionId } = view;
+
+  /*
+   * `startSessionAction` sends somebody here when the month's sessions are
+   * spent. It is the one wall on this screen, so it is the one thing that may
+   * ask them to pay — and it asks with what a paid plan would have done
+   * instead, rather than with an error.
+   */
+  const spent =
+    error === "sessions"
+      ? await nudgeAt(getDb(), session.user.id, session.user.plan, "sessions_spent")
+      : undefined;
 
   return (
     <AppFrame>
@@ -193,6 +208,13 @@ export default async function TodayPage({ searchParams }: Props) {
           </>
         }
       />
+
+      {/*
+        Above the band, because it is the reason they are looking at this
+        screen instead of at a session. Below the header, because the header
+        still says what course they are on and that is still true.
+      */}
+      {spent ? <UpgradeNudge nudge={spent} /> : null}
 
       {/*
        * The session band is the one thing on this screen, so it is the only

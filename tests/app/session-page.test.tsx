@@ -21,6 +21,8 @@ const lessonForBlockMock = vi.fn();
 const recentSignalsMock = vi.fn();
 const hasApiKeyMock = vi.fn(() => true);
 
+const nudgeMock = vi.fn(async (..._a: unknown[]) => undefined as unknown);
+
 vi.mock("next/navigation", () => ({ redirect: (u: string) => redirectMock(u) }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/ai/client", () => ({
@@ -35,6 +37,9 @@ vi.mock("@/lib/session/view", () => ({
   lessonForBlock: (...a: unknown[]) => lessonForBlockMock(...(a as [])),
 }));
 vi.mock("@/lib/session/tutor", () => ({ transcriptFor: async () => [] }));
+vi.mock("@/lib/billing/gate", () => ({
+  nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
+}));
 vi.mock("@/app/(app)/session/[id]/actions", () => ({
   answerAction: vi.fn(),
   continueAction: vi.fn(),
@@ -478,5 +483,52 @@ describe("the prove-it offer", () => {
 
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.queryByText(/You said you already know this/)).toBeNull();
+  });
+});
+
+describe("when the month's marking is spent", () => {
+  const spent = Promise.resolve({ error: "quota" });
+
+  it("offers the upgrade in place of an error", async () => {
+    // Unlike an empty hand-in there is nothing for the learner to correct: the
+    // only things that change the outcome are a bigger plan or the 1st.
+    nudgeMock.mockResolvedValue({
+      reason: "evaluations_spent",
+      headline: "You've used this month's graded project",
+      body: "It comes back on the 1st.",
+      cta: "See what Pro includes",
+      href: "/pricing",
+    });
+
+    // The nudge sits with the hand-in form, so the block has to be one.
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Write the query",
+            rubricId: null,
+            evidenceType: "sql",
+            estMinutes: 15,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: spent }));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "You've used this month's graded project",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("does not ask on an ordinary visit", async () => {
+    // Two queries a nudge costs, on every other visit to this screen, for
+    // somebody who is simply getting on with the work.
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(nudgeMock).not.toHaveBeenCalled();
   });
 });

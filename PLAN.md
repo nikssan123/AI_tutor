@@ -1539,12 +1539,12 @@ Plus: **alert at $8 cost-per-active-user** (the §25 dashboard metric), and a La
 >
 > **The table now has four rows, because there are four plans** (§20.1's note):
 >
-> | Plan | Monthly cap | Evaluations | Sessions |
-> |---|---|---|---|
-> | free | 150¢ | 1 | 3 |
-> | trial | 450¢ | 5 | ∞ |
-> | learner | 600¢ | 3 | ∞ |
-> | pro | 1500¢ | 10 | ∞ |
+> | Plan | Monthly cap | Evaluations | Sessions | Tutor Qs/session |
+> |---|---|---|---|---|
+> | free | 120¢ | 1 | 2 | 15 |
+> | trial | 450¢ | 5 | ∞ | 30 |
+> | learner | 600¢ | 3 | ∞ | 30 |
+> | pro | 1500¢ | 10 | ∞ | 30 |
 >
 > **And an invariant these numbers must satisfy**, which a test now asserts for
 > every plan: `spendCapCents >= evaluationsPerMonth × EVALUATION_COST_CENTS`.
@@ -1567,11 +1567,18 @@ Plus: **alert at $8 cost-per-active-user** (the §25 dashboard metric), and a La
 > are "spend anyway" and "stop", and spending anyway is what made the ceiling
 > decorative.
 >
-> **Limit 4 had also never been implemented.** Thirty turns a session, with the
-> soft warning at twenty-five, is now `MAX_TUTOR_TURNS` in
-> `src/lib/session/tutor.ts`. It is a quality control rather than a cost one —
-> §17.2 lists "a general chatbot" under DON'T BUILD, and a conversation past
-> thirty turns has stopped being a tutorial.
+> **Limit 4 had also never been implemented, and is now a plan feature rather
+> than one flat number.** Thirty stands for every paid plan; free gets fifteen,
+> which is what §20.2's 17¢ session actually priced ("content + ~15 tutor
+> turns"). It is a quality control before it is a cost one — §17.2 lists "a
+> general chatbot" under DON'T BUILD — but a flat constant beside a per-plan
+> entitlement is a second source of truth, and for a few hours it was one: the
+> catalog said fifteen, the route enforced thirty, and the refusal message said
+> "thirty" to everybody.
+>
+> **The soft warning at five-to-go is still unbuilt.** The hard stop is
+> enforced; the warning that ought to precede it belongs in the tutor panel,
+> which is a client component with no view of the count.
 >
 > **Two smaller ones, both the same omission.** Marking passed no plan, so the
 > most expensive call in the product was outside the cap; and

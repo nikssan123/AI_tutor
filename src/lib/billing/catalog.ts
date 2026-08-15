@@ -26,12 +26,8 @@ export type Interval = "month" | "year";
  * refuses to do, not a thing a marketing table claims. Anything we cannot
  * refuse does not belong here.
  *
- * **Two limits §20.1 lists are deliberately absent**, and the reasons differ:
+ * **One limit §20.1 lists is deliberately absent:**
  *
- * - **Sessions per week** ("3/week" on free). The spend cap already binds
- *   tighter than the counter would: at §20.2's measured $0.17 a session, free's
- *   100¢ ceiling is about five sessions a month against the counter's thirteen.
- *   A second, weaker limiter would be dead code that reads like a guarantee.
  * - **Active goals** ("1 goal" free, "3" on the later tier). The engine is
  *   single-goal by construction — `pauseOthers` in `src/lib/goals/store.ts`
  *   pauses every other course whenever one becomes active, and `activeGoal()`
@@ -54,6 +50,17 @@ export interface Entitlements {
    * and whose budget agree.
    */
   sessionsPerMonth: number | null;
+  /**
+   * §14.9.7 limit 4, made a plan feature rather than one flat number.
+   *
+   * The limit says thirty. Thirty is what a paid learner gets — but §20.2
+   * prices a session at 17¢ for "content + **~15 tutor turns**", so permitting
+   * thirty on the free tier meant the free budget was quoting a figure that
+   * assumed half the conversation. Fifteen on free makes the arithmetic honest
+   * and makes the ceiling a real difference between the plans rather than a
+   * number nobody reaches.
+   */
+  tutorTurnsPerSession: number;
   /**
    * Whether a curriculum is authored by a model or taken from the pack.
    *
@@ -138,18 +145,18 @@ export const ONBOARDING_COST_CENTS = 16;
  * Every number here is derived rather than chosen, and the derivations are
  * worth keeping next to them:
  *
- * - **free — 1 evaluation, 3 sessions, 150¢.** The one evaluation is what keeps
+ * - **free — 1 evaluation, 2 sessions, 120¢.** The one evaluation is what keeps
  *   §19.3's activation metric ("first graded submission within 7 days of
  *   signup") reachable without paying, which is what makes §17.3's day-60 kill
  *   criteria mean anything. Everything else about this row is arithmetic:
  *
- *       3 sessions × 17¢   =  51¢
+ *       2 sessions × 17¢   =  34¢
  *       1 evaluation × 45¢ =  45¢
  *       onboarding, once   =  16¢
  *                            ────
- *                             112¢  ≤ 150¢
+ *                              95¢  ≤ 120¢
  *
- *   **The cap went up from 100¢, because 100¢ never paid for what §20.1
+ *   **The cap moved off §20.1's 100¢, because 100¢ never paid for what §20.1
  *   promised.** That row read "1 goal · roadmap + full diagnostic · 3
  *   sessions/week · 1 evaluation/month", which is 71¢ of onboarding — the
  *   curriculum generation alone is 55¢ — plus 221¢ of sessions plus a 45¢
@@ -176,12 +183,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
     listed: true,
     entitlements: {
       evaluationsPerMonth: 1,
-      sessionsPerMonth: 3,
+      sessionsPerMonth: 2,
+      tutorTurnsPerSession: 15,
       aiCurriculum: false,
       generatedPacks: false,
       premiumModels: false,
     },
-    spendCapCents: 150,
+    spendCapCents: 120,
   },
   trial: {
     id: "trial",
@@ -189,6 +197,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     entitlements: {
       evaluationsPerMonth: 5,
       sessionsPerMonth: null,
+      tutorTurnsPerSession: 30,
       aiCurriculum: true,
       generatedPacks: true,
       premiumModels: true,
@@ -201,6 +210,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     entitlements: {
       evaluationsPerMonth: 3,
       sessionsPerMonth: null,
+      tutorTurnsPerSession: 30,
       aiCurriculum: true,
       generatedPacks: true,
       premiumModels: false,
@@ -213,6 +223,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     entitlements: {
       evaluationsPerMonth: 10,
       sessionsPerMonth: null,
+      tutorTurnsPerSession: 30,
       aiCurriculum: true,
       generatedPacks: true,
       premiumModels: true,

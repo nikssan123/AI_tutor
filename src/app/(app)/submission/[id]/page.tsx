@@ -5,6 +5,8 @@ import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
 import { evaluationFor, submissionById } from "@/lib/submissions/store";
+import { nudgeAt } from "@/lib/billing/gate";
+import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { BAND_SCORE, type Band } from "@/lib/contracts/evaluation";
 import {
   ButtonLink,
@@ -110,6 +112,13 @@ export default async function SubmissionPage({ params }: Props) {
   }
 
   const percent = Math.round(evaluation.overall * 100);
+
+  const nudge = await nudgeAt(
+    db,
+    session.user.id,
+    session.user.plan,
+    "evaluation_landed",
+  );
 
   return (
     <AppFrame>
@@ -236,6 +245,21 @@ export default async function SubmissionPage({ params }: Props) {
           </div>
         </section>
       ) : null}
+
+      {/*
+        The one moment in the product worth interrupting.
+
+        §19.3 calls the first graded submission the activation event and calls
+        everything before it "preamble" — so this is the only screen where a
+        learner has first-hand evidence of the thing no competitor does, and the
+        ask is "more of what you just had" rather than "trust us".
+
+        It appears *after* the verdict and its evidence, never above them:
+        somebody reading their own marked work should finish reading it. And
+        `nudgeAt` returns nothing unless this was their last one, so a learner
+        with allowance left is simply told nothing.
+      */}
+      {nudge ? <UpgradeNudge nudge={nudge} /> : null}
 
       <ButtonLink href="/today" className="w-auto">
         Back to today

@@ -5,14 +5,13 @@ import { recordAgentRun } from "@/lib/ai/runlog";
 import { sessionView } from "@/lib/session/view";
 import {
   logTurn,
-  MAX_TUTOR_TURNS,
   transcriptFor,
   turnsTaken,
   tutorStream,
 } from "@/lib/session/tutor";
 import { noteTurn } from "@/lib/session/signals";
 import { aiAccess, overCapMessage } from "@/lib/billing/gate";
-import { resolvePlanId } from "@/lib/billing/catalog";
+import { PLANS, resolvePlanId } from "@/lib/billing/catalog";
 
 /**
  * §14.9.3 — the tutor, streamed, because a person is watching it type.
@@ -48,18 +47,27 @@ export async function POST(request: Request): Promise<Response> {
   const view = await sessionView(db, auth.user.id, parsed.sessionId, now);
   if (!view) return new Response("No such session.", { status: 404 });
 
+  const planId = resolvePlanId(auth.user.plan);
+  const limit = PLANS[planId].entitlements.tutorTurnsPerSession;
+
   /*
-   * §14.9.7 limit 4 — thirty turns, then a new session.
+   * §14.9.7 limit 4 — the plan's own allowance, then a new session.
    *
    * Not a cost control: the monthly cap below is that. It is §17.2's "DON'T
    * BUILD: a general chatbot — the tutor is scoped to the session", enforced.
    * 409 rather than 403 because nothing is forbidden; the conversation is
    * simply finished.
+   *
+   * The number comes from the plan rather than from `MAX_TUTOR_TURNS`, and the
+   * sentence quotes it. A message that said "thirty" to a learner whose plan
+   * stops at fifteen would contradict itself for exactly the people the limit
+   * is new for — and `plan-copy.ts`'s second rule is that nothing may be
+   * claimed which nothing enforces, which cuts both ways.
    */
   const turns = await turnsTaken(db, view.session.id, auth.user.id);
-  if (turns >= MAX_TUTOR_TURNS) {
+  if (turns >= limit) {
     return new Response(
-      "That is thirty questions on this session — enough for one sitting. Finish the block and the next session starts fresh.",
+      `That is ${limit} questions on this session — enough for one sitting. Finish the block and the next session starts fresh.`,
       { status: 409 },
     );
   }
@@ -76,7 +84,6 @@ export async function POST(request: Request): Promise<Response> {
    * degrades. The lesson on the page is still readable without it, which is
    * what makes refusing honest rather than merely cheaper.
    */
-  const planId = resolvePlanId(auth.user.plan);
   const access = await aiAccess(db, auth.user.id, planId, "standard");
   if (access.blocked) {
     return new Response(overCapMessage(planId), { status: 402 });

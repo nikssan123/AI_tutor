@@ -29,6 +29,7 @@ const entitlementsMock = vi.fn(async () => ({
 }));
 const consumeMock = vi.fn(async () => ({ ok: true, used: 1, limit: 10 }));
 const captureMock = vi.fn();
+const nudgeMock = vi.fn(async (..._a: unknown[]) => undefined as unknown);
 
 const pack = findPack("photography")!;
 
@@ -62,6 +63,13 @@ vi.mock("@/lib/billing/store", () => ({
 }));
 vi.mock("@/lib/billing/quota", () => ({
   consumeEvaluation: (...a: unknown[]) => consumeMock(...(a as [])),
+  evaluationsUsed: async () => 0,
+}));
+// The result screen asks whether that was the learner's last graded project.
+// Nothing here, so the nudge stays silent and these assertions stay about the
+// verdict rather than about billing.
+vi.mock("@/lib/billing/gate", () => ({
+  nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
 }));
 vi.mock("@/lib/observability", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/observability")>()),
@@ -388,5 +396,65 @@ describe("the result screen", () => {
     submissionMock.mockResolvedValue(stored({ projectSlug: "deleted-brief" }));
     render(await SubmissionPage({ params: params() }));
     expect(screen.getByText("Your marked work")).toBeDefined();
+  });
+});
+
+describe("the moment after a verdict lands", () => {
+  it("asks for the upgrade there, and only there", async () => {
+    // §19.3 calls the first graded submission the activation event and calls
+    // everything before it preamble. It is the only screen where the ask is
+    // "more of what you just had" rather than "trust us".
+    nudgeMock.mockResolvedValue({
+      reason: "evaluation_landed",
+      headline: "That was this month's graded project",
+      body: "Pro marks ten a month against the same public rubrics.",
+      cta: "See what Pro includes",
+      href: "/pricing",
+    });
+
+    render(await SubmissionPage({ params: params() }));
+
+    expect(
+      screen.getByRole("heading", { name: "That was this month's graded project" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "See what Pro includes" }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("stays silent when there is allowance left", async () => {
+    // `nudgeAt` returns nothing unless that was their last one, so the screen
+    // needs no opinion of its own about when to sell.
+    nudgeMock.mockResolvedValue(undefined);
+    render(await SubmissionPage({ params: params() }));
+
+    expect(screen.queryByRole("link", { name: /Pro/ })).toBeNull();
+  });
+
+  it("asks after the verdict, never before it", async () => {
+    // Somebody reading their own marked work should finish reading it.
+    nudgeMock.mockResolvedValue({
+      reason: "evaluation_landed",
+      headline: "That was this month's graded project",
+      body: "…",
+      cta: "See what Pro includes",
+      href: "/pricing",
+    });
+
+    const { container } = render(await SubmissionPage({ params: params() }));
+    const text = container.textContent ?? "";
+
+    expect(text.indexOf("the horizon sits on the lower third")).toBeLessThan(
+      text.indexOf("That was this month's graded project"),
+    );
+  });
+
+  it("says nothing on a submission that was never marked", async () => {
+    // Rule 3: never trade on our own failure.
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(stored({ status: "failed" }));
+
+    render(await SubmissionPage({ params: params() }));
+    expect(nudgeMock).not.toHaveBeenCalled();
   });
 });
