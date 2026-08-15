@@ -94,10 +94,12 @@ vi.mock("@/lib/goals/store", () => ({
  * the screen does with the number, not about how it is counted.
  */
 const commissionedMock = vi.fn(async () => 0);
+const finishBuildMock = vi.fn(async (..._a: unknown[]) => undefined);
 vi.mock("@/lib/packs/build", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/packs/build")>()),
   startBuild: (...a: unknown[]) => startBuildMock(...(a as [])),
   findBuild: (...a: unknown[]) => findBuildMock(...(a as [])),
+  finishBuild: (...a: unknown[]) => finishBuildMock(...(a as [])),
   buildsCommissionedBy: () => commissionedMock(),
 }));
 // The wait screen asks whether the pack exists yet; that is the real answer,
@@ -1098,6 +1100,48 @@ describe("turning the conversation into a goal", () => {
     );
     expect(startBuildMock).toHaveBeenCalledOnce();
     expect(sendMock).toHaveBeenCalledOnce();
+  });
+
+  it("releases the claim when the queue cannot be reached", async () => {
+    /*
+     * The bug this exists for, reported from a dev machine with no Inngest
+     * server running: `startBuild` writes the row *before* the dispatch, so a
+     * `fetch failed` left a slug claimed that nobody would ever pick up — the
+     * wait screen polling "writing it now" for fifteen minutes at a subject
+     * that was not being built.
+     *
+     * On a plan with a lifetime quota it is worse than a wedged screen. The
+     * quota counts build rows, so ten seconds of an unreachable queue would
+     * have spent a free account's one custom subject on a build that never
+     * ran, and lifetime means never getting it back.
+     */
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+    sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/start/building?subject=rust-programming",
+    );
+
+    // Marked failed rather than left claimed: that is the state the wait screen
+    // renders with a "Try again" button, and the retry reuses this same slug —
+    // so the row, and therefore the quota, is untouched.
+    expect(finishBuildMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "rust-programming",
+      expect.objectContaining({ status: "failed" }),
+    );
+  });
+
+  it("says what happened rather than throwing a 500 at the learner", async () => {
+    // A server action that throws renders the error overlay in development and
+    // an unexplained failure in production. The learner gets a sentence.
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+    sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    await expect(buildFromConversationAction()).rejects.toThrow("REDIRECT:");
+
+    const detail = finishBuildMock.mock.calls[0]![2] as { detail: string };
+    expect(detail.detail).toMatch(/try again/i);
   });
 
   it("joins a build already running rather than sending a second event", async () => {

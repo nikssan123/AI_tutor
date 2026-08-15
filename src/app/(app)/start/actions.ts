@@ -23,7 +23,11 @@ import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
-import { buildsCommissionedBy, startBuild } from "@/lib/packs/build";
+import {
+  buildsCommissionedBy,
+  finishBuild,
+  startBuild,
+} from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
@@ -70,6 +74,52 @@ async function chosenPack(
 
   const pack = await resolvePack(db, claimed);
   return pack?.slug ?? null;
+}
+
+/**
+ * Hands the claimed build to the worker, and releases the claim if it cannot.
+ *
+ * `startBuild` writes the row *before* this runs, which is deliberate — the
+ * claim is what stops a refresh of the wait screen starting a second build. The
+ * consequence is that a failed dispatch leaves a row nobody will ever pick up:
+ * the wait screen polls a subject that is not being built, and it polls until
+ * `BUILD_TIMEOUT_MINUTES` makes the row stale, showing "writing it now" the
+ * whole time.
+ *
+ * It is worse than a wedged screen on a plan with a lifetime quota. The quota
+ * counts build rows, so a queue that was down for ten seconds would have spent
+ * a free account's one custom subject on a build that never ran — and lifetime
+ * means never getting it back. That is the bug this function exists to prevent.
+ *
+ * So a dispatch failure marks the row `failed` with a truthful reason. The wait
+ * screen already renders that state, with the "Try again" button that reuses
+ * this same slug and therefore the same row: the quota is untouched, the
+ * learner is told what happened, and the recovery is one press. §24 E8's
+ * "queued, retried, and the user is told — never a silent loss", applied to the
+ * step before the queue.
+ *
+ * The most likely cause in development is the Inngest dev server not running
+ * (`pnpm inngest:dev`); in production it is the event API being briefly
+ * unreachable. Both look the same from here and both want the same answer.
+ */
+async function dispatchBuild(
+  db: Db,
+  input: { slug: string; subject: string; userId: string },
+): Promise<boolean> {
+  try {
+    await inngest.send({
+      name: EVENTS.buildPack,
+      data: { slug: input.slug, subject: input.subject, userId: input.userId },
+    });
+    return true;
+  } catch {
+    await finishBuild(db, input.slug, {
+      status: "failed",
+      detail:
+        "We couldn't get this into the queue. Nothing is lost — try again and it will pick up from here.",
+    });
+    return false;
+  }
 }
 
 /**
@@ -296,12 +346,15 @@ export async function buildFromConversationAction(): Promise<void> {
 
     if (started.kind === "rate-limited") redirect("/start?error=busy");
     if (started.kind === "started") {
-      await inngest.send({
-        name: EVENTS.buildPack,
-        data: { slug: match.slug, subject: match.subject, userId },
+      await dispatchBuild(db, {
+        slug: match.slug,
+        subject: match.subject,
+        userId,
       });
     }
 
+    // The wait screen either way: a dispatch that failed has marked the row,
+    // and that screen is where the failure and its retry button live.
     redirect(`/start/building?subject=${encodeURIComponent(match.slug)}`);
   }
 
@@ -391,10 +444,7 @@ export async function requestBuildAction(formData: FormData): Promise<void> {
   if (started.kind === "rate-limited") redirect("/start?error=busy");
 
   if (started.kind === "started") {
-    await inngest.send({
-      name: EVENTS.buildPack,
-      data: { slug, subject, userId },
-    });
+    await dispatchBuild(db, { slug, subject, userId });
   }
 
   redirect(`/start/building?subject=${encodeURIComponent(slug)}`);
