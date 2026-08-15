@@ -134,6 +134,20 @@ describe("the free tier's shape", () => {
     }
   });
 
+  it("lets free change a goal conversation but not throw one away", () => {
+    /*
+     * The free tier's second shape, and the distinction is the whole of it.
+     * Six answers discarded and six questions re-asked is six more model calls
+     * against a budget with one conversation in it — so free does not get that.
+     * What it keeps is every way of correcting what it said, which costs one
+     * turn and is what somebody who mistyped their hours actually needs.
+     */
+    expect(PLANS.free.entitlements.restartIntake).toBe(false);
+    for (const id of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[id].entitlements.restartIntake).toBe(true);
+    }
+  });
+
   it("gives every paid plan the curriculum and no lifetime build quota", () => {
     for (const id of ["trial", "learner", "pro"] as const) {
       expect(PLANS[id].entitlements.aiCurriculum).toBe(true);

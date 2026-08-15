@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb, type Db } from "@/db";
-import { mayBuild, mayUseIntake } from "@/lib/billing/quota";
+import { mayBuild, mayRestartIntake, mayUseIntake } from "@/lib/billing/quota";
 import { getAnthropic } from "@/lib/ai/client";
 import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
@@ -170,6 +170,28 @@ async function requireIntakeOpen(db: Db, userId: string): Promise<void> {
 
 async function requireBuildAllowance(db: Db, userId: string): Promise<void> {
   if (!(await mayBuild(db, userId))) redirect("/start?error=generated");
+}
+
+/**
+ * Refuses to throw away a conversation this account cannot open again.
+ *
+ * Both ways out of a conversation clear it — "Start over", and starting on a
+ * subject they arrived holding — so both come through here rather than each
+ * asking the question its own way. The screens above already hide the offer on
+ * a plan that does not include it; this is the same decision made where it
+ * counts, because a server action is a public endpoint whatever was rendered.
+ *
+ * **The order is deliberate.** The conversation is read first, and an empty one
+ * is let through without the plan ever being consulted: there is nothing to
+ * discard, so nothing to refuse, and a learner arriving from a brief with no
+ * conversation at all must not be turned away from their first one. It also
+ * costs one indexed read rather than an entitlement lookup on the common path.
+ */
+async function requireDiscardable(db: Db, userId: string): Promise<void> {
+  const stored = await loadIntake(db, userId);
+  if (stored.messages.length === 0) return;
+
+  if (!(await mayRestartIntake(db, userId))) redirect("/start?error=restart");
 }
 
 /**
@@ -347,11 +369,54 @@ export async function openAction(): Promise<void> {
   redirect(INTAKE_AT_LATEST);
 }
 
-/** Throws the conversation away and starts again. */
+/**
+ * Throws the conversation away and starts again — on the plans that include it.
+ *
+ * §7.1's free tier keeps one conversation. It stays editable to the last moment
+ * (`reopenAction`), which is what a learner who got something wrong actually
+ * needs; what it does not get is a reroll, because six fresh questions is six
+ * fresh model calls and the free budget has one conversation in it.
+ */
 export async function restartAction(): Promise<void> {
   const userId = await requireUser();
-  await clearIntake(getDb(), userId);
+  const db = getDb();
+
+  await requireDiscardable(db, userId);
+  await clearIntake(db, userId);
   redirect("/start");
+}
+
+/**
+ * Puts a finished conversation back in front of the learner so they can change
+ * an answer.
+ *
+ * The edit that replaces "start over" for everyone it was ever the wrong tool
+ * for. A conversation closes the moment the analyzer has enough, and until now
+ * the only way past a wrong answer was to discard all of them — which is a
+ * strange price for "I said four hours and I meant fourteen", and on a free
+ * account it is a price they cannot pay at all.
+ *
+ * Nothing is lost and nothing is re-asked: the messages, the captured fields and
+ * the committed course all stay exactly as they are, `done` goes back to false,
+ * and the composer returns under the conversation they already had. The next
+ * turn revises what was captured the same way every other turn does, and the
+ * analyzer closes it again — see `shouldFinishNext`, which is already true by
+ * the time a conversation is done, so this buys one corrected turn rather than a
+ * conversation that can be reopened into a second interview.
+ */
+export async function reopenAction(): Promise<void> {
+  const userId = await requireUser();
+  const db = getDb();
+
+  await requireIntakeOpen(db, userId);
+
+  const intake = await loadIntake(db, userId);
+  // Only a finished one. Writing regardless would upsert a row for somebody who
+  // has no conversation at all, which is a stored empty intake where there was
+  // nothing before.
+  if (intake.done) await saveIntake(db, userId, { ...intake, done: false });
+
+  redirect(INTAKE_AT_LATEST);
 }
 
 /**
@@ -376,6 +441,10 @@ export async function startFreshAction(formData: FormData): Promise<void> {
   // Before the intake is cleared. Otherwise a learner who cannot open a new
   // conversation loses the one they had to a refusal.
   await requireIntakeOpen(db, userId);
+  // And before that conversation is replaced by this one. Arriving with a
+  // subject in hand is still a discard when there is something to discard —
+  // this is the same refusal "Start over" gets, reached from the other door.
+  await requireDiscardable(db, userId);
   await clearIntake(db, userId);
 
   // Straight into the conversation rather than back to a Start button: they

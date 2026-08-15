@@ -117,6 +117,26 @@ export interface Entitlements {
    */
   packBuildsLifetime: number | null;
   /**
+   * Whether this account may throw a goal conversation away and open another.
+   *
+   * The free tier's second shape, and it is a different question from
+   * `packBuildsLifetime` even though both bite on the same screen. That one
+   * bounds what a free account can ever cost us; this one bounds how many times
+   * it can spend the *conversation* — six model calls to fill in a form — and
+   * then decide it would rather answer them again.
+   *
+   * **What free keeps is the ability to change its mind, not to start again.**
+   * The conversation is editable to the last moment: another turn revises what
+   * was captured, and a finished one can be reopened to correct an answer. What
+   * it cannot do is discard six answers and re-ask six questions, which is the
+   * only version of "start over" that costs anything.
+   *
+   * That distinction is the whole reason this is a boolean rather than a count.
+   * A count would be a number of rerolls, and a number of rerolls is a thing to
+   * ration; the ability to fix what you said is not.
+   */
+  restartIntake: boolean;
+  /**
    * Whether the deep tier is available at all, independent of spend.
    *
    * `false` degrades Opus to Sonnet on every call, which is the same lever
@@ -233,6 +253,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       aiCurriculum: false,
       lessonsPerCourse: 1,
       packBuildsLifetime: 1,
+      restartIntake: false,
       premiumModels: false,
     },
     spendCapCents: 120,
@@ -247,6 +268,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       aiCurriculum: true,
       lessonsPerCourse: null,
       packBuildsLifetime: null,
+      restartIntake: true,
       premiumModels: true,
     },
     spendCapCents: 450,
@@ -261,6 +283,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       aiCurriculum: true,
       lessonsPerCourse: null,
       packBuildsLifetime: null,
+      restartIntake: true,
       premiumModels: false,
     },
     spendCapCents: 600,
@@ -275,6 +298,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       aiCurriculum: true,
       lessonsPerCourse: null,
       packBuildsLifetime: null,
+      restartIntake: true,
       premiumModels: true,
     },
     spendCapCents: 1_500,

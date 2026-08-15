@@ -136,13 +136,20 @@ export interface BuildAllowance {
   remaining: number;
 }
 
-export async function buildAllowanceFor(
+/**
+ * The counting half, split from the entitlement lookup that precedes it.
+ *
+ * Only so that a caller wanting *two* facts about a plan can resolve the
+ * entitlements once and still get this — see `intakeAccessFor`, which exists
+ * because §8 screen 3 re-renders on every turn of a conversation and a second
+ * subscription lookup per render is a second lookup for an answer that has not
+ * changed.
+ */
+async function allowanceFrom(
   db: Db,
   userId: string,
-  plan?: PlanId,
+  quota: number | null,
 ): Promise<BuildAllowance> {
-  const { entitlements } = await entitlementsForUser(db, userId, plan);
-  const quota = entitlements.packBuildsLifetime;
   const used = await buildsCommissionedBy(db, userId);
 
   return {
@@ -150,6 +157,16 @@ export async function buildAllowanceFor(
     used,
     remaining: quota === null ? Infinity : Math.max(0, quota - used),
   };
+}
+
+export async function buildAllowanceFor(
+  db: Db,
+  userId: string,
+  plan?: PlanId,
+): Promise<BuildAllowance> {
+  const { entitlements } = await entitlementsForUser(db, userId, plan);
+
+  return allowanceFrom(db, userId, entitlements.packBuildsLifetime);
 }
 
 /**
@@ -203,4 +220,69 @@ export async function mayUseIntake(
   plan?: PlanId,
 ): Promise<boolean> {
   return (await buildAllowanceFor(db, userId, plan)).remaining > 0;
+}
+
+/**
+ * Whether this learner may throw a goal conversation away and open another.
+ *
+ * The other half of `mayUseIntake`, and the two answer different questions on
+ * the same screen: that one is whether the conversation is open at all, this is
+ * whether the one they have can be replaced. A free account gets one, and gets
+ * to keep changing it — `reopenAction` puts a finished conversation back in
+ * front of them, and every turn revises what was captured — but not to discard
+ * six answers and spend six more model calls re-asking the same questions.
+ *
+ * Read from the plan rather than from a count, so it costs no extra round trip
+ * beyond the entitlement lookup the screen was already making: there is nothing
+ * to meter here, only a plan that allows it or does not.
+ *
+ * **It is asked of a conversation that exists.** Refusing somebody with nothing
+ * stored would be refusing them their first conversation rather than their
+ * second, which is why both callers check for one before asking — see
+ * `requireDiscardable` in the intake's actions.
+ */
+export async function mayRestartIntake(
+  db: Db,
+  userId: string,
+  plan?: PlanId,
+): Promise<boolean> {
+  const { entitlements } = await entitlementsForUser(db, userId, plan);
+  return entitlements.restartIntake;
+}
+
+/**
+ * Everything §8 screen 3 needs to know about the plan, in one lookup.
+ *
+ * The two questions above, asked together because the screen has to ask both
+ * and asking them separately costs two subscription lookups on a screen that
+ * re-renders on every turn of a conversation. The actions still use the single
+ * forms: each of them asks one question, once, on a request that is not a
+ * render.
+ */
+export interface IntakeAccess {
+  /** Whether the conversation is open to them at all — `mayUseIntake`. */
+  open: boolean;
+  /**
+   * Whether a conversation they already have may be thrown away —
+   * `mayRestartIntake`. Says nothing about whether there is one to throw.
+   */
+  mayRestart: boolean;
+}
+
+export async function intakeAccessFor(
+  db: Db,
+  userId: string,
+  plan?: PlanId,
+): Promise<IntakeAccess> {
+  const { entitlements } = await entitlementsForUser(db, userId, plan);
+  const allowance = await allowanceFrom(
+    db,
+    userId,
+    entitlements.packBuildsLifetime,
+  );
+
+  return {
+    open: allowance.remaining > 0,
+    mayRestart: entitlements.restartIntake,
+  };
 }

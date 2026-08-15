@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { replyPart, turnFailed } from "@/lib/goals/intake-protocol";
+import { turnFailed } from "@/lib/goals/intake-protocol";
 import { Button, cx, Meta, Status } from "@/components/ui";
 import { ANALYZER_BUBBLE, LEARNER_BUBBLE } from "./bubbles";
 
@@ -34,18 +34,21 @@ import { ANALYZER_BUBBLE, LEARNER_BUBBLE } from "./bubbles";
  * How far along the turn is — and the whole reason this is three values rather
  * than a boolean.
  *
- * `reply` is the first field in the analyzer's tool schema, so it lands well
- * before the turn is over: `captured`, `chips`, `clarity` and `done` are still
- * being written after the sentence is complete on screen, and then the turn has
- * to be stored and the page re-rendered before there is a new question to
- * answer. For those several seconds the screen showed a finished-looking
- * question above a box that silently refused to take a word — reported as the
- * site being laggy, which is the right reading of a control that neither works
- * nor says why.
+ * Nothing of the answer is on screen for either of them, which is the point.
+ * The reply used to be painted a word at a time as it streamed, and `reply` is
+ * the first field in the analyzer's tool schema — so the question was finished
+ * on screen while `captured`, `chips`, `clarity` and `done` were still being
+ * written, and then the turn still had to be stored and the page re-rendered.
+ * For those several seconds the screen showed a complete-looking question above
+ * a box that silently refused to take a word. Reported as the site being laggy,
+ * which is the right reading of a control that neither works nor says why.
  *
- * So the wait is named instead of hidden. `asking` is the model still writing;
- * `settling` starts when the stream closes and the page is catching up. Both
- * lock the controls, and both say so.
+ * The question and the box now arrive together, in the one render that swaps
+ * this echo for the stored turn — so there is no window left in which the
+ * screen looks ready and is not. What is left to do is name the wait rather
+ * than hide it: `asking` is the model still writing, `settling` starts when the
+ * response is complete and the page is catching up. Both lock the controls,
+ * both say so, and the sentence changing is what shows the wait is moving.
  */
 type Phase = "idle" | "asking" | "settling";
 
@@ -81,31 +84,41 @@ export function Composer({
   asked: number;
   maxTurns: number;
   reply: (formData: FormData) => Promise<void>;
-  restart: () => Promise<void>;
+  /**
+   * Absent on a plan that keeps one conversation, and absent means no link.
+   *
+   * A boolean beside a mandatory action would leave the action wired to a
+   * button nobody can see, which is the arrangement that makes a UI check look
+   * like a rule. Here there is nothing to press because there is nothing to
+   * press it with — and `restartAction` refuses the POST anyway.
+   */
+  restart?: () => Promise<void>;
 }) {
   const router = useRouter();
 
   /** What they just said, held only until the server sends back the real turn. */
   const [said, setSaid] = React.useState<string | null>(null);
-  /** The reply so far, as it is typed. Empty until the first fragment lands. */
-  const [arriving, setArriving] = React.useState("");
   /** Set only when the request never reached the server at all. */
   const [failed, setFailed] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const sending = said !== null;
 
   /**
-   * Sends the turn and reads the reply as it is written.
+   * Sends the turn and waits out the whole of it.
    *
    * The form underneath still posts to `replyAction` when this does not run —
-   * scripting off, or the fetch failing outright. What this adds is that the
-   * answer appears a word at a time instead of after the whole call, which on
-   * this screen is the difference between a few seconds of writing and a few
-   * seconds of nothing.
+   * scripting off, or the fetch failing outright. What this adds is the echo,
+   * the waiting indicator, and controls that stop taking a second answer to a
+   * question already on its way.
+   *
+   * What it deliberately no longer adds is the reply as it is written. The
+   * response still streams, and reading it to the end is still what keeps the
+   * connection busy for the seconds the model takes — but not a word of it is
+   * shown, because showing it put a finished question on screen above a box
+   * that could not open yet. See `Phase`.
    */
   async function send(message: string) {
     setSaid(message);
-    setArriving("");
     setPhase("asking");
 
     let response: Response;
@@ -125,30 +138,21 @@ export function Composer({
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    // To the end of the stream, in one piece. Only the tail is read — how the
+    // turn ended — and the sentence in front of it is the server's to render on
+    // the refresh below, where it lands at the same moment the box reopens.
+    const body = await response.text();
 
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // Everything before the separator is the reply; what follows is how the
-      // turn ended, and is for the navigation below rather than the screen.
-      setArriving(replyPart(buffer));
-    }
-
-    // The stream is closed, so the model has stopped writing and the turn is
-    // stored — but the new question is not on screen until the page has been
-    // re-rendered, and the controls stay locked until it is. A different wait
-    // with a different sentence, rather than the same silence continuing.
+    // The model has stopped writing and the turn is stored, but the new
+    // question is not on screen until the page has been re-rendered, and the
+    // controls stay locked until it is. A different wait with a different
+    // sentence, rather than the same silence continuing.
     setPhase("settling");
 
     // The server is the record either way: refreshing swaps this echo for the
     // stored turn, and `page.tsx` keys this component by the message count, so
     // the swap also clears everything above.
-    if (turnFailed(buffer)) router.push("/start?error=analyzer");
+    if (turnFailed(body)) router.push("/start?error=analyzer");
     else router.refresh();
   }
 
@@ -173,6 +177,13 @@ export function Composer({
        * server-rendered turn will appear. Outside the <ol> deliberately: it is
        * not part of the record until the server says so, and a live region is
        * what tells a screen reader the send actually happened.
+       *
+       * The analyzer's half stays dots for the whole wait. It held the reply as
+       * it streamed, which meant the question was sitting there complete while
+       * the box under it was still shut — the screen said "answer me" and then
+       * refused the answer. Both halves land together now: this whole block
+       * disappears in the same render that puts the real question above and
+       * reopens the box below.
        */}
       {sending ? (
         <div
@@ -183,28 +194,10 @@ export function Composer({
             <span className="sr-only">You said: </span>
             {said}
           </div>
-          {/* Dots only until the first fragment lands — after that the reply
-              writes itself into the same bubble it will end up in. */}
-          {arriving === "" ? (
-            <div className={cx(ANALYZER_BUBBLE, "flex items-center gap-1.5")}>
-              <span className="sr-only">Thinking…</span>
-              <Dots />
-            </div>
-          ) : (
-            <div className={ANALYZER_BUBBLE}>
-              {arriving}
-              {/* Kept alongside the sentence while the model is still writing.
-                  The question is readable seconds before the turn is finished,
-                  and a complete-looking question with no sign of anything left
-                  to come is what made the locked box below read as a fault. */}
-              {phase === "asking" ? (
-                <>
-                  {" "}
-                  <Dots />
-                </>
-              ) : null}
-            </div>
-          )}
+          <div className={cx(ANALYZER_BUBBLE, "flex items-center gap-1.5")}>
+            <span className="sr-only">Thinking…</span>
+            <Dots />
+          </div>
         </div>
       ) : null}
 
@@ -316,15 +309,17 @@ export function Composer({
         {/* Inside the bar rather than after it. A sibling below a sticky
             element gets overlapped by it on the way down, which would leave
             this as a half-covered link. */}
-        <form action={restart} className="self-end">
-          <button
-            type="submit"
-            disabled={sending}
-            className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink disabled:opacity-50 disabled:pointer-events-none"
-          >
-            Start over
-          </button>
-        </form>
+        {restart ? (
+          <form action={restart} className="self-end">
+            <button
+              type="submit"
+              disabled={sending}
+              className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Start over
+            </button>
+          </form>
+        ) : null}
       </div>
     </>
   );

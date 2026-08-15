@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
-import { mayUseIntake } from "@/lib/billing/quota";
+import { intakeAccessFor } from "@/lib/billing/quota";
 import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
 import {
   displayDeadline,
@@ -39,6 +39,7 @@ import { AppFrame, AppHeader } from "@/components/app-shell";
 import {
   buildFromConversationAction,
   openAction,
+  reopenAction,
   replyAction,
   restartAction,
   startFreshAction,
@@ -115,6 +116,25 @@ const ERRORS: Record<string, React.ReactNode> = {
       .
     </>
   ),
+  /*
+   * A discard this plan does not include, refused at the door.
+   *
+   * Nobody should reach it from a screen — the offer is not rendered on a plan
+   * that keeps one conversation — so this is what a direct POST is told, and it
+   * says the thing that matters most: your answers are still here, and they are
+   * still yours to change.
+   */
+  restart: (
+    <>
+      Your plan comes with one goal conversation, so this one stays — but
+      nothing in it is settled. Change any answer and we&rsquo;ll take the new
+      one.{" "}
+      <Link href="/pricing" className="underline underline-offset-4">
+        See which plans start another
+      </Link>
+      .
+    </>
+  ),
 };
 
 /**
@@ -162,6 +182,56 @@ function IntakeClosed() {
         </ButtonLink>
       </Card>
     </AppFrame>
+  );
+}
+
+/**
+ * What a learner is shown when they arrive asking for one subject, already have
+ * a conversation about another, and are on the plan that keeps one.
+ *
+ * The same card serves both doors — a typed subject and a project brief —
+ * because from here they are the same event: something new was asked for, and
+ * saying yes to it means the stored answers go. On a plan that includes that,
+ * the screens offer it; on the plan that does not, this is the honest version.
+ *
+ * Two ways onward, and the first is the one that will actually help most people
+ * standing here. A conversation that is still going is still theirs to change:
+ * carrying on and saying they meant something else is a thing the analyzer
+ * handles on the next turn, and it costs nothing. The pricing link is second
+ * because it is the answer to the smaller question — "and if I really do want a
+ * clean start?"
+ */
+function OneConversation({
+  held,
+  wanted,
+}: {
+  held: string | null;
+  wanted: string;
+}) {
+  return (
+    <Card className="flex flex-col items-start gap-4">
+      <Title>You already have a conversation going</Title>
+      <Meta>
+        {held ? `It’s about ${held}.` : "It’s about something else."} Your plan
+        comes with one, and starting on {wanted} would mean throwing those
+        answers away.
+      </Meta>
+      <Meta tone="muted">
+        Nothing you told us is settled, though — carry on and change any answer
+        you gave.
+      </Meta>
+      <div className="flex flex-wrap items-center gap-5">
+        <ButtonLink href="/start">
+          {held ? `Carry on with ${held}` : "Carry on where I was"}
+        </ButtonLink>
+        <Link
+          href="/pricing"
+          className="text-[length:var(--text-label-size)] text-ink-muted underline underline-offset-4 hover:text-ink"
+        >
+          See which plans start another
+        </Link>
+      </div>
+    </Card>
   );
 }
 
@@ -236,7 +306,8 @@ export default async function StartPage({ searchParams }: Props) {
    * would let a subject that cannot be built be re-commissioned indefinitely at
    * our expense.
    */
-  if (!(await mayUseIntake(getDb(), session.user.id))) {
+  const access = await intakeAccessFor(getDb(), session.user.id);
+  if (!access.open) {
     return <IntakeClosed />;
   }
 
@@ -270,6 +341,18 @@ export default async function StartPage({ searchParams }: Props) {
 
   /** The subject of the conversation already in progress, if there is one. */
   const heldSubject = captured?.subject ?? null;
+
+  /*
+   * Whether any of this screen's offers that end in `clearIntake` may be made:
+   * "Start over" in the composer, "Start over" under a finished conversation,
+   * and starting on a subject or a brief they arrived holding.
+   *
+   * `started` is half the question and it is the half that is not about money.
+   * A learner with nothing stored is not being offered a second conversation,
+   * they are being offered their first — which is open to everybody, so their
+   * plan never comes into it and the screens below must not consult it.
+   */
+  const mayRestart = started && access.mayRestart;
 
   /*
    * No "can you build this" check on this screen at all, and its absence is
@@ -330,40 +413,60 @@ export default async function StartPage({ searchParams }: Props) {
           <Status tone="problem">{ERRORS[error] ?? ERRORS.subject}</Status>
         ) : null}
 
-        <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>
-          <Title>What we still need</Title>
-          <Meta>
-            No more than {MAX_TURNS} questions, and you can skip any of them.
-            The subject is settled — you chose it. What we ask about is you:
-            what you want to do with {brief.topicName}, where you are starting
-            from, and how many hours a week you actually have.
-          </Meta>
-          {/* Through `startFreshAction`, which clears any held conversation and
-              then posts this as the opening line. Both halves matter: without
-              the clear the analyzer answers the old chat, and without the reply
-              the brief is not in the conversation at all. */}
-          <form action={startFreshAction}>
-            <input
-              type="hidden"
-              name="reply"
-              value={projectStartSeed(brief.title, brief.topicName)}
-            />
-            {/* So a failed opening turn comes back here rather than to a bare
-                intake. The action cannot recover the brief from the reply — by
-                then it is prose — and this is the only place that still has the
-                slug. */}
-            <input type="hidden" name="project" value={brief.slug} />
-            {/* The course itself, so the conversation is bound to it from the
-                first turn instead of having to recognise it back out of that
-                sentence at the end. */}
-            <input type="hidden" name={PACK_FIELD} value={brief.topicSlug} />
-            <Button type="submit">
-              Start the {brief.topicName} course
-            </Button>
-          </form>
-        </Card>
+        {/*
+         * The brief is still described above — the course, what it is marked
+         * against, how you get there — because a reader who has just read a
+         * rubric end to end should not be handed a wall where the page they
+         * asked for was. What they cannot do is take it *now*, and the reason
+         * is the conversation they already have rather than anything about this
+         * course.
+         */}
+        {started && !mayRestart ? (
+          <OneConversation
+            held={heldSubject}
+            wanted={`the ${brief.topicName} course`}
+          />
+        ) : (
+          <Card
+            className="rise flex flex-col items-start gap-5"
+            style={stagger(1)}
+          >
+            <Title>What we still need</Title>
+            <Meta>
+              No more than {MAX_TURNS} questions, and you can skip any of them.
+              The subject is settled — you chose it. What we ask about is you:
+              what you want to do with {brief.topicName}, where you are
+              starting from, and how many hours a week you actually have.
+            </Meta>
+            {/* Through `startFreshAction`, which clears any held conversation
+                and then posts this as the opening line. Both halves matter:
+                without the clear the analyzer answers the old chat, and without
+                the reply the brief is not in the conversation at all. */}
+            <form action={startFreshAction}>
+              <input
+                type="hidden"
+                name="reply"
+                value={projectStartSeed(brief.title, brief.topicName)}
+              />
+              {/* So a failed opening turn comes back here rather than to a bare
+                  intake. The action cannot recover the brief from the reply —
+                  by then it is prose — and this is the only place that still
+                  has the slug. */}
+              <input type="hidden" name="project" value={brief.slug} />
+              {/* The course itself, so the conversation is bound to it from the
+                  first turn instead of having to recognise it back out of that
+                  sentence at the end. */}
+              <input type="hidden" name={PACK_FIELD} value={brief.topicSlug} />
+              <Button type="submit">
+                Start the {brief.topicName} course
+              </Button>
+            </form>
+          </Card>
+        )}
 
-        {started ? (
+        {/* Only next to the offer it qualifies. The card above already says all
+            of this when the offer is not there to make. */}
+        {started && mayRestart ? (
           <Meta tone="muted">
             {heldSubject
               ? `You still have a conversation going about ${heldSubject}.`
@@ -470,7 +573,9 @@ export default async function StartPage({ searchParams }: Props) {
             </Card>
           ) : (
             <>
-              {collides ? (
+              {!collides ? null : !mayRestart ? (
+                <OneConversation held={heldSubject} wanted={`“${seed}”`} />
+              ) : (
                 <Card className="flex flex-col items-start gap-4">
                   <Title>Start on &ldquo;{seed}&rdquo;?</Title>
                   <Meta>
@@ -498,7 +603,7 @@ export default async function StartPage({ searchParams }: Props) {
                     </Link>
                   </div>
                 </Card>
-              ) : null}
+              )}
 
               <ol className="flex list-none flex-col gap-4 p-0 m-0">
                 {intake.messages.map((message, i) => (
@@ -544,6 +649,14 @@ export default async function StartPage({ searchParams }: Props) {
                  * is the thing they asked for; suggesting they pick a different
                  * one to get past a price is the sort of nudge §7.2 exists to
                  * keep out of this product.
+                 *
+                 * Under it, the two things that are still true of a finished
+                 * conversation. Changing an answer is offered to everybody and
+                 * is the one most people standing here want — a conversation
+                 * closes as soon as the analyzer has enough, which is often one
+                 * sentence after the thing you wish you had said differently.
+                 * Throwing the whole conversation away is the other, and it is
+                 * only on the plans that include it.
                  */
                 <div className="flex flex-col items-start gap-4">
                   <Signal
@@ -586,14 +699,26 @@ export default async function StartPage({ searchParams }: Props) {
                       first, and what to skip because you can already do it.
                     </Lead>
                   </Signal>
-                  <form action={restartAction}>
-                    <button
-                      type="submit"
-                      className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink"
-                    >
-                      Start over
-                    </button>
-                  </form>
+                  <div className="flex flex-wrap items-center gap-5">
+                    <form action={reopenAction}>
+                      <button
+                        type="submit"
+                        className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink"
+                      >
+                        Change an answer
+                      </button>
+                    </form>
+                    {mayRestart ? (
+                      <form action={restartAction}>
+                        <button
+                          type="submit"
+                          className="text-[length:var(--text-meta-size)] text-ink-faint underline underline-offset-4 hover:text-ink"
+                        >
+                          Start over
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 /*
@@ -615,7 +740,7 @@ export default async function StartPage({ searchParams }: Props) {
                   asked={asked}
                   maxTurns={MAX_TURNS}
                   reply={replyAction}
-                  restart={restartAction}
+                  restart={mayRestart ? restartAction : undefined}
                 />
               )}
             </>

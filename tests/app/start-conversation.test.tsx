@@ -63,10 +63,34 @@ const freshEntitlements = () => ({
     aiCurriculum: true,
     lessonsPerCourse: null as number | null,
     packBuildsLifetime: null as number | null,
+    restartIntake: true,
     premiumModels: true,
   },
   spendCapCents: 1_500,
   source: "plan",
+});
+/**
+ * Free, whose two limits both land on this screen.
+ *
+ * One custom subject, ever — which closes the conversation once it is spent —
+ * and one conversation, which is editable to the last moment and never thrown
+ * away to be re-asked. Written once because three tests below set the same
+ * plan for different reasons, and a fourth entitlement added to the catalog
+ * should not have to be remembered in three places.
+ */
+const freeEntitlements = () => ({
+  ...freshEntitlements(),
+  planId: "free",
+  entitlements: {
+    evaluationsPerMonth: 1,
+    sessionsPerMonth: 1,
+    aiCurriculum: false,
+    lessonsPerCourse: 1 as number | null,
+    packBuildsLifetime: 1 as number | null,
+    restartIntake: false,
+    premiumModels: false,
+  },
+  spendCapCents: 120,
 });
 const entitlementsMock = vi.fn(async (..._a: unknown[]) => freshEntitlements());
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
@@ -134,6 +158,7 @@ const { default: BuildingPage } = await import(
 const {
   buildFromConversationAction,
   openAction,
+  reopenAction,
   replyAction,
   restartAction,
   startFreshAction,
@@ -820,19 +845,7 @@ describe("the screen", () => {
 
   /** Free, with its one lifetime build already spent — the refusing state. */
   const onFreePlan = () =>
-    entitlementsMock.mockResolvedValue({
-      ...freshEntitlements(),
-      planId: "free",
-      entitlements: {
-        evaluationsPerMonth: 1,
-        sessionsPerMonth: 1,
-        aiCurriculum: false,
-        lessonsPerCourse: 1,
-        packBuildsLifetime: 1,
-        premiumModels: false,
-      },
-      spendCapCents: 120,
-    });
+    entitlementsMock.mockResolvedValue(freeEntitlements());
 
   /*
    * Said before the button, not after it.
@@ -1640,19 +1653,7 @@ describe("the closed door", () => {
    * these spend a model call before they produce anything a learner sees.
    */
   const spent = () => {
-    entitlementsMock.mockResolvedValue({
-      ...freshEntitlements(),
-      planId: "free",
-      entitlements: {
-        evaluationsPerMonth: 1,
-        sessionsPerMonth: 1,
-        aiCurriculum: false,
-        lessonsPerCourse: 1,
-        packBuildsLifetime: 1,
-        premiumModels: false,
-      },
-      spendCapCents: 120,
-    });
+    entitlementsMock.mockResolvedValue(freeEntitlements());
     commissionedMock.mockResolvedValue(1);
   };
 
@@ -1780,19 +1781,7 @@ describe("a free account may commission one pack, ever", () => {
   /** Free with its one build already spent — the only state that refuses. */
   const onFree = () => {
     commissionedMock.mockResolvedValue(1);
-    entitlementsMock.mockResolvedValue({
-      ...freshEntitlements(),
-      planId: "free",
-      entitlements: {
-        evaluationsPerMonth: 1,
-        sessionsPerMonth: 1,
-        aiCurriculum: false,
-        lessonsPerCourse: 1,
-        packBuildsLifetime: 1,
-        premiumModels: false,
-      },
-      spendCapCents: 120,
-    });
+    entitlementsMock.mockResolvedValue(freeEntitlements());
   };
 
   it("refuses a free learner before the slug is claimed", async () => {
@@ -1850,5 +1839,210 @@ describe("a free account may commission one pack, ever", () => {
       "REDIRECT:/start?error=generated",
     );
     expect(startBuildMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * §7.1's free tier keeps the conversation it has, and keeps it editable.
+ *
+ * "Start over" was offered to everybody, in two places, and on the free tier it
+ * was the one control that could quietly cost the catalogue money for nothing:
+ * six answers thrown away and six questions re-asked is six more model calls
+ * against a budget that has one conversation in it. So the discard is a paid
+ * thing, and both doors to it are shut — the link in the composer and the offer
+ * to start on a subject they arrived holding.
+ *
+ * **What replaces it is not a wall, and that is the part worth holding.** A
+ * conversation closes the moment the analyzer has enough, which is often one
+ * sentence after the answer somebody wishes they had given differently — so
+ * "Change an answer" reopens it with everything still in it. Nobody on any plan
+ * has to spend their one custom subject on a conversation they could not
+ * correct.
+ */
+describe("a free account keeps the conversation it has", () => {
+  const BRIEF = {
+    slug: "sales-dashboard",
+    title: "Sales dashboard",
+    topicSlug: "sql-data-analysis",
+    topicName: "SQL & Data Analysis",
+  };
+
+  /** A conversation in progress, about something other than what they typed. */
+  const holding = (subject: string | null = "Japanese") => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese before?" }],
+      captured: captured({ subject }),
+    };
+  };
+
+  /** The same, finished — the state that used to offer only "Start over". */
+  const closed = () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured(),
+      done: true,
+    };
+  };
+
+  beforeEach(() => {
+    entitlementsMock.mockResolvedValue(freeEntitlements());
+  });
+
+  it("draws no way to throw a conversation away while it is going", async () => {
+    holding();
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    // The conversation itself is untouched — this takes nothing away from
+    // somebody halfway through answering.
+    expect(screen.getByLabelText("Your answer")).toBeDefined();
+  });
+
+  it("offers to change an answer once the conversation has closed", async () => {
+    closed();
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Change an answer" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    // And the thing they came for is still the loudest thing on the screen.
+    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
+  });
+
+  it("keeps both offers on a plan that includes starting over", async () => {
+    entitlementsMock.mockResolvedValue(freshEntitlements());
+    closed();
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Change an answer" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Start over" })).toBeDefined();
+  });
+
+  it("will not swap the conversation for a subject they arrived with", async () => {
+    // The other door, and the one that made gating the link alone theatre: a
+    // search on `/learn` and one click was a full reroll.
+    holding();
+    render(await StartPage({ searchParams: search({ topic: "javascript" }) }));
+
+    expect(screen.getByText(/already have a conversation going/)).toBeDefined();
+    expect(screen.queryByText(/Start on “javascript”\?/)).toBeNull();
+    // Both ways onward are real: carry on with what they have, or read what a
+    // paid plan does differently.
+    expect(
+      screen.getByRole("link", { name: /Carry on with Japanese/ }).getAttribute("href"),
+    ).toBe("/start");
+    expect(
+      screen.getByRole("link", { name: /which plans start another/ }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("says something useful when the held conversation has no subject yet", async () => {
+    holding(null);
+    render(await StartPage({ searchParams: search({ topic: "javascript" }) }));
+
+    expect(screen.getByText(/It’s about something else/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /Carry on where I was/ })).toBeDefined();
+  });
+
+  it("says the same thing when they arrive from a graded brief", async () => {
+    holding();
+    findProjectMock.mockReturnValue(BRIEF);
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+
+    // The course is still described above — a reader who has just finished a
+    // rubric should not find the page they asked for replaced by a price.
+    expect(screen.getByText(/Start the SQL & Data Analysis course/)).toBeDefined();
+    expect(screen.getByText(/already have a conversation going/)).toBeDefined();
+    expect(
+      screen.queryByRole("button", { name: /Start the SQL & Data Analysis course/ }),
+    ).toBeNull();
+  });
+
+  it("still opens a first conversation from a brief when none is held", async () => {
+    // The line the whole rule turns on. Nothing is being discarded here, so
+    // nothing is being refused: this is their conversation, not their second.
+    findProjectMock.mockReturnValue(BRIEF);
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+
+    expect(
+      screen.getByRole("button", { name: /Start the SQL & Data Analysis course/ }),
+    ).toBeDefined();
+    expect(screen.queryByText(/already have a conversation going/)).toBeNull();
+  });
+
+  it("explains a refused discard that arrived as a bare POST", async () => {
+    render(await StartPage({ searchParams: search({ error: "restart" }) }));
+    expect(screen.getByText(/one goal conversation/)).toBeDefined();
+  });
+
+  it("refuses to throw the conversation away", async () => {
+    // The screen is not the check: a server action is a public endpoint
+    // whatever was rendered around it.
+    holding();
+    await expect(restartAction()).rejects.toThrow("REDIRECT:/start?error=restart");
+    expect(clearIntakeMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to replace it with a subject they arrived holding", async () => {
+    holding();
+    await expect(
+      startFreshAction(form({ reply: "javascript" })),
+    ).rejects.toThrow("REDIRECT:/start?error=restart");
+
+    expect(clearIntakeMock).not.toHaveBeenCalled();
+    // Refused before the model, which is the point of refusing at all.
+    expect(runAnalyzerMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the same learner start one when they have none", async () => {
+    await expect(
+      startFreshAction(form({ reply: "javascript" })),
+    ).rejects.toThrow("REDIRECT:/start#latest");
+    expect(runAnalyzerMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("changing an answer after the conversation has closed", () => {
+  it("puts the conversation back in front of them, whole", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [
+        { r: "a", t: "How many hours a week?" },
+        { r: "l", t: "four" },
+      ],
+      captured: captured(),
+      clarity: 0.9,
+      packSlug: "photography",
+      done: true,
+    };
+
+    await expect(reopenAction()).rejects.toThrow("REDIRECT:/start#latest");
+
+    const saved = saveIntakeMock.mock.calls[0]![2];
+    expect(saved.done).toBe(false);
+    // Nothing re-asked and nothing forgotten: the same messages, the same
+    // captured fields, and the course they chose on the way in.
+    expect(saved.messages).toHaveLength(2);
+    expect(saved.captured).toEqual(intake.captured);
+    expect(saved.packSlug).toBe("photography");
+  });
+
+  it("writes nothing for a conversation that is still open", async () => {
+    // Including the one that does not exist. Saving regardless would store an
+    // empty intake for somebody who has never answered anything.
+    await expect(reopenAction()).rejects.toThrow("REDIRECT:/start#latest");
+    expect(saveIntakeMock).not.toHaveBeenCalled();
+  });
+
+  it("is closed to an account whose custom subject is spent", async () => {
+    // The same door every other turn goes through: a conversation that can
+    // never produce anything is not reopened to produce it.
+    entitlementsMock.mockResolvedValue(freeEntitlements());
+    commissionedMock.mockResolvedValue(1);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    await expect(reopenAction()).rejects.toThrow("REDIRECT:/start?error=generated");
+    expect(saveIntakeMock).not.toHaveBeenCalled();
   });
 });

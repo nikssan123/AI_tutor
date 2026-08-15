@@ -12,13 +12,18 @@ import { OUTCOME_SEPARATOR } from "@/lib/goals/intake-protocol";
 /**
  * The answer box, and everything that happens in the seconds after you use it.
  *
- * Two problems live here. A turn calls a model, so it takes seconds — with no
- * feedback the screen read as frozen, which is how a chip got tapped three
- * times and three turns were recorded. And an answer that arrives all at once
- * after that wait still reads as a stall, so it arrives as it is written.
+ * A turn calls a model, so it takes seconds — with no feedback the screen read
+ * as frozen, which is how a chip got tapped three times and three turns were
+ * recorded. So the send is echoed and the wait is named.
  *
- * The property that has to survive both: these are still real forms pointed at
- * the same Server Actions, so the screen works with scripting off.
+ * What the wait must not do is end in two places. The reply used to be painted
+ * as it streamed, which put a finished question on screen while the box under
+ * it was still locked — the screen asked and then refused to be answered. The
+ * question and the box now arrive in the same render, and the tests below hold
+ * that line: nothing of the answer is shown until the page has caught up.
+ *
+ * The property that has to survive all of it: these are still real forms
+ * pointed at the same Server Actions, so the screen works with scripting off.
  */
 const push = vi.fn();
 const refresh = vi.fn();
@@ -57,9 +62,10 @@ function answers(...chunks: string[]) {
 /**
  * A response fed by hand, so a turn can be held open in the middle.
  *
- * The seconds this component exists for are the ones between "the question is
- * readable" and "the turn is finished", and `streaming` closes too fast to see
- * them: it enqueues everything and closes before React has rendered once.
+ * The seconds this component exists for are the ones between "the model has
+ * written the question" and "the turn is stored and rendered", and `streaming`
+ * closes too fast to see them: it enqueues everything and closes before React
+ * has rendered once.
  */
 function held() {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -89,6 +95,13 @@ function draw(chips: string[] = ["1-2 hrs", "3-5 hrs"]) {
       reply={reply}
       restart={restart}
     />,
+  );
+}
+
+/** The same bar on a plan that keeps one conversation — no way to discard it. */
+function drawWithoutRestart() {
+  return render(
+    <Composer chips={[]} asked={2} maxTurns={6} reply={reply} />,
   );
 }
 
@@ -130,27 +143,50 @@ describe("Composer", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it("writes the reply out as it arrives, not once at the end", async () => {
-    answers("Got it — ", "starting from scratch.", `${OUTCOME_SEPARATOR}ok`);
+  /**
+   * The reported bug, and the whole reason the preview went.
+   *
+   * `reply` is the first field in the analyzer's tool schema, so it finishes
+   * streaming while `captured`, `chips` and `done` are still being written —
+   * and then the turn still has to be stored and the page re-rendered. Painting
+   * it as it arrived meant a complete question sat on screen for those seconds
+   * above a box that took nothing: the screen asked, then refused the answer.
+   */
+  it("shows nothing of the answer while the box is still shut", async () => {
+    const stream = held();
     draw();
     fireEvent.change(box(), { target: { value: "beginner" } });
     submit();
 
-    await waitFor(() =>
-      expect(screen.getByText("Got it — starting from scratch.")).toBeDefined(),
-    );
-    // The dots are for the wait before the first word, and give way to it.
-    expect(screen.queryByText("Thinking…")).toBeNull();
+    stream.write("How much time do you have?");
+    // A tick, so anything that was going to draw that fragment has had its
+    // chance to. Nothing is: the sentence is the server's to render.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText("How much time do you have?")).toBeNull();
+    // Still the thinking indicator, and the box still says why it is shut.
+    expect(screen.getByText("Thinking…")).toBeDefined();
+    expect(
+      screen.getByText(/you can type again when the next question arrives/),
+    ).toBeDefined();
+    expect(box().readOnly).toBe(true);
+
+    stream.write(`${OUTCOME_SEPARATOR}ok`);
+    stream.close();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it("keeps the verdict out of the sentence it follows", async () => {
+  it("never draws the raw stream, verdict byte and all", async () => {
+    // The body is a sentence, a NUL, then how the turn ended. None of it is for
+    // the screen — the client reads it for the verdict and refreshes.
     answers(`All set.${OUTCOME_SEPARATOR}ok`);
     draw();
     fireEvent.change(box(), { target: { value: "yes" } });
     submit();
 
-    await waitFor(() => expect(screen.getByText("All set.")).toBeDefined());
-    expect(screen.queryByText(/All set\.\s*ok/)).toBeNull();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.queryByText(/All set/)).toBeNull();
+    expect(document.body.textContent).not.toContain(OUTCOME_SEPARATOR);
   });
 
   it("sends the turn to the streaming endpoint", async () => {
@@ -337,38 +373,6 @@ describe("Composer", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  /**
-   * The reported bug, and the reason `Phase` is three values.
-   *
-   * `reply` is the first field in the analyzer's tool schema, so the question
-   * is on screen while `captured`, `chips` and `done` are still being written —
-   * and then the page still has to re-render. For those seconds the screen
-   * showed a finished question above a box that took nothing, with no sign of
-   * why. It was reported as the site being laggy, which is the fair reading of
-   * a control that neither works nor explains itself.
-   */
-  it("keeps saying it is working after the question is already readable", async () => {
-    const stream = held();
-    draw();
-    fireEvent.change(box(), { target: { value: "beginner" } });
-    submit();
-
-    stream.write("How much time do you have?");
-    await waitFor(() =>
-      expect(screen.getByText("How much time do you have?")).toBeDefined(),
-    );
-
-    // The sentence is complete and the box is still shut. Both said out loud.
-    expect(
-      screen.getByText(/you can type again when the next question arrives/),
-    ).toBeDefined();
-    expect(box().readOnly).toBe(true);
-
-    stream.write(`${OUTCOME_SEPARATOR}ok`);
-    stream.close();
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
-  });
-
   it("points the locked box at the line that explains it", async () => {
     // Faintness is a style; a description is a state. A screen reader landing
     // on the box hears why it will not take anything.
@@ -388,7 +392,8 @@ describe("Composer", () => {
 
   it("says the page is catching up once the model has stopped writing", async () => {
     // A different wait with a different sentence: the turn is stored by now,
-    // but the next question is not on screen and the box is still shut.
+    // but the next question is not on screen and the box is still shut. The
+    // sentence changing is the only thing left that shows the wait is moving.
     answers(`All set.${OUTCOME_SEPARATOR}ok`);
     draw();
     fireEvent.change(box(), { target: { value: "yes" } });
@@ -396,9 +401,10 @@ describe("Composer", () => {
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.getByText(/Bringing in the next question/)).toBeDefined();
+    expect(screen.queryByText(/you can type again when the next question/)).toBeNull();
     expect(box().readOnly).toBe(true);
-    // The model has finished, so the sentence stops advertising that it has not.
-    expect(screen.getByText("All set.").querySelector(".animate-pulse")).toBeNull();
+    // Right up to the swap: the answer is still the server's to show.
+    expect(screen.getByText("Thinking…")).toBeDefined();
   });
 
   it("says nothing about waiting once there is nothing to wait for", () => {
@@ -430,5 +436,22 @@ describe("Composer", () => {
     const { container } = draw([]);
     // Two forms left: the answer and the way out.
     expect(container.querySelectorAll("form")).toHaveLength(2);
+  });
+
+  it("draws no way out at all on a plan that keeps one conversation", () => {
+    /*
+     * Not a disabled link, and not a link to the pricing page either. The bar
+     * is where somebody answers a question; a permanent reminder of what their
+     * plan does not include, pinned above the keyboard for the whole
+     * conversation, is an odd thing to make them read six times.
+     *
+     * The offer is simply absent, and `restartAction` refuses the POST — the
+     * screen is not the check.
+     */
+    const { container } = drawWithoutRestart();
+
+    expect(screen.queryByRole("button", { name: "Start over" })).toBeNull();
+    // The answer, and nothing else.
+    expect(container.querySelectorAll("form")).toHaveLength(1);
   });
 });
