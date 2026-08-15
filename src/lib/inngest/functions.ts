@@ -87,6 +87,24 @@ export const buildPack = inngest.createFunction(
     // One at a time per subject: the slug is the pack, and two runs authoring
     // the same one would both pay and one would overwrite the other.
     concurrency: { key: "event.data.slug", limit: 1 },
+    /*
+     * One retry, against Inngest's default of four.
+     *
+     * A step here is four model calls and about a pound; four retries of it is
+     * five full pipelines. That default is sized for a step that is cheap and
+     * usually transient, and this one is neither — a live run spent 297¢ on
+     * three passes of an error that was identical every time, because a schema
+     * failure inside `assemblePack` threw and a throw looks transient from out
+     * here. `generatePack` now reports that case instead, so what reaches this
+     * layer really is transient: a dropped connection, a 529, a worker dying
+     * mid-step. One more go covers those.
+     *
+     * It also has to fit inside `BUILD_TIMEOUT_MINUTES`. The wait screen calls
+     * a run past fifteen minutes stopped; queue retries that outlive that
+     * window would leave a learner told it had stopped while the money kept
+     * going.
+     */
+    retries: 1,
   },
   buildPackHandler({
     generate: async ({ slug, subject, userId }) => {

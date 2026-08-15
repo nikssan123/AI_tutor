@@ -8,10 +8,22 @@ import { z } from "zod";
  * rule hold: adding a domain requires no code change.
  */
 
+/**
+ * The longest a slug may be, in one place because two things need it.
+ *
+ * The schema below enforces it; `derive.ts` has to *build* slugs that satisfy
+ * it, and until this constant existed it did so against a 64 it had written
+ * down separately. That is exactly how the two drifted apart: `slugify` capped
+ * a skill slug at 64 and `itemsFrom` then appended `-1`, producing 66
+ * characters and a pack that could not be parsed — after four model calls had
+ * already been paid for.
+ */
+export const MAX_SLUG_LENGTH = 64;
+
 const slug = z
   .string()
   .min(2)
-  .max(64)
+  .max(MAX_SLUG_LENGTH)
   .regex(
     /^[a-z0-9]+(-[a-z0-9]+)*$/,
     "must be lowercase, hyphen-separated, no leading or trailing hyphen",

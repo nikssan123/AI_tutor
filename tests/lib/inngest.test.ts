@@ -183,6 +183,17 @@ describe("the registered build function", () => {
     });
   });
 
+  it("retries once, not the four a ~£1 step would inherit", () => {
+    /*
+     * Inngest's default is four, sized for a step that is cheap and usually
+     * transient. This one is four model calls and about a pound: a live run
+     * spent 297¢ on three passes of an identical error. It also has to finish
+     * inside `BUILD_TIMEOUT_MINUTES`, or the wait screen calls the run stopped
+     * while the queue is still spending on it.
+     */
+    expect(buildPack.opts.retries).toBe(1);
+  });
+
   it("wires the generator, the seeder and the build row together", async () => {
     const { generatePack } = await import("@/lib/packs/generate");
     const { seedPack } = await import("@/lib/packs/seed");

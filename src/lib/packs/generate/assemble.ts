@@ -14,6 +14,7 @@ import {
   PRIORS_BY_LEVEL,
   nameResolver,
   normaliseWeights,
+  numberedSlug,
   skillRef,
   slugify,
   tierFor,
@@ -45,11 +46,24 @@ export interface AssembleInput {
 }
 
 export interface AssembleResult {
-  pack: DomainPack;
-  report: ValidationReport;
+  /** Null when the assembled pack does not satisfy `DomainPackSchema`. */
+  pack: DomainPack | null;
+  /** Null exactly when `pack` is. */
+  report: ValidationReport | null;
   /** What was dropped and why, in the order it happened. */
   dropped: string[];
+  /** Why nothing could be assembled. Empty whenever `pack` is set. */
+  reasons: string[];
 }
+
+/**
+ * How many schema complaints are worth reporting.
+ *
+ * One bad slug produces one issue per item that used it — the run this was
+ * written for had twenty-two identical "too big" messages. The first few say
+ * everything the next twenty do.
+ */
+export const MAX_REPORTED_ISSUES = 5;
 
 /** §7.2 — what a generated pack is allowed to say about itself. */
 export const GENERATED_QUALITY = {
@@ -134,6 +148,9 @@ function itemsFrom(
 ): DomainPack["items"] {
   const kept: DomainPack["items"] = [];
   const perSkill = new Map<string, number>();
+  // Held across the whole bank, because two skills whose slugs share their
+  // first sixty characters produce the same trimmed stem.
+  const itemSlugs = new Set<string>();
 
   for (const item of items) {
     const skill = resolve(item.skill);
@@ -151,11 +168,15 @@ function itemsFrom(
     perSkill.set(skill, n);
 
     /*
-     * Unique by construction, so there is no collision loop here to go wrong:
-     * skill slugs are already distinct (`uniqueSlugs`), and within one skill the
-     * counter only ever increases — so `${skill}-${n}` cannot repeat.
+     * `numberedSlug` rather than a template, and the difference is 297¢.
+     *
+     * This was `${skill}-${n}`, under a comment arguing that it could not
+     * repeat — which was true, and beside the point. Skill slugs are capped at
+     * exactly `MAX_SLUG_LENGTH`, so appending `-1` to a long one produces a
+     * slug the schema refuses, and the pack built from four model calls was
+     * thrown away. Uniqueness was reasoned about; length was not.
      */
-    const slug = `${skill}-${n}`;
+    const slug = numberedSlug(skill, n, itemSlugs);
 
     const answerKey =
       item.type === "mcq"
@@ -390,8 +411,40 @@ export function assemblePack(input: AssembleInput): AssembleResult {
     resources: resourcesFrom(input.resources, resolveSkill, dropped),
   };
 
-  const pack = DomainPackSchema.parse(candidate);
-  return { pack, report: validatePack(pack), dropped };
+  /*
+   * `safeParse`, and this is the other half of the 297¢ bug.
+   *
+   * A `parse` here *throws*, and the throw goes straight past everything built
+   * to handle a bad generation: the quality floor never runs, `dropped` is
+   * never returned, and `generatePack`'s two-attempt loop never sees it. It
+   * surfaces instead as an Inngest **step** failure — which the queue is
+   * entitled to read as transient, so it retried the whole pipeline. A
+   * deterministic schema error was charged for three times, and would have been
+   * five with the default retry count.
+   *
+   * A model producing something the schema refuses is an expected outcome of
+   * asking a model for structured data, not an exception — the same argument
+   * `call.ts` makes about an unparseable tool call. So it is reported, and the
+   * caller decides.
+   */
+  const parsed = DomainPackSchema.safeParse(candidate);
+  if (!parsed.success) {
+    return {
+      pack: null,
+      report: null,
+      dropped,
+      reasons: parsed.error.issues
+        .slice(0, MAX_REPORTED_ISSUES)
+        .map((i) => `${i.path.join(".")}: ${i.message}`),
+    };
+  }
+
+  return {
+    pack: parsed.data,
+    report: validatePack(parsed.data),
+    dropped,
+    reasons: [],
+  };
 }
 
 /**

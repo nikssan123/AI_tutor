@@ -1,5 +1,5 @@
 import type { DraftCriterion, DraftSkill } from "@/lib/contracts/pack";
-import type { EvalTier, PackSkill, Workspace } from "../types";
+import { MAX_SLUG_LENGTH, type EvalTier, type PackSkill, type Workspace } from "../types";
 
 type Priors = PackSkill["bktPriors"];
 
@@ -29,7 +29,7 @@ export function slugify(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 64)
+    .slice(0, MAX_SLUG_LENGTH)
     .replace(/-+$/g, "");
 
   /*
@@ -62,7 +62,11 @@ export function uniqueSlugs(names: string[]): Map<string, string> {
     let slug = base;
     let n = 2;
     while (used.has(slug)) {
-      slug = `${base.slice(0, 60)}-${n}`;
+      // Room reserved for the suffix rather than a hard-coded 60. The same
+      // arithmetic left implicit is what let item slugs run two characters
+      // over the cap and cost a whole generation — see `numberedSlug`.
+      const tail = `-${n}`;
+      slug = `${base.slice(0, MAX_SLUG_LENGTH - tail.length)}${tail}`;
       n += 1;
     }
 
@@ -71,6 +75,40 @@ export function uniqueSlugs(names: string[]): Map<string, string> {
   }
 
   return bySource;
+}
+
+/**
+ * `<base>-<n>`, guaranteed to satisfy the slug rule however long the base is.
+ *
+ * **The 297¢ bug.** Item slugs were built as a bare `` `${skill}-${n}` ``, with
+ * a comment reasoning carefully about why they could not *repeat* and nothing
+ * at all about how long they could get. `slugify` caps a skill at exactly
+ * `MAX_SLUG_LENGTH`, so any skill near the cap produced a 65- or 66-character
+ * item slug, `DomainPackSchema` refused the pack, and the four model calls that
+ * had produced it were thrown away — three times over, because the throw looked
+ * transient to the queue. A subject with long skill names (".NET development")
+ * was all it took.
+ *
+ * Trimming alone is not enough: two skills sharing their first sixty characters
+ * would collide once the tail is cut off. So the suffix is reserved first and
+ * a collision widens it, which is `uniqueSlugs`' rule applied to a name that
+ * has a number on the end.
+ */
+export function numberedSlug(
+  base: string,
+  n: number,
+  used: Set<string>,
+): string {
+  const fit = (tail: string) =>
+    `${base.slice(0, MAX_SLUG_LENGTH - tail.length).replace(/-+$/g, "")}${tail}`;
+
+  let slug = fit(`-${n}`);
+  for (let extra = 2; used.has(slug); extra += 1) {
+    slug = fit(`-${extra}-${n}`);
+  }
+
+  used.add(slug);
+  return slug;
 }
 
 /**

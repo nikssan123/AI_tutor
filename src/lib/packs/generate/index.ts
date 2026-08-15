@@ -234,6 +234,17 @@ export async function generatePack(
     });
     dropped = [...researchDrops, ...assembled.dropped];
 
+    /*
+     * Assembly produced nothing the schema accepts. This used to be a throw
+     * that left the function entirely, so the queue saw a *step* failure and
+     * retried the whole pipeline — a deterministic error charged for three
+     * times. It is an attempt that failed, which is what this loop is for.
+     */
+    if (!assembled.pack || !assembled.report) {
+      reasons = assembled.reasons;
+      continue;
+    }
+
     // One gate: the validator's blocking issues and the generator's own floor.
     // A repair step would have nothing to do — every repairable case is already
     // handled in assembly — so a failure here is worth a fresh attempt.

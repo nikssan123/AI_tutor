@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   GENERATED_QUALITY,
+  MAX_REPORTED_ISSUES,
   assemblePack,
   enforceRatio,
   meetsQualityFloor,
 } from "@/lib/packs/generate/assemble";
+import { MAX_SLUG_LENGTH } from "@/lib/packs/types";
 import { skillRef } from "@/lib/packs/generate/derive";
 import { detectCycle } from "@/lib/engine/graph";
 import { toEngineGraph } from "@/lib/packs/validate";
@@ -115,14 +117,28 @@ const assemble = (
     graph?: Partial<PackGraphDraft>;
     resources?: CheckedResource[];
   } = {},
-) =>
-  assemblePack({
+) => {
+  const { pack, report, dropped, reasons } = assemblePack({
     slug: "probe-subject",
     graph: graphOf(skills, over.graph),
     items: over.items ?? itemsFor(skills),
     rubrics: over.rubrics ?? RUBRICS,
     resources: over.resources ?? [],
   });
+
+  /*
+   * Narrowed once, here, rather than with a `!` at forty call sites. Every case
+   * that uses this helper expects assembly to succeed; the two that expect it
+   * to fail call `assemblePack` directly. A failure names its reasons, so a
+   * regression reads as "assembly failed: items.20.slug: Too big" rather than
+   * as a null dereference somewhere further down.
+   */
+  if (!pack || !report) {
+    throw new Error(`assembly failed: ${reasons.join("; ")}`);
+  }
+
+  return { pack, report, dropped, reasons };
+};
 
 const EIGHT = Array.from({ length: 8 }, (_, i) => skill(i));
 
@@ -475,6 +491,72 @@ describe("enforceRatio", () => {
     ];
     const kept = enforceRatio(items, []);
     expect(kept.filter((i) => i.type === "short_text")).toHaveLength(1);
+  });
+});
+
+describe("a draft the schema will not accept", () => {
+  /**
+   * The run that cost 297¢ and produced nothing.
+   *
+   * ".NET development" produced skill names long enough that their slugs hit
+   * `MAX_SLUG_LENGTH` exactly. Item slugs were built by appending `-1`, `-2`,
+   * so every item on those skills was two characters over, the pack failed its
+   * own schema, and `assemblePack` *threw* — past the quality floor, past the
+   * drop log, out of `generatePack` entirely, and into the queue as a step
+   * failure it retried twice more at ~100¢ a go.
+   */
+  const longSkills = Array.from({ length: 8 }, (_, i) =>
+    skill(i, {
+      // 64 characters exactly, distinct per skill: the boundary, not past it.
+      name: `Configure and tune the ${"very ".repeat(6)}long subsystem ${i}`,
+    }),
+  );
+
+  it("assembles a pack whose every slug the schema accepts", () => {
+    const { pack, reasons } = assemble(longSkills);
+
+    expect(reasons).toEqual([]);
+    for (const item of pack.items) {
+      expect(item.slug.length, item.slug).toBeLessThanOrEqual(MAX_SLUG_LENGTH);
+    }
+    // And they are still distinct, which is what the engine keys on.
+    expect(new Set(pack.items.map((i) => i.slug)).size).toBe(pack.items.length);
+  });
+
+  it("reports rather than throws when a draft cannot be parsed", () => {
+    /*
+     * Forced through a shape assembly cannot rescue — an empty skill list,
+     * which `PackManifest` requires at least one of. What matters is not this
+     * particular complaint but that it *returns*: a throw here is what the
+     * queue read as transient and paid for three times.
+     */
+    const result = () =>
+      assemblePack({
+        slug: "probe-subject",
+        graph: graphOf([]),
+        items: [],
+        rubrics: RUBRICS,
+        resources: [],
+      });
+
+    expect(result).not.toThrow();
+    const { pack, report, reasons } = result();
+    expect(pack).toBeNull();
+    expect(report).toBeNull();
+    expect(reasons.length).toBeGreaterThan(0);
+  });
+
+  it("says only as much as a reader needs", () => {
+    // One bad slug produces one complaint per item that used it — the real run
+    // had twenty-two identical messages. The first few say all of it.
+    const { reasons } = assemblePack({
+      slug: "probe-subject",
+      graph: graphOf([]),
+      items: [],
+      rubrics: RUBRICS,
+      resources: [],
+    });
+    expect(reasons.length).toBeLessThanOrEqual(MAX_REPORTED_ISSUES);
   });
 });
 

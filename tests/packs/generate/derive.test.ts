@@ -5,13 +5,14 @@ import {
   SELF_REPORT_TIER,
   nameResolver,
   normaliseWeights,
+  numberedSlug,
   skillRef,
   slugify,
   tierFor,
   uniqueSlugs,
 } from "@/lib/packs/generate/derive";
 import type { DraftCriterion } from "@/lib/contracts/pack";
-import { Workspace } from "@/lib/packs/types";
+import { MAX_SLUG_LENGTH, Workspace } from "@/lib/packs/types";
 
 describe("slugify", () => {
   it("produces a slug the pack schema accepts", () => {
@@ -49,7 +50,67 @@ describe("slugify", () => {
   });
 });
 
+describe("numberedSlug", () => {
+  /**
+   * The 297¢ regression, in one assertion.
+   *
+   * Item slugs were `${skill}-${n}`. `slugify` caps a skill at exactly
+   * `MAX_SLUG_LENGTH`, so a long skill name overflowed the moment the counter
+   * was appended, the pack failed its own schema, and four paid-for model calls
+   * were thrown away — three times, because the throw read as transient to the
+   * queue.
+   */
+  const LONG = "a".repeat(MAX_SLUG_LENGTH);
+
+  it("never exceeds the cap, however long the base is", () => {
+    for (const n of [1, 9, 10, 99, 100]) {
+      const slug = numberedSlug(LONG, n, new Set());
+      expect(slug.length, `n=${n}`).toBeLessThanOrEqual(MAX_SLUG_LENGTH);
+    }
+  });
+
+  it("keeps the number, because that is what makes it an item", () => {
+    expect(numberedSlug(LONG, 7, new Set()).endsWith("-7")).toBe(true);
+  });
+
+  it("leaves a short base exactly as it was", () => {
+    // The overwhelming case. Trimming must not touch a slug that fits.
+    expect(numberedSlug("join-grain", 3, new Set())).toBe("join-grain-3");
+  });
+
+  it("disambiguates two bases that trim to the same stem", () => {
+    // Trimming is what creates this: these differ only past the cap.
+    const used = new Set<string>();
+    const first = numberedSlug(`${LONG}xx`, 1, used);
+    const second = numberedSlug(`${LONG}yy`, 1, used);
+
+    expect(second).not.toBe(first);
+    expect(second.length).toBeLessThanOrEqual(MAX_SLUG_LENGTH);
+  });
+
+  it("never leaves a trailing hyphen for the schema to reject", () => {
+    // Trimming can land mid-word and cut just after a hyphen, which is the one
+    // shape the slug rule explicitly forbids.
+    const base = `${"ab-".repeat(30)}`.slice(0, MAX_SLUG_LENGTH);
+    expect(numberedSlug(base, 1, new Set())).not.toMatch(/--/);
+    expect(numberedSlug(base, 1, new Set())).toMatch(
+      /^[a-z0-9]+(-[a-z0-9]+)*$/,
+    );
+  });
+});
+
 describe("uniqueSlugs", () => {
+  it("stays inside the cap when it disambiguates a maximum-length name", () => {
+    // Same bug, the other slug builder: this reserved room with a hard-coded
+    // 60 rather than deriving it from the cap.
+    const long = "z".repeat(MAX_SLUG_LENGTH);
+    const slugs = uniqueSlugs([long, `${long}!`]);
+    for (const slug of slugs.values()) {
+      expect(slug.length).toBeLessThanOrEqual(MAX_SLUG_LENGTH);
+    }
+    expect(new Set(slugs.values()).size).toBe(2);
+  });
+
   it("disambiguates two names that slugify the same", () => {
     const slugs = uniqueSlugs(["Joins", "JOINs"]);
     expect(slugs.get("Joins")).toBe("joins");

@@ -636,6 +636,55 @@ describe("generatePack", () => {
     expect(outcome.reasons.join(" ")).toContain("rubrics");
   });
 
+  it("treats an unassemblable draft as a failed attempt, not a crash", async () => {
+    /*
+     * The 297¢ run. Assembly used to `parse` and therefore *throw*, and the
+     * throw went past this loop entirely — out of `generatePack`, into the
+     * queue, which read a deterministic schema error as a transient step
+     * failure and paid for the whole pipeline twice more.
+     *
+     * The lever here is a criterion weight so small it normalises to zero,
+     * which `RubricCriterion.weight.positive()` refuses. The original trigger —
+     * an item slug two characters over the cap — is fixed and can no longer be
+     * reproduced through this path, which is the point of fixing it.
+     */
+    const { client } = modelByTool({
+      rubrics: [
+        {
+          ...RUBRICS,
+          rubrics: [
+            {
+              name: "The rubric",
+              criteria: [
+                // First, not last: `normaliseWeights` gives the final
+                // criterion the rounding remainder, which would rescue it.
+                { ...RUBRICS.rubrics[0]!.criteria[0]!, weight: 0.001 },
+                ...RUBRICS.rubrics[0]!.criteria.slice(1).map((c) => ({
+                  ...c,
+                  weight: 100,
+                })),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
+
+    // Failed honestly, and said which field — rather than throwing.
+    expect(outcome.source).toBe("none");
+    expect(outcome.pack).toBeNull();
+    expect(outcome.reasons.join(" ")).toContain("weight");
+    // Both attempts were spent here rather than the error escaping on the
+    // first, which is what proves the loop saw it.
+    expect(outcome.attempts).toBe(2);
+  });
+
   it("degrades the deep tier when the learner is over their cap", async () => {
     // §14.9.7 limit 1 — checked before the first call, not after the bill lands.
     const capped = {
