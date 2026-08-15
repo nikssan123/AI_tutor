@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { hasApiKey } from "@/lib/ai/client";
 import { requireUser } from "@/lib/account/session";
+import { resolvePlanId, type PlanId } from "@/lib/billing/catalog";
 import { sessionView } from "@/lib/session/view";
 import { transcriptFor } from "@/lib/session/tutor";
 import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
@@ -149,6 +150,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
               packSlug={view.goal.packSlug}
               priorDomain={view.goal.spec.priorDomain}
               userId={user.id}
+              plan={resolvePlanId(user.plan)}
               now={now}
               error={error}
             />
@@ -248,6 +250,8 @@ interface BodyProps {
   packSlug: string;
   priorDomain: PriorDomain;
   userId: string;
+  /** §14.9.7 limit 1 — whose ceiling a generated lesson counts against. */
+  plan: PlanId;
   now: Date;
   /** Why the last hand-in bounced, if it did. */
   error?: string;
@@ -291,6 +295,7 @@ function ExplainBlock(
           userId={props.userId}
           packSlug={props.packSlug}
           priorDomain={props.priorDomain}
+          plan={props.plan}
           skill={props.skill}
           mastery={props.mastery}
           minutes={props.block.estMinutes}

@@ -3,6 +3,9 @@ import {
   degradesGeneration,
   EVALUATION_COST_CENTS,
   isPlanId,
+  ONBOARDING_COST_CENTS,
+  promisedCostCents,
+  SESSION_COST_CENTS,
   LISTED_PLAN_IDS,
   PLAN_IDS,
   PLANS,
@@ -26,12 +29,19 @@ describe("PLANS", () => {
     for (const id of PLAN_IDS) expect(PLANS[id].id).toBe(id);
   });
 
-  it("keeps §20.1's and §14.9.7's numbers for free and pro", () => {
-    // These two rows predate the four-tier decision and must survive it.
+  it("keeps §20.1's and §14.9.7's evaluation numbers for free and pro", () => {
+    // The quotas predate the four-tier decision and must survive it.
     expect(PLANS.free.entitlements.evaluationsPerMonth).toBe(1);
-    expect(PLANS.free.spendCapCents).toBe(100);
     expect(PLANS.pro.entitlements.evaluationsPerMonth).toBe(10);
     expect(PLANS.pro.spendCapCents).toBe(1_500);
+  });
+
+  it("gives free a ceiling that can actually pay for free", () => {
+    // 100¢ could not: §20.1's free row is 71¢ of onboarding plus 221¢ of
+    // sessions plus a 45¢ evaluation. The two numbers were written in
+    // different sections and never reconciled.
+    expect(PLANS.free.spendCapCents).toBe(150);
+    expect(promisedCostCents("free")).toBeLessThanOrEqual(150);
   });
 
   it.each(PLAN_IDS)("lets %s afford the evaluations it advertises", (id) => {
@@ -42,6 +52,14 @@ describe("PLANS", () => {
     const advertised =
       plan.entitlements.evaluationsPerMonth * EVALUATION_COST_CENTS;
     expect(plan.spendCapCents).toBeGreaterThanOrEqual(advertised);
+  });
+
+  it.each(PLAN_IDS)("lets %s afford everything it advertises, not just marking", (id) => {
+    // The wider version, and the one that would have caught §20.1's free tier
+    // before it shipped: sessions and onboarding cost money too.
+    const promised = promisedCostCents(id);
+    if (promised === null) return; // unlimited sessions — the cap is the limit
+    expect(PLANS[id].spendCapCents).toBeGreaterThanOrEqual(promised);
   });
 
   it("gives the trial a four-day quota rather than Pro's monthly one", () => {
@@ -71,6 +89,43 @@ describe("PLANS", () => {
       PLANS.learner.spendCapCents,
     );
     expect(PLANS.learner.spendCapCents).toBeLessThan(PLANS.pro.spendCapCents);
+  });
+});
+
+describe("the free tier's shape", () => {
+  it("gives free a session allowance and everyone else the cap", () => {
+    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(3);
+    for (const id of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[id].entitlements.sessionsPerMonth).toBeNull();
+    }
+  });
+
+  it("keeps the generated curriculum and generated packs off free", () => {
+    // The two most expensive discretionary things a click can start: $0.55 for
+    // a curriculum and $0.61 for a pack, against a 150¢ month.
+    expect(PLANS.free.entitlements.aiCurriculum).toBe(false);
+    expect(PLANS.free.entitlements.generatedPacks).toBe(false);
+  });
+
+  it("gives every paid plan both", () => {
+    for (const id of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[id].entitlements.aiCurriculum).toBe(true);
+      expect(PLANS[id].entitlements.generatedPacks).toBe(true);
+    }
+  });
+});
+
+describe("promisedCostCents", () => {
+  it("adds sessions, marking and onboarding at §20.2's measured prices", () => {
+    expect(promisedCostCents("free")).toBe(
+      3 * SESSION_COST_CENTS + 1 * EVALUATION_COST_CENTS + ONBOARDING_COST_CENTS,
+    );
+  });
+
+  it("is unanswerable for a plan with unlimited sessions", () => {
+    // Not zero, and not a guess: there is no budget to compute, and the cap is
+    // the limit. Returning a number here would invent one.
+    expect(promisedCostCents("pro")).toBeNull();
   });
 });
 

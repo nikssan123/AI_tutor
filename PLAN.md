@@ -42,6 +42,18 @@ end** — pause, stop, swap, and a `achieved` that is earned rather than pressed
 (§8 screen 11a) — which also makes *between courses* a state a learner can
 actually be in.
 
+**The money half of that sentence is now built too.** E13 and E14 are in — four
+plans, a €3 four-day trial, the evaluation meter §14.9.7 had specified and never
+had, cancellation with a mandatory reason, and a referral programme. The pricing
+decisions departed from §20.1 in five places and live in
+**`plans/PLAN-MONETIZATION.md`**, which wins over §20 and over
+`PLAN-LOCALIZATION.md` §6 for anything about price, billing or referral.
+
+What is left before anybody can pay is not code: a live Stripe account with the
+four prices in it, the §15 step-3 check that a €3 charge really does land today
+and renew on day 4, legal pages, and — for `de`/`es`/`bg` — the billing-email
+review that `HUMAN-REVIEW.md` part D now treats as launch-gating.
+
 `IMPLEMENTATION.md` is the per-pass record, including the things that only
 showed up against the real API. Read the "Still open" section at the end of the
 last pass before starting anything.
@@ -1520,6 +1532,57 @@ Every one enforced in application code, not prompt instructions, and each with a
 
 Plus: **alert at $8 cost-per-active-user** (the §25 dashboard metric), and a Langfuse cost-per-agent breakdown reviewed weekly. The failure mode you are guarding against is not a slow drift — it is a single bug or abuse event producing a 100× day.
 
+> **Built, and limit 2 had never existed.** Limit 1 has been enforced since E5;
+> limit 2 — "the product's meter" — was a sentence. `spend_ledger.evaluations_used`
+> was declared in `ops.ts` and nothing ever incremented it, so the column the
+> business model rests on held zero for every learner. E13 wired it.
+>
+> **The table now has four rows, because there are four plans** (§20.1's note):
+>
+> | Plan | Monthly cap | Evaluations | Sessions |
+> |---|---|---|---|
+> | free | 150¢ | 1 | 3 |
+> | trial | 450¢ | 5 | ∞ |
+> | learner | 600¢ | 3 | ∞ |
+> | pro | 1500¢ | 10 | ∞ |
+>
+> **And an invariant these numbers must satisfy**, which a test now asserts for
+> every plan: `spendCapCents >= evaluationsPerMonth × EVALUATION_COST_CENTS`.
+> A cap that cannot pay for the evaluations the plan advertises makes the
+> headline number unreachable — the trial was first written with Pro's ten
+> behind a 500¢ ceiling, which advertises ten and pays for eleven.
+>
+> **Limit 1 was checked before three of nine model calls.** "Checked *before*
+> every call" was true of curriculum generation, pack authoring and marking, and
+> of nothing else — so the free ceiling bound nothing a free learner actually
+> did. The tutor recorded every cent faithfully and nothing ever read the total
+> back; lesson generation, the goal interview and turn labelling were the same.
+> `src/lib/billing/gate.ts` is now in front of all of them.
+>
+> That exposed something this table did not anticipate: **"degrade" is not
+> always available.** §14.9.3 puts the tutor and the lesson generator on Sonnet
+> already, and `degrade()` maps `deep → standard`, so degrading them is a no-op
+> that saves nothing. A deep-tier call over the cap is degraded, as always; a
+> standard-tier call over the cap is **refused**, because the only alternatives
+> are "spend anyway" and "stop", and spending anyway is what made the ceiling
+> decorative.
+>
+> **Limit 4 had also never been implemented.** Thirty turns a session, with the
+> soft warning at twenty-five, is now `MAX_TUTOR_TURNS` in
+> `src/lib/session/tutor.ts`. It is a quality control rather than a cost one —
+> §17.2 lists "a general chatbot" under DON'T BUILD, and a conversation past
+> thirty turns has stopped being a tutorial.
+>
+> **Two smaller ones, both the same omission.** Marking passed no plan, so the
+> most expensive call in the product was outside the cap; and
+> `goals/[id]/path/actions.ts` hardcoded `plan: "free"` for everyone. Both
+> fixed, and the pack-authoring worker had the identical bug one function up.
+>
+> **Limit 2 is claimed at submission, not at marking.** Blocking inside the
+> Inngest worker would tell a learner after forty-five seconds of waiting; the
+> quota is claimed before the job is enqueued, so the refusal lands on the button
+> they just pressed and no unmarkable row is ever created.
+
 ---
 
 # 15. Core Data Model
@@ -1868,6 +1931,42 @@ Organic search → /check/python  →  Take the check (no signup)  →  Result: 
 
 **Rejected:** freemium with unlimited evaluations (margin death) · pure usage-based (kills the habit you're trying to build) · under $15 (attracts the churning casual segment and can't cover heavy users) · B2B at launch (different product, different sale, wrong time).
 
+> **Built, and this section is now the minority report.** Nikolay decided
+> against it on 2026-08-15 in four places at once, and `plans/PLAN-MONETIZATION.md`
+> §1 carries the decisions with their reasons. What shipped:
+>
+> | | This section | Shipped |
+> |---|---|---|
+> | Paid tiers | one | **four**: Free · Trial · Learner · Pro |
+> | Price | $25/mo, $190/yr | **$24.99/€24.99 monthly, $199/€199 annual** |
+> | Trial | none | **€3/$3 for four days**, auto-renewing to Pro |
+> | Under $15 | rejected | **Learner at $12.99/€12.99** |
+> | Processor | Merchant of Record (§18.1) | **Stripe** |
+>
+> **Two of this section's judgements survived contact and one did not.**
+>
+> *"The evaluation quota is the meter"* was right and is now real — it had never
+> been implemented. `spend_ledger.evaluations_used` had been declared and dead
+> since `ops.ts` was written, so the sentence describing the business model
+> described nothing in the code. It is now a conditional atomic upsert claimed at
+> submission time.
+>
+> *"Annual is pushed hard"* survived, with one correction: **the discount is 33%,
+> not 37%.** $199 against $24.99×12 is not $190 against $25. `annualSavingPercent()`
+> computes it and rounds down so the page cannot overstate it.
+>
+> **The $15 floor was the right risk and the wrong instrument.** Its stated fear
+> — "can't cover heavy users" — is answered by the quota, not by the price:
+> Learner at €12.99 with 3 evaluations costs ~$1.35 of marking against ~€10 net,
+> which is ~88% margin. A floor protects a plan with no meter; this one has a
+> meter.
+>
+> **What this section did not anticipate, and neither did the brief:** a plan
+> cannot sell active goals. `pauseOthers` in `src/lib/goals/store.ts` makes the
+> engine single-goal by construction, so "1 goal" here and "3 goals" on the later
+> tier are both describing a dial that does not exist. `/pricing` differentiates
+> on evaluations, models and depth instead. See PLAN-MONETIZATION §2.
+
 ## 20.2 AI cost per active learner per month
 
 Model prices: Opus 5 $5/$25 per MTok · Sonnet 5 $3/$15 ($2/$10 intro to 2026-08-31) · Haiku 4.5 $1/$5. Cache reads ≈0.1× input. Batch API 50% off.
@@ -1905,6 +2004,25 @@ At **$25/mo**, minus ~4% MoR fees ($1.00) → **$24.00 net**:
 | **Blended** (20/60/20 mix) | ~$5.60 | ~$18.40 | **~77%** |
 
 **77% blended gross margin.** Healthy for SaaS, and the 10-evaluation cap makes the worst case survivable. Free-tier drag: ~$0.30/free-user/month with precomputed roadmaps — at a 4% conversion rate that's ~$7 of free cost per paying user per month, still leaving ~50% net-of-free margin. Acceptable, and it improves as cache hit rates rise.
+
+> **Built. The margin got better and a new loss appeared.**
+>
+> **Fees are lower than this table assumes.** It budgets ~4% for a Merchant of
+> Record; Stripe (§1 decision 1) is ~1.5% + €0.25 on EEA cards. On €24.99 that
+> is ~€0.62 rather than ~€1.00, so the blended figure moves *up* by roughly a
+> point.
+>
+> **What that buys is a liability this table does not price: we now owe EU VAT
+> ourselves.** Below €10,000/yr of cross-border B2C digital sales that is
+> home-country VAT and simple; above it, OSS registration and quarterly returns.
+> Stripe Tax computes and does not file. Set a reminder at €8,000 trailing
+> twelve-month cross-border EU revenue — the saving is ~2.5 points and an
+> accountant's OSS filing costs more than that below the threshold.
+>
+> **The trial is a deliberate loss.** €3 gross is ≈€2.40 net against a capped
+> $4.50 of AI over four days, so each taker costs ~$2 net. Breakeven is ~11%
+> trial→paid against Pro's first month, and PLAN-MONETIZATION §14 pre-commits to
+> killing the €3 offer below 10% over ≥100 trials.
 
 **Fixed costs at MVP scale:** ~$150–250/mo (Vercel $20 · Neon $25 · Inngest $20 · PostHog $0–50 · Langfuse $30 · Resend $20 · Upstash $10 · Sentry $26 · domain/misc). **Break-even at roughly 15–20 paying users.**
 
@@ -2056,7 +2174,8 @@ before picking the next thing up.**
 | **E10** SEO infrastructure | ✅ Done | `sitemap.ts`, `robots.ts`, `src/lib/seo/` — metadata, JSON-LD, the share cards, and now **the internal-link renderer and the quality-score job** (`src/lib/guides/{links,quality}.ts`), which needed authored pages to operate on. Lighthouse and GSC/Bing verification wait on a deployed origin |
 | **E11** Free tools + roadmap cache | 🟡 Partial | the Skill Check (both kinds — subject and **per-skill**, `/check/{topic}/{skill}`, including §7.3's photograph) and the **Roadmap tool** ship. No cache; the anonymous spend is capped per day — see §19.2's note |
 | **E12** Content production | 🟡 Started — 8 pages of 50 | `content/guides/`, `src/lib/guides/`, `/guides` — the authored-page substrate, the §12.2 score, and **every §10 D question we can answer honestly** (8 of 10), all at 100/100 and live under an honest model-review badge. 3 curated packs of the 12; all 7 packs signed `reviewKind: model`, 9 defects fixed (pass 28) |
-| **E13** Billing, emails, launch | 🟡 Partial | emails ship; billing does not |
+| **E13** Billing, emails, launch | ✅ Done in code — *needs a live Stripe account* | `src/lib/billing/`, `src/app/(marketing)/pricing`, `src/app/(app)/account/billing`, `src/app/api/billing/webhook` — four plans, the €3 trial, the evaluation meter §14.9.7 limit 2 never had, cancellation with §25.1's mandatory survey. Legal pages and the §25 dashboard are the remainder |
+| **E14** Referral | ✅ Done — *not in the original plan* | `src/lib/referral/`, `/r/{code}`, `/account/referrals` — 14 days of Pro each way, paid on the referee's first payment, revoked on refund. The five abuse rules are in `abuse.ts` |
 
 **E8's code is done and the loop has been watched run** — a real submission from
 the textarea through Inngest to a marked result, at $0.108 and about 45 seconds
@@ -2443,6 +2562,42 @@ than borrowing a stronger one. A human read is still the thing that earns
 **Out:** Polar/Paddle subscription + webhooks + quota enforcement · per-user spend cap · daily/weekly/eval-ready emails · legal pages · the analytics dashboard from §25.
 **Accept:** a full paid signup→cancel cycle works in test mode; the spend cap demonstrably degrades service instead of overspending; the funnel dashboard shows real events end to end.
 
+**Built, against `plans/PLAN-MONETIZATION.md` rather than against this line.**
+Stripe, not Polar/Paddle (§1 decision 1, and §20.3's note on what that costs).
+Quota enforcement and the per-user spend cap are done and are the two things
+this epic turned out to be *fixing* rather than adding — see §14.9.7's note.
+
+**Of the three acceptance criteria, one is met in code and two need an account
+and a deployed origin**, which is the same shape E10 ended in:
+
+- *signup → cancel in test mode* — the code path is complete and covered, but it
+  has only been exercised against `MemoryStripe`. **Nobody has yet watched a real
+  €3 charge land**, and the trial's invoice mechanic (`trial_period_days` plus
+  `add_invoice_items`) is the one thing in this plan asserted from documentation
+  rather than measurement. PLAN-MONETIZATION §15 step 3 is that check.
+- *the spend cap degrades rather than overspends* — **met**, and now on marking
+  too, which it never was.
+- *the funnel dashboard* — the events fire (§25.1's monetization group is in the
+  union at last); no dashboard reads them.
+
+**Still owed:** legal pages, the §25 dashboard, and the six billing emails'
+German/Spanish/Bulgarian review — which `HUMAN-REVIEW.md` part D now marks as
+launch-gating for those locales rather than "not urgent", because a renewal
+notice that reads oddly is a chargeback.
+
+### E14 — Referral (not in the original plan)
+**Why:** the brief asked for it; §22 had no referral programme at all, only
+"referral traffic" from Proof Pages.
+**Out:** codes · `/r/{code}` · attribution on every signup route · 14 days each
+way · the five abuse rules · `/account/referrals`.
+**Dep:** E13 — there is nothing to reward against until money arrives.
+**Accept:** a Google signup is attributed (the path the sign-up action cannot
+see); a `+tag` alias of the referrer's own address is refused and recorded; no
+grant exists before `firstPaymentAt`; a refund revokes both sides. **All four
+met.** Not built, deliberately: referral tiers (the brief says start simplest)
+and shareable learning paths (§22.2's gate cannot be cleared until learners have
+evidence). See PLAN-MONETIZATION §9.4 and §9.5.
+
 ---
 
 # 25. Analytics
@@ -2462,6 +2617,24 @@ Standard envelope on every event: `{ user_id | anonymous_id, session_id, timesta
 
 **Monetization**
 `paywall_viewed` (trigger) · `checkout_started` / `subscription_created` (plan, annual bool) · `quota_reached` (quota_type) · `subscription_cancelled` (**reason from an exit survey — mandatory**) · `subscription_reactivated`
+
+> **Built.** All six are in the `AnalyticsEvent` union at last — they were named
+> here from the first commit and absent from the code until E13, because until
+> E13 nothing could fire them. The mandatory exit reason is mandatory in three
+> places: a `required` radio in the markup, a refusal in
+> `cancelSubscriptionAction`, and `cancellation_survey.reason NOT NULL`.
+>
+> **Referral (E14) adds five**, one per state a `referral` row moves through, so
+> "invites sent" and "invites that produced a paying learner" are different
+> numbers rather than the same number told twice:
+> `referral_link_created` · `referral_visit` · `referral_signup` (with
+> `rejected` and its reason) · `referral_qualified` · `referral_rewarded`.
+> `share_clicked` is here too — it was specified under Acquisition and had never
+> been added.
+>
+> **`quota_reached` is the one that matters before there is any revenue.** It is
+> the paywall actually being met, and §17.3's free→paid criterion cannot be read
+> without it.
 
 **Quality & cost** *(internal)*
 `agent_run` (agent, prompt_version, model, tokens_in, tokens_out, cache_read_tokens, cost_cents, latency_ms, status) · `evaluation_verifier_failed` · `curriculum_validator_failed` (check_name) · `content_quality_scored` (page, score, dimensions)
@@ -2503,7 +2676,7 @@ Nine numbers. Everything else is diagnostic.
 | 10 | **Solo-founder bandwidth.** 30 days is aggressive for §24. | 🟠 High | The plan is ordered by dependency so a slip pushes the tail, not the core. If you slip: cut SEO pages 26–50 and the roadmap generator, never E5 (planner) or E8 (evaluation). |
 | 11 | **Cold-start content quality in Generated packs.** | 🟡 Medium | Curriculum Validator fails closed. Generated packs are badged. Fallback to the nearest Standard pack's canonical path. |
 | 12 | **The local-language beachhead fragments effort.** | 🟡 Medium | **Deliberately deferred to month 4.** Translate only proven pages. Kill it if the English cluster hasn't shown traction. |
-| 13 | **EU VAT / compliance.** | 🟢 Low | Merchant of Record (Polar/Paddle) from day one. Do not hand-roll it. |
+| 13 | **EU VAT / compliance.** | 🟢 Low → 🟠 **High** | ~~Merchant of Record (Polar/Paddle) from day one. Do not hand-roll it.~~ **Overridden 2026-08-15: Stripe.** So this risk is now ours rather than a vendor's, and it is the one place the decision costs something real. Below **€10,000/yr** of cross-border B2C digital sales, home-country VAT applies and it is simple; above it, OSS registration, destination rates and quarterly returns. **Stripe Tax computes; it does not file.** Mitigation: confirm the Bulgarian specifics with an accountant once, and set a reminder at €8,000 trailing-twelve-month cross-border EU revenue. Below that threshold the MoR premium (~2.5 points) costs more than the filing does. |
 | 14 | **Learner uploads copyrighted or sensitive material.** | 🟡 Medium | PII scrubbing on ingest; explicit ToS; artefacts private by default; redaction controls on Proof Pages; a documented deletion path. |
 | 15 | **Model deprecation / price change.** | 🟢 Low | Prompts versioned and model-agnostic; a golden eval set makes model swaps a measured decision rather than a leap. |
 

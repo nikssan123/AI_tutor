@@ -88,8 +88,28 @@ export const buildPack = inngest.createFunction(
   },
   buildPackHandler({
     generate: async ({ slug, subject, userId }) => {
+      const db = getDb();
+
+      /*
+       * §14.9.7 limit 1 — the same omission that had left marking uncapped,
+       * one function up.
+       *
+       * `generatePack` has taken a `plan` since E5 and checks the ceiling when
+       * it gets one; this call never passed it, so the check was dead code and
+       * a $0.61 authoring run went out on the deep tier whatever the learner
+       * had already spent. `/start` now refuses to *commission* a pack on a
+       * plan that does not include them, and this is the second half: what is
+       * commissioned still runs inside its owner's ceiling.
+       */
+      // `userId` is null for a build nobody asked for — a script, a seed, a
+      // probe. There is no ceiling to check because there is nobody to bill,
+      // which is the same distinction `RunOrigin` draws.
+      const plan = userId
+        ? (await entitlementsForUser(db, userId, undefined)).planId
+        : undefined;
+
       const outcome = await generatePack(
-        { client: getAnthropic(), db: getDb(), userId },
+        { client: getAnthropic(), db, userId, plan },
         { slug, subject, rawGoal: null },
       );
       return { pack: outcome.pack, reasons: outcome.reasons };

@@ -136,6 +136,41 @@ export async function startSession(
 }
 
 /** The learner's unfinished session for this goal, if there is one. */
+/**
+ * How many sessions this learner has started this calendar month.
+ *
+ * The period is the one `spend_ledger` uses — `periodOf`, a UTC calendar month
+ * — so "3 a month" means the same thing here as everywhere else the product
+ * counts. §20.1 said "3 sessions/week", which is a period nothing else in this
+ * system meters in, and at §20.2's measured $0.17 was never affordable inside
+ * the free ceiling anyway.
+ *
+ * Counted from `learning_session` rather than kept as a column: the rows are
+ * already there, and a second counter is a second thing to be wrong.
+ */
+export async function sessionsThisPeriod(
+  db: Db,
+  userId: string,
+  now: Date,
+): Promise<number> {
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(learningSession)
+    .where(
+      and(
+        eq(learningSession.userId, userId),
+        gte(learningSession.startedAt, start),
+      ),
+    );
+
+  // `count(*)` with no `group by` always returns exactly one row.
+  return row!.n;
+}
+
 export async function openSession(
   db: Db,
   userId: string,

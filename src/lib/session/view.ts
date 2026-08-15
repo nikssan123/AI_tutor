@@ -12,6 +12,8 @@ import {
   type PriorDomain,
 } from "@/lib/contracts/goal";
 import { logCall } from "@/lib/ai/runlog";
+import { aiAccess } from "@/lib/billing/gate";
+import type { PlanId } from "@/lib/billing/catalog";
 import { buildLearnerContext, masteryBand } from "./context";
 import {
   cachedLesson,
@@ -149,6 +151,15 @@ export interface LessonOutcome {
   content: LessonContent | undefined;
   /** True when it came from the Postgres cache — §14.9.4 layer 2, verifiable. */
   cached: boolean;
+  /**
+   * True when there was no lesson because the month's ceiling was reached.
+   *
+   * Distinct from a failed generation, and the screen says different things:
+   * a failure is ours to apologise for, a ceiling is something the learner can
+   * act on. Without this the two are indistinguishable and the honest message
+   * cannot be written.
+   */
+  capped?: boolean;
 }
 
 /**
@@ -171,6 +182,12 @@ export async function lessonForBlock(
     now: Date;
     /** From the goal's spec. Omitted means `none` — see `PriorDomain`. */
     priorDomain?: PriorDomain | undefined;
+    /**
+     * The learner's plan, for §14.9.7 limit 1. Omitted skips the check, which
+     * is what the calibration and probe callers want — they have no learner to
+     * bill and `userId` is theirs, not a customer's.
+     */
+    plan?: PlanId | undefined;
   },
 ): Promise<LessonOutcome> {
   const level = masteryBand(input.mastery);
@@ -201,6 +218,25 @@ export async function lessonForBlock(
 
   const hit = await cachedLesson(db, request);
   if (hit) return { content: hit, cached: true };
+
+  /*
+   * §14.9.7 limit 1 — **after the cache, not before it.**
+   *
+   * The ordering is the whole point. A cached lesson is a database read that
+   * costs nothing, and §14.9.4 expects a 40–60% hit rate, so checking the cap
+   * first would refuse a learner something free — and refuse it more often to
+   * the learner most likely to be reading a popular pack's early skills.
+   *
+   * `standard` because §14.9.3 puts the lesson generator on Sonnet: there is no
+   * cheaper model to fall to, so over the cap this declines to generate rather
+   * than generating something worse. The caller already handles a missing
+   * lesson honestly — the block's own brief and the tutor — which is what makes
+   * declining safe here rather than a broken screen.
+   */
+  if (input.plan) {
+    const access = await aiAccess(db, input.userId, input.plan, "standard");
+    if (access.blocked) return { content: undefined, cached: false, capped: true };
+  }
 
   const result = await logCall(db, input.userId, await generateLesson(client, request));
   if (result.status !== "ok") return { content: undefined, cached: false };

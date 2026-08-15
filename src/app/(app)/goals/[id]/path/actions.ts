@@ -66,6 +66,14 @@ export async function buildPathAction(goalId: string): Promise<void> {
   const pack = await resolvePack(db, goal.packSlug);
   if (!pack) redirect("/today");
 
+  // Resolved once: the plan decides both which model tier this may use and
+  // whether a model is asked at all (§14.9.7 limit 1, and `aiCurriculum`).
+  const resolved = await entitlementsForUser(
+    db,
+    session.user.id,
+    session.user.plan,
+  );
+
   const now = new Date().toISOString();
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, session.user.id, goal.packSlug);
@@ -85,9 +93,8 @@ export async function buildPathAction(goalId: string): Promise<void> {
       // is on the free cap" placeholder it replaced. The cap was already real
       // before there was a pricing page, which was the point: §14.9.7's failure
       // mode is a single bug producing a 100× day.
-      plan: (
-        await entitlementsForUser(db, session.user.id, session.user.plan)
-      ).planId,
+      plan: resolved.planId,
+      aiCurriculum: resolved.entitlements.aiCurriculum,
       projects: pack.projects.map((p) => ({
         rubricId: p.rubric,
         title: p.title,

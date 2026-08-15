@@ -3,8 +3,16 @@ import { getAnthropic } from "@/lib/ai/client";
 import { currentSession } from "@/lib/account/session";
 import { recordAgentRun } from "@/lib/ai/runlog";
 import { sessionView } from "@/lib/session/view";
-import { logTurn, transcriptFor, tutorStream } from "@/lib/session/tutor";
+import {
+  logTurn,
+  MAX_TUTOR_TURNS,
+  transcriptFor,
+  turnsTaken,
+  tutorStream,
+} from "@/lib/session/tutor";
 import { noteTurn } from "@/lib/session/signals";
+import { aiAccess, overCapMessage } from "@/lib/billing/gate";
+import { resolvePlanId } from "@/lib/billing/catalog";
 
 /**
  * §14.9.3 — the tutor, streamed, because a person is watching it type.
@@ -39,6 +47,40 @@ export async function POST(request: Request): Promise<Response> {
   // exist. That is the intended shape: no id is confirmed to exist by a 403.
   const view = await sessionView(db, auth.user.id, parsed.sessionId, now);
   if (!view) return new Response("No such session.", { status: 404 });
+
+  /*
+   * §14.9.7 limit 4 — thirty turns, then a new session.
+   *
+   * Not a cost control: the monthly cap below is that. It is §17.2's "DON'T
+   * BUILD: a general chatbot — the tutor is scoped to the session", enforced.
+   * 409 rather than 403 because nothing is forbidden; the conversation is
+   * simply finished.
+   */
+  const turns = await turnsTaken(db, view.session.id, auth.user.id);
+  if (turns >= MAX_TUTOR_TURNS) {
+    return new Response(
+      "That is thirty questions on this session — enough for one sitting. Finish the block and the next session starts fresh.",
+      { status: 409 },
+    );
+  }
+
+  /*
+   * §14.9.7 limit 1 — "checked *before* every call".
+   *
+   * The tutor is the highest-volume spender in the product and was, until this
+   * line, the largest thing the cap did not cover: it recorded every cent
+   * faithfully and nothing ever read the total back.
+   *
+   * `standard` because §14.9.3 puts the tutor on Sonnet, which means there is
+   * no cheaper tier to fall to — so over the cap this refuses rather than
+   * degrades. The lesson on the page is still readable without it, which is
+   * what makes refusing honest rather than merely cheaper.
+   */
+  const planId = resolvePlanId(auth.user.plan);
+  const access = await aiAccess(db, auth.user.id, planId, "standard");
+  if (access.blocked) {
+    return new Response(overCapMessage(planId), { status: 402 });
+  }
 
   const history = await transcriptFor(db, view.session.id, auth.user.id);
 

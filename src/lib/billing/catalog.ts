@@ -44,6 +44,40 @@ export interface Entitlements {
   /** §14.9.7 limit 2 — "the product's meter (§20.1)". */
   evaluationsPerMonth: number;
   /**
+   * Sessions a month, or `null` for as many as the spend cap allows.
+   *
+   * A count rather than §20.1's "3/week", because a week is not a period this
+   * system meters anything else in and the ledger is keyed by calendar month.
+   * More importantly: **§20.1's number was never affordable.** Three a week is
+   * thirteen a month, and at §20.2's measured $0.17 that is 221¢ against a free
+   * ceiling of 100¢. This is the first version of the free tier whose promise
+   * and whose budget agree.
+   */
+  sessionsPerMonth: number | null;
+  /**
+   * Whether a curriculum is authored by a model or taken from the pack.
+   *
+   * `false` is not a degraded experience so much as a different, honest one:
+   * `canonicalCurriculum` is deterministic code over the skill graph, costs
+   * **nothing**, and is already what §14.9.5 falls back to when generation
+   * fails twice. §19.2 made the same argument about the roadmap tool — "a
+   * roadmap for a subject we have is arithmetic".
+   *
+   * What the $0.55 actually buys is a path shaped around *this* learner's
+   * diagnostic rather than the pack's default order, which is a real thing to
+   * sell and a true sentence to put on the pricing page.
+   */
+  aiCurriculum: boolean;
+  /**
+   * Whether this plan may commission a pack for a subject nobody has curated.
+   *
+   * §7.1's Generated tier costs **$0.61 a pack** and is the one public surface
+   * where a single click spends more than a month of free allowance. It is
+   * shared — the cost is per subject, not per learner — but the first person to
+   * ask is the one who pays for it, and on free that person has 150¢.
+   */
+  generatedPacks: boolean;
+  /**
    * Whether the deep tier is available at all, independent of spend.
    *
    * `false` degrades Opus to Sonnet on every call, which is the same lever
@@ -79,15 +113,49 @@ export interface PlanDef {
 export const EVALUATION_COST_CENTS = 45;
 
 /**
+ * §20.2's measured cost of one learning session, in cents.
+ *
+ * "Learning session (content + ~15 tutor turns, cached prefix) | Sonnet 5 |
+ * $0.17". It is here for the same reason the evaluation figure is: the free
+ * tier's session allowance is derived from a budget rather than chosen, and a
+ * test asserts the budget adds up.
+ */
+export const SESSION_COST_CENTS = 17;
+
+/**
+ * The one-off cost of getting a new learner to a plan they can start.
+ *
+ * §20.2: goal interview $0.04 + adaptive diagnostic $0.12. Curriculum
+ * generation is **not** in this number, because free does not get it (see
+ * `aiCurriculum`) — which is precisely what makes the free tier affordable.
+ * Counted once, in a learner's first month only.
+ */
+export const ONBOARDING_COST_CENTS = 16;
+
+/**
  * The catalog.
  *
  * Every number here is derived rather than chosen, and the derivations are
  * worth keeping next to them:
  *
- * - **free — 1 evaluation, 100¢.** §20.1 and §14.9.7, unchanged. The one
- *   evaluation is what keeps §19.3's activation metric ("first graded
- *   submission within 7 days of signup") reachable without paying, which is
- *   what makes §17.3's day-60 kill criteria mean anything.
+ * - **free — 1 evaluation, 3 sessions, 150¢.** The one evaluation is what keeps
+ *   §19.3's activation metric ("first graded submission within 7 days of
+ *   signup") reachable without paying, which is what makes §17.3's day-60 kill
+ *   criteria mean anything. Everything else about this row is arithmetic:
+ *
+ *       3 sessions × 17¢   =  51¢
+ *       1 evaluation × 45¢ =  45¢
+ *       onboarding, once   =  16¢
+ *                            ────
+ *                             112¢  ≤ 150¢
+ *
+ *   **The cap went up from 100¢, because 100¢ never paid for what §20.1
+ *   promised.** That row read "1 goal · roadmap + full diagnostic · 3
+ *   sessions/week · 1 evaluation/month", which is 71¢ of onboarding — the
+ *   curriculum generation alone is 55¢ — plus 221¢ of sessions plus a 45¢
+ *   evaluation, against a 100¢ ceiling. It was never a budget, it was two
+ *   numbers written in different sections. Free no longer buys the generated
+ *   curriculum (`aiCurriculum`), which is what brings it inside a real one.
  * - **trial — 5 evaluations, 450¢.** Four days of Pro capability against €3
  *   (≈$2.60 net of VAT and Stripe fees). Five graded projects is more than any
  *   human does in four days, so it is "full Pro" in practice while costing
@@ -106,28 +174,74 @@ export const PLANS: Record<PlanId, PlanDef> = {
   free: {
     id: "free",
     listed: true,
-    entitlements: { evaluationsPerMonth: 1, premiumModels: false },
-    spendCapCents: 100,
+    entitlements: {
+      evaluationsPerMonth: 1,
+      sessionsPerMonth: 3,
+      aiCurriculum: false,
+      generatedPacks: false,
+      premiumModels: false,
+    },
+    spendCapCents: 150,
   },
   trial: {
     id: "trial",
     listed: true,
-    entitlements: { evaluationsPerMonth: 5, premiumModels: true },
+    entitlements: {
+      evaluationsPerMonth: 5,
+      sessionsPerMonth: null,
+      aiCurriculum: true,
+      generatedPacks: true,
+      premiumModels: true,
+    },
     spendCapCents: 450,
   },
   learner: {
     id: "learner",
     listed: true,
-    entitlements: { evaluationsPerMonth: 3, premiumModels: false },
+    entitlements: {
+      evaluationsPerMonth: 3,
+      sessionsPerMonth: null,
+      aiCurriculum: true,
+      generatedPacks: true,
+      premiumModels: false,
+    },
     spendCapCents: 600,
   },
   pro: {
     id: "pro",
     listed: true,
-    entitlements: { evaluationsPerMonth: 10, premiumModels: true },
+    entitlements: {
+      evaluationsPerMonth: 10,
+      sessionsPerMonth: null,
+      aiCurriculum: true,
+      generatedPacks: true,
+      premiumModels: true,
+    },
     spendCapCents: 1_500,
   },
 };
+
+/**
+ * What a plan's own promises cost, at §20.2's measured prices.
+ *
+ * The number a spend cap has to be able to cover. `null` for a plan with
+ * unlimited sessions — there is no budget to compute, and the cap *is* the
+ * limit, which is the arrangement every paid plan is on.
+ *
+ * Exported so the test can assert the invariant rather than restate it: a plan
+ * whose cap cannot pay for what its own card advertises is advertising numbers
+ * the learner will never reach.
+ */
+export function promisedCostCents(planId: PlanId): number | null {
+  const { evaluationsPerMonth, sessionsPerMonth } = PLANS[planId].entitlements;
+  if (sessionsPerMonth === null) return null;
+
+  return (
+    sessionsPerMonth * SESSION_COST_CENTS +
+    evaluationsPerMonth * EVALUATION_COST_CENTS +
+    ONBOARDING_COST_CENTS
+  );
+}
 
 /**
  * Whether this plan runs generation on the standard tier regardless of spend.

@@ -6,6 +6,8 @@ import { getDb } from "@/db";
 import { getAnthropic } from "@/lib/ai/client";
 import { requireUser } from "@/lib/account/session";
 import { todayFor } from "@/lib/goals/today";
+import { entitlementsForUser } from "@/lib/billing/store";
+import { capture } from "@/lib/observability";
 import { toEngineGraph } from "@/lib/packs/validate";
 import { resolvePack } from "@/lib/content/resolve";
 import { initialMastery } from "@/lib/engine/bkt";
@@ -19,6 +21,8 @@ import {
   recentSignals,
   recordResponse,
   sessionById,
+  openSession,
+  sessionsThisPeriod,
   startSession,
 } from "@/lib/session/store";
 import { proveBlocks, proveItems, proveOffer } from "@/lib/session/prove";
@@ -40,6 +44,26 @@ export async function startSessionAction(): Promise<void> {
 
   const view = await todayFor(db, user.id, now);
   if (!view) redirect("/today");
+
+  /*
+   * The free tier's session allowance, checked only when a *new* session would
+   * be started.
+   *
+   * `startSession` hands back an already-open session rather than opening a
+   * second one, and somebody three blocks into today's work is not starting
+   * anything — refusing them would strand them mid-session, which is the one
+   * outcome worse than not letting them begin.
+   */
+  const open = await openSession(db, user.id, view.goal.id);
+  if (!open) {
+    const { entitlements } = await entitlementsForUser(db, user.id, user.plan);
+    const limit = entitlements.sessionsPerMonth;
+
+    if (limit !== null && (await sessionsThisPeriod(db, user.id, now)) >= limit) {
+      capture("quota_reached", { quota_type: "session", limit });
+      redirect("/today?error=sessions");
+    }
+  }
 
   const session = await startSession(db, {
     userId: user.id,

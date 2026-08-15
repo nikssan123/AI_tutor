@@ -44,6 +44,13 @@ export interface GenerateDeps {
   /** Null for anonymous work; the run is still logged, nobody is billed. */
   userId: string | null;
   plan?: PlanId;
+  /**
+   * Whether this learner's plan includes a model-authored curriculum.
+   *
+   * Defaults to `true` so every existing caller — and every test — keeps the
+   * behaviour it had. The one caller that knows about plans passes it.
+   */
+  aiCurriculum?: boolean;
   /** Overridable so tests need no model; defaults to the Opus adversarial pass. */
   spotCheck?: SpotChecker;
   projects?: CanonicalProject[];
@@ -77,7 +84,29 @@ export async function generateValidatedCurriculum(
 
   let attempts = 0;
 
-  while (attempts < MAX_GENERATION_ATTEMPTS) {
+  /*
+   * §14.9.7 limit 1, and the largest single saving in the free tier.
+   *
+   * Curriculum generation is §20.2's dearest one-off at **$0.55** — more than a
+   * third of a free month — and it is the one expensive thing whose output has
+   * a genuine zero-cost alternative already sitting below this loop.
+   * `canonicalCurriculum` is deterministic code over the skill graph; §14.9.5
+   * already falls back to it after two failures, and §19.2 made exactly this
+   * argument about the roadmap tool: "a roadmap for a subject we have is
+   * arithmetic".
+   *
+   * So a plan without `aiCurriculum` does not attempt generation at all. It is
+   * not a degraded path so much as a different, honest one — what the $0.55
+   * actually buys is an order shaped around *this* learner's diagnostic rather
+   * than the pack's default, which is a real thing to sell and a true sentence
+   * to put on a pricing page.
+   *
+   * `attempts` stays 0, so `source: "canonical"` is reached with an attempt
+   * count that says truthfully that nothing was tried.
+   */
+  const mayGenerate = deps.aiCurriculum ?? true;
+
+  while (mayGenerate && attempts < MAX_GENERATION_ATTEMPTS) {
     attempts += 1;
 
     const result = await logCall(

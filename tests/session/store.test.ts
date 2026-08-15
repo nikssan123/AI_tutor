@@ -9,6 +9,7 @@ import {
   learningSession as learningSessionTable,
   masteryUpdate,
   retrievalQueueItem,
+  spendLedger,
   user,
 } from "@/db/schema";
 import { findPack } from "@/lib/content";
@@ -33,6 +34,7 @@ import {
   resolveMisconceptions,
   scheduleRetrieval,
   sessionById,
+  sessionsThisPeriod,
   startSession,
 } from "@/lib/session/store";
 import { answerCheck, checkBlockAt, isBlank } from "@/lib/session/run";
@@ -49,8 +51,9 @@ import {
   styleHashFor,
   type LessonRequest,
 } from "@/lib/session/lesson";
-import { logTurn, transcriptFor } from "@/lib/session/tutor";
+import { logTurn, transcriptFor, turnsTaken } from "@/lib/session/tutor";
 import { initialMastery } from "@/lib/engine/bkt";
+import { periodOf } from "@/lib/ai/runlog";
 import type { GoalSpec } from "@/lib/contracts/goal";
 import type { BlockResponse, LessonContent } from "@/lib/contracts/session";
 import type { CallResult } from "@/lib/ai/call";
@@ -202,6 +205,189 @@ live("the session store", () => {
     expect(plans).toHaveLength(1);
     expect(plans[0]!.reason).toBe("Because.");
     expect(plans[0]!.status).toBe("started");
+  });
+
+  /** A `CallMeta` shaped like a real tutor turn — only the cost columns matter. */
+  const META = {
+    model: "claude-sonnet-5",
+    promptName: "tutor",
+    promptVersion: 1,
+    attempts: 1,
+    usage: {
+      inputTokens: 1_200,
+      outputTokens: 30,
+      cacheReadInputTokens: 1_150,
+      cacheCreationInputTokens: 0,
+    },
+    costCents: 0.2,
+    uncachedCostCents: 0.9,
+    latencyMs: 700,
+  };
+
+  describe("turnsTaken", () => {
+    it("counts only the learner's own questions", async () => {
+      // §14.9.7 limit 4 counts questions asked, not messages exchanged — the
+      // assistant's replies are in the same table and must not be doubled in.
+      const userId = await newUser();
+      const goalId = await newGoal(userId);
+      const session = await startSession(db, {
+        userId,
+        goalId,
+        planned: planned(goalId),
+        now: NOW,
+      });
+
+      expect(await turnsTaken(db, session.id, userId)).toBe(0);
+
+      await logTurn(db, {
+        userId,
+        sessionId: session.id,
+        question: "why?",
+        answer: "because",
+        meta: META,
+        now: NOW,
+      });
+
+      expect(await turnsTaken(db, session.id, userId)).toBe(1);
+    });
+
+    it("does not count another learner's questions", async () => {
+      const userId = await newUser();
+      const other = await newUser();
+      const goalId = await newGoal(userId);
+      const session = await startSession(db, {
+        userId,
+        goalId,
+        planned: planned(goalId),
+        now: NOW,
+      });
+
+      await logTurn(db, {
+        userId,
+        sessionId: session.id,
+        question: "why?",
+        answer: "because",
+        meta: META,
+        now: NOW,
+      });
+
+      expect(await turnsTaken(db, session.id, other)).toBe(0);
+    });
+  });
+
+  describe("a lesson when the month's ceiling is reached", () => {
+    it("declines to generate, and says so distinctly from a failure", async () => {
+      // §14.9.7 limit 1. The lesson generator runs on Sonnet (§14.9.3), so
+      // there is no cheaper tier to fall to — over the cap it declines rather
+      // than generating something worse. `capped` is separate from a plain
+      // absent lesson because the screen says different things: a failure is
+      // ours to apologise for, a ceiling is something the learner can act on.
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+
+      await db.insert(spendLedger).values({
+        userId,
+        period: periodOf(NOW),
+        costCents: 9_999,
+        updatedAt: NOW,
+      });
+
+      const explode = {
+        messages: {
+          create: async () => {
+            throw new Error("must not be called");
+          },
+        },
+      } as never;
+
+      const outcome = await lessonForBlock(db, explode, {
+        userId,
+        packSlug: pack.slug,
+        skill,
+        mastery: initialMastery(skill.id, skill.bktPriors),
+        minutes: 12,
+        now: NOW,
+        plan: "free",
+      });
+
+      expect(outcome.content).toBeUndefined();
+      expect(outcome.capped).toBe(true);
+      expect(outcome.cached).toBe(false);
+    });
+
+    it("generates as normal for the same plan under the ceiling", async () => {
+      // The other side of the same `if`. A plan being present is not itself a
+      // refusal — only a plan that has spent its month is.
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+
+      const explode = {
+        messages: {
+          create: async () => {
+            throw new Error("must not be called");
+          },
+        },
+      } as never;
+
+      // Nothing spent, so the cap does not bite and the model is reached for —
+      // which this client makes loudly observable.
+      await expect(
+        lessonForBlock(db, explode, {
+          userId,
+          packSlug: pack.slug,
+          skill,
+          mastery: initialMastery(skill.id, skill.bktPriors),
+          minutes: 12,
+          now: NOW,
+          plan: "free",
+        }),
+      ).rejects.toThrow("must not be called");
+    });
+  });
+
+  describe("sessionsThisPeriod", () => {
+    it("counts nothing for a learner who has started nothing", async () => {
+      const userId = await newUser();
+      expect(await sessionsThisPeriod(db, userId, NOW)).toBe(0);
+    });
+
+    it("counts this calendar month and not the last one", async () => {
+      // The period is the one `spend_ledger` uses — a UTC calendar month — so
+      // "3 a month" means the same thing here as everywhere else the product
+      // counts.
+      const userId = await newUser();
+      const goalId = await newGoal(userId);
+      const lastMonth = new Date("2026-07-20T09:00:00.000Z");
+
+      await startSession(db, {
+        userId,
+        goalId,
+        planned: planned(goalId, { plannedFor: "2026-07-20" }),
+        now: lastMonth,
+      });
+
+      expect(await sessionsThisPeriod(db, userId, NOW)).toBe(0);
+      expect(await sessionsThisPeriod(db, userId, lastMonth)).toBe(1);
+    });
+
+    it("counts a session started this month", async () => {
+      const userId = await newUser();
+      const goalId = await newGoal(userId);
+
+      await startSession(db, { userId, goalId, planned: planned(goalId), now: NOW });
+      expect(await sessionsThisPeriod(db, userId, NOW)).toBe(1);
+    });
+
+    it("does not count another learner's sessions", async () => {
+      const userId = await newUser();
+      const goalId = await newGoal(userId);
+      const other = await newUser();
+
+      await startSession(db, { userId, goalId, planned: planned(goalId), now: NOW });
+      expect(await sessionsThisPeriod(db, other, NOW)).toBe(0);
+    });
   });
 
   it("hands back the open session rather than starting a second one", async () => {

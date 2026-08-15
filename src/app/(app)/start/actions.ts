@@ -3,7 +3,8 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
-import { getDb } from "@/db";
+import { getDb, type Db } from "@/db";
+import { entitlementsForUser } from "@/lib/billing/store";
 import { getAnthropic } from "@/lib/ai/client";
 import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
@@ -40,6 +41,24 @@ async function requireUser(): Promise<string> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
   return session.user.id;
+}
+
+/**
+ * §7.1's Generated tier is a paid feature, and this is where that is decided.
+ *
+ * Authoring a pack costs **$0.61** (§24 E7.5, measured) — four times what a
+ * free month's whole allowance buys — and it is the one click in the product
+ * that spends that much in one go. The cost is per *subject* rather than per
+ * learner, so the person who asks first pays for everyone who asks later; on
+ * free, that person has 150¢.
+ *
+ * Checked before `startBuild`, not after: `startBuild` claims the slug, and a
+ * claim we then refuse to honour would lock the subject behind a build that
+ * never runs.
+ */
+async function requireGeneratedPacks(db: Db, userId: string): Promise<void> {
+  const { entitlements } = await entitlementsForUser(db, userId, undefined);
+  if (!entitlements.generatedPacks) redirect("/start?error=generated");
 }
 
 /**
@@ -218,6 +237,8 @@ export async function buildFromConversationAction(): Promise<void> {
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");
 
+    await requireGeneratedPacks(db, userId);
+
     // §7.1's Generated tier. The build is claimed here rather than on the wait
     // screen so that a refresh of that screen cannot start a second one.
     const started = await startBuild(db, {
@@ -316,6 +337,8 @@ export async function requestBuildAction(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "").trim();
   const subject = String(formData.get("subject") ?? "").trim();
   if (slug.length === 0 || subject.length === 0) redirect("/start");
+
+  await requireGeneratedPacks(db, userId);
 
   const started = await startBuild(db, { slug, subject, userId });
   if (started.kind === "rate-limited") redirect("/start?error=busy");

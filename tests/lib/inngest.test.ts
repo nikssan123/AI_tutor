@@ -588,3 +588,30 @@ describe("evaluateHandler", () => {
     expect(evaluate.opts.triggers).toEqual([{ event: EVENTS.evaluate }]);
   });
 });
+
+describe("a pack build nobody asked for", () => {
+  it("checks no ceiling, because there is nobody to bill", async () => {
+    // A script, a seed, a probe. The same distinction `RunOrigin` draws
+    // between a visitor and an operator: null owner, nobody to bill, no cap
+    // to read.
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(generatePack).mockClear();
+
+    const result = await (
+      buildPack as unknown as {
+        fn: (c: unknown) => Promise<{ status: string }>;
+      }
+    ).fn({
+      event: { data: { slug: "rust", subject: "Rust", userId: null } },
+      step: {
+        run: async <T>(_name: string, f: () => T | Promise<T>) => f(),
+      },
+    });
+
+    expect(result.status).toBe("ready");
+    expect(generatePack).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null, plan: undefined }),
+      { slug: "rust", subject: "Rust", rawGoal: null },
+    );
+  });
+});

@@ -33,7 +33,7 @@ Taken 2026-08-15. The first six override `PLAN.md` or `PLAN-LOCALIZATION.md` exp
 | 4 | Tiers listed | **Free · Trial · Learner · Pro**, all four on `/pricing` | §20.1 *"Launch with one paid tier. Two tiers doubles the decision friction"* |
 | 5 | Prices | **$24.99/€24.99 monthly · $199/€199 annual · $12.99/€12.99 Learner** | §20.1 ($25/$190) · `PLAN-LOCALIZATION` §6.1 (€25/€190) · §20.1's *"under $15"* rejection |
 | 6 | Referral reward | **14 days of Pro to each side** | No referral program exists anywhere in any document |
-| 7 | Free tier | **Unchanged from §20.1** — **1 evaluation/month**. Its goal and session limits are not enforced separately; see §2 | — |
+| 7 | Free tier | **1 evaluation · 3 sessions · canonical curriculum · no new subjects · 150¢.** Derived from a budget rather than asserted — §20.1's version was never affordable at its own cap (§2) | §20.1's "3 sessions/week" and its 100¢ ceiling |
 | 8 | The meter | **The evaluation**, as §20.1 already says. Never tokens, never messages | — |
 | 9 | Source of truth | The `subscription` row. `user.plan` is a derived fast path, reconciled in one place | — |
 | 10 | Grants | A referral or comp resolves to Pro **entitlements** at the **trial spend cap** | — |
@@ -64,14 +64,14 @@ export type Interval = "month" | "year";
 export type Currency = "usd" | "eur";
 ```
 
-**An entitlement is a thing the system refuses to do, not a thing a marketing table claims.** Two fields are enforced, and both are checked in code before a model call happens:
+**An entitlement is a thing the system refuses to do, not a thing a marketing table claims.** Every column below is checked in code before the spend it governs happens:
 
-| Plan | Listed | **Evaluations/mo** | Models | **Spend cap** |
-|---|---|---|---|---|
-| `free` | ✅ | **1** | standard | **100¢** |
-| `trial` | ✅ | **5** | premium | **450¢** |
-| `learner` | ✅ | **3** | standard | **600¢** |
-| `pro` | ✅ | **10** | premium | **1500¢** |
+| Plan | Listed | **Evaluations/mo** | **Sessions/mo** | Curriculum | New subjects | Models | **Spend cap** |
+|---|---|---|---|---|---|---|---|
+| `free` | ✅ | **1** | **3** | canonical | ✗ | standard | **150¢** |
+| `trial` | ✅ | **5** | ∞ | generated | ✓ | premium | **450¢** |
+| `learner` | ✅ | **3** | ∞ | generated | ✓ | standard | **600¢** |
+| `pro` | ✅ | **10** | ∞ | generated | ✓ | premium | **1500¢** |
 
 `free` and `pro` are §20.1 and §14.9.7 limits 1 and 2 **unchanged**. `trial` and `learner` are new, and every number is derived rather than guessed:
 
@@ -80,9 +80,12 @@ export type Currency = "usd" | "eur";
 
 ### The invariant that keeps a quota honest
 
-**A plan's spend cap must be able to pay for the evaluations the plan advertises**, or the learner reaches the cap first and the number on the pricing page is one they can never reach. `EVALUATION_COST_CENTS = 45` — §20.2's measured Tier 1 figure, the dearer of the two tiers — lives in the catalog for exactly this, and a test asserts `spendCapCents ≥ evaluationsPerMonth × 45` for **every** plan.
+**A plan's spend cap must be able to pay for everything the plan advertises**, or the learner reaches the cap first and the numbers on the pricing page are ones they can never reach. Three measured constants live in the catalog for exactly this — `EVALUATION_COST_CENTS = 45`, `SESSION_COST_CENTS = 17`, `ONBOARDING_COST_CENTS = 16`, all from §20.2 — and `promisedCostCents()` adds them up. A test asserts `spendCapCents ≥ promisedCostCents(plan)` for every plan with a finite session allowance.
 
-This was found by a failing test rather than by review: the trial was first written with Pro's ten evaluations behind a 500¢ cap, which advertises ten and pays for eleven.
+It has caught two things already, both by failing rather than by review:
+
+- **The trial** was first written with Pro's ten evaluations behind a 500¢ cap, which advertises ten and pays for eleven.
+- **§20.1's free tier**, which had never been checked against §14.9.7's free ceiling at all. 71¢ of onboarding plus 221¢ of sessions plus a 45¢ evaluation, against 100¢. The narrower version of this invariant (evaluations only) passed it; the wider one does not, which is why the wider one exists.
 
 ### What "standard models" may and may not degrade
 

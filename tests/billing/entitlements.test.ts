@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PLANS } from "@/lib/billing/catalog";
 import {
+  ACTIVE_STALENESS_DAYS,
   activeGrant,
   entitlementsFor,
   type GrantSnapshot,
@@ -57,13 +58,36 @@ describe("isSubscriptionStatus", () => {
 });
 
 describe("subscriptionEntitled", () => {
-  it("entitles an active subscription regardless of the period end", () => {
+  it("entitles an active subscription past its period end", () => {
     // Stripe keeps the status `active` right up to the moment a cancellation
     // takes effect, so someone who cancelled on day 2 still reads as active and
     // still paid for the rest of the month.
     expect(subscriptionEntitled(sub({ currentPeriodEnd: days(-5) }), NOW)).toBe(
       true,
     );
+  });
+
+  it("stops believing an active row that has gone stale", () => {
+    // The missed-webhook case. Without this bound, a subscription Stripe
+    // cancelled whose `deleted` event never arrived stays active for ever and
+    // hands out free Pro until somebody notices by hand.
+    expect(
+      subscriptionEntitled(
+        sub({ currentPeriodEnd: days(-(ACTIVE_STALENESS_DAYS + 1)) }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
+  it("does not trip on an ordinary renewal", () => {
+    // Stripe advances `current_period_end` on the invoice, days before the old
+    // one lapses, so a healthy monthly subscription never approaches this.
+    expect(
+      subscriptionEntitled(
+        sub({ currentPeriodEnd: days(-(ACTIVE_STALENESS_DAYS - 1)) }),
+        NOW,
+      ),
+    ).toBe(true);
   });
 
   it("entitles a trial until it ends, and not after", () => {

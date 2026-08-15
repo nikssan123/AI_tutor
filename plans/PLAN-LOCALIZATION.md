@@ -180,6 +180,26 @@ which reads `x-vercel-ip-country`, falls back to `x-ou-country` (honoured only w
 | **Pro annual** | **$190** | **€190** | Same 37% discount framing |
 | Later tier (post-PMF) | $49 | €49 | Unchanged from §20.1 |
 
+> **Superseded 2026-08-15.** The shipped table is in `PLAN-MONETIZATION.md` §3
+> and `src/lib/billing/prices.ts`, which is the only authority — a page renders
+> from it and `assertPriceMatches` checks Stripe against it.
+>
+> | | USD | EUR |
+> |---|---|---|
+> | Trial fee (one-off, then Pro monthly in 4 days) | **$3.00** | **€3.00** |
+> | Learner monthly | **$12.99** | **€12.99** |
+> | Pro monthly | **$24.99** | **€24.99** |
+> | Pro annual | **$199.00** | **€199.00** |
+>
+> Two things this section got right survive: **prices are mirrored, not
+> converted** (§6.2's argument, unchanged), and **EUR is VAT-inclusive**.
+>
+> One thing changed and one number was wrong. Charm pricing replaced the round
+> numbers §6.2 argued for — that was Nikolay's call against this section's
+> reasoning, not an oversight. And **the annual discount is 33%, not 37%**:
+> $199 against $24.99×12 is not $190 against $25. `annualSavingPercent()`
+> computes it and rounds down.
+
 ### 6.2 What VAT-inclusive display costs, stated honestly
 
 EU consumer law requires prices shown to consumers to include VAT. At €25 gross, with the Merchant of Record taking ~4% of gross:
@@ -203,6 +223,28 @@ Against `PLAN.md` §20.2's average AI cost of ~$4.80/mo (≈€4.45), a German P
 2. **Currency is locked at first subscription** and never changes for that subscription. Polar and Paddle both treat currency as immutable per subscription; a user who moves country keeps their currency until they cancel and resubscribe. Say this in the FAQ in one line rather than letting support discover it.
 3. **Never display two currencies at once.** One price, one currency, one manual switcher.
 4. **The MoR owns tax.** `PLAN.md` §18.1 already chose a Merchant of Record precisely so VAT is not hand-rolled; that decision now carries three more VAT rates and does so for free. Configure USD and EUR price sets in the MoR dashboard and read the resolved amount back — do not hard-code prices in two places.
+
+> **Built, and rules 1–3 held while rule 4 did not.** `PLAN-MONETIZATION.md` §1
+> decision 1 chose **Stripe**, so there is no Merchant of Record and **we own EU
+> VAT**. Stripe Tax computes destination rates; it does not file them. PLAN.md
+> §20.3's note carries the threshold to watch.
+>
+> Rule 1 is the one that turned into code rather than prose:
+> `assertPriceMatches` in `src/lib/billing/stripe/checkout.ts` reads the amount
+> back off Stripe and **refuses to create the session** when it disagrees with
+> the table the page rendered from. It throws rather than falling back to
+> Stripe's number, because charging an amount the customer was never shown is
+> the failure being prevented, not a recovery from it.
+>
+> Rules 2 and 3 shipped as written — `subscription.currency` is immutable per
+> row, and the page shows one currency with one switcher.
+>
+> **§6.5's client island was not built and is not needed.** It exists to swap a
+> price inside statically-rendered HTML without layout shift. But
+> `(marketing)/layout.tsx` already renders these routes per request — `SiteHeader`
+> reads the session — so `/pricing` reads the cookie on the server. That removes
+> the island, the reserved-width slot and the CLS risk the island existed to
+> manage, and the switcher works with JavaScript off.
 
 ### 6.4 Bulgaria specifically
 

@@ -12,10 +12,15 @@ import { PLANS, type PlanId } from "./catalog";
  *
  * **2. Nothing is claimed that nothing enforces.** There is no "3 active goals"
  * line, because the engine is single-goal by construction (`pauseOthers` in
- * `src/lib/goals/store.ts`) and §4.2 law 3 applies to our own price list as much
- * as to a mastery claim. The same goes for session counts: the spend cap binds
- * tighter than any counter would, so a counter would be a promise with nothing
- * behind it.
+ * `src/lib/goals/store.ts`) and §4.2 law 3 applies to our own price list as
+ * much as to a mastery claim.
+ *
+ * **3. And nothing is left out that a learner would want warned about.** The
+ * free card says what it does *not* include — the standard path rather than a
+ * tailored one — because a list that mentions only what is included is how
+ * somebody discovers a limit by hitting it. Every such line is enforced: the
+ * session count in `startSessionAction`, the curriculum in
+ * `generateValidatedCurriculum`, generated packs in `/start`.
  */
 
 export interface PlanCopy {
@@ -35,6 +40,21 @@ const marked = (planId: PlanId): string => {
 };
 
 /**
+ * The session line, read from the catalog like every other number here.
+ *
+ * "Unlimited" is only ever written for a plan whose `sessionsPerMonth` is
+ * genuinely `null`. The spend cap still bounds it — §14.9.7 limit 1 has not
+ * gone anywhere — but a paid learner reaching that ceiling is a support
+ * conversation about an unusual month, not a limit anybody should be sold.
+ */
+const sessions = (planId: PlanId): string => {
+  const n = PLANS[planId].entitlements.sessionsPerMonth;
+  return n === null
+    ? "As many learning sessions as you want"
+    : `${n} learning sessions a month`;
+};
+
+/**
  * The one claim worth repeating on every card, phrased the same way each time.
  *
  * §4.2 law 1 — a mark is only worth anything if it is anchored in the learner's
@@ -50,9 +70,14 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     name: "Free",
     pitch: "See whether this works on you, without paying to find out.",
     features: [
-      "A skill check and a real plan for any subject",
+      sessions("free"),
       marked("free"),
       GRADING_LINE,
+      // Said plainly rather than omitted. A learner who finds out on their
+      // fourth session that free stops at three has been misled by a list that
+      // only mentioned what was included — §4.2 law 3 applies to a price list
+      // as much as to a mastery claim.
+      "The standard path for your subject, not a tailored one",
       "Your mastery ledger, kept as long as you want it",
     ],
     cta: "Start learning",
@@ -64,7 +89,8 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     pitch: "Four days of everything, for the price of a coffee.",
     features: [
       `${PLANS.trial.entitlements.evaluationsPerMonth} graded projects across four days`,
-      "The full adaptive curriculum and tutor",
+      sessions("trial"),
+      "A path built around your diagnostic, not the default order",
       "Our most capable models on the work that needs them",
       "Cancel before it renews and pay nothing more",
     ],
@@ -77,8 +103,9 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     pitch: "For a steady pace rather than an intense one.",
     features: [
       marked("learner"),
-      "The full adaptive curriculum and tutor",
-      GRADING_LINE,
+      sessions("learner"),
+      "A path built around your diagnostic, not the default order",
+      "Any subject — we'll build the course if we don't have it",
       "Everything in Free",
     ],
     cta: "Choose Learner",
@@ -90,6 +117,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     pitch: "For getting somewhere specific, on a deadline you set.",
     features: [
       marked("pro"),
+      sessions("pro"),
       "Our most capable models on the work that needs them",
       "Priority marking",
       "Everything in Learner",

@@ -616,6 +616,59 @@ describe("generateValidatedCurriculum", () => {
     expect(body.model).toBe("claude-sonnet-5");
   });
 
+  it("asks no model at all on a plan without a generated curriculum", async () => {
+    // The largest single saving in the free tier: §20.2 prices this one-off at
+    // $0.55, more than a third of a free month, and `canonicalCurriculum` is
+    // deterministic code that costs nothing.
+    const { client, create } = modelReturning([
+      draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]),
+    ]);
+
+    const outcome = await generateValidatedCurriculum(
+      {
+        client,
+        db,
+        userId: "u1",
+        plan: "free",
+        aiCurriculum: false,
+        spotCheck: clean,
+      },
+      architectInput,
+    );
+
+    expect(outcome.source).toBe("canonical");
+    // Not "the model was asked and ignored" — it was never asked.
+    expect(create).not.toHaveBeenCalled();
+    // And the count says so truthfully rather than reporting two failures.
+    expect(outcome.attempts).toBe(0);
+  });
+
+  it("still generates when the plan includes it", async () => {
+    const good = draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]);
+    const { client, create } = modelReturning([good]);
+
+    const outcome = await generateValidatedCurriculum(
+      // No `plan`: what is under test is the `aiCurriculum` switch, and the
+      // spend cap has its own tests above with a `db` stub that can answer.
+      { client, db, userId: null, aiCurriculum: true, spotCheck: clean },
+      architectInput,
+    );
+
+    expect(outcome.source).toBe("generated");
+    expect(create).toHaveBeenCalled();
+  });
+
+  it("generates by default, so every existing caller is unchanged", async () => {
+    const good = draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]);
+    const { client } = modelReturning([good]);
+
+    const outcome = await generateValidatedCurriculum(
+      { client, db, userId: null, spotCheck: clean },
+      architectInput,
+    );
+    expect(outcome.source).toBe("generated");
+  });
+
   it("degrades a plan without the deep tier even under its cap (E13)", async () => {
     // `degradesGeneration` short-circuits before the ledger is read at all: a
     // Learner is entitled to standard models, however little they have spent.

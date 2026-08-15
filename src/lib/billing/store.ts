@@ -154,6 +154,31 @@ export async function entitlementsForUser(
   );
 }
 
+/**
+ * Whether this account has ever started the €3 trial.
+ *
+ * The trial is a loss leader by design — §1's note prices it at roughly $2 net
+ * against the AI it allows — and a loss leader that can be taken repeatedly is
+ * not a trial, it is a price. Somebody could cancel on day 3, subscribe again,
+ * and hold Pro indefinitely at €3 every four days.
+ *
+ * Asked of the whole history rather than of the current subscription: cancelled,
+ * refunded and expired trials all count, because all three mean this person has
+ * already had the four days.
+ */
+export async function hasUsedTrial(
+  db: BillingReader,
+  userId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(and(eq(subscription.userId, userId), eq(subscription.planId, "trial")))
+    .limit(1);
+
+  return rows.length > 0;
+}
+
 export interface SubscriptionUpsert {
   userId: string;
   stripeSubscriptionId: string;

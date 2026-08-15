@@ -14,6 +14,7 @@ import {
   closeEvent,
   createGrant,
   entitlementsForUser,
+  hasUsedTrial,
   latestSubscription,
   liveGrants,
   reconcilePlan,
@@ -138,6 +139,33 @@ live("against a real database", () => {
         NOW,
       );
       expect(await planOf(PAYER)).toBe("pro");
+    });
+  });
+
+  describe("hasUsedTrial", () => {
+    it("is false for an account that has never subscribed", async () => {
+      expect(await hasUsedTrial(db, FRIEND)).toBe(false);
+    });
+
+    it("is false for somebody who went straight to Pro", async () => {
+      await saveSubscription(db, upsert(), NOW);
+      expect(await hasUsedTrial(db, PAYER)).toBe(false);
+    });
+
+    it("is true once a trial exists, whatever became of it", async () => {
+      // Cancelled, refunded and expired all count: each one means this person
+      // has already had the four days.
+      await saveSubscription(
+        db,
+        upsert({ planId: "trial", status: "canceled", endedAt: NOW }),
+        NOW,
+      );
+      expect(await hasUsedTrial(db, PAYER)).toBe(true);
+    });
+
+    it("does not leak between accounts", async () => {
+      await saveSubscription(db, upsert({ planId: "trial" }), NOW);
+      expect(await hasUsedTrial(db, FRIEND)).toBe(false);
     });
   });
 

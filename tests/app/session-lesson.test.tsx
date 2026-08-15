@@ -55,6 +55,7 @@ const props = {
   minutes: 12,
   now: new Date("2026-08-13T09:00:00.000Z"),
   priorDomain: "none" as const,
+  plan: "free" as const,
 };
 
 beforeEach(() => {
@@ -111,5 +112,33 @@ describe("the lesson body", () => {
   it("does not try to generate one with no mastery state to level it against", async () => {
     render(await LessonBody({ ...props, mastery: undefined }));
     expect(lessonForBlockMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("when the month's ceiling has been reached", () => {
+  it("says so, and offers the way out", async () => {
+    // A ceiling is something the learner can act on, so it says so.
+    lessonForBlockMock.mockResolvedValue({ content: undefined, cached: false, capped: true });
+    render(await LessonBody(props));
+
+    // The sentence is split by the link and by `&rsquo;`, so it is asserted on
+    // the composed text rather than on one element.
+    expect(document.body.textContent).toMatch(
+      /used everything this month.s free plan includes/,
+    );
+    expect(
+      screen.getByRole("link", { name: /what Pro includes/ }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  it("does not pitch an upgrade when the failure was ours", async () => {
+    // The worst possible moment to sell something.
+    lessonForBlockMock.mockResolvedValue({ content: undefined, cached: false });
+    render(await LessonBody(props));
+
+    expect(document.body.textContent).toMatch(
+      /couldn.t write this lesson just now/,
+    );
+    expect(screen.queryByRole("link", { name: /Pro/ })).toBeNull();
   });
 });

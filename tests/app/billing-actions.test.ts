@@ -23,6 +23,7 @@ const portalMock = vi.fn(async (..._args: unknown[]) => ({
   url: "https://portal.test/x",
 }));
 const stripePostMock = vi.fn(async (..._args: unknown[]) => ({}));
+const usedTrialMock = vi.fn(async (..._args: unknown[]) => false);
 const captureMock = vi.fn();
 const cookieStore = { value: undefined as string | undefined };
 
@@ -46,6 +47,7 @@ vi.mock("@/lib/account/session", () => ({ requireUser: () => requireUserMock() }
 vi.mock("@/lib/billing/store", () => ({
   latestSubscription: (...a: unknown[]) => subscriptionMock(...(a as [])),
   recordCancellationSurvey: (...a: unknown[]) => surveyMock(...(a as [])),
+  hasUsedTrial: (...a: unknown[]) => usedTrialMock(...(a as [])),
 }));
 vi.mock("@/lib/billing/stripe/checkout", () => ({
   createCheckoutSession: (...a: unknown[]) => checkoutMock(...(a as [])),
@@ -90,6 +92,7 @@ beforeEach(() => {
   });
   requireUserMock.mockResolvedValue({ id: "u1", plan: "pro" });
   subscriptionMock.mockResolvedValue(SUBSCRIPTION);
+  usedTrialMock.mockResolvedValue(false);
   checkoutMock.mockResolvedValue({ id: "cs_1", url: "https://pay.test/x" });
 });
 
@@ -156,6 +159,24 @@ describe("startCheckoutAction", () => {
       startCheckoutAction(form({ plan: "pro", interval: "year" })),
     ).rejects.toThrow(/REDIRECT:https/);
     expect(checkoutMock.mock.calls[0]![1]).toMatchObject({ interval: "year" });
+  });
+
+  it("refuses a second trial on the same account", async () => {
+    // A €3 trial that can be retaken is not a trial, it is a price: cancel on
+    // day 3, subscribe again, and hold Pro indefinitely at €3 per four days.
+    usedTrialMock.mockResolvedValue(true);
+
+    await expect(startCheckoutAction(form({ plan: "trial" }))).rejects.toThrow(
+      "REDIRECT:/pricing?error=trial-used",
+    );
+    expect(checkoutMock).not.toHaveBeenCalled();
+  });
+
+  it("still sells Pro to somebody who has had the trial", async () => {
+    usedTrialMock.mockResolvedValue(true);
+    await expect(startCheckoutAction(form({ plan: "pro" }))).rejects.toThrow(
+      /REDIRECT:https/,
+    );
   });
 
   it("refuses a plan nobody sells", async () => {

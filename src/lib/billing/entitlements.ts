@@ -84,7 +84,27 @@ export interface ResolvedEntitlement {
  */
 export const PAST_DUE_GRACE_DAYS = 14;
 
+/**
+ * How long an `active` row is believed after the period it paid for ended.
+ *
+ * `active` is trusted regardless of the date (see below), which is right while
+ * webhooks are arriving and dangerous when they are not: a subscription Stripe
+ * cancelled, whose `customer.subscription.deleted` never landed, would
+ * otherwise stay `active` in our table **for ever** and hand out free Pro until
+ * somebody noticed by hand.
+ *
+ * Thirty-five days is a month plus a margin — long enough that no ordinary
+ * renewal trips it (Stripe advances `current_period_end` on the invoice, days
+ * before the old one lapses) and short enough that a silent failure costs one
+ * cycle rather than a year. It is a backstop, not a mechanism: the webhook is
+ * still what is supposed to end a subscription.
+ */
+export const ACTIVE_STALENESS_DAYS = 35;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const after = (date: Date, days: number): Date =>
+  new Date(date.getTime() + days * DAY_MS);
 
 /**
  * Is this subscription currently worth anything to its owner?
@@ -101,17 +121,17 @@ export function subscriptionEntitled(
 ): boolean {
   switch (subscription.status) {
     case "active":
-      return true;
+      // Trusted past its period end — Stripe keeps `active` right up to the
+      // moment a cancellation takes effect, and somebody who cancelled on day 2
+      // still paid for the rest of the month — but not indefinitely. Past the
+      // staleness window the likeliest explanation is a webhook that never
+      // arrived, and the safe reading of "we have not heard from Stripe in over
+      // a month" is that this is no longer being paid for.
+      return now < after(subscription.currentPeriodEnd, ACTIVE_STALENESS_DAYS);
     case "trialing":
       return now < subscription.currentPeriodEnd;
     case "past_due":
-      return (
-        now <
-        new Date(
-          subscription.currentPeriodEnd.getTime() +
-            PAST_DUE_GRACE_DAYS * DAY_MS,
-        )
-      );
+      return now < after(subscription.currentPeriodEnd, PAST_DUE_GRACE_DAYS);
     case "canceled":
     case "unpaid":
     case "incomplete":

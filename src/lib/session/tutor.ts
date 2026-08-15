@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { interaction } from "@/db/schema";
@@ -111,6 +111,45 @@ export function tutorStream(
 
 /** How much of a conversation is replayed. Older turns are in the context block. */
 export const TRANSCRIPT_DEPTH = 20;
+
+/**
+ * §14.9.7 limit 4 — "Tutor turns per session: 30. Soft warning at 25; new
+ * session after 30."
+ *
+ * Specified from the first draft of the plan and never implemented. It is not
+ * primarily a cost control — the per-user monthly cap is that — it is a quality
+ * one: a conversation past thirty turns has stopped being a tutorial and
+ * become a chat, which §17.2 lists under **DON'T BUILD** ("a general chatbot —
+ * the tutor is scoped to the session").
+ */
+export const MAX_TUTOR_TURNS = 30;
+export const TUTOR_TURN_WARNING = 25;
+
+/**
+ * How many questions this learner has asked in this session.
+ *
+ * Counted rather than derived from `transcriptFor`, which stops at
+ * `TRANSCRIPT_DEPTH` and would therefore report 20 forever.
+ */
+export async function turnsTaken(
+  db: Db,
+  sessionId: string,
+  userId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(interaction)
+    .where(
+      and(
+        eq(interaction.sessionId, sessionId),
+        eq(interaction.userId, userId),
+        eq(interaction.role, "user"),
+      ),
+    );
+
+  // `count(*)` with no `group by` always returns exactly one row.
+  return row!.n;
+}
 
 export async function transcriptFor(
   db: Db,

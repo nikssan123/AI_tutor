@@ -13,6 +13,7 @@ import {
   startOfUtcMonth,
 } from "@/lib/admin/console";
 import { grantAdmin, listAdmins, NoSuchUserError, revokeAdmin } from "@/lib/admin/grant";
+import { PLANS } from "@/lib/billing/catalog";
 
 /**
  * The console's read model, and the role-granting CLI behind it.
@@ -145,11 +146,19 @@ live("against a real database", () => {
     });
 
     it("resolves each learner's cap against their own plan", async () => {
-      // 120¢ is over the free cap (100) and well under the pro cap (1500).
-      // A single hardcoded threshold would get one of these two wrong.
+      // An amount over the free ceiling and well under the pro one. A single
+      // hardcoded threshold would get one of these two wrong.
+      //
+      // Read from the catalog rather than typed: these were `120` and `100`
+      // against a free cap of 100¢, and both silently became wrong the day the
+      // free tier was re-budgeted to 150¢.
+      const between =
+        PLANS.free.spendCapCents +
+        Math.floor((PLANS.pro.spendCapCents - PLANS.free.spendCapCents) / 2);
+
       await db.insert(spendLedger).values([
-        { userId: IDS[0]!, period: PERIOD, costCents: 120 },
-        { userId: IDS[1]!, period: PERIOD, costCents: 120 },
+        { userId: IDS[0]!, period: PERIOD, costCents: between },
+        { userId: IDS[1]!, period: PERIOD, costCents: between },
       ]);
 
       const snapshot = await spendSnapshot(db, NOW);
@@ -157,9 +166,13 @@ live("against a real database", () => {
     });
 
     it("counts a learner exactly at their cap as capped", async () => {
-      await db
-        .insert(spendLedger)
-        .values([{ userId: IDS[0]!, period: PERIOD, costCents: 100 }]);
+      await db.insert(spendLedger).values([
+        {
+          userId: IDS[0]!,
+          period: PERIOD,
+          costCents: PLANS.free.spendCapCents,
+        },
+      ]);
 
       expect((await spendSnapshot(db, NOW)).cappedLearners).toBe(1);
     });

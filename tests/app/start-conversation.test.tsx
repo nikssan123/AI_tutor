@@ -49,6 +49,22 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: (...a: unknown[]) => entitlementsMock(...(a as [])),
+}));
+const freshEntitlements = () => ({
+  planId: "pro",
+  entitlements: {
+    evaluationsPerMonth: 10,
+    sessionsPerMonth: null as number | null,
+    aiCurriculum: true,
+    generatedPacks: true,
+    premiumModels: true,
+  },
+  spendCapCents: 1_500,
+  source: "plan",
+});
+const entitlementsMock = vi.fn(async (..._a: unknown[]) => freshEntitlements());
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({}) }));
 vi.mock("@/lib/ai/runlog", () => ({
@@ -1063,5 +1079,50 @@ describe("forms with fields missing entirely", () => {
     await expect(buildFromConversationAction()).rejects.toThrow(
       "REDIRECT:/start?error=subject",
     );
+  });
+});
+
+describe("commissioning a pack is a paid feature", () => {
+  /** Free: no generated packs. §7.1's tier costs $0.61 against a 150¢ month. */
+  const onFree = () => {
+    entitlementsMock.mockResolvedValue({
+      ...freshEntitlements(),
+      planId: "free",
+      entitlements: {
+        evaluationsPerMonth: 1,
+        sessionsPerMonth: 3,
+        aiCurriculum: false,
+        generatedPacks: false,
+        premiumModels: false,
+      },
+      spendCapCents: 150,
+    });
+  };
+
+  it("refuses a free learner before the slug is claimed", async () => {
+    // Checked before `startBuild`, which claims the slug: a claim we then
+    // refuse to honour would lock the subject behind a build that never runs.
+    onFree();
+    // The same state the "starts a build for a subject nobody has curated"
+    // test sets up — a captured intake with no matched pack.
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/start?error=generated",
+    );
+    expect(startBuildMock).not.toHaveBeenCalled();
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a retry too", async () => {
+    onFree();
+    const form = new FormData();
+    form.set("slug", "rust");
+    form.set("subject", "Rust");
+
+    await expect(requestBuildAction(form)).rejects.toThrow(
+      "REDIRECT:/start?error=generated",
+    );
+    expect(startBuildMock).not.toHaveBeenCalled();
   });
 });

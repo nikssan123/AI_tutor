@@ -13,6 +13,14 @@ const transcriptMock = vi.fn();
 const tutorStreamMock = vi.fn();
 const logTurnMock = vi.fn();
 const recordRunMock = vi.fn();
+const turnsTakenMock = vi.fn(async (..._a: unknown[]) => 0);
+const aiAccessMock = vi.fn(async (..._a: unknown[]) => ({
+  overCap: false,
+  degraded: false,
+  blocked: false,
+  spentCents: 0,
+  capCents: 150,
+}));
 
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({}) }));
@@ -29,9 +37,15 @@ vi.mock("@/lib/session/tutor", () => ({
   transcriptFor: (...a: unknown[]) => transcriptMock(...(a as [])),
   tutorStream: (...a: unknown[]) => tutorStreamMock(...(a as [])),
   logTurn: (...a: unknown[]) => logTurnMock(...(a as [])),
+  turnsTaken: (...a: unknown[]) => turnsTakenMock(...(a as [])),
+  MAX_TUTOR_TURNS: 30,
 }));
 vi.mock("@/lib/ai/runlog", () => ({
   recordAgentRun: (...a: unknown[]) => recordRunMock(...(a as [])),
+}));
+vi.mock("@/lib/billing/gate", () => ({
+  aiAccess: (...a: unknown[]) => aiAccessMock(...(a as [])),
+  overCapMessage: () => "over cap",
 }));
 
 const { POST, parseBody } = await import("@/app/api/tutor/route");
@@ -191,5 +205,58 @@ describe("tutor signals on the streamed turn", () => {
     // The learner asked a question and got an answer. A label they will never
     // see failing must not turn that into an error message.
     expect(await response.text()).toBe("Because of the grain.");
+  });
+});
+
+describe("the limits the tutor is subject to", () => {
+  it("stops a conversation at thirty turns", async () => {
+    // §14.9.7 limit 4, and §17.2's "DON'T BUILD: a general chatbot — the tutor
+    // is scoped to the session". 409 rather than 403: nothing is forbidden,
+    // the conversation is simply finished.
+    turnsTakenMock.mockResolvedValue(30);
+
+    const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
+    expect(response.status).toBe(409);
+    expect(await response.text()).toMatch(/thirty questions/);
+    expect(tutorStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the thirtieth through", async () => {
+    turnsTakenMock.mockResolvedValue(29);
+    const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
+    expect(response.status).toBe(200);
+  });
+
+  it("refuses when the month's ceiling is reached", async () => {
+    // The tutor is the highest-volume spender in the product and was, until
+    // E13, the largest thing the cap did not cover: it recorded every cent and
+    // nothing ever read the total back. 402 — payment is exactly what is
+    // required.
+    aiAccessMock.mockResolvedValue({
+      overCap: true,
+      degraded: true,
+      blocked: true,
+      spentCents: 150,
+      capCents: 150,
+    });
+
+    const response = await POST(post({ sessionId: "sess-1", message: "why?" }));
+    expect(response.status).toBe(402);
+    expect(tutorStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("checks the turn count before the ceiling", async () => {
+    // Cheaper, and a better message: somebody who has simply talked a lot
+    // should be told that, not sold a subscription.
+    turnsTakenMock.mockResolvedValue(30);
+    aiAccessMock.mockResolvedValue({
+      overCap: true,
+      degraded: true,
+      blocked: true,
+      spentCents: 150,
+      capCents: 150,
+    });
+
+    expect((await POST(post({ sessionId: "sess-1", message: "why?" }))).status).toBe(409);
   });
 });

@@ -11,7 +11,7 @@ import {
   isCurrency,
   resolveCurrency,
 } from "@/lib/billing/prices";
-import { latestSubscription } from "@/lib/billing/store";
+import { hasUsedTrial, latestSubscription } from "@/lib/billing/store";
 import { createCheckoutSession } from "@/lib/billing/stripe/checkout";
 import { getStripe } from "@/lib/billing/stripe/client";
 import { capture } from "@/lib/observability";
@@ -72,6 +72,13 @@ export async function startCheckoutAction(formData: FormData): Promise<void> {
   );
 
   const db = getDb();
+
+  // One trial per account, ever. See `hasUsedTrial` — a €3 trial that can be
+  // retaken is not a trial, it is a price.
+  if (planId === "trial" && (await hasUsedTrial(db, session.user.id))) {
+    redirect("/pricing?error=trial-used");
+  }
+
   const existing = await latestSubscription(db, session.user.id);
 
   capture("checkout_started", { plan: planId, interval, currency });

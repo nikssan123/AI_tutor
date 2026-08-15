@@ -48,6 +48,22 @@ vi.mock("@/lib/session/run", () => ({
 vi.mock("@/lib/session/grade", () => ({
   gradeCheck: (...a: unknown[]) => gradeCheckMock(...(a as [])),
 }));
+const openSessionMock = vi.fn(async (..._a: unknown[]) => undefined);
+// Pro by default, so the existing assertions stay about planning and starting.
+const entitlementsMock = vi.fn(async (..._a: unknown[]) => ({
+  planId: "pro",
+  entitlements: {
+    evaluationsPerMonth: 10,
+    sessionsPerMonth: null as number | null,
+    aiCurriculum: true,
+    generatedPacks: true,
+    premiumModels: true,
+  },
+  spendCapCents: 1_500,
+  source: "plan",
+}));
+const sessionsThisPeriodMock = vi.fn(async (..._a: unknown[]) => 0);
+
 vi.mock("@/lib/session/store", () => ({
   startSession: (...a: unknown[]) => startSessionMock(...(a as [])),
   sessionById: (...a: unknown[]) => sessionByIdMock(...(a as [])),
@@ -56,6 +72,13 @@ vi.mock("@/lib/session/store", () => ({
   recordResponse: (...a: unknown[]) => recordResponseMock(...(a as [])),
   appendBlocks: (...a: unknown[]) => appendBlocksMock(...(a as [])),
   recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
+  openSession: (...a: unknown[]) => openSessionMock(...(a as [])),
+  sessionsThisPeriod: (...a: unknown[]) => sessionsThisPeriodMock(...(a as [])),
+}));
+// The free tier's session allowance. Pro by default here so the existing
+// assertions are about planning and starting, not about billing.
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: (...a: unknown[]) => entitlementsMock(...(a as [])),
 }));
 
 const {
@@ -124,6 +147,61 @@ describe("startSessionAction", () => {
     todayForMock.mockResolvedValue(undefined);
     await expect(startSessionAction()).rejects.toThrow("REDIRECT:/today");
     expect(startSessionMock).not.toHaveBeenCalled();
+  });
+
+  describe("the free tier's session allowance", () => {
+    /** Free: three a month, and the ledger says three have been started. */
+    const spent = () => {
+      entitlementsMock.mockResolvedValue({
+        planId: "free",
+        entitlements: {
+          evaluationsPerMonth: 1,
+          sessionsPerMonth: 3,
+          aiCurriculum: false,
+          generatedPacks: false,
+          premiumModels: false,
+        },
+        spendCapCents: 150,
+        source: "plan",
+      });
+      sessionsThisPeriodMock.mockResolvedValue(3);
+    };
+
+    it("refuses a fourth session in a month", async () => {
+      spent();
+      await expect(startSessionAction()).rejects.toThrow(
+        "REDIRECT:/today?error=sessions",
+      );
+      expect(startSessionMock).not.toHaveBeenCalled();
+    });
+
+    it("lets the third through", async () => {
+      spent();
+      sessionsThisPeriodMock.mockResolvedValue(2);
+      await expect(startSessionAction()).rejects.toThrow(
+        `REDIRECT:/session/${SESSION_ID}`,
+      );
+    });
+
+    it("never strands somebody mid-session", async () => {
+      // `startSession` hands back an open session rather than opening a second,
+      // so somebody three blocks into today's work is not starting anything.
+      // Refusing them would be the one outcome worse than not letting them begin.
+      spent();
+      openSessionMock.mockResolvedValue({ id: SESSION_ID } as never);
+
+      await expect(startSessionAction()).rejects.toThrow(
+        `REDIRECT:/session/${SESSION_ID}`,
+      );
+      expect(startSessionMock).toHaveBeenCalledOnce();
+    });
+
+    it("does not count sessions for a plan with no limit", async () => {
+      sessionsThisPeriodMock.mockResolvedValue(999);
+      await expect(startSessionAction()).rejects.toThrow(
+        `REDIRECT:/session/${SESSION_ID}`,
+      );
+    });
   });
 });
 
