@@ -14,10 +14,30 @@ import { packBuild } from "@/db/schema";
 
 export type BuildStatus = "building" | "ready" | "failed";
 
+/**
+ * The phases of an authoring run, in the order the pipeline reaches them.
+ *
+ * The wait screen is the only reader, and it exists because of what the screen
+ * had to say without one: for three minutes, nothing except that it was still
+ * waiting. A learner cannot tell that apart from a page that has hung, which is
+ * how a working build comes to be reported as broken.
+ *
+ * Ordered, and the order is the contract — `stepStates` in the wait screen
+ * decides what is done and what is still to come by position in this list, so
+ * a phase inserted in the wrong place would show a finished step as pending.
+ * Every value here is written by `generatePack` except `saving`, which the
+ * Inngest handler writes around the seed.
+ */
+export const BUILD_STAGES = ["graph", "writing", "checking", "saving"] as const;
+
+export type BuildStage = (typeof BUILD_STAGES)[number];
+
 export interface PackBuild {
   slug: string;
   subject: string;
   status: BuildStatus;
+  /** Null before the worker picks the row up — queued, not yet started. */
+  stage: BuildStage | null;
   detail: string | null;
   startedAt: Date;
 }
@@ -44,6 +64,18 @@ function statusOf(value: string): BuildStatus {
   return value === "ready" || value === "failed" ? value : "building";
 }
 
+/**
+ * A stage column read back as a stage, or nothing.
+ *
+ * Same shape as `statusOf` and for the same reason: the column is `text`, so a
+ * row written by an older deployment — or by hand — can hold a word this
+ * version has never heard of. Unrecognised reads as "not started", which is the
+ * one answer that cannot make the screen claim progress it has no evidence for.
+ */
+function stageOf(value: string | null): BuildStage | null {
+  return BUILD_STAGES.find((stage) => stage === value) ?? null;
+}
+
 type BuildRow = typeof packBuild.$inferSelect;
 
 function toBuild(row: BuildRow): PackBuild {
@@ -51,6 +83,7 @@ function toBuild(row: BuildRow): PackBuild {
     slug: row.slug,
     subject: row.subject,
     status: statusOf(row.status),
+    stage: stageOf(row.stage),
     detail: row.detail,
     startedAt: row.startedAt,
   };
@@ -159,6 +192,34 @@ export async function buildsCommissionedBy(
   return Number(row!.n);
 }
 
+/**
+ * Whether this learner is the one this subject was commissioned by.
+ *
+ * The other half of `buildsCommissionedBy`, and it exists because that count
+ * cannot answer the question a retry asks. A learner whose only build failed
+ * has a row, so their count is 1, so a lifetime quota of 1 refuses them — and
+ * what it refuses them is *the subject they already spent it on*. Asking who
+ * owns the row separates "a second subject", which the quota is for, from
+ * "the same subject again", which costs the quota nothing: `startBuild` upserts
+ * on the slug, so the retry reuses the row and the count does not move.
+ *
+ * Owned by somebody else is not owned. The upsert would move `requestedBy` to
+ * whoever asks next, and that genuinely is a new subject for them.
+ */
+export async function hasCommissioned(
+  db: Db,
+  userId: string,
+  slug: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ slug: packBuild.slug })
+    .from(packBuild)
+    .where(and(eq(packBuild.slug, slug), eq(packBuild.requestedBy, userId)))
+    .limit(1);
+
+  return row !== undefined;
+}
+
 export type StartOutcome =
   | { kind: "started" }
   | { kind: "already"; build: PackBuild }
@@ -200,6 +261,11 @@ export async function startBuild(
     subject: input.subject,
     requestedBy: input.userId,
     status: "building",
+    // Cleared explicitly, because this upserts: a retry of a subject that died
+    // in `checking` would otherwise open on three finished steps it has not
+    // done again, and the first one it re-does would read as a step going
+    // backwards.
+    stage: null,
     detail: null,
     startedAt: now,
     finishedAt: null,
@@ -211,6 +277,26 @@ export async function startBuild(
     .onConflictDoUpdate({ target: packBuild.slug, set: row });
 
   return { kind: "started" };
+}
+
+/**
+ * Records how far the run has got, for the learner watching it.
+ *
+ * Fire-and-report: nothing downstream depends on the stage, so a write that
+ * fails must not take the build with it — the worst it can cost is a wait
+ * screen showing the previous step for a few seconds longer. Scoped to rows
+ * still building so a stage arriving after `finishBuild` — the seed step and
+ * the ready mark race by milliseconds — cannot reopen a finished build.
+ */
+export async function markBuildStage(
+  db: Db,
+  slug: string,
+  stage: BuildStage,
+): Promise<void> {
+  await db
+    .update(packBuild)
+    .set({ stage })
+    .where(and(eq(packBuild.slug, slug), eq(packBuild.status, "building")));
 }
 
 export async function finishBuild(

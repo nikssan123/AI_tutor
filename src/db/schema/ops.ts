@@ -271,6 +271,13 @@ export const packBuild = pgTable(
     }),
     /** building | ready | failed */
     status: text("status").notNull().default("building"),
+    /**
+     * How far the worker has got: graph | writing | checking | saving, and null
+     * until it picks the row up. Written for one reader — the wait screen, which
+     * otherwise has nothing to report for three minutes but the fact that it is
+     * still waiting. See `BUILD_STAGES`.
+     */
+    stage: text("stage"),
     /** Why it failed, in the learner's language. */
     detail: text("detail"),
     startedAt: timestamp("started_at", { withTimezone: true })

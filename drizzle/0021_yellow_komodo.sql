@@ -1,0 +1,1 @@
+ALTER TABLE "pack_build" ADD COLUMN "stage" text;

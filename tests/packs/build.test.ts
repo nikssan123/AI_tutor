@@ -10,6 +10,8 @@ import {
   buildsCommissionedBy,
   findBuild,
   finishBuild,
+  hasCommissioned,
+  markBuildStage,
   startBuild,
 } from "@/lib/packs/build";
 import {
@@ -149,6 +151,63 @@ live("pack builds and intake", () => {
     });
   });
 
+  describe("markBuildStage", () => {
+    /**
+     * The wait screen's only evidence. Everything it shows a learner for three
+     * minutes is read back out of this column, so what it can and cannot say is
+     * decided here rather than on the screen.
+     */
+    it("starts with nothing, because a queued build has done nothing", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      expect((await findBuild(db, "rust"))!.stage).toBeNull();
+    });
+
+    it("records the phase the run has reached", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await markBuildStage(db, "rust", "writing");
+
+      expect((await findBuild(db, "rust"))!.stage).toBe("writing");
+    });
+
+    it("clears it when the subject is started again", async () => {
+      // `startBuild` upserts, so without the reset a retry would open on three
+      // finished steps it has not done again — and the first step it re-did
+      // would read as progress going backwards.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await markBuildStage(db, "rust", "checking");
+      await finishBuild(db, "rust", { status: "failed", detail: "thin" });
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect((await findBuild(db, "rust"))!.stage).toBeNull();
+    });
+
+    it("cannot move a build that has already finished", async () => {
+      // The seed step and the ready mark are milliseconds apart. A stage
+      // landing after the finish must not reopen a build the learner has
+      // already been shown as done.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "ready" });
+      await markBuildStage(db, "rust", "saving");
+
+      const build = (await findBuild(db, "rust"))!;
+      expect(build.status).toBe("ready");
+      expect(build.stage).toBeNull();
+    });
+
+    it("reads a stage it does not recognise as no stage at all", async () => {
+      // The column is `text`, so a row written by another deployment can hold a
+      // word this version has never heard of. "Not started" is the only answer
+      // that cannot make the screen claim progress it has no evidence for.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await db
+        .update(packBuild)
+        .set({ stage: "polishing" })
+        .where(eq(packBuild.slug, "rust"));
+
+      expect((await findBuild(db, "rust"))!.stage).toBeNull();
+    });
+  });
+
   describe("buildsCommissionedBy", () => {
     it("counts nothing for an account that has never asked", async () => {
       expect(await buildsCommissionedBy(db, IDS[0]!)).toBe(0);
@@ -196,6 +255,42 @@ live("pack builds and intake", () => {
       await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
 
       expect(await buildsCommissionedBy(db, IDS[1]!)).toBe(0);
+    });
+  });
+
+  describe("hasCommissioned", () => {
+    /**
+     * What the count cannot answer, and what a retry has to ask.
+     *
+     * A learner whose only build failed still has its row, so their count is 1
+     * and a lifetime quota of 1 refuses them — the subject they already spent it
+     * on. This is how "a second subject" is told apart from "the same one
+     * again", which costs the quota nothing because the retry reuses the row.
+     */
+    it("knows a subject this learner asked for", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(true);
+    });
+
+    it("is false for a subject nobody has asked for", async () => {
+      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(false);
+    });
+
+    it("does not hand one learner another's subject", async () => {
+      // The upsert would move `requestedBy` to whoever asks next, so for them
+      // this genuinely is a new subject and the quota still applies.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+
+      expect(await hasCommissioned(db, IDS[1]!, "rust")).toBe(false);
+    });
+
+    it("still knows it after the build failed", async () => {
+      // The only state in which anybody asks: the retry path.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "failed", detail: "thin" });
+
+      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(true);
     });
   });
 

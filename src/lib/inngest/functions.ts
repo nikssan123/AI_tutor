@@ -5,7 +5,7 @@ import { submission as submissionTable } from "@/db/schema";
 import { getAnthropic } from "@/lib/ai/client";
 import { generatePack } from "@/lib/packs/generate";
 import { seedPack } from "@/lib/packs/seed";
-import { finishBuild } from "@/lib/packs/build";
+import { finishBuild, markBuildStage } from "@/lib/packs/build";
 import { evaluateSubmission } from "@/lib/evaluation";
 import { entitlementsForUser } from "@/lib/billing/store";
 import { subsidisesPackBuilds } from "@/lib/billing/catalog";
@@ -20,6 +20,7 @@ import {
   submissionById,
 } from "@/lib/submissions/store";
 import { MODELS } from "@/lib/ai/models";
+import type { BuildStage } from "@/lib/packs/build";
 import type { DomainPack } from "@/lib/packs/types";
 
 /**
@@ -126,16 +127,34 @@ export const buildPack = inngest.createFunction(
        */
       const subsidised = plan !== undefined && subsidisesPackBuilds(plan);
 
+      /*
+       * The only thing anybody watching this run can be told while it happens.
+       *
+       * Three minutes is a long time to show a learner nothing but "still
+       * going", and the wait screen was reported as a hung page for exactly
+       * that reason. The row is where the two sides meet: this writes the phase
+       * as the pipeline reaches it, `/start/building` reads it on its next
+       * refresh. `getDb()` per call rather than the `db` above only because the
+       * closure outlives this scope on a resumed step.
+       */
+      const onStage = (stage: BuildStage) =>
+        markBuildStage(getDb(), slug, stage);
+
       const outcome = await generatePack(
         subsidised
-          ? { client: getAnthropic(), db, userId: null }
-          : { client: getAnthropic(), db, userId, plan },
+          ? { client: getAnthropic(), db, userId: null, onStage }
+          : { client: getAnthropic(), db, userId, plan, onStage },
         { slug, subject, rawGoal: null },
       );
       return { pack: outcome.pack, reasons: outcome.reasons };
     },
     seed: async (pack) => {
-      await seedPack(getDb(), pack as DomainPack);
+      const built = pack as DomainPack;
+      // The last phase, and the only one outside `generatePack` — writing the
+      // finished pack is this step's own work. The slug is the build's: it is
+      // what `assemblePack` was given.
+      await markBuildStage(getDb(), built.slug, "saving");
+      await seedPack(getDb(), built);
     },
     finish: async (slug, outcome) => {
       await finishBuild(getDb(), slug, outcome);

@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import { logCall, shouldDegrade } from "@/lib/ai/runlog";
 import { degradesGeneration, type PlanId } from "@/lib/billing/catalog";
 import type { DraftItem, PackGraphDraft } from "@/lib/contracts/pack";
+import type { BuildStage } from "../build";
 import type { DomainPack } from "../types";
 import type { ValidationReport } from "../validate";
 import { checkDrafts, type LinkCheckDeps } from "../resources";
@@ -60,6 +61,13 @@ export interface PackGenerateDeps {
   plan?: PlanId;
   /** The link checker's seam. Defaults to the real `fetch` and the real clock. */
   linkCheck?: LinkCheckDeps;
+  /**
+   * Called as the run enters each phase, so somebody waiting can be told where
+   * it is. Optional, and awaited rather than fired off: a script or a test has
+   * nobody watching, and the run must not depend on this succeeding — see
+   * `markBuildStage`, which is what the queue passes in.
+   */
+  onStage?: (stage: BuildStage) => Promise<void>;
 }
 
 export interface PackGenerateInput {
@@ -123,6 +131,14 @@ export async function generatePack(
   while (attempts < MAX_PACK_ATTEMPTS) {
     attempts += 1;
 
+    /*
+     * Reported per attempt rather than once, so a second attempt visibly starts
+     * again from the graph. It is the truth — the retry re-authors everything —
+     * and a screen that quietly held at "checking" through a rewrite would be
+     * claiming the first attempt's work still counted for something.
+     */
+    await deps.onStage?.("graph");
+
     const graph = await logCall(
       deps.db,
       deps.userId,
@@ -140,6 +156,10 @@ export async function generatePack(
 
     // The bank, the rubrics and the reading list do not depend on each other,
     // and all three depend only on the graph, so they are asked for together.
+    // One stage covers all three: they finish in whatever order the models
+    // answer, so reporting them separately would report a race.
+    await deps.onStage?.("writing");
+
     const [items, rubrics, researched] = await Promise.all([
       gatherItems(deps, graph.value, input.subject, degraded),
       logCall(
@@ -180,6 +200,12 @@ export async function generatePack(
      * that answered. Every one of them is checked before assembly, so a pack is
      * never written carrying a citation we have not tried.
      */
+    // Fetching every cited page and then validating the assembly. The one
+    // phase that is honest work rather than a model call, and the one the
+    // learner is most owed a name for: it is where the wait stops looking like
+    // it is only about waiting for a model.
+    await deps.onStage?.("checking");
+
     const resources =
       researched.status === "ok"
         ? await checkDrafts(researched.value.resources, deps.linkCheck)

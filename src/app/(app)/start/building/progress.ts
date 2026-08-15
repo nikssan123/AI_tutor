@@ -1,0 +1,104 @@
+import { BUILD_STAGES, type BuildStage } from "@/lib/packs/build";
+
+/**
+ * What the wait screen says, kept out of the screen itself so it can be tested
+ * as what it is: a mapping from a row in the database to four sentences.
+ *
+ * §7.1's Generated tier takes about three minutes, and for all of that time the
+ * screen had one thing to say — that it was still going. That is
+ * indistinguishable from a page that has hung, and it was reported as exactly
+ * that. What follows is the honest alternative: the phases the build actually
+ * moves through, marked off as it reaches them, rather than a bar filling on a
+ * timer that knows nothing about the run.
+ */
+
+/** How long an authoring run usually takes, in the words the screen uses. */
+export const TYPICAL_MINUTES = 3;
+
+/**
+ * When to say out loud that this one is slow.
+ *
+ * Past this the screen stops repeating the usual figure and explains the
+ * overrun instead. Set above `TYPICAL_MINUTES` rather than at it, so the
+ * ordinary two-and-a-half-minute build never sees it — a reassurance shown to
+ * everybody is not reassurance, it is noise that trains people to expect a
+ * problem.
+ */
+export const SLOW_AFTER_MINUTES = 5;
+
+export interface BuildStep {
+  stage: BuildStage;
+  /** What is happening, in five words at the top of a row. */
+  title: string;
+  /** What that means for the course they will get. */
+  note: string;
+}
+
+/**
+ * The phases in the learner's language.
+ *
+ * A `Record` keyed by the stage rather than a second ordered list: the order is
+ * `BUILD_STAGES`' to own — it is the order the pipeline runs in — and this
+ * cannot fall out of step with it, because a stage without copy fails to
+ * type-check and copy without a stage has nowhere to go.
+ *
+ * None of it names a mechanism. "Writing the questions" is what the learner
+ * gets; which model is being asked for them is our problem, not something to
+ * put on a screen somebody is waiting in front of.
+ */
+const COPY: Record<BuildStage, Omit<BuildStep, "stage">> = {
+  graph: {
+    title: "Working out the skills",
+    note: "Everything the subject is made of, and what has to come before what.",
+  },
+  writing: {
+    title: "Writing the questions",
+    note: "The check that finds what you can already do, and the guides your handed-in work gets marked against.",
+  },
+  checking: {
+    title: "Checking every source",
+    note: "We open each page we point you at. Anything that doesn’t answer is dropped rather than cited.",
+  },
+  saving: {
+    title: "Putting it together",
+    note: "The finished course, held to the same bar as the ones we write by hand.",
+  },
+};
+
+export const BUILD_STEPS: readonly BuildStep[] = BUILD_STAGES.map((stage) => ({
+  stage,
+  ...COPY[stage],
+}));
+
+export type StepState = "done" | "running" | "waiting";
+
+/**
+ * Where each step stands, given the phase the row says the build is in.
+ *
+ * A null stage — the row is written before the worker picks it up — leaves
+ * every step waiting rather than lighting the first one. The difference is
+ * small on screen and is the whole point: a queued build has not started
+ * working out the skills, and saying it has is the sort of small lie that makes
+ * the rest of the screen worth nothing.
+ */
+export function stepStates(stage: BuildStage | null): StepState[] {
+  const at = stage === null ? -1 : BUILD_STAGES.indexOf(stage);
+
+  return BUILD_STAGES.map((_, i) =>
+    i < at ? "done" : i === at ? "running" : "waiting",
+  );
+}
+
+/**
+ * How long it has been going, in bands rather than in seconds.
+ *
+ * The page reloads itself every few seconds, so a live seconds count would
+ * rewrite itself on every refresh — motion that carries no news, on the one
+ * screen whose whole job is to be calm about waiting. Minutes change when
+ * something has changed.
+ */
+export function elapsedWords(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "less than a minute";
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+}

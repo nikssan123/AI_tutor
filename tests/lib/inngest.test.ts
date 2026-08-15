@@ -169,6 +169,7 @@ vi.mock("@/lib/packs/generate", () => ({
 vi.mock("@/lib/packs/seed", () => ({ seedPack: vi.fn(async () => undefined) }));
 vi.mock("@/lib/packs/build", () => ({
   finishBuild: vi.fn(async () => undefined),
+  markBuildStage: vi.fn(async () => undefined),
 }));
 
 describe("the registered build function", () => {
@@ -281,6 +282,42 @@ describe("the registered build function", () => {
     expect(generatePack).toHaveBeenCalledWith(
       expect.objectContaining({ userId: null }),
       expect.anything(),
+    );
+  });
+
+  it("reports where the build has got to, for the learner watching it", async () => {
+    // The wait screen has nothing else to go on for three minutes. The phases
+    // inside the authoring run are the generator's to report; `saving` is this
+    // step's own work, and the one this wiring writes itself.
+    const { generatePack } = await import("@/lib/packs/generate");
+    const { markBuildStage } = await import("@/lib/packs/build");
+    vi.mocked(markBuildStage).mockClear();
+
+    // The generator is a mock here, so drive its callback the way the real one
+    // would. That is the half worth pinning: it proves the wiring hands over a
+    // working reporter rather than one closed over the wrong slug.
+    vi.mocked(generatePack).mockImplementationOnce(async (deps) => {
+      await deps.onStage!("graph");
+      return {
+        pack: { slug: "rust" } as never,
+        reasons: [],
+        report: null,
+        source: "generated",
+        dropped: [],
+        attempts: 1,
+      };
+    });
+
+    await runFor("u1");
+
+    expect(vi.mocked(markBuildStage).mock.calls.map((c) => c[2])).toEqual([
+      "graph",
+      "saving",
+    ]);
+    expect(markBuildStage).toHaveBeenCalledWith(
+      expect.objectContaining({ db: true }),
+      "rust",
+      "graph",
     );
   });
 });

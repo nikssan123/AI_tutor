@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { spendLedger } from "@/db/schema";
 import { periodOf } from "@/lib/ai/runlog";
-import { buildsCommissionedBy } from "@/lib/packs/build";
+import { buildsCommissionedBy, hasCommissioned } from "@/lib/packs/build";
 import { entitlementsForUser } from "./store";
 import type { PlanId } from "./catalog";
 
@@ -150,4 +150,36 @@ export async function buildAllowanceFor(
     used,
     remaining: quota === null ? Infinity : Math.max(0, quota - used),
   };
+}
+
+/**
+ * Whether this learner may commission *this* subject — the whole question, in
+ * one place, for the screen that offers the button and the actions behind it.
+ *
+ * The allowance alone was the wrong question and it shipped as one. A free
+ * account gets one custom subject ever; the count that meters it is a count of
+ * build rows; and a build that *failed* leaves a row. So the learner whose one
+ * build went wrong was told they had "already had the one custom subject your
+ * plan builds" the moment they pressed Try again — refused the retry of the
+ * very subject the quota had been spent on, with no way to spend it on
+ * anything. §7.1's Generated tier had no working failure path on the tier that
+ * needs it most.
+ *
+ * The quota is one custom *subject*, not one attempt at one, which is what
+ * `startBuild`'s upsert already implements: a retry reuses the row, so the
+ * count does not move and letting it through cannot overspend the allowance.
+ *
+ * Asked in this order deliberately — anybody with an allowance left never pays
+ * for the ownership lookup, which is every learner on a paid plan and every
+ * free learner's first build.
+ */
+export async function mayBuild(
+  db: Db,
+  userId: string,
+  slug: string,
+  plan?: PlanId,
+): Promise<boolean> {
+  if ((await buildAllowanceFor(db, userId, plan)).remaining > 0) return true;
+
+  return hasCommissioned(db, userId, slug);
 }

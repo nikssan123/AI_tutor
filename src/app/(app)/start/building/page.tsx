@@ -4,26 +4,47 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
-import { findBuild } from "@/lib/packs/build";
-import { loadIntake } from "@/lib/goals/intake-store";
+import { BUILD_TIMEOUT_MINUTES, findBuild } from "@/lib/packs/build";
+import { TickIcon } from "@/components/icons";
 import {
   Button,
-  Card,
+  ButtonLink,
+  cx,
+  HeroBand,
   Meta,
-  stagger,
   Status,
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader } from "@/components/app-shell";
 import { adoptBuiltPackAction, requestBuildAction } from "../actions";
+import {
+  BUILD_STEPS,
+  elapsedWords,
+  SLOW_AFTER_MINUTES,
+  stepStates,
+  type StepState,
+  TYPICAL_MINUTES,
+} from "./progress";
 
 /**
  * The wait, while §7.1's Generated tier authors a subject nobody curated.
  *
- * Around three minutes and three model calls, so this page's job is to be
+ * Around three minutes and several model calls, so this page's job is to be
  * honest about that rather than to look busy. It refreshes itself with a plain
  * `<meta>` tag — no polling script, no bundle, consistent with every other
  * screen here working without JavaScript.
+ *
+ * What it shows in that time is read from the build row, not invented here.
+ * The screen used to say one thing for three minutes — that it was still going
+ * — which is the same thing a hung page says, and it was reported as one. Now
+ * the pipeline writes the phase it has reached and this marks it off, so
+ * "working" is a claim with evidence behind it. Nothing is timed, estimated or
+ * filled in: a step is done because the build said so.
+ *
+ * The corollary is that the good news has to be worth something, which means
+ * saying when it is bad news. A run that has outlived `BUILD_TIMEOUT_MINUTES`
+ * is dead and is reported as dead, rather than showing "writing it now" until
+ * the learner gives up on it.
  */
 export const metadata: Metadata = {
   title: "Building your course",
@@ -34,6 +55,32 @@ export const metadata: Metadata = {
 const REFRESH_SECONDS = 6;
 
 type Props = { searchParams: Promise<{ subject?: string }> };
+
+/** The disc at the head of a step: filled, ringed, or empty. */
+const MARKER: Record<StepState, string> = {
+  done: "bg-accent text-on-accent",
+  running: "border-2 border-accent bg-accent-weak",
+  waiting: "border border-hairline",
+};
+
+/**
+ * What the marker means, for a reader who cannot see it.
+ *
+ * §8.5.5 bans colour as the sole carrier of meaning, and a tick against a
+ * teal disc is exactly that. This is the same rule the `Status` dot follows by
+ * always carrying its word.
+ */
+const SAID: Record<StepState, string> = {
+  done: "Done: ",
+  running: "Happening now: ",
+  waiting: "Still to come: ",
+};
+
+const LABEL: Record<StepState, string> = {
+  done: "text-ink font-[550]",
+  running: "text-ink font-[650]",
+  waiting: "text-ink-faint font-[550]",
+};
 
 export default async function BuildingPage({ searchParams }: Props) {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -50,7 +97,6 @@ export default async function BuildingPage({ searchParams }: Props) {
   // refreshes is picked up even if its row was never updated.
   const pack = await resolvePack(db, slug);
   const build = await findBuild(db, slug);
-  const intake = await loadIntake(db, session.user.id);
 
   if (pack) {
     return (
@@ -71,27 +117,70 @@ export default async function BuildingPage({ searchParams }: Props) {
     );
   }
 
-  if (build?.status === "failed") {
+  /*
+   * No pack and no row: there is nothing to watch under this name.
+   *
+   * Reachable — `discardPack` takes the pack and its build row together, so a
+   * learner sitting on this screen when an operator throws the pack out ends up
+   * here — and the honest thing to do with it is say so. The alternative is
+   * what this page did before: render "writing it now" forever about a build
+   * that does not exist, refreshing every six seconds.
+   */
+  if (!build) {
     return (
       <AppFrame width="narrow">
-        {/* §4.2 law 3 — say what actually happened rather than "try again". */}
         <AppHeader
-          eyebrow="Stopped"
-          title="We couldn’t build this one"
-          lead={build.detail ?? "Something went wrong while building it."}
+          eyebrow="Nothing to watch"
+          title="Nothing is being built under that name"
+          lead="There is no course by this name and nothing running to make one. Tell us what you want to learn and we’ll pick it up from there."
+          action={<ButtonLink href="/start">Tell us what you want</ButtonLink>}
         />
-        <Meta>
-          Rather than hand you a thin course, we stopped. You can try again, or
-          pick a subject we already cover in depth.
-        </Meta>
+      </AppFrame>
+    );
+  }
+
+  const now = new Date();
+  const runningFor = now.getTime() - build.startedAt.getTime();
+  const minutes = runningFor / 60_000;
+
+  /*
+   * A build the queue has lost, said out loud.
+   *
+   * `startBuild` already treats a row this old as dead and will let it be
+   * claimed again — the same cut-off, from the same constant, so the screen and
+   * the button cannot disagree about when a build has stopped being one. Until
+   * this existed the wedged case had no screen of its own: the learner was told
+   * their course was being written, every six seconds, indefinitely.
+   */
+  const stalled =
+    build.status === "building" && minutes >= BUILD_TIMEOUT_MINUTES;
+
+  if (build.status === "failed" || stalled) {
+    // §4.2 law 3 — say what actually happened rather than "try again".
+    const stopped = stalled
+      ? {
+          title: "This one stopped partway",
+          detail: `It has been going ${elapsedWords(runningFor)} with nothing finished, which is far past the point where anything more is coming.`,
+          note: "Starting it again writes it from the top — nothing half-built is kept. Or pick a subject we already cover in depth.",
+        }
+      : {
+          title: "We couldn’t build this one",
+          detail: build.detail ?? "Something went wrong while building it.",
+          note: "Rather than hand you a thin course, we stopped. You can try again, or pick a subject we already cover in depth.",
+        };
+
+    return (
+      <AppFrame width="narrow">
+        <AppHeader eyebrow="Stopped" title={stopped.title} lead={stopped.detail} />
+        <Meta>{stopped.note}</Meta>
         <div className="flex flex-wrap gap-3">
           <form action={requestBuildAction}>
             <input type="hidden" name="slug" value={slug} />
-            <input
-              type="hidden"
-              name="subject"
-              value={intake.captured?.subject ?? slug}
-            />
+            {/* The row's own subject, which is the name the build was asked
+                for. Reading it back off the conversation was a longer way to
+                the same string, and a wrong one once the conversation had
+                moved on to something else. */}
+            <input type="hidden" name="subject" value={build.subject} />
             <Button type="submit">Try again</Button>
           </form>
           <form action={requestBuildAction}>
@@ -108,28 +197,132 @@ export default async function BuildingPage({ searchParams }: Props) {
     );
   }
 
+  const states = stepStates(build.stage);
+  const at = states.indexOf("running");
+  /** Null while the row is queued and nothing has picked it up yet. */
+  const current = at === -1 ? null : BUILD_STEPS[at]!;
+
   return (
+    /* `narrow`, and this is the exception §8.5.9 describes rather than a page
+       choosing its own width: there is one object on this screen and you are
+       watching it. A four-row list across `wide` would be four short rows and
+       700px of gutter. */
     <AppFrame width="narrow">
       {/* No script: the page asks the browser to come back. */}
       <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />
 
       <AppHeader
         eyebrow="Writing it now"
-        title="Building your course"
-        lead={`Nobody has written ${intake.captured?.subject ?? "this subject"} for us yet, so we’re writing it now — the skills, what depends on what, and the questions that work out where you already are.`}
+        title={`Building your ${build.subject} course`}
+        lead={`Nobody had written ${build.subject} for us, so we’re writing it — the skills, what depends on what, and the questions that work out where you already are.`}
+        facts={
+          <>
+            <Meta>Started {elapsedWords(runningFor)} ago</Meta>
+            <Meta>Usually about {TYPICAL_MINUTES} minutes</Meta>
+          </>
+        }
       />
 
-      <Card className="rise flex flex-col gap-3" style={stagger(1)}>
-        <Title>This takes about three minutes</Title>
-        <Meta>
-          You can leave this page. It keeps building, and it will be here when
-          you come back.
-        </Meta>
-      </Card>
+      {/*
+       * Nothing here carries `rise` or `stagger`, and that is deliberate on
+       * this one screen. The page reloads itself every six seconds, so a first
+       * -render animation is a *re-render* animation to the person watching:
+       * four rows fading up over and over for three minutes. §8.5.6 asks for
+       * motion that means something, and the only thing moving here is the one
+       * thing that is actually happening.
+       */}
+      <HeroBand
+        field={
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Meta tone="muted">
+                {current
+                  ? `Step ${at + 1} of ${BUILD_STEPS.length}`
+                  : "In the queue"}
+              </Meta>
+              <Title>{current ? current.title : "Starting in a moment"}</Title>
+            </div>
+            <Status tone={current ? "verified" : "neutral"}>
+              {current ? "Running" : "Queued"}
+            </Status>
+          </>
+        }
+        footer={
+          <>
+            <Meta tone="muted">
+              Nothing has failed. You can close this tab — it keeps building
+              without you, and it will be here when you come back.
+            </Meta>
+            <Meta>Checks again every {REFRESH_SECONDS} seconds</Meta>
+          </>
+        }
+      >
+        <ol className="m-0 flex list-none flex-col p-0">
+          {BUILD_STEPS.map((step, i) => {
+            const state = states[i]!;
 
-      <Meta tone="muted">
-        This page checks again every {REFRESH_SECONDS} seconds.
-      </Meta>
+            return (
+              <li key={step.stage} className="relative flex gap-4 pb-5 last:pb-0">
+                {/* The thread between the markers, drawn behind them and
+                    stopped short of the last one so the list ends rather than
+                    trailing off. */}
+                {i < BUILD_STEPS.length - 1 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-7 bottom-0 left-3 w-px -translate-x-1/2 bg-hairline"
+                  />
+                ) : null}
+
+                <span
+                  className={cx(
+                    "relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full",
+                    MARKER[state],
+                  )}
+                >
+                  {state === "done" ? <TickIcon className="size-3.5" /> : null}
+                  {/* The only moving thing on the screen, and it moves for as
+                      long as the step does. Reduced motion stops it at one
+                      cycle — see the global clamp in tokens.css. */}
+                  {state === "running" ? (
+                    <span
+                      aria-hidden="true"
+                      className="size-2 animate-pulse rounded-full bg-accent"
+                    />
+                  ) : null}
+                </span>
+
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span
+                    className={cx(
+                      "text-[length:var(--text-label-size)]",
+                      LABEL[state],
+                    )}
+                  >
+                    <span className="sr-only">{SAID[state]}</span>
+                    {step.title}
+                  </span>
+                  <Meta>{step.note}</Meta>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+
+        {/*
+         * Only once it is genuinely slow, and it explains rather than soothes.
+         * The promise in the last clause is one this screen keeps: a run that
+         * stops is reported as stopped, which is what the `stalled` branch
+         * above is for.
+         */}
+        {minutes >= SLOW_AFTER_MINUTES ? (
+          <Meta tone="muted">
+            Past the usual {TYPICAL_MINUTES} minutes now. That happens when a
+            first draft doesn’t clear our checks and it gets written again — it
+            has not failed, and if it ever does stop this page says so rather
+            than leaving you here.
+          </Meta>
+        ) : null}
+      </HeroBand>
     </AppFrame>
   );
 }

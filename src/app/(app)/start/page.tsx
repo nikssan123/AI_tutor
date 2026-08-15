@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
-import { buildAllowanceFor } from "@/lib/billing/quota";
+import { mayBuild } from "@/lib/billing/quota";
 import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
 import { matchChosen } from "@/lib/goals/match";
 import {
@@ -217,27 +217,31 @@ export default async function StartPage({ searchParams }: Props) {
   /*
    * The subject we would have to author, and nothing when there is none.
    *
-   * Carried as the subject rather than as a boolean because that is the one
-   * place it is guaranteed to be a real name: `matchSubject` returns a gap with
-   * a non-empty slug only for a subject that survived a trim, so the copy below
-   * cannot be handed an empty string or a null. Reading `captured.subject` for
-   * the same sentence would need a fallback for a case that cannot happen.
+   * The gap itself rather than its name, because the two questions below need
+   * different halves of it and deriving them separately would be the same
+   * condition written twice. `matchSubject` returns a gap with a non-empty slug
+   * only for a subject that survived a trim, so the copy cannot be handed an
+   * empty string or a null.
    */
-  const unbuilt =
-    gap?.kind === "gap" && gap.slug.length > 0 ? gap.subject : undefined;
+  const gapAt = gap?.kind === "gap" && gap.slug.length > 0 ? gap : undefined;
+  const unbuilt = gapAt?.subject;
   /*
-   * Whether this account has a build left, asked the same way the action asks.
+   * Whether pressing the button is going to work, asked the same way the action
+   * asks it — `mayBuild` is the one place that decides, so the offer and the
+   * refusal cannot drift apart.
    *
    * A quota rather than a plan flag since free got its one custom subject: the
    * question stopped being "does your plan include this" and became "have you
-   * used yours", which is a fact about the learner and not about the tier. The
-   * banner below is worth showing only for the second one, and only once the
-   * conversation has actually closed — hence the `unbuilt` guard, which keeps
-   * both lookups off every earlier render.
+   * used yours". And it is asked about the *subject*, not just the learner,
+   * because a subject they already commissioned is not a second one — which is
+   * what makes a failed build retryable from here rather than only from the
+   * wait screen. It is only asked once the conversation has closed, which keeps
+   * every lookup off every earlier render.
    */
-  const canBuild =
-    unbuilt === undefined ||
-    (await buildAllowanceFor(getDb(), session.user.id)).remaining > 0;
+  let canBuild = true;
+  if (gapAt !== undefined) {
+    canBuild = await mayBuild(getDb(), session.user.id, gapAt.slug);
+  }
 
   /*
    * A brief takes the screen.

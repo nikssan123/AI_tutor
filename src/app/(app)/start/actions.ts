@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb, type Db } from "@/db";
-import { entitlementsForUser } from "@/lib/billing/store";
+import { mayBuild } from "@/lib/billing/quota";
 import { getAnthropic } from "@/lib/ai/client";
 import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
@@ -23,11 +23,7 @@ import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
-import {
-  buildsCommissionedBy,
-  finishBuild,
-  startBuild,
-} from "@/lib/packs/build";
+import { finishBuild, startBuild } from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
@@ -141,16 +137,21 @@ async function dispatchBuild(
  * we happen to have"; it is now allowed exactly once per account, ever, and
  * charged to the catalogue rather than to the learner (`subsidisesPackBuilds`).
  *
+ * The subject is part of the question, not just the learner — see `mayBuild`,
+ * which is where the count and the ownership meet. Asking with the learner
+ * alone is what made "Try again" refuse the retry of the subject the quota had
+ * already been spent on.
+ *
  * Checked before `startBuild`, not after: `startBuild` claims the slug, and a
  * claim we then refuse to honour would lock the subject behind a build that
  * never runs.
  */
-async function requireBuildAllowance(db: Db, userId: string): Promise<void> {
-  const { entitlements } = await entitlementsForUser(db, userId, undefined);
-  const quota = entitlements.packBuildsLifetime;
-  if (quota === null) return;
-
-  if ((await buildsCommissionedBy(db, userId)) >= quota) {
+async function requireBuildAllowance(
+  db: Db,
+  userId: string,
+  slug: string,
+): Promise<void> {
+  if (!(await mayBuild(db, userId, slug))) {
     redirect("/start?error=generated");
   }
 }
@@ -344,7 +345,7 @@ export async function buildFromConversationAction(): Promise<void> {
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");
 
-    await requireBuildAllowance(db, userId);
+    await requireBuildAllowance(db, userId, match.slug);
 
     // §7.1's Generated tier. The build is claimed here rather than on the wait
     // screen so that a refresh of that screen cannot start a second one.
@@ -448,7 +449,7 @@ export async function requestBuildAction(formData: FormData): Promise<void> {
   const subject = String(formData.get("subject") ?? "").trim();
   if (slug.length === 0 || subject.length === 0) redirect("/start");
 
-  await requireBuildAllowance(db, userId);
+  await requireBuildAllowance(db, userId, slug);
 
   const started = await startBuild(db, { slug, subject, userId });
   if (started.kind === "rate-limited") redirect("/start?error=busy");

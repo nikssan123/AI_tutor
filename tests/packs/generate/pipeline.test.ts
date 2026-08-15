@@ -578,6 +578,52 @@ describe("generatePack", () => {
     expect(outcome.dropped.join(" ")).toContain("was declined");
   });
 
+  it("reports each phase as it reaches it, in the order it reaches them", async () => {
+    /*
+     * The wait screen's only source of truth. Three minutes with nothing to say
+     * but "still going" is indistinguishable from a hung page, and was reported
+     * as one — so the run says where it is, and the screen marks it off.
+     *
+     * The order is the contract: `stepStates` decides what is finished by
+     * position, so a phase reported late would show a done step as pending.
+     */
+    const seen: string[] = [];
+    const { client } = modelByTool({});
+
+    await generatePack(
+      deps({
+        client,
+        onStage: async (stage: string) => {
+          seen.push(stage);
+        },
+      }) as never,
+      { slug: "rust", subject: "Rust", rawGoal: null },
+    );
+
+    expect(seen).toEqual(["graph", "writing", "checking"]);
+  });
+
+  it("starts its report over when it starts the attempt over", async () => {
+    // A retry re-authors everything, so it genuinely is back at the graph.
+    // Holding the screen at "checking" through a rewrite would claim the first
+    // attempt's work still counted for something.
+    const bad = { ...GRAPH, skills: EIGHT.slice(0, 2) };
+    const seen: string[] = [];
+    const { client } = modelByTool({ graph: [bad, bad, GRAPH] });
+
+    await generatePack(
+      deps({
+        client,
+        onStage: async (stage: string) => {
+          seen.push(stage);
+        },
+      }) as never,
+      { slug: "rust", subject: "Rust", rawGoal: null },
+    );
+
+    expect(seen).toEqual(["graph", "graph", "writing", "checking"]);
+  });
+
   it("fails when the rubrics cannot be written", async () => {
     const { client } = modelByTool({ rubrics: [{ rubrics: [] }] });
 

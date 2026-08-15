@@ -94,6 +94,11 @@ vi.mock("@/lib/goals/store", () => ({
  * the screen does with the number, not about how it is counted.
  */
 const commissionedMock = vi.fn(async () => 0);
+/**
+ * Whether this account already commissioned *this* subject — the other half of
+ * the quota, and the half that decides whether a failed build can be retried.
+ */
+const ownsBuildMock = vi.fn(async () => false);
 const finishBuildMock = vi.fn(async (..._a: unknown[]) => undefined);
 vi.mock("@/lib/packs/build", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/packs/build")>()),
@@ -101,6 +106,7 @@ vi.mock("@/lib/packs/build", async (importOriginal) => ({
   findBuild: (...a: unknown[]) => findBuildMock(...(a as [])),
   finishBuild: (...a: unknown[]) => finishBuildMock(...(a as [])),
   buildsCommissionedBy: () => commissionedMock(),
+  hasCommissioned: () => ownsBuildMock(),
 }));
 // The wait screen asks whether the pack exists yet; that is the real answer,
 // and the build row is only how the learner got to the screen.
@@ -186,6 +192,9 @@ beforeEach(() => {
   entitlementsMock.mockResolvedValue(freshEntitlements());
   startBuildMock.mockResolvedValue({ kind: "started" });
   findBuildMock.mockResolvedValue(undefined);
+  // Nobody owns anything until a test says so, for the same reason.
+  commissionedMock.mockResolvedValue(0);
+  ownsBuildMock.mockResolvedValue(false);
   packMock.mockImplementation(async (_db: unknown, slug: unknown) =>
     slug === "photography"
       ? { slug: "photography", name: "Photography", skills: [{ slug: "a" }] }
@@ -818,6 +827,32 @@ describe("the screen", () => {
     expect(screen.getByRole("button", { name: "Start over" })).toBeDefined();
   });
 
+  it("still offers the button for the subject they already commissioned", async () => {
+    /*
+     * The defect this closes, on the screen half of it. Free spends its one
+     * subject, the build fails, and the count — which counts rows, not
+     * successes — says the allowance is gone. The learner was then shown "you
+     * have already had the custom subject your plan builds" about the subject
+     * whose build had just failed, with nothing to spend it on.
+     *
+     * A retry reuses the row, so it costs the quota nothing, and `mayBuild`
+     * answers this for the button and the action alike.
+     */
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    ownsBuildMock.mockResolvedValue(true);
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured(),
+      done: true,
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
+    expect(screen.queryByText(/We don’t run Rust programming yet/)).toBeNull();
+  });
+
   it("still offers the button for a subject we already run", async () => {
     // The same plan. The wall is on authoring a new course, not on having one.
     onFreePlan();
@@ -1253,24 +1288,126 @@ describe("the wait screen", () => {
     ).rejects.toThrow("REDIRECT:/start");
   });
 
+  /** A build row as the wait screen finds it, with the phase it has reached. */
+  const inFlight = (over: Record<string, unknown> = {}) => ({
+    slug: "rust-programming",
+    subject: "Rust",
+    status: "building",
+    stage: null,
+    detail: null,
+    startedAt: new Date(),
+    ...over,
+  });
+
   it("says it is building, and how long that takes", async () => {
-    findBuildMock.mockResolvedValue({
-      slug: "rust-programming",
-      subject: "Rust",
-      status: "building",
-      detail: null,
-      startedAt: new Date(),
-    });
-    intake = { ...EMPTY_INTAKE, captured: captured() };
+    findBuildMock.mockResolvedValue(inFlight({ stage: "graph" }));
 
     render(
       await BuildingPage({
         searchParams: Promise.resolve({ subject: "rust-programming" }),
       }),
     );
-    expect(screen.getByText(/about three minutes/)).toBeDefined();
+    expect(screen.getByText(/Usually about 3 minutes/)).toBeDefined();
     // It refreshes itself rather than polling with a script.
     expect(document.querySelector('meta[http-equiv="refresh"]')).toBeTruthy();
+  });
+
+  it("marks off the phases the build has actually finished", async () => {
+    /*
+     * The screen used to say one thing for three minutes — that it was still
+     * going — which is what a hung page says too, and it was reported as one.
+     * Every claim here comes off the build row: a step is done because the
+     * build said so, never because enough time has passed.
+     */
+    findBuildMock.mockResolvedValue(inFlight({ stage: "checking" }));
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(screen.getByText("Step 3 of 4")).toBeDefined();
+    expect(screen.getByText("Running")).toBeDefined();
+    // §8.5.5 bans colour as the sole carrier of meaning, so each marker says
+    // what it means as well as showing it.
+    expect(screen.getAllByText("Done:", { exact: false })).toHaveLength(2);
+    expect(screen.getByText("Happening now:", { exact: false })).toBeDefined();
+    expect(screen.getByText("Still to come:", { exact: false })).toBeDefined();
+  });
+
+  it("says it is queued rather than pretending it has started", async () => {
+    // The row is written before the worker picks it up. Lighting the first step
+    // there would be a small lie that makes the rest of the screen worthless.
+    findBuildMock.mockResolvedValue(inFlight());
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(screen.getByText("Queued")).toBeDefined();
+    expect(screen.getByText("Starting in a moment")).toBeDefined();
+    expect(screen.queryByText("Happening now:", { exact: false })).toBeNull();
+  });
+
+  it("explains the overrun once it is past the figure it quoted", async () => {
+    findBuildMock.mockResolvedValue(
+      inFlight({
+        stage: "writing",
+        startedAt: new Date(Date.now() - 6 * 60_000),
+      }),
+    );
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(screen.getByText(/Started 6 minutes ago/)).toBeDefined();
+    expect(screen.getByText(/has not failed/)).toBeDefined();
+  });
+
+  it("says a build has stopped rather than waiting on it forever", async () => {
+    /*
+     * `startBuild` already treats a row this old as dead. Until this screen
+     * agreed, the learner was told their course was being written, every six
+     * seconds, indefinitely — and "nothing has failed" is only worth reading on
+     * a screen that would say when something had.
+     */
+    findBuildMock.mockResolvedValue(
+      inFlight({ startedAt: new Date(Date.now() - 40 * 60_000) }),
+    );
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(screen.getByText("This one stopped partway")).toBeDefined();
+    expect(screen.getByText(/40 minutes/)).toBeDefined();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+    // Nothing is polling a build that is not coming back.
+    expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+  });
+
+  it("says nothing is being built when there is no build and no course", async () => {
+    // Reachable: `discardPack` takes the pack and its build row together.
+    findBuildMock.mockResolvedValue(undefined);
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "rust-programming" }),
+      }),
+    );
+
+    expect(
+      screen.getByText("Nothing is being built under that name"),
+    ).toBeDefined();
+    expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
   });
 
   it("says what actually went wrong when a build failed", async () => {
@@ -1391,11 +1528,15 @@ describe("retrying a failed build", () => {
 });
 
 describe("the last few edges", () => {
-  it("names the subject generically when the conversation did not", async () => {
+  it("names the subject from the build row, not from the conversation", async () => {
+    // The row holds the subject the build was asked for. The conversation may
+    // have moved on to something else, or have been cleared — reading it there
+    // was a longer way to the same string, and a wrong one half the time.
     findBuildMock.mockResolvedValue({
       slug: "rust",
       subject: "Rust",
       status: "building",
+      stage: "graph",
       detail: null,
       startedAt: new Date(),
     });
@@ -1404,7 +1545,7 @@ describe("the last few edges", () => {
     render(
       await BuildingPage({ searchParams: Promise.resolve({ subject: "rust" }) }),
     );
-    expect(screen.getByText(/this subject/)).toBeDefined();
+    expect(screen.getByText("Building your Rust course")).toBeDefined();
   });
 
   it("treats a missing slug field as no slug", async () => {
@@ -1508,8 +1649,11 @@ describe("a free account may commission one pack, ever", () => {
     expect(startBuildMock).toHaveBeenCalled();
   });
 
-  it("refuses a retry too", async () => {
+  it("refuses a retry of a subject somebody else commissioned", async () => {
+    // `startBuild` upserts, so this would move the row to them — a new subject
+    // for this account, and the quota still applies to it.
     onFree();
+    ownsBuildMock.mockResolvedValue(false);
     const form = new FormData();
     form.set("slug", "rust");
     form.set("subject", "Rust");
@@ -1518,5 +1662,26 @@ describe("a free account may commission one pack, ever", () => {
       "REDIRECT:/start?error=generated",
     );
     expect(startBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("lets them retry the subject their allowance was spent on", async () => {
+    /*
+     * The defect. The quota counts build rows and a *failed* build leaves one,
+     * so the account that spent its one subject and got nothing for it was
+     * refused the retry — the free tier's Generated path had no working failure
+     * path at all. The quota is one custom subject, not one attempt at one:
+     * `startBuild` upserts on the slug, so the retry reuses the row and the
+     * count does not move.
+     */
+    onFree();
+    ownsBuildMock.mockResolvedValue(true);
+    const form = new FormData();
+    form.set("slug", "rust");
+    form.set("subject", "Rust");
+
+    await expect(requestBuildAction(form)).rejects.toThrow(
+      "REDIRECT:/start/building?subject=rust",
+    );
+    expect(startBuildMock).toHaveBeenCalled();
   });
 });
