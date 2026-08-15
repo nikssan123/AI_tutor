@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // Emit `.next/standalone` — server.js plus only the node_modules reachable
+  // from it. The VPS this deploys to has 7.6GB shared with another project, so
+  // the difference between shipping that and shipping a full install is the
+  // difference between a deploy that fits and one that competes for page cache.
+  output: "standalone",
   // §13.3 — explicit width/height plus modern formats; CLS budget is 0.05.
   images: {
     formats: ["image/avif", "image/webp"],

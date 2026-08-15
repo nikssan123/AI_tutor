@@ -1,0 +1,218 @@
+name: Deploy
+
+# ON HOLD BY DESIGN.
+#
+# There is no `push` trigger. This workflow runs only when someone clicks "Run
+# workflow" in the Actions tab, or via `gh workflow run deploy.yml`. Add a push
+# trigger once a deploy has been done by hand at least once and you trust the
+# path — not before.
+#
+# A second brake: the `deploy` job targets the `production` environment. Add a
+# required reviewer to that environment in repo settings and every run pauses
+# for approval before it touches the server.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA, tag or branch to deploy
+        required: false
+        default: main
+      build_only:
+        description: Build and push images, but do not touch the server
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/meritkeep-web
+  TOOLS_IMAGE: ghcr.io/${{ github.repository_owner }}/meritkeep-tools
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    # `next build` prerenders src/app/sitemap.ts, which reads SeoPage rows out of
+    # Postgres. Same service definition as ci.yml, for the same reason.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: online_uni
+          POSTGRES_PASSWORD: online_uni
+          POSTGRES_DB: online_uni
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U online_uni -d online_uni"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Reachable from the runner, and from `docker build --network=host` below.
+      BUILD_DATABASE_URL: postgres://online_uni:online_uni@localhost:5433/online_uni
+
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - id: meta
+        name: Resolve the commit being deployed
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Fail early if the site URL is not configured
+        run: |
+          if [ -z "${{ vars.NEXT_PUBLIC_SITE_URL }}" ]; then
+            echo "::error::Repository variable NEXT_PUBLIC_SITE_URL is not set."
+            echo "::error::It is baked into the image at build time and feeds every"
+            echo "::error::canonical, the sitemap and robots.txt. Building without it"
+            echo "::error::ships an image full of http://localhost:3000 URLs."
+            exit 1
+          fi
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 1. tools image ──────────────────────────────────────────────────────
+      # Built first and needs no database: it is what creates the schema the
+      # runtime build then reads.
+      - name: Build tools image
+        run: |
+          docker build \
+            --target tools \
+            --tag "$TOOLS_IMAGE:${{ steps.meta.outputs.sha }}" \
+            --tag "$TOOLS_IMAGE:latest" \
+            .
+
+      # ── 2. seed the build database ──────────────────────────────────────────
+      - name: Migrate and seed
+        run: |
+          docker run --rm --network=host \
+            -e DATABASE_URL="$BUILD_DATABASE_URL" \
+            "$TOOLS_IMAGE:${{ steps.meta.outputs.sha }}" \
+            sh -c "pnpm db:migrate && pnpm packs:seed"
+
+      # ── 3. runtime image ────────────────────────────────────────────────────
+      # --network=host is what lets the RUN steps inside the build reach the
+      # Postgres service on localhost:5433. Without it `pnpm build` fails when it
+      # prerenders the sitemap.
+      - name: Build runtime image
+        run: |
+          docker build \
+            --network=host \
+            --target runtime \
+            --build-arg DATABASE_URL="$BUILD_DATABASE_URL" \
+            --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.NEXT_PUBLIC_SITE_URL }}" \
+            --tag "$WEB_IMAGE:${{ steps.meta.outputs.sha }}" \
+            --tag "$WEB_IMAGE:latest" \
+            .
+
+      # A built image that emits localhost canonicals is the one failure that
+      # would not surface until search traffic never arrived. Cheaper to catch here.
+      - name: Canonical host is baked in correctly
+        run: |
+          EXPECTED="${{ vars.NEXT_PUBLIC_SITE_URL }}"
+          docker run --rm --entrypoint sh "$WEB_IMAGE:${{ steps.meta.outputs.sha }}" -c \
+            'grep -rl "localhost:3000" .next/static 2>/dev/null | head -1' > /tmp/hits || true
+          if [ -s /tmp/hits ]; then
+            echo "::error::The client bundle still references localhost:3000."
+            echo "::error::NEXT_PUBLIC_SITE_URL did not reach the build. Expected $EXPECTED."
+            exit 1
+          fi
+          echo "✓ no localhost references in the client bundle"
+
+      - name: Push images
+        run: |
+          docker push "$TOOLS_IMAGE:${{ steps.meta.outputs.sha }}"
+          docker push "$TOOLS_IMAGE:latest"
+          docker push "$WEB_IMAGE:${{ steps.meta.outputs.sha }}"
+          docker push "$WEB_IMAGE:latest"
+
+  deploy:
+    needs: build
+    if: ${{ !inputs.build_only }}
+    runs-on: ubuntu-latest
+    # Scopes the SSH key to this environment and gives you somewhere to hang a
+    # required-reviewer rule. Secrets are never exposed to fork pull requests,
+    # which is what makes this safe on a public repo.
+    environment: production
+
+    steps:
+      - name: Open an SSH session to the VPS
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Pin the host key rather than trusting whatever answers on the night.
+          # Refresh it with: ssh-keyscan -t ed25519 <host>
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Pull and restart
+        env:
+          SSH_TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          # Spooled to a file rather than piped to `bash -s`: with `bash -s` the
+          # script *is* stdin, and the first command that reads stdin swallows the
+          # rest of it, ending the deploy early while reporting success. Both other
+          # projects on this host learned that the hard way.
+          ssh -o BatchMode=yes "$SSH_TARGET" \
+            "T=\$(mktemp /tmp/mk-deploy.XXXXXX) && cat >\"\$T\" && bash \"\$T\" $SHA; rc=\$?; rm -f \"\$T\"; exit \$rc" <<'REMOTE'
+          set -euo pipefail
+          SHA="$1"
+          cd /srv/meritkeep
+
+          [ -f .env.prod ] || { echo "::error::/srv/meritkeep/.env.prod is missing"; exit 1; }
+
+          # The compose file and the Caddyfile are read from this checkout, so it
+          # has to move before the images do.
+          git fetch --prune origin
+          git reset --hard "origin/main"
+
+          COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+
+          $COMPOSE pull
+          # migrate runs to completion and web gates on its clean exit, so a failed
+          # migration stops here rather than starting a server on a half-built schema.
+          $COMPOSE up -d --remove-orphans
+
+          echo
+          $COMPOSE ps
+
+          # Caddy reads its config from the bind-mounted directory. A Caddyfile
+          # change in this commit needs a reload; reload is atomic, so a config
+          # that will not parse leaves the running one in place.
+          $COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile </dev/null
+
+          echo "✔ deployed $SHA"
+          REMOTE
+
+      - name: Verify the site answers
+        env:
+          SITE: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+        run: |
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$SITE/" || true)
+            [ "$CODE" = "200" ] && { echo "✓ $SITE returned 200"; exit 0; }
+            sleep 5
+          done
+          echo "::error::$SITE did not return 200 within 100s (last: ${CODE:-no response})"
+          exit 1

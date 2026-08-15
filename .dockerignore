@@ -1,0 +1,24 @@
+# Keep the build context small and keep secrets out of it. Anything listed here
+# is invisible to `docker build`, including to the COPY . . in the build stage.
+.git
+.github
+node_modules
+.next
+coverage
+*.log
+
+# Secrets never enter an image layer. They arrive as runtime environment.
+.env
+.env.*
+!.env.example
+
+# Local-only infrastructure and docs. Authored content under content/ and packs/
+# is all YAML, so excluding markdown wholesale takes nothing the build needs.
+docker-compose.yml
+docker-compose.prod.yml
+deploy
+*.md
+
+# Tests do not ship. They run in CI, which is where the 100% threshold is enforced.
+tests
+vitest.config.ts

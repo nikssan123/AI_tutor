@@ -1,0 +1,99 @@
+# MeritKeep's own reverse proxy. Independent of the Caddy that fronts the other
+# project on this host — separate image, separate config, separate reload cycle.
+#
+# It does NOT terminate TLS and does not bind a host port. The shared Caddy owns
+# :443, matches meritkeep.xyz, and forwards here over the `web` Docker network.
+# Everything below the TLS handshake is ours.
+{
+	# The shared Caddy is the immediate client of every request that reaches us,
+	# so without this every visitor presents as one Docker-internal address: the
+	# rate limits below would throttle the whole internet as a single IP, and
+	# X-Real-IP would be useless in logs.
+	servers {
+		trusted_proxies static private_ranges
+	}
+
+	# Nothing here needs to solve an ACME challenge — we never see port 443.
+	auto_https off
+}
+
+:80 {
+	encode zstd gzip
+
+	# ── Security headers ──────────────────────────────────────────────────────
+	# HSTS lives here rather than on the shared Caddy: the block that forwards to
+	# us is a bare reverse_proxy with no header directives, so if we don't set it
+	# nobody does. Safe to send over plain HTTP — the browser only ever sees this
+	# response after the shared Caddy has served it over TLS.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# ── Drop scanner probes ───────────────────────────────────────────────────
+	# A new domain gets probed for these within hours of its first DNS resolution.
+	# `abort` closes the connection without a response, which costs less bandwidth
+	# than a 403 and makes bots give up sooner.
+	@scanner_probes {
+		path /.env /.env.* *.env /env.json /env.js
+		path /wp-* /wp-admin/* /wp-content/* /wp-json/* /wp-includes/* /xmlrpc.php
+		path /.git /.git/* /.svn /.svn/* /.hg /.hg/*
+		path /.aws /.aws/* /.docker /.docker/* /docker-compose.* /Dockerfile*
+		path /secrets /secrets.* /secrets/* /credentials /credentials.*
+		path /config.json /config.js /config.yml /config.yaml /settings.py
+		path /.vscode /.vscode/* /.idea /.idea/*
+		path /info.php /phpinfo.php /*.php /phpmyadmin /phpmyadmin/*
+		path /server-status /server-info /_profiler /_profiler/*
+	}
+	handle @scanner_probes {
+		abort
+	}
+
+	# ── Immutable build output ────────────────────────────────────────────────
+	# Everything under /_next/static is content-hashed by Next, so the URL changes
+	# whenever the bytes do. Year-long immutable caching is safe and is the single
+	# cheapest Core Web Vitals win available on repeat views.
+	@next_static path /_next/static/*
+	header @next_static Cache-Control "public, max-age=31536000, immutable"
+
+	# Files in public/ keep their names across deploys, so they need revalidation.
+	@public_assets path *.png *.jpg *.jpeg *.gif *.svg *.webp *.avif *.ico *.woff2
+	header @public_assets Cache-Control "public, max-age=300, must-revalidate"
+
+	# ── Auth endpoints ────────────────────────────────────────────────────────
+	# Tight per-IP budget. Credential stuffing is the reason, and it is why
+	# trusted_proxies above is load-bearing rather than cosmetic.
+	handle /api/auth/* {
+		rate_limit {
+			zone auth_per_ip {
+				key {remote_host}
+				events 15
+				window 1m
+			}
+		}
+		reverse_proxy web:3000
+	}
+
+	# ── Everything else ───────────────────────────────────────────────────────
+	handle {
+		rate_limit {
+			zone app_per_ip {
+				key {remote_host}
+				events 300
+				window 1m
+			}
+		}
+		reverse_proxy web:3000 {
+			# Server Actions accept a 5MB body (next.config.ts, §7.3's photo
+			# upload). Give the proxy room for that plus the multipart wrapper
+			# rather than letting a default cut the upload off mid-flight.
+			transport http {
+				read_timeout 120s
+				write_timeout 120s
+			}
+		}
+	}
+}

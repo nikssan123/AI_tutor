@@ -1,0 +1,128 @@
+# MeritKeep production stack. Lives at /srv/meritkeep on the VPS.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Isolation model, and the reason the networks are split the way they are:
+#
+#   * `meritkeep-net` is private to this stack. The app and Postgres are on it
+#     and nothing else.
+#   * `web` is shared with the other project on this host. ONLY our Caddy joins
+#     it, and only so the shared Caddy can reach us. The app container never
+#     touches `web`, so it cannot dial that project's internal API — which is
+#     unauthenticated precisely because it is meant to be network-unreachable.
+#     The trading-bot stack on this host makes the same call for the same reason.
+#
+# Nothing in this file publishes a host port. The shared Caddy owns :80/:443.
+
+networks:
+  meritkeep-net:
+    driver: bridge
+  web:
+    external: true
+    name: web
+
+volumes:
+  pgdata:
+
+services:
+  caddy:
+    build:
+      context: ./deploy/caddy
+    image: ghcr.io/nikssan123/meritkeep-caddy:latest
+    restart: unless-stopped
+    volumes:
+      # Mount the DIRECTORY, never ./deploy/caddy/Caddyfile on its own. A
+      # single-file bind mount pins the file's inode at container start, and a
+      # deploy that replaces the file (rather than rewriting it in place) leaves
+      # the container serving its boot-time config while `caddy reload` still
+      # reports success. That cost the other project on this host two commits
+      # that silently never applied.
+      - ./deploy/caddy:/etc/caddy:ro
+    networks:
+      meritkeep-net:
+      web:
+        aliases:
+          # The name the shared Caddy targets. Specific on purpose: `web` is a
+          # shared network, and a generic alias would collide sooner or later.
+          - meritkeep-caddy
+    depends_on:
+      web:
+        condition: service_started
+    mem_limit: 256m
+
+  web:
+    image: ghcr.io/nikssan123/meritkeep-web:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://meritkeep:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/meritkeep
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      # Also baked in at build time — see the ARG block in the Dockerfile. Set
+      # here too so anything reading it at runtime agrees with the built output.
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?set NEXT_PUBLIC_SITE_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # Both halves or neither. Unset, the provider is never registered and the
+      # sign-in screen simply doesn't offer Google — so leaving these blank is a
+      # supported state, not a broken one.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
+      # Billing — STRIPE-SETUP.md. All blank is a supported state: checkout
+      # falls back to an in-memory Stripe and charges nobody. A secret key
+      # without a webhook secret is refused at startup rather than silently
+      # taking payments nothing records, so set both or neither.
+      # Two variables, not ten: prices are sent inline from prices.ts, so going
+      # live is a key swap and nothing else.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    networks:
+      - meritkeep-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # The host has 7.6GB and no swap, shared with another project's stack. An
+    # unbounded container here would have the kernel pick a victim among the
+    # neighbours rather than among ours.
+    mem_limit: 1g
+    cpus: 2
+
+  # One-shot. Runs to completion on every `up`, then exits; `web` waits for a
+  # clean exit before starting. Built from the `tools` target because the
+  # migration and seed scripts import from src/, which the standalone runtime
+  # image does not contain.
+  migrate:
+    image: ghcr.io/nikssan123/meritkeep-tools:latest
+    restart: "no"
+    command: sh -c "pnpm db:migrate && pnpm packs:seed"
+    environment:
+      DATABASE_URL: postgres://meritkeep:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/meritkeep
+    networks:
+      - meritkeep-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meritkeep
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: meritkeep
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - meritkeep-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meritkeep -d meritkeep"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No published port. The other project runs its own Postgres on this host;
+    # keeping both unpublished is what stops them ever being confused for each
+    # other, and stops either being reachable from the internet.
+    mem_limit: 1g
