@@ -88,7 +88,25 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeToggleScript }}
         />
       </head>
-      <body>{children}</body>
+      {/*
+       * suppressHydrationWarning, for a different reason than the one on
+       * `<html>` above: nothing we render here differs between server and
+       * client. Browser extensions do — ColorZilla stamps
+       * `cz-shortcut-listen="true"` on the body, Grammarly and the password
+       * managers add their own — and they do it after the server HTML lands
+       * and before React hydrates, which is precisely the window a mismatch is
+       * measured in.
+       *
+       * It is worth suppressing rather than living with because of what the
+       * noise costs: a dev overlay that cries wolf on every page load is an
+       * overlay you stop reading, and the next hydration error — a real one —
+       * goes past with it.
+       *
+       * The scope is what makes this safe. The flag covers this element's own
+       * attributes and its direct text only; it does not reach `{children}`,
+       * so a genuine mismatch anywhere in the tree below still reports.
+       */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

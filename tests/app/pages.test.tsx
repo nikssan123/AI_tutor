@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -55,6 +56,32 @@ describe("root layout", () => {
     // visitor's theme; without this there is a flash on every cold load.
     expect(html).toContain("dangerouslySetInnerHTML");
     expect(html).toContain("suppressHydrationWarning");
+  });
+
+  it("lets an extension mangle <body> without the overlay crying wolf", async () => {
+    /*
+     * Pinned to `<body>` specifically, because the assertion above passes on
+     * the `<html>` flag alone and would keep passing if this one were dropped.
+     *
+     * The flag is not about anything we render: ColorZilla stamps
+     * `cz-shortcut-listen` on the body, Grammarly and the password managers add
+     * their own, and they all do it in the window between the server HTML
+     * landing and React hydrating. A dev overlay that reports a mismatch on
+     * every page load is one people stop reading, and the next real hydration
+     * error goes past with it.
+     */
+    const { default: RootLayout } = await import("@/app/layout");
+    const tree = RootLayout({ children: null }) as React.ReactElement<{
+      children: React.ReactNode;
+    }>;
+
+    const body = React.Children.toArray(tree.props.children).find(
+      (child): child is React.ReactElement<{ suppressHydrationWarning?: boolean }> =>
+        React.isValidElement(child) && child.type === "body",
+    );
+
+    expect(body, "no <body> in the root layout").toBeDefined();
+    expect(body!.props.suppressHydrationWarning).toBe(true);
   });
 
   it("puts the goal search's driver in <head>, where it will actually run", async () => {
