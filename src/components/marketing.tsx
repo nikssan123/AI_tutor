@@ -806,7 +806,7 @@ export function FaqList({ faqs }: { faqs: readonly Faq[] }) {
           */}
           <summary
             className={cx(
-              "flex min-h-[var(--touch-min)] cursor-pointer list-none items-center justify-between gap-6 py-5",
+              "flex min-h-[var(--touch-min)] cursor-pointer list-none items-center justify-between gap-4 py-4 sm:gap-6 sm:py-5",
               "[&::-webkit-details-marker]:hidden",
               "transition-colors duration-[var(--dur-fast)] hover:text-accent",
             )}

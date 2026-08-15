@@ -15,7 +15,6 @@ import {
   ArrowIcon,
   ChecklistIcon,
   GridIcon,
-  PenIcon,
   PriceIcon,
   QuestionIcon,
   StepsIcon,
@@ -59,34 +58,54 @@ import { supportAddress } from "@/lib/site";
 /**
  * §8 screen 1 — the landing page.
  *
- * Ninth cut. The eighth got the *order* right — what the product is, then the
- * proof, then the scope, then the catalogue — and then stopped, three questions
- * short of a decision. A reader who believed every word of it still did not
- * know what it cost, still had the objection it never answered, and reached the
- * bottom of the page with nothing to press. Three bands close that gap:
+ * Tenth cut, and the first one measured on a phone rather than argued about on
+ * a desktop. The ninth added what the page was missing — a price, an answer to
+ * the objection, an ask — and got to six numbered bands and 13.9 phone screens.
+ * §8.5.7's licence is "Long is fine; *dense* is not", and that is a rule about
+ * a page you scroll past, not a page you scroll *through*: fourteen screens is
+ * not depth, it is a reader deciding somewhere around screen five that this is
+ * going to take all day.
  *
- * - **05 · What it costs.** Every figure read from `prices.ts` and every quota
+ * Three cuts, in order of how much they bought:
+ *
+ * 1. **Two bands became one.** "If nobody has written yours, we write it" and
+ *    "N subjects, grouped by kind" were separate because they answer different
+ *    questions. Nobody experiences them as different questions — they are the
+ *    catalogue, and then, 1,300px later on a phone, a card explaining the
+ *    catalogue is not the limit. Both opened with a numbered head and a rule;
+ *    both closed with a paragraph about which kind of subject is which. The
+ *    offer is now the last row of the catalogue card, on the accent field, and
+ *    the point costs one band instead of 3.4 screens.
+ * 2. **The hero's specimen is desktop-only.** It is band 02's argument in
+ *    compressed form, and below `lg` there is no second column for it to fill —
+ *    so it stopped being a specimen and became 500px of content the reader
+ *    meets again, in full, one band later.
+ * 3. **Every band's padding is smaller under `sm`.** `py-16` twice per band
+ *    across eight bands is a screen and a half of nothing on a 780px viewport.
+ *
+ * What survived every cut, because it is what makes the page honest: the
+ * published rubric with its four rungs, §7.1's two limits on a built subject
+ * (Experimental until read, and no claim to the strongest marking), every
+ * subject linked by name, and every price and quota read rather than typed.
+ *
+ * - **04 · What it costs.** Every figure read from `prices.ts` and every quota
  *   from `PLAN_COPY`, exactly as `/pricing` does, in the currency the same
  *   cookie decides. A landing page that quotes a price it typed by hand is one
  *   edit away from advertising an amount we do not charge — which is why this
- *   file now reads the cookie and is async.
- * - **06 · Questions.** The five objections, in `<details>`, with `FAQPage`
- *   markup drawn from the same array. The sharpest one is first and it is the
- *   one we would rather not be asked.
- * - **The close.** The page used to end on a caption. It ends on the ask now.
+ *   file reads the cookie and is async.
+ * - **05 · Questions.** Five objections, in `<details>`, with `FAQPage` markup
+ *   drawn from the same array. The sharpest is first and it is the one we would
+ *   rather not be asked.
+ * - **The close.** Not a numbered band: no eyebrow, no rule, one thing to do.
  *
- * **What did not change, and why.** The order above 05 is the eighth cut's and
- * it was right: fold, five steps, the pinned rubric, the offer to write your
- * subject, the catalogue. Each band still has a shape of its own — a rail, a
- * pinned two-pane card, a single card, a row list, a price grid, a disclosure
- * list, a close — so the page never reads as one shape repeated until it runs
- * out. §8.5.7 is still the licence for the length: "Long is fine; *dense* is
- * not." One idea per band, and nothing stacked.
+ * Each band still has a shape of its own — a rail, a pinned two-pane card, a
+ * row list, a price grid, a disclosure list, a close — so the page never reads
+ * as one shape repeated until it runs out.
  *
- * **On filled buttons.** §8.5.5 allows one per *screen*, and this page is nine
- * of them. Three carry a fill — the hero's submit, band 03's "Have one built",
- * and the close — and no two are ever in the same viewport. Everything else,
- * the price cards included, is a link or a text button.
+ * **On filled buttons.** §8.5.5 allows one per *screen*. Three carry a fill —
+ * the hero's submit, the catalogue's "Have one built", and the close — and no
+ * two are ever in the same viewport. Everything else, the price cards included,
+ * is a link or a text button.
  *
  * §13.1 — revalidated daily; the cookie reads make it per-request in practice,
  * as they already do for every route under `(marketing)/layout`.
@@ -143,31 +162,6 @@ const STEPS = [
   {
     name: "Get it marked",
     body: "Every score quotes the part of your work it is based on.",
-  },
-];
-
-/**
- * What gets written when nobody has written your subject.
- *
- * Every number here is imported from the contract the generator is held to, not
- * typed into the copy: `MIN_GENERATED_SKILLS`/`MAX_GENERATED_SKILLS` bound the
- * graph the model is asked for, and `MIN_ITEMS_PER_SKILL` with
- * `MIN_GENERATED_ITEMS` are two of the three gates in `meetsQualityFloor`. If
- * the floor moves, this paragraph moves with it — which is the only way a
- * promise this specific stays true a year from now.
- */
-const WRITTEN = [
-  {
-    name: "The skills, in order",
-    body: `${MIN_GENERATED_SKILLS} to ${MAX_GENERATED_SKILLS} of them, each one placed after whatever you need first.`,
-  },
-  {
-    name: "Questions that find your level",
-    body: `At least ${MIN_ITEMS_PER_SKILL} per skill and ${MIN_GENERATED_ITEMS} in all, so the check has something to work with.`,
-  },
-  {
-    name: "Work that can be marked",
-    body: "At least one real task, and the checklist it will be marked against.",
   },
 ];
 
@@ -362,9 +356,9 @@ export default async function HomePage() {
          * that drift against the scroll, so the page opens on a field rather
          * than on the same flat ground as everything under it.
          */}
-        <section className="aurora recede mx-auto max-w-5xl px-6 pt-16 pb-16 sm:pt-20">
-          <div className="grid grid-cols-1 items-center gap-x-12 gap-y-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <div className="flex flex-col items-start gap-7">
+        <section className="aurora recede mx-auto max-w-5xl px-6 pt-10 pb-12 sm:pt-20 sm:pb-16">
+          <div className="grid grid-cols-1 items-center gap-x-12 gap-y-10 sm:gap-y-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <div className="flex flex-col items-start gap-6 sm:gap-7">
               {/*
                * The counts, above the headline.
                *
@@ -409,8 +403,20 @@ export default async function HomePage() {
              * `drift` moves it against the page as the hero scrolls, which is
              * what stops the two columns reading as one flat block — and it is
              * the first thing on the site that visibly answers to the scroll.
+             *
+             * **Desktop only, and that is a content decision rather than a
+             * layout one.** This card is band 02's argument in compressed form:
+             * the same brief, the same criteria, the same weights. On a wide
+             * viewport it earns its space by filling the column beside the
+             * headline — without it the fold is a search box and forty per cent
+             * white. Below `lg` there is no column to fill, so it stops being a
+             * specimen and becomes 500px of the same content the reader meets
+             * again, in full, one band later. A phone gets it once.
              */}
-            <div className="drift" style={{ "--drift": "56px" } as CSSProperties}>
+            <div
+              className="drift hidden lg:block"
+              style={{ "--drift": "56px" } as CSSProperties}
+            >
               <Card className="rise flex flex-col gap-5 p-7" style={stagger(3)}>
                 <span className={EYEBROW}>What your work is marked on</span>
                 <span className={CARD_TITLE}>{featured.title}</span>
@@ -448,7 +454,7 @@ export default async function HomePage() {
            * reader who decides whether to keep scrolling before band 01.
            */}
           <ul
-            className="rise m-0 mt-12 grid list-none grid-cols-1 gap-x-8 gap-y-3 border-t border-hairline p-0 pt-6 sm:grid-cols-3"
+            className="rise m-0 mt-10 grid list-none grid-cols-1 gap-x-8 gap-y-3 border-t border-hairline p-0 pt-6 sm:mt-12 sm:grid-cols-3"
             style={stagger(4)}
           >
             {PROMISES.map((promise) => (
@@ -466,7 +472,7 @@ export default async function HomePage() {
         </section>
 
         {/* ── 01 How it works ────────────────────────────────────────────── */}
-        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
+        <section className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10 sm:gap-10 sm:py-16">
           <SectionHead
             step="01"
             label="How it works"
@@ -484,11 +490,11 @@ export default async function HomePage() {
            * it — two numbering systems, both accent, both saying "01", meaning
            * different things.
            */}
-          <ol className="grid list-none grid-cols-1 gap-x-8 gap-y-8 p-0 m-0 sm:grid-cols-2 lg:grid-cols-5">
+          <ol className="grid list-none grid-cols-1 gap-x-8 gap-y-5 p-0 m-0 sm:gap-y-8 sm:grid-cols-2 lg:grid-cols-5">
             {STEPS.map((step, i) => (
               <li
                 key={step.name}
-                className="reveal flex flex-col gap-3 border-t border-hairline pt-5"
+                className="reveal flex flex-col gap-2.5 border-t border-hairline pt-4 sm:gap-3 sm:pt-5"
                 style={revealAt(i)}
               >
                 <span
@@ -529,7 +535,7 @@ export default async function HomePage() {
          * ordinary height rather than a viewport and a half of dead scroll.
          */}
         <section className="pin-scene relative bg-accent-weak">
-          <div className="pin-stage mx-auto flex max-w-5xl flex-col gap-8 px-6 py-16">
+          <div className="pin-stage mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10 sm:gap-8 sm:py-16">
             <SectionHead
               step="02"
               label="What marking looks like"
@@ -551,7 +557,7 @@ export default async function HomePage() {
              */}
             <div className="grid grid-cols-1 overflow-hidden rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-lifted)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
               {/* The task */}
-              <div className="flex flex-col gap-5 border-b border-hairline p-7 lg:border-r lg:border-b-0">
+              <div className="flex flex-col gap-5 border-b border-hairline p-5 sm:p-7 lg:border-r lg:border-b-0">
                 <span className={EYEBROW}>The task</span>
                 <span className={CARD_TITLE}>{featured.title}</span>
                 <p className="m-0 text-ink-muted">{hook}</p>
@@ -584,7 +590,7 @@ export default async function HomePage() {
               </div>
 
               {/* How it is marked */}
-              <div className="flex flex-col gap-6 p-7">
+              <div className="flex flex-col gap-6 p-5 sm:p-7">
                 <span className={EYEBROW}>How it is marked</span>
 
                 <RubricLadder criterion={leading!} />
@@ -623,117 +629,59 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── 03 The subject nobody has written ──────────────────────────── */}
+        {/* ── 03 Subjects ────────────────────────────────────────────────── */}
         {/*
-         * The band that answers the headline's boldest word, and it sits after
-         * the example rather than before it. "Here is what marking means" is
-         * the argument; "and it applies to any subject you ask for" is the
-         * scope of the argument. Scope after substance.
+         * One band where there were two, and the merge is the single biggest
+         * cut in this pass.
          *
-         * Half its length went in the eighth cut. The honest half — §7.1's
-         * "depth is declared, not faked" — was four paragraphs and had become
-         * the longest thing on the page, which is not the same as being the
-         * clearest. Same two limits, two sentences.
+         * They were separate because they answer different questions — "what is
+         * already written" and "what if mine isn't" — but a reader does not
+         * experience them as different questions. They experience a list of
+         * subjects, and then, thirteen hundred pixels later on a phone, a card
+         * explaining that the list is not the limit. Both bands opened with a
+         * numbered head and a rule; both closed with a paragraph about which
+         * kind of subject is which; between them they cost 3.4 phone screens to
+         * make one point.
+         *
+         * The point is one point, so it is one band: the catalogue, and then
+         * "and anything else you ask for" as the last row of the same card, on
+         * the accent field so it reads as the end of the list rather than as
+         * another item in it. §7.1's two limits survive intact — a built
+         * subject is Experimental until somebody reads it, and it cannot claim
+         * the strongest kind of marking — because those are the half of the
+         * offer that costs us something to say, and dropping them to save space
+         * would be the one cut this page is not allowed to make.
          */}
-        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
+        <section className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10 sm:gap-10 sm:py-16">
           <SectionHead
             step="03"
-            label="Any subject"
-            title="If nobody has written yours, we write it"
-            icon={<PenIcon />}
-          />
-
-          <Card className="settle flex flex-col gap-8 p-7 sm:p-9">
-            <Lead>
-              Ask for something we don&rsquo;t cover and it gets written to
-              order. It takes about three minutes, and what comes out is a
-              subject like any other here.
-            </Lead>
-
-            <ul className="grid list-none grid-cols-1 gap-x-8 gap-y-6 p-0 m-0 sm:grid-cols-3">
-              {WRITTEN.map((piece, i) => (
-                <li
-                  key={piece.name}
-                  className="reveal flex flex-col gap-2 border-t border-hairline pt-4"
-                  style={revealAt(i)}
-                >
-                  <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
-                    {piece.name}
-                  </span>
-                  <Meta>{piece.body}</Meta>
-                </li>
-              ))}
-            </ul>
-
-            {/*
-             * The half of the offer that costs us something to say, and the
-             * reason the band is worth its space. Both limits a built subject
-             * carries, beside the badge that carries them, in the space the
-             * four paragraphs used to take.
-             */}
-            <div className="flex flex-col gap-3 border-t border-hairline pt-6">
-              <MaturityBadge maturity="generated" />
-              {/* Held to the reading measure by hand: the card is the full page
-                  width, and `Meta` — unlike `Lead` — carries no measure of its
-                  own, so a paragraph in here runs to 110 characters. */}
-              <Meta className="max-w-[var(--measure)]">
-                That is what it is called until a person has read it, and we
-                check it before you see it — if it comes out thin, we stop and
-                tell you rather than hand it over. It also can&rsquo;t claim the
-                strongest kind of marking, because running your work and
-                checking the answer needs a marker somebody wrote by hand.
-              </Meta>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-hairline pt-6">
-              <ButtonLink href="/start">Have one built</ButtonLink>
-              <Meta>
-                A few questions about what you want to do with it, then it
-                starts writing.
-              </Meta>
-            </div>
-          </Card>
-        </section>
-
-        {/* ── 04 What is already here ────────────────────────────────────── */}
-        {/*
-         * One band where there were two.
-         *
-         * The old 04 drew a card per category whose only link was `/learn` —
-         * five cards, one destination, no subject named. The old 05 drew the
-         * three hand-written subjects under a claim only they could carry, and
-         * because it was the one band that listed anything, a reader counted it
-         * and concluded the site had three subjects. That is the same failure
-         * the page had already been restructured twice to fix.
-         *
-         * A row list fixes both at once: it names every category *and* every
-         * subject in it, it survives a catalogue of sixty without becoming a
-         * wall, and it never leaves a two-thirds-empty grid row when a branch
-         * holds one subject — which the card grid did for three of five.
-         */}
-        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
-          <SectionHead
-            step="04"
-            label="What's here"
-            /* No count of categories in the heading. "in three kinds" lasted
-               exactly as long as it took to add a fourth. The rows below are
-               the breadth signal; the reader counts them. */
-            title={`${topics.length} subjects, grouped by kind`}
+            label="Subjects"
+            /* Both halves of the band in one line, and no count of categories:
+               "in three kinds" lasted exactly as long as it took to add a
+               fourth. The rows below are the breadth signal. */
+            title={`${topics.length} subjects, and anything else you ask for`}
             icon={<GridIcon />}
           />
 
-          <Card className="flex flex-col p-0">
+          {/* `overflow-hidden` because the last row is a fill rather than
+              content on the card's own surface — without it the accent block
+              keeps its square corners inside the card's rounded ones. */}
+          <Card className="flex flex-col overflow-hidden p-0">
             {categories.map(({ category, topics: inGroup }, i) => (
               <div
                 key={category.slug}
-                className="reveal grid gap-x-10 gap-y-4 border-b border-hairline p-6 last:border-b-0 sm:p-7 lg:grid-cols-[minmax(0,7fr)_minmax(0,10fr)]"
+                className="reveal grid gap-x-10 gap-y-3 border-b border-hairline p-5 sm:gap-y-4 sm:p-7 lg:grid-cols-[minmax(0,7fr)_minmax(0,10fr)]"
                 style={revealAt(i)}
               >
                 <div className="flex flex-col gap-1.5">
                   <h3 className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
                     {category.name}
                   </h3>
-                  <Meta>{category.blurb}</Meta>
+                  {/* The blurb is orientation for a reader scanning a wide
+                      page. On a phone the category name sits directly above its
+                      own subjects with nothing between them, so it orients
+                      nobody and costs two lines per category. */}
+                  <Meta className="hidden sm:block">{category.blurb}</Meta>
                 </div>
 
                 <ul className="m-0 flex list-none flex-col p-0">
@@ -741,12 +689,17 @@ export default async function HomePage() {
                     <li key={topic.slug}>
                       <Link
                         href={`/learn/${topic.slug}`}
-                        className="group flex min-h-[var(--touch-min)] flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b border-hairline py-3 last:border-b-0"
+                        className="group flex min-h-[var(--touch-min)] flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b border-hairline py-2.5 last:border-b-0 sm:py-3"
                       >
                         <span className="text-[length:var(--text-label-size)] font-[650] text-ink transition-colors duration-[var(--dur-fast)] group-hover:text-accent">
                           {topic.name}
                         </span>
-                        <Meta>
+                        {/* Choosing information, and nobody chooses a subject
+                            here — they choose on `/learn`, where it is on every
+                            card. At 390px it wraps to a second line under every
+                            subject and turns a list you scan into a list you
+                            read. */}
+                        <Meta className="hidden sm:block">
                           {topic.skillCount} skills · about {topic.totalHours}{" "}
                           hours
                         </Meta>
@@ -756,30 +709,66 @@ export default async function HomePage() {
                 </ul>
               </div>
             ))}
+
+            {/*
+             * The offer, as the last row of the catalogue rather than as a band
+             * of its own — which is exactly what it is: the row after the last
+             * subject. On the accent field so it closes the list instead of
+             * joining it, which also means every `Meta` in here steps up to
+             * `muted` (§8.5.4 — `--ink-faint` measures 4.15:1 on that fill).
+             *
+             * The generator's floor is one sentence now instead of a
+             * three-column grid of headed items. Every figure still comes from
+             * `contracts/pack` rather than the copy, which is the part that
+             * matters: a promise this specific stays true only while nobody can
+             * edit it without editing the contract.
+             */}
+            <div className="reveal flex flex-col gap-4 bg-accent-weak p-5 sm:p-7">
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
+                  Anything else
+                </h3>
+                <Meta tone="muted">
+                  Ask for a subject nobody has written and it gets written to
+                  order in about three minutes: {MIN_GENERATED_SKILLS} to{" "}
+                  {MAX_GENERATED_SKILLS} skills in the order they depend on each
+                  other, at least {MIN_ITEMS_PER_SKILL} questions per skill and{" "}
+                  {MIN_GENERATED_ITEMS} in all, and a real task with the
+                  checklist it will be marked against.
+                </Meta>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t border-accent/20 pt-4">
+                <MaturityBadge maturity="generated" />
+                <Meta tone="muted" className="max-w-[var(--measure)]">
+                  That is what it is called until a person has read it — and if
+                  it comes out thin we stop and tell you rather than hand it
+                  over. It also can&rsquo;t claim the strongest kind of marking,
+                  which needs a marker somebody wrote by hand.
+                </Meta>
+              </div>
+
+              <ButtonLink href="/start" className="mt-1">
+                Have one built
+              </ButtonLink>
+            </div>
           </Card>
 
           {/*
-           * The closing line, and the one place the page names both kinds of
-           * subject. It replaces a whole band that existed to make the same
-           * point — and unlike that band, it cannot be misread as a count of
-           * everything on offer.
+           * The one place the page names both kinds of subject. It is the
+           * survivor of two closing paragraphs that said overlapping things.
            */}
           <Meta className="reveal max-w-[var(--measure)]">
             Some of these were written and checked by hand; the rest are written
-            when someone asks. Every subject says which it is, and what marking
-            it can honestly do.{" "}
+            when someone asks. Every subject says which it is.{" "}
             <Link href="/learn" className={INLINE_LINK}>
               See all {topics.length}
             </Link>
-            , or{" "}
-            <Link href="/start" className={INLINE_LINK}>
-              ask for a subject
-            </Link>{" "}
-            that isn&rsquo;t here.
+            .
           </Meta>
         </section>
 
-        {/* ── 05 What it costs ───────────────────────────────────────────── */}
+        {/* ── 04 What it costs ───────────────────────────────────────────── */}
         {/*
          * A price grid, which is a shape this page does not otherwise use, and
          * the first band whose figures come from outside `content/`.
@@ -794,15 +783,15 @@ export default async function HomePage() {
          * in a row is three primary actions, and the choice a visitor is making
          * here is which *card* they want, not which button.
          */}
-        <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
+        <section className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10 sm:gap-10 sm:py-16">
           <SectionHead
-            step="05"
+            step="04"
             label="What it costs"
             title={`Free to start, ${formatMoney(trialCents, currency)} to try everything`}
             icon={<PriceIcon />}
           />
 
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
             {PRICED_PLANS.map((planId, i) => {
               const copy = PLAN_COPY[planId];
               const route = PLAN_ROUTE[planId]!;
@@ -825,7 +814,7 @@ export default async function HomePage() {
                    * without being able to name.
                    */
                   className={cx(
-                    "reveal group gap-5 border-2 p-6",
+                    "reveal group gap-4 border-2 p-5 sm:gap-5 sm:p-6",
                     offered ? "border-accent" : "border-transparent",
                   )}
                 >
@@ -886,7 +875,7 @@ export default async function HomePage() {
            * band rather than a fourth column asking a visitor to compare four
            * days against three monthly rates.
            */}
-          <div className="reveal flex flex-col gap-4 rounded-[var(--radius-card)] bg-accent-weak px-6 py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+          <div className="reveal flex flex-col gap-4 rounded-[var(--radius-card)] bg-accent-weak px-5 py-5 sm:flex-row sm:px-6 sm:py-6 sm:items-center sm:justify-between sm:gap-8">
             <div className="flex flex-col gap-1.5">
               <span className="text-[length:var(--text-title-size)] font-semibold leading-[var(--text-title-line)] tracking-[var(--text-title-tracking)] text-ink">
                 Try Pro for {formatMoney(trialCents, currency)}
@@ -929,7 +918,7 @@ export default async function HomePage() {
           </Meta>
         </section>
 
-        {/* ── 06 Questions ───────────────────────────────────────────────── */}
+        {/* ── 05 Questions ───────────────────────────────────────────────── */}
         {/*
          * The objections, and the first one is the one we would rather not be
          * asked. A page that answers the easy questions and leaves the hard one
@@ -941,9 +930,9 @@ export default async function HomePage() {
          * `FAQPage` markup above is built from, so a question can never reach
          * the markup without being visible on the page.
          */}
-        <section className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-16">
+        <section className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10 sm:gap-8 sm:py-16">
           <SectionHead
-            step="06"
+            step="05"
             label="Questions"
             title="The things people ask first"
             icon={<QuestionIcon />}
@@ -980,8 +969,8 @@ export default async function HomePage() {
         {/* `pb-8`, not the band rhythm's `pb-16`: `SiteFooter` already opens on
             `mt-24`, and the two together left a screenful of nothing between
             the last thing to press and the first thing under it. */}
-        <section className="mx-auto max-w-5xl px-6 pt-4 pb-8">
-          <Card className="settle flex flex-col items-start gap-6 p-8 sm:p-10">
+        <section className="mx-auto max-w-5xl px-6 pt-2 pb-8 sm:pt-4">
+          <Card className="settle flex flex-col items-start gap-5 p-6 sm:gap-6 sm:p-10">
             <Title className="text-[length:var(--text-display-size)] leading-[var(--text-display-line)] tracking-[var(--text-display-tracking)] text-balance">
               Pick one thing you want to be able to do
             </Title>

@@ -59,6 +59,19 @@ const CLAIM: Record<number, string> = Object.fromEntries(
   Object.entries(EVAL_TIER_CLAIM).map(([tier, claim]) => [tier, claim.label]),
 );
 
+/**
+ * The band that lists what exists and offers to write what doesn't.
+ *
+ * Found by its heading rather than by index, because the whole point of the
+ * tenth cut is that bands merge and renumber — an ordinal here would have to be
+ * edited every time the page is re-cut, which is how a test stops describing
+ * the thing it is named after.
+ */
+const subjectsBand = (container: HTMLElement): HTMLElement =>
+  [...container.querySelectorAll("section")].find((s) =>
+    s.querySelector("h2")?.textContent?.includes("and anything else you ask for"),
+  )!;
+
 describe("marketing layout", () => {
   it("wraps content in the site header and footer", () => {
     /*
@@ -135,7 +148,13 @@ describe("landing page (§8 screen 1)", () => {
    * reader who believed every word of bands 01–04 still did not know what it
    * cost and still had the objection none of them answered.
    *
-   * The close is deliberately *not* 07: it carries no eyebrow and no rule,
+   * Five, where the ninth cut had six: the catalogue and the offer to write a
+   * subject nobody has written are one band now. They were two because they
+   * answer different questions, and nobody reads them as different questions —
+   * on a phone the second was 1,300px of explaining that the first is not the
+   * limit.
+   *
+   * The close is deliberately *not* 06: it carries no eyebrow and no rule,
    * because a numbered band promises another one after it and there isn't one.
    */
   it("separates its sections with numbered headings", async () => {
@@ -143,14 +162,13 @@ describe("landing page (§8 screen 1)", () => {
     for (const label of [
       /01 · How it works/,
       /02 · What marking looks like/,
-      /03 · Any subject/,
-      /04 · What's here/,
-      /05 · What it costs/,
-      /06 · Questions/,
+      /03 · Subjects/,
+      /04 · What it costs/,
+      /05 · Questions/,
     ]) {
       expect(screen.getByText(label), String(label)).toBeDefined();
     }
-    expect(screen.queryByText(/07 · /)).toBeNull();
+    expect(screen.queryByText(/06 · /)).toBeNull();
   });
 
   /**
@@ -185,7 +203,9 @@ describe("landing page (§8 screen 1)", () => {
     expect(curated.length).toBeLessThan(allTopics().length);
 
     expect(
-      screen.getByRole("heading", { name: `${allTopics().length} subjects, grouped by kind` }),
+      screen.getByRole("heading", {
+        name: `${allTopics().length} subjects, and anything else you ask for`,
+      }),
     ).toBeDefined();
   });
 
@@ -209,9 +229,7 @@ describe("landing page (§8 screen 1)", () => {
    */
   it("names and links every subject from the catalogue band", async () => {
     const { container } = render(await HomePage());
-    const band = [...container.querySelectorAll("section")].find((s) =>
-      s.querySelector("h2")?.textContent?.includes("grouped by kind"),
-    )!;
+    const band = subjectsBand(container);
 
     const linked = [...band.querySelectorAll("a[href^='/learn/']")].map((a) =>
       a.getAttribute("href")!.replace("/learn/", ""),
@@ -237,21 +255,28 @@ describe("landing page (§8 screen 1)", () => {
    * The headline promises "anything", and until §7.1's Generated tier shipped
    * the page under it argued the opposite — three subject cards billed as
    * "what you can learn today", and the offer to build a fourth as a card
-   * below the fold. The band that answers the headline is now structural, and
-   * these assertions are what stop it drifting back into a footnote.
+   * below the fold.
+   *
+   * The offer had a band of its own for two cuts and no longer needs one: it is
+   * the last row of the catalogue, which is where it belongs — the row after
+   * the last subject. What has to stay true is that it is *in* the catalogue
+   * rather than somewhere else on the page, because a reader who stops at the
+   * end of the list must have met it.
    */
-  it("answers 'anything' with a band of its own, above the catalogue", async () => {
+  it("ends the catalogue with the offer to write what isn't in it", async () => {
     const { container } = render(await HomePage());
-    const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
+    const band = subjectsBand(container);
 
-    expect(heads).toContain("If nobody has written yours, we write it");
-    // Above the list of what exists, or the page reads as a fixed catalogue to
-    // anyone who stops scrolling — which is the failure it has had twice.
+    expect(band.textContent).toContain("Anything else");
+    expect(band.textContent).toContain("gets written to order");
+    // Inside the band, and last: the row after the final subject.
+    const built = band.querySelector<HTMLAnchorElement>('a[href="/start"]')!;
+    expect(built.textContent).toBe("Have one built");
+    const subjectLinks = [...band.querySelectorAll("a[href^='/learn/']")];
     expect(
-      heads.indexOf("If nobody has written yours, we write it"),
-    ).toBeLessThan(
-      heads.indexOf(`${allTopics().length} subjects, grouped by kind`),
-    );
+      built.compareDocumentPosition(subjectLinks[subjectLinks.length - 1]!) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
   });
 
   /**
@@ -261,20 +286,30 @@ describe("landing page (§8 screen 1)", () => {
    * paragraphs of small print about generation quality floors — so the most
    * convincing artefact the product owns was the last thing a visitor met.
    */
-  it("shows what marking is before it explains what gets written", async () => {
+  it("shows what marking is before it lists what is on offer", async () => {
     const { container } = render(await HomePage());
     const heads = [...container.querySelectorAll("h2")].map((h) => h.textContent);
 
     expect(
       heads.indexOf("A real task, and the standard it is held to"),
-    ).toBeLessThan(heads.indexOf("If nobody has written yours, we write it"));
+    ).toBeLessThan(
+      heads.indexOf(
+        `${allTopics().length} subjects, and anything else you ask for`,
+      ),
+    );
   });
 
   /**
    * §12 — "a page cannot promise something the product does not actually do."
-   * The band quotes the generator's own floor, so the numbers are read from the
-   * contract here too: a floor that moves without the copy moving is exactly
-   * the drift this guards.
+   * The offer quotes the generator's own floor, so the numbers are read from
+   * the contract here too: a floor that moves without the copy moving is
+   * exactly the drift this guards.
+   *
+   * Asserted on the figures rather than on the sentence around them. The tenth
+   * cut turned a three-column grid of headed items into one sentence, and the
+   * previous version of this test failed on that — which is a test complaining
+   * about an edit to the copy while the thing it exists to protect, the numbers
+   * coming from `contracts/pack`, was never in danger.
    */
   it("quotes the real quality floor, not a rounder number", async () => {
     const {
@@ -283,20 +318,16 @@ describe("landing page (§8 screen 1)", () => {
       MIN_GENERATED_SKILLS,
       MIN_ITEMS_PER_SKILL,
     } = await import("@/lib/contracts/pack");
-    render(await HomePage());
+    const { container } = render(await HomePage());
+    const offer = subjectsBand(container).textContent!;
 
-    expect(
-      screen.getByText(
-        new RegExp(`${MIN_GENERATED_SKILLS} to ${MAX_GENERATED_SKILLS}`),
-      ),
-    ).toBeDefined();
-    expect(
-      screen.getByText(
-        new RegExp(
-          `At least ${MIN_ITEMS_PER_SKILL} per skill and ${MIN_GENERATED_ITEMS} in all`,
-        ),
-      ),
-    ).toBeDefined();
+    for (const figure of [
+      `${MIN_GENERATED_SKILLS} to ${MAX_GENERATED_SKILLS} skills`,
+      `at least ${MIN_ITEMS_PER_SKILL} questions per skill`,
+      `${MIN_GENERATED_ITEMS} in all`,
+    ]) {
+      expect(offer, figure).toContain(figure);
+    }
   });
 
   /**
@@ -311,9 +342,15 @@ describe("landing page (§8 screen 1)", () => {
     expect(screen.getByText(/can’t claim the strongest kind of marking/)).toBeDefined();
   });
 
+  /**
+   * Two ways in, not three. The catalogue's closing line used to carry a third
+   * ("…or ask for a subject that isn't here"), which was a link to `/start`
+   * sitting four inches under a filled button to `/start`, saying the same
+   * thing in smaller type.
+   */
   it("sends someone who wants one built to the conversation that builds it", async () => {
     render(await HomePage());
-    for (const label of ["Have one built", "ask for a subject"]) {
+    for (const label of ["Have one built", "Have a subject built"]) {
       expect(screen.getByText(label).getAttribute("href"), label).toBe("/start");
     }
   });
@@ -509,9 +546,7 @@ describe("landing page (§8 screen 1)", () => {
    */
   it("makes no blanket evaluation claim over the whole catalogue (§7.2)", async () => {
     const { container } = render(await HomePage());
-    const band = [...container.querySelectorAll("section")].find((s) =>
-      s.querySelector("h2")?.textContent?.includes("grouped by kind"),
-    )!;
+    const band = subjectsBand(container);
 
     for (const [tier, claim] of Object.entries(CLAIM)) {
       expect(band.textContent, `tier ${tier}`).not.toContain(claim);
