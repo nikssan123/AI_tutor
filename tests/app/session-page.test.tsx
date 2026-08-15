@@ -36,7 +36,10 @@ vi.mock("@/lib/session/view", () => ({
   sessionView: (...a: unknown[]) => sessionViewMock(...(a as [])),
   lessonForBlock: (...a: unknown[]) => lessonForBlockMock(...(a as [])),
 }));
-vi.mock("@/lib/session/tutor", () => ({ transcriptFor: async () => [] }));
+vi.mock("@/lib/session/tutor", () => ({
+  transcriptFor: async () => [],
+  turnsTaken: async () => 3,
+}));
 vi.mock("@/lib/billing/gate", () => ({
   nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
 }));
@@ -51,7 +54,11 @@ vi.mock("@/lib/session/store", () => ({
   recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
 }));
 vi.mock("@/app/(app)/session/[id]/tutor-panel", () => ({
-  TutorPanel: () => <div>tutor panel</div>,
+  // Renders the one prop this page decides: whether the panel is allowed to
+  // warn. Everything else the panel does has its own suite.
+  TutorPanel: ({ quiet }: { quiet: boolean }) => (
+    <div>tutor panel{quiet ? " (quiet)" : ""}</div>
+  ),
 }));
 
 import { findPack } from "@/lib/content";
@@ -131,7 +138,13 @@ function view(over: {
 const params = Promise.resolve({ id: "sess-1" });
 const search = Promise.resolve({});
 
-/** Renders the page and any async children it streamed behind Suspense. */
+/**
+ * Renders the page.
+ *
+ * Children behind `Suspense` are invoked but not committed by the time this
+ * returns — React resolves them a microtask later — so anything that streams
+ * has to be asserted with `findBy*` rather than `getBy*`.
+ */
 async function show(node: React.ReactElement) {
   render(node);
 }
@@ -530,5 +543,28 @@ describe("when the month's marking is spent", () => {
     // somebody who is simply getting on with the work.
     await show(await SessionPage({ params, searchParams: search }));
     expect(nudgeMock).not.toHaveBeenCalled();
+  });
+
+  it("silences the tutor's own warning while the ask is on screen", async () => {
+    // §14.9.7 limit 4's warning and the upgrade prompt are both true and both
+    // reasonable, and arriving together they read as one message: you are out,
+    // pay us. One ask at a time — and it is the warning that yields, because it
+    // costs nothing to see next session.
+    nudgeMock.mockResolvedValue({
+      reason: "evaluations_spent",
+      headline: "You've used this month's graded project",
+      body: "It comes back on the 1st.",
+      cta: "See what Pro includes",
+      href: "/pricing",
+    });
+
+    await show(await SessionPage({ params, searchParams: spent }));
+
+    expect(await screen.findByText("tutor panel (quiet)")).toBeTruthy();
+  });
+
+  it("lets it speak on a screen that is not asking for anything", async () => {
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(await screen.findByText("tutor panel")).toBeTruthy();
   });
 });

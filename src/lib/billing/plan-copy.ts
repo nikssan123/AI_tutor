@@ -70,14 +70,20 @@ const tutor = (planId: PlanId): string =>
   `${PLANS[planId].entitlements.tutorTurnsPerSession} questions to the tutor in a session`;
 
 /**
- * The one claim worth repeating on every card, phrased the same way each time.
+ * The roll-up line — "Everything in Free" — with the thing it rolls up named.
  *
- * §4.2 law 1 — a mark is only worth anything if it is anchored in the learner's
- * own work — is the product's whole pitch, and the pricing page is where a
- * visitor decides whether they believe it.
+ * A bare "Everything in X" is the emptiest line a pricing card can carry: the
+ * reader has to hold the card to its left in their head and diff it. Worse, on
+ * these three cards it was very nearly false. Free's list is mostly *smaller
+ * numbers*, all of which the card above already restates, so "Everything in
+ * Free" on Learner resolved to exactly one item — the ledger — and said none of
+ * it.
+ *
+ * So each roll-up names the one thing from the tier below that this card does
+ * not otherwise state. It still signals inheritance, and it also carries news.
  */
-export const GRADING_LINE =
-  "Marked against a public rubric, with the evidence quoted back from your own work";
+const inherits = (tier: string, item: string): string =>
+  `Everything in ${tier}, including ${item}`;
 
 export const PLAN_COPY: Record<PlanId, PlanCopy> = {
   free: {
@@ -85,12 +91,16 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
     name: "Free",
     pitch: "See whether this works on you, without paying to find out.",
     features: [
-      sessions("free"),
+      // The same three quantities, in the same order, on every card. They are
+      // the axis a visitor scans down: 1/3/10 marked, 2/unlimited/unlimited
+      // sessions, 15/30/30 questions. Reordering them per card — which this
+      // list used to do, leading with sessions here and with marking below —
+      // makes three cards that have to be read rather than compared.
       marked("free"),
+      sessions("free"),
       tutor("free"),
-      GRADING_LINE,
       // Said plainly rather than omitted. A learner who finds out on their
-      // fourth session that free stops at three has been misled by a list that
+      // third session that free stops at two has been misled by a list that
       // only mentioned what was included — §4.2 law 3 applies to a price list
       // as much as to a mastery claim.
       "The standard path for your subject, not a tailored one",
@@ -124,7 +134,7 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
       tutor("learner"),
       "A path built around your diagnostic, not the default order",
       "Any subject — we'll build the course if we don't have it",
-      "Everything in Free",
+      inherits("Free", "your mastery ledger"),
     ],
     cta: "Choose Learner",
     emphasis: false,
@@ -137,9 +147,15 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
       marked("pro"),
       sessions("pro"),
       tutor("pro"),
+      // Pro's own two lines. Everything else it shares with Learner is carried
+      // by the roll-up below rather than restated: this card used to spend
+      // three of its six lines repeating Learner's sessions, Learner's tutor
+      // limit and Learner's tailored path, and then say "Everything in
+      // Learner" underneath — the reader learned nothing from the bottom half
+      // of the most expensive card on the page.
       "Our most capable models on the work that needs them",
       "Priority marking",
-      "Everything in Learner",
+      inherits("Learner", "a path built around your diagnostic"),
     ],
     cta: "Choose Pro",
     emphasis: false,

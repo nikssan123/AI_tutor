@@ -133,12 +133,25 @@ export const TRANSCRIPT_DEPTH = 20;
  * another. A flat constant beside a per-plan entitlement is a second source of
  * truth waiting to disagree with the first.
  *
- * **Still unbuilt: §14.9.7's soft warning at five to go.** The hard stop is
- * enforced; the warning that ought to precede it is not, because it belongs in
- * the tutor panel, which is a client component with no view of the count. It is
- * not written here as an unused helper, because an exported function nothing
- * calls reads as "implemented" to the next person to grep for it.
+ * §14.9.7's soft warning is `TUTOR_TURN_WARNING_MARGIN` below. It lives in the
+ * tutor panel, which is a client component with no view of the count — so the
+ * page reads the count on the server and hands it in, rather than the panel
+ * asking for it.
  */
+
+/**
+ * How many questions before the stop the learner is warned.
+ *
+ * §14.9.7 writes it as "soft warning at 25" of 30 — five to go. Expressed as
+ * the remainder rather than as an absolute, so it lands in the same place on a
+ * free learner's fifteen: ten of fifteen, five to go. A ratio would put it at
+ * twelve and a half, and a second absolute would need maintaining per plan.
+ *
+ * The warning exists because the stop is otherwise a surprise mid-thought, and
+ * a learner who knows they have five left asks the five they most want answered
+ * — which is a better session than one that ends without warning.
+ */
+export const TUTOR_TURN_WARNING_MARGIN = 5;
 
 /**
  * How many questions this learner has asked in this session.

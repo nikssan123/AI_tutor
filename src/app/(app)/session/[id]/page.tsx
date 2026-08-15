@@ -5,12 +5,12 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { hasApiKey } from "@/lib/ai/client";
 import { requireUser } from "@/lib/account/session";
-import { resolvePlanId, type PlanId } from "@/lib/billing/catalog";
+import { PLANS, resolvePlanId, type PlanId } from "@/lib/billing/catalog";
 import { nudgeAt } from "@/lib/billing/gate";
 import type { Nudge } from "@/lib/billing/nudge";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { sessionView } from "@/lib/session/view";
-import { transcriptFor } from "@/lib/session/tutor";
+import { transcriptFor, turnsTaken } from "@/lib/session/tutor";
 import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
 import type { BlockResponse } from "@/lib/contracts/session";
 import {
@@ -194,7 +194,13 @@ export default async function SessionPage({ params, searchParams }: Props) {
         <Title>Tutor</Title>
         {hasApiKey() ? (
           <Suspense fallback={<Skeleton className="h-20" />}>
-            <Tutor sessionId={session.id} userId={user.id} />
+            <Tutor
+              sessionId={session.id}
+              userId={user.id}
+              plan={resolvePlanId(user.plan)}
+              /* One ask at a time: the quota nudge below is already asking. */
+              quiet={quotaNudge !== undefined}
+            />
           </Suspense>
         ) : (
           <Meta>The tutor is unavailable right now.</Meta>
@@ -241,15 +247,39 @@ function BlockRail({
   );
 }
 
+/**
+ * The tutor, with the two numbers §14.9.7 limit 4 needs.
+ *
+ * The count is read here rather than in the panel because the panel is a client
+ * component, and because `transcriptFor` cannot answer it: that list stops at
+ * `TRANSCRIPT_DEPTH`, so a long conversation would report twenty for ever.
+ */
 async function Tutor({
   sessionId,
   userId,
+  plan,
+  quiet,
 }: {
   sessionId: string;
   userId: string;
+  plan: PlanId;
+  quiet: boolean;
 }) {
-  const history = await transcriptFor(getDb(), sessionId, userId);
-  return <TutorPanel sessionId={sessionId} initialTurns={history} />;
+  const db = getDb();
+  const [history, taken] = await Promise.all([
+    transcriptFor(db, sessionId, userId),
+    turnsTaken(db, sessionId, userId),
+  ]);
+
+  return (
+    <TutorPanel
+      sessionId={sessionId}
+      initialTurns={history}
+      turnsTaken={taken}
+      turnLimit={PLANS[plan].entitlements.tutorTurnsPerSession}
+      quiet={quiet}
+    />
+  );
 }
 
 interface BodyProps {
