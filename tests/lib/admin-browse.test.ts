@@ -185,8 +185,31 @@ live("against a real database", () => {
     });
 
     expect(result.sort).toBe("email");
-    const emails = result.rows.map((row) => String(row.email));
-    expect(emails).toEqual([...emails].sort());
+
+    /*
+     * Checked against the rows this test seeded, not against every row in the
+     * table.
+     *
+     * It used to assert that the emails equalled `[...emails].sort()`, which
+     * compares Postgres's ordering against JavaScript's — two different
+     * collations that agree until they do not. Postgres weights punctuation
+     * below letters, so it reads `n.lyutov99@gmail.com` as `nlyutov…` and puts
+     * it *after* `nikssan123@gmail.com`; `Array.sort` compares UTF-16 units,
+     * where `.` (0x2E) precedes `i`, and puts it first. Neither is wrong. Only
+     * one of them is the database's, and the database's is the thing under
+     * test — so the moment a real account with a dot in it landed in the dev
+     * database, a passing test started failing on data rather than on code.
+     *
+     * The seeded addresses differ by a single digit in the same position, so
+     * no collation can disagree about their order. Asserting the whole
+     * expected list rather than a re-sort also means the test cannot pass by
+     * finding nothing: if these ever fall off the first page, it says so.
+     */
+    const mine = result.rows
+      .map((row) => String(row.email))
+      .filter((email) => email.endsWith("@browse-test.local"));
+
+    expect(mine).toEqual(IDS.map((id) => `${id}@browse-test.local`));
   });
 
   it("defaults a chosen column to descending", async () => {
