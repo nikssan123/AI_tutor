@@ -29,6 +29,47 @@ import { ANALYZER_BUBBLE, LEARNER_BUBBLE } from "./bubbles";
  * keys it by the number of messages. Nothing here has to work out when the
  * echo becomes real; it stops existing and the real one is already rendered.
  */
+
+/**
+ * How far along the turn is — and the whole reason this is three values rather
+ * than a boolean.
+ *
+ * `reply` is the first field in the analyzer's tool schema, so it lands well
+ * before the turn is over: `captured`, `chips`, `clarity` and `done` are still
+ * being written after the sentence is complete on screen, and then the turn has
+ * to be stored and the page re-rendered before there is a new question to
+ * answer. For those several seconds the screen showed a finished-looking
+ * question above a box that silently refused to take a word — reported as the
+ * site being laggy, which is the right reading of a control that neither works
+ * nor says why.
+ *
+ * So the wait is named instead of hidden. `asking` is the model still writing;
+ * `settling` starts when the stream closes and the page is catching up. Both
+ * lock the controls, and both say so.
+ */
+type Phase = "idle" | "asking" | "settling";
+
+/**
+ * Three pulsing dots. Decoration only — every place it is used carries the
+ * words as well, because an animation is not an announcement.
+ */
+function Dots() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {[0, 1, 2].map((dot) => (
+        <span
+          key={dot}
+          aria-hidden="true"
+          className="size-1.5 animate-pulse rounded-full bg-ink-faint motion-reduce:animate-none"
+          style={{ animationDelay: `${dot * 160}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Ties the locked box to the line that explains why it is locked. */
+const STATUS_ID = "reply-status";
 export function Composer({
   chips,
   asked,
@@ -50,6 +91,7 @@ export function Composer({
   const [arriving, setArriving] = React.useState("");
   /** Set only when the request never reached the server at all. */
   const [failed, setFailed] = React.useState(false);
+  const [phase, setPhase] = React.useState<Phase>("idle");
   const sending = said !== null;
 
   /**
@@ -64,6 +106,7 @@ export function Composer({
   async function send(message: string) {
     setSaid(message);
     setArriving("");
+    setPhase("asking");
 
     let response: Response;
     try {
@@ -77,6 +120,7 @@ export function Composer({
       // Nothing was saved, so the honest thing is to hand the answer back
       // rather than pretend it went somewhere.
       setSaid(null);
+      setPhase("idle");
       setFailed(true);
       return;
     }
@@ -94,6 +138,12 @@ export function Composer({
       // turn ended, and is for the navigation below rather than the screen.
       setArriving(replyPart(buffer));
     }
+
+    // The stream is closed, so the model has stopped writing and the turn is
+    // stored — but the new question is not on screen until the page has been
+    // re-rendered, and the controls stay locked until it is. A different wait
+    // with a different sentence, rather than the same silence continuing.
+    setPhase("settling");
 
     // The server is the record either way: refreshing swaps this echo for the
     // stored turn, and `page.tsx` keys this component by the message count, so
@@ -138,17 +188,22 @@ export function Composer({
           {arriving === "" ? (
             <div className={cx(ANALYZER_BUBBLE, "flex items-center gap-1.5")}>
               <span className="sr-only">Thinking…</span>
-              {[0, 1, 2].map((dot) => (
-                <span
-                  key={dot}
-                  aria-hidden="true"
-                  className="size-1.5 animate-pulse rounded-full bg-ink-faint motion-reduce:animate-none"
-                  style={{ animationDelay: `${dot * 160}ms` }}
-                />
-              ))}
+              <Dots />
             </div>
           ) : (
-            <div className={ANALYZER_BUBBLE}>{arriving}</div>
+            <div className={ANALYZER_BUBBLE}>
+              {arriving}
+              {/* Kept alongside the sentence while the model is still writing.
+                  The question is readable seconds before the turn is finished,
+                  and a complete-looking question with no sign of anything left
+                  to come is what made the locked box below read as a fault. */}
+              {phase === "asking" ? (
+                <>
+                  {" "}
+                  <Dots />
+                </>
+              ) : null}
+            </div>
           )}
         </div>
       ) : null}
@@ -160,6 +215,29 @@ export function Composer({
           <Status tone="problem">
             That didn&rsquo;t send. Your answer is still in the box — try again.
           </Status>
+        ) : null}
+
+        {/*
+         * The lock, in words, next to the thing that is locked.
+         *
+         * Everything in this bar stops taking input the moment an answer is
+         * sent, and until now the only sign of it was the box going faint —
+         * which is indistinguishable from a page that has stopped working, and
+         * was read as exactly that. It is the description of the input rather
+         * than a second live region: the echo above already announces the send,
+         * and a screen reader landing on the box should hear why it will not
+         * take anything.
+         */}
+        {sending ? (
+          <p
+            id={STATUS_ID}
+            className="flex items-center gap-2 text-[length:var(--text-meta-size)] text-ink-muted"
+          >
+            <Dots />
+            {phase === "settling"
+              ? "Bringing in the next question…"
+              : "Working on your answer — you can type again when the next question arrives."}
+          </p>
         ) : null}
 
         {/* Chips are submit buttons carrying their own answer, which is how one
@@ -218,8 +296,12 @@ export function Composer({
             required
             autoComplete="off"
             readOnly={sending}
+            aria-describedby={sending ? STATUS_ID : undefined}
             placeholder="Type your answer…"
-            className={cx(input, sending && "opacity-50")}
+            // `cursor-not-allowed` because clicking into a box and typing is
+            // how anyone finds out this one is closed. Faintness alone reads
+            // as a style, not as a state.
+            className={cx(input, sending && "opacity-50 cursor-not-allowed")}
           />
           <div className="flex flex-wrap items-center gap-4">
             <Button type="submit" disabled={sending}>

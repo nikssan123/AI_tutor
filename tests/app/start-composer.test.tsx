@@ -54,6 +54,32 @@ function answers(...chunks: string[]) {
   return fetchMock;
 }
 
+/**
+ * A response fed by hand, so a turn can be held open in the middle.
+ *
+ * The seconds this component exists for are the ones between "the question is
+ * readable" and "the turn is finished", and `streaming` closes too fast to see
+ * them: it enqueues everything and closes before React has rendered once.
+ */
+function held() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c;
+      },
+    }),
+    { status: 200 },
+  );
+  vi.stubGlobal("fetch", vi.fn(async () => response));
+
+  return {
+    write: (text: string) => controller.enqueue(encoder.encode(text)),
+    close: () => controller.close(),
+  };
+}
+
 function draw(chips: string[] = ["1-2 hrs", "3-5 hrs"]) {
   return render(
     <Composer
@@ -309,6 +335,95 @@ describe("Composer", () => {
       expect.objectContaining({ top: expect.any(Number) }),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  /**
+   * The reported bug, and the reason `Phase` is three values.
+   *
+   * `reply` is the first field in the analyzer's tool schema, so the question
+   * is on screen while `captured`, `chips` and `done` are still being written —
+   * and then the page still has to re-render. For those seconds the screen
+   * showed a finished question above a box that took nothing, with no sign of
+   * why. It was reported as the site being laggy, which is the fair reading of
+   * a control that neither works nor explains itself.
+   */
+  it("keeps saying it is working after the question is already readable", async () => {
+    const stream = held();
+    draw();
+    fireEvent.change(box(), { target: { value: "beginner" } });
+    submit();
+
+    stream.write("How much time do you have?");
+    await waitFor(() =>
+      expect(screen.getByText("How much time do you have?")).toBeDefined(),
+    );
+
+    // The sentence is complete and the box is still shut. Both said out loud.
+    expect(
+      screen.getByText(/you can type again when the next question arrives/),
+    ).toBeDefined();
+    expect(box().readOnly).toBe(true);
+
+    stream.write(`${OUTCOME_SEPARATOR}ok`);
+    stream.close();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("points the locked box at the line that explains it", async () => {
+    // Faintness is a style; a description is a state. A screen reader landing
+    // on the box hears why it will not take anything.
+    const stream = held();
+    draw();
+    fireEvent.change(box(), { target: { value: "beginner" } });
+    submit();
+
+    const described = box().getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)).not.toBeNull();
+    expect(box().className).toContain("cursor-not-allowed");
+
+    stream.write(`Noted.${OUTCOME_SEPARATOR}ok`);
+    stream.close();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("says the page is catching up once the model has stopped writing", async () => {
+    // A different wait with a different sentence: the turn is stored by now,
+    // but the next question is not on screen and the box is still shut.
+    answers(`All set.${OUTCOME_SEPARATOR}ok`);
+    draw();
+    fireEvent.change(box(), { target: { value: "yes" } });
+    submit();
+
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.getByText(/Bringing in the next question/)).toBeDefined();
+    expect(box().readOnly).toBe(true);
+    // The model has finished, so the sentence stops advertising that it has not.
+    expect(screen.getByText("All set.").querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("says nothing about waiting once there is nothing to wait for", () => {
+    draw();
+    expect(screen.queryByText(/type again when the next question/)).toBeNull();
+    expect(screen.queryByText(/Bringing in the next question/)).toBeNull();
+    expect(box().getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("unlocks the box when the answer is handed back", async () => {
+    // The failure path clears the wait as well as the echo — a box that is
+    // open again under a line saying it is busy is the same bug twice.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
+    draw();
+    fireEvent.change(box(), { target: { value: "beginner" } });
+    submit();
+
+    await waitFor(() => expect(screen.getByText(/didn.t send/)).toBeDefined());
+    expect(screen.queryByText(/type again when the next question/)).toBeNull();
+    expect(box().readOnly).toBe(false);
   });
 
   it("draws no chip row when the honest answer is prose", () => {
