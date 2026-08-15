@@ -1,3 +1,20 @@
+# Local development.
+#
+#   docker compose up -d                  Postgres only — what the test suite
+#                                         and `pnpm dev` on the host need.
+#   docker compose --profile app up       the whole thing: Postgres, the app
+#                                         with hot reload, and Inngest.
+#
+# The app and the queue sit behind a profile so the bare `up -d` keeps meaning
+# exactly what AGENTS.md says it means. A `docker compose up -d` that suddenly
+# built a Next.js image would turn "start Postgres, then run the tests" into a
+# five-minute wait for people who never asked for an app container.
+#
+# Production is a different file (`docker-compose.prod.yml`): prebuilt images
+# from ghcr, Caddy on 80/443, an external network shared with another stack.
+# Nothing here is meant to resemble it — this file's job is one command that
+# leaves you with a working app.
+
 services:
   db:
     # pgvector on Postgres 17 — §18.1 wants pgvector in the same Postgres,
@@ -18,6 +35,94 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot: schema, then packs. Runs to completion on every `--profile app`
+  # start and the app waits for it, so a pull that brings a migration with it
+  # cannot leave the app talking to last week's schema.
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      # The tools image, not the runtime one: `scripts/db-migrate.ts` imports
+      # from `src/`, which the standalone output deliberately does not contain.
+      target: tools
+    command: sh -c "pnpm db:migrate && pnpm packs:seed"
+    environment:
+      DATABASE_URL: postgres://online_uni:online_uni@db:5432/online_uni
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      # `source`, not `runtime`. The runtime image is a production build with
+      # no hot reload, so every change would mean a rebuild — which is the
+      # wrong trade for the machine you are writing the code on. This target
+      # is the dependency install plus the tree, and the command below runs
+      # the same `next dev` you would run on the host.
+      #
+      # To check the *real* image instead, build it directly:
+      #   docker build --target runtime \
+      #     --build-arg NEXT_PUBLIC_SITE_URL=http://localhost:3000 \
+      #     --build-arg DATABASE_URL=postgres://online_uni:online_uni@host.docker.internal:5433/online_uni .
+      target: source
+    command: pnpm dev
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://online_uni:online_uni@db:5432/online_uni
+      # Both point at the host, because that is where the browser is. A
+      # container-internal hostname here would send every auth redirect and
+      # canonical to a name only Docker can resolve.
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      # `INNGEST_DEV=1` means "dev mode at localhost:8288", which inside a
+      # container is the container itself. The URL form points it at the
+      # service instead — this is the exact line whose absence produced
+      # `fetch failed` on "Build my plan".
+      INNGEST_DEV: http://inngest:8288
+      # Next's file watcher does not see writes made on the host through a
+      # bind mount on macOS unless it polls.
+      WATCHPACK_POLLING: "true"
+    env_file:
+      # Secrets stay where they already are. Anything set above wins, so the
+      # DATABASE_URL in .env.local (which points at the published port) does
+      # not override the compose-network one.
+      - path: .env.local
+        required: false
+    volumes:
+      - .:/app
+      # Two anonymous volumes shadowing the bind mount, and both are load-
+      # bearing. `node_modules` holds Linux binaries — esbuild, sharp,
+      # unrs-resolver — that would be overwritten by the macOS ones from the
+      # host and fail to load. `.next` is written constantly and is the single
+      # biggest source of bind-mount slowness on macOS.
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # The durable queue. §7.1's pack authoring, §14.5's marking and the nightly
+  # planner are all Inngest functions; without this they are events nobody
+  # consumes, which surfaces as `fetch failed` at the point of sending.
+  inngest:
+    profiles: ["app"]
+    image: inngest/inngest:latest
+    # Auto-discovery scans localhost, which finds nothing from inside a
+    # container — the app has to be named.
+    command: inngest dev -u http://app:3000/api/inngest
+    ports:
+      - "8288:8288"
+    environment:
+      INNGEST_DEV: "1"
+    depends_on:
+      - app
 
 volumes:
   db_data:
