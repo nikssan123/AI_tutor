@@ -98,6 +98,7 @@ live("what a learner has on", () => {
       chips: [],
       clarity: 0.4,
       done: false,
+      packSlug: null,
     });
 
     const standing = await standingFor(db, userId, NOW);

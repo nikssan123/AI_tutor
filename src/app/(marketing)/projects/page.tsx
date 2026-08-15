@@ -41,7 +41,7 @@ export const revalidate = 86_400;
 export const metadata: Metadata = marketingMetadata({
   title: "Graded projects, and the checklists behind them",
   description:
-    "Real project briefs, each with the full checklist it will be marked against. You read the checklist first, then you do the work.",
+    "Every graded brief we run, grouped by the course it belongs to, each with the full checklist it will be marked against. You read the checklist first, then you do the work.",
   path: "/projects",
 });
 
@@ -79,11 +79,14 @@ export default function ProjectsIndexPage() {
         <PageIntro
           icon={<ChecklistIcon />}
           title="Graded projects"
-          lead="Each brief comes with the checklist it will be marked against. You read it before you start, so you always know what you are aiming at."
+          lead="Every brief here belongs to a course — it is the work you hand in at the end of one, marked against the checklist below it. You read that checklist before you start, so you always know what you are aiming at, and starting a brief starts the course that gets you to it."
           facts={
             <>
               <Meta>{projects.length} briefs</Meta>
-              <Meta>{bySubject.length} subjects</Meta>
+              <Meta>
+                across {bySubject.length} course
+                {bySubject.length === 1 ? "" : "s"}
+              </Meta>
               <Meta>Every checklist public</Meta>
             </>
           }
@@ -140,6 +143,15 @@ export default function ProjectsIndexPage() {
             icon={<GridIcon />}
           />
 
+          {/* Said once here as well as on each brief, because this is the page
+              where the grouping could be read as filing rather than as the
+              structure it actually is. */}
+          <Meta tone="muted" className="max-w-[var(--measure)]">
+            Grouped by the course each one belongs to. Picking a brief picks
+            that course — you get the skills it takes, in the order they build
+            on each other, and the brief at the end.
+          </Meta>
+
           {bySubject.map(({ topic, briefs }) => (
             <section key={topic.slug} className="flex flex-col gap-5">
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-t border-hairline pt-5">
@@ -152,7 +164,7 @@ export default function ProjectsIndexPage() {
                     className="text-ink-muted hover:text-accent"
                   >
                     {briefs.length} brief{briefs.length === 1 ? "" : "s"} · see
-                    the subject
+                    the course
                   </Link>
                 </Meta>
               </div>

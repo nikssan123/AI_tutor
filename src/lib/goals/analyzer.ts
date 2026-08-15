@@ -298,6 +298,12 @@ export interface AnalyzerInput {
   today: string;
   /** True when this is the last turn allowed, so the model stops asking. */
   finalTurn: boolean;
+  /**
+   * The course the learner already chose, when they arrived from a page that
+   * names one. Null when they arrived with a sentence and the subject is
+   * genuinely still open.
+   */
+  committed?: { slug: string; name: string } | null;
 }
 
 export function buildAnalyzerContext(input: AnalyzerInput): string {
@@ -314,6 +320,24 @@ export function buildAnalyzerContext(input: AnalyzerInput): string {
     "",
     "Subjects we support in depth:",
     catalogue.length > 0 ? catalogue : "- none yet",
+    "",
+    /*
+     * The one instruction that overrides the matching job above.
+     *
+     * They pressed a button on a page that names exactly one course, so asking
+     * what they want to learn is asking a question they have already answered
+     * with a click — and offering an alternative is arguing with it. What is
+     * still unknown is everything about *them*, which is what the remaining
+     * turns are for.
+     *
+     * `matchedPack` is pinned here as well as decided in application code
+     * (`matchChosen`). Belt and braces on purpose: the code is what actually
+     * binds the goal, and this only keeps the model's own summary from
+     * contradicting the screen the learner is looking at.
+     */
+    input.committed
+      ? `They have already chosen a course: ${input.committed.name} (slug ${input.committed.slug}). The subject is settled. Do not ask what they want to learn, do not offer a different subject, and put ${input.committed.slug} in matchedPack every turn. Ask only about them — what they want to do with it, where they are starting from, how many hours a week they have.`
+      : "",
     "",
     input.finalTurn
       ? "This is your last turn. Do not ask anything else — set done and say what they are about to get."

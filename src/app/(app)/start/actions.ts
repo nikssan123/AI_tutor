@@ -11,7 +11,7 @@ import { resolvePack } from "@/lib/content/resolve";
 import { cookieName } from "@/lib/check/session";
 import { runAnalyzer } from "@/lib/goals/analyzer";
 import { INTAKE_AT_LATEST } from "@/lib/goals/anchors";
-import { catalogueFor, matchSubject, specFrom } from "@/lib/goals/match";
+import { catalogueFor, matchChosen, specFrom } from "@/lib/goals/match";
 import { clearIntake, loadIntake, saveIntake } from "@/lib/goals/intake-store";
 import {
   askedWith,
@@ -21,7 +21,7 @@ import {
 } from "@/lib/goals/turn";
 import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
 import { createGoal } from "@/lib/goals/store";
-import { projectStartHref } from "@/lib/goals/project-start";
+import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
 import { startBuild } from "@/lib/packs/build";
 import { EVENTS, inngest } from "@/lib/inngest/client";
@@ -41,6 +41,35 @@ async function requireUser(): Promise<string> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
   return session.user.id;
+}
+
+/**
+ * The course this conversation is committed to.
+ *
+ * Whatever the intake already holds wins: the lock is set on the turn that
+ * opens the conversation and every later turn comes from the composer, which
+ * has no course to name. Reading the field on those turns would let an empty
+ * one unlock a conversation halfway through.
+ *
+ * A newly claimed one is *resolved before it is trusted*. This arrives in a
+ * form field, so it is a string a signed-in learner can put anything in — and
+ * an unchecked one would ride all the way to `createGoal`'s `packId`, which is
+ * a foreign key to a pack that need not exist. Anything that does not name a
+ * real pack is dropped rather than rejected: the conversation still works, and
+ * `matchSubject` decides at the end exactly as it did before.
+ */
+async function chosenPack(
+  db: Db,
+  intake: { packSlug: string | null },
+  formData: FormData,
+): Promise<string | null> {
+  if (intake.packSlug) return intake.packSlug;
+
+  const claimed = String(formData.get(PACK_FIELD) ?? "").trim();
+  if (claimed.length === 0) return null;
+
+  const pack = await resolvePack(db, claimed);
+  return pack?.slug ?? null;
 }
 
 /**
@@ -122,8 +151,16 @@ export async function replyAction(formData: FormData): Promise<void> {
   const said = String(formData.get("reply") ?? "").trim().slice(0, MAX_REPLY);
   if (said.length === 0) redirect("/start");
 
-  const intake = await loadIntake(db, userId);
-  if (intake.done) redirect("/start");
+  const stored = await loadIntake(db, userId);
+  if (stored.done) redirect("/start");
+
+  // The course they chose, folded in before the model is asked anything — so
+  // the very first question is about them rather than about a subject they
+  // have already picked, and so the lock is saved even if this turn fails.
+  const intake = {
+    ...stored,
+    packSlug: await chosenPack(db, stored, formData),
+  };
 
   const messages = askedWith(intake, said);
 
@@ -182,6 +219,10 @@ export async function openAction(): Promise<void> {
     chips: result.value.chips,
     clarity: result.value.clarity,
     done: false,
+    // The bare `/start` button, which is the one way in that names no course:
+    // a learner who arrived from a brief or a subject page is seeded with
+    // something to say, and goes through `replyAction` instead.
+    packSlug: null,
   });
 
   redirect(INTAKE_AT_LATEST);
@@ -221,7 +262,8 @@ export async function startFreshAction(formData: FormData): Promise<void> {
 /**
  * Turns a finished conversation into a goal.
  *
- * A subject the catalogue covers goes straight to a plan. One it does not is
+ * A course the learner chose on the way in is the course they get. Otherwise a
+ * subject the catalogue covers goes straight to a plan, and one it does not is
  * handed to §7.1's Generated tier, which is the whole point of the screen
  * accepting anything in the first place.
  */
@@ -232,7 +274,7 @@ export async function buildFromConversationAction(): Promise<void> {
   const intake = await loadIntake(db, userId);
   if (!intake.captured) redirect("/start");
 
-  const match = await matchSubject(db, intake.captured);
+  const match = await matchChosen(db, intake.captured, intake.packSlug);
 
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");

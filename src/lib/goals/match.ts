@@ -65,6 +65,34 @@ export async function matchSubject(
 }
 
 /**
+ * The pack this goal is built on, preferring the one the learner *chose*.
+ *
+ * A brief and a subject page each name exactly one pack, and a learner who
+ * pressed a button on one has already made this decision. Running `matchSubject`
+ * anyway meant re-deriving a known fact from prose through a model: at best the
+ * same answer for the price of a guess, at worst a different pack — or a `gap`,
+ * which would send someone who clicked a published SQL brief off to *generate*
+ * a pack for "sql" while the real one sat next to it.
+ *
+ * The chosen slug is still resolved rather than believed, for the reason
+ * `matchSubject` checks the model's: it arrives from a form field, and a pack
+ * can be withdrawn between the click and the build. When it does not resolve
+ * the conversation is all we have left, so the guess is what we fall back to.
+ */
+export async function matchChosen(
+  db: Db,
+  captured: CapturedGoal,
+  chosen: string | null,
+): Promise<SubjectMatch> {
+  if (chosen) {
+    const pack = await resolvePack(db, chosen);
+    if (pack) return { kind: "covered", pack };
+  }
+
+  return matchSubject(db, captured);
+}
+
+/**
  * The learner's own words, which `GoalSpec.rawGoal` promises to store verbatim.
  *
  * Their first message, because that is the one they wrote before we started

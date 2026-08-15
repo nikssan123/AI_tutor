@@ -260,6 +260,32 @@ describe("buildAnalyzerContext", () => {
     expect(context).toContain("You: What do you want to learn?");
     expect(context).toContain("Them: I want to shoot better photos");
   });
+
+  /*
+   * The learner clicked a brief or a subject page, so the subject is not an
+   * open question — asking it back is asking something they answered with a
+   * click, and offering an alternative is arguing with it.
+   */
+  it("tells the model the subject is settled when a course was chosen", () => {
+    const context = buildAnalyzerContext({
+      ...base,
+      committed: { slug: "photography", name: "Photography" },
+    });
+
+    expect(context).toContain("already chosen a course: Photography");
+    expect(context).toContain("Do not ask what they want to learn");
+    // Pinned in the model's own summary too, so it cannot contradict the
+    // screen the learner is looking at. The binding decision is still made in
+    // application code by `matchChosen`.
+    expect(context).toContain("put photography in matchedPack");
+  });
+
+  it("says nothing about a settled subject when none was chosen", () => {
+    expect(buildAnalyzerContext(base)).not.toContain("already chosen a course");
+    expect(
+      buildAnalyzerContext({ ...base, committed: null }),
+    ).not.toContain("already chosen a course");
+  });
 });
 
 describe("runAnalyzer", () => {

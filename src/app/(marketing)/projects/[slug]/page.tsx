@@ -48,7 +48,7 @@ export async function generateMetadata({
 
   return marketingMetadata({
     title: project.title,
-    description: `A ${project.topicName} project marked against ${project.rubricDetail.criteria.length} published criteria. Read the checklist before you start — about ${project.estimatedMinutes} minutes of work.`,
+    description: `A graded brief from the ${project.topicName} course, marked against ${project.rubricDetail.criteria.length} published criteria. Read the checklist before you start — about ${project.estimatedMinutes} minutes of work.`,
     path: `/projects/${project.slug}`,
     indexable: project.indexable,
   });
@@ -86,6 +86,23 @@ export default async function ProjectPage({
           lead={project.brief}
           facts={
             <>
+              {/*
+               * First, and above the fold, because it is the thing a reader
+               * arriving from search does not know: this is not a standalone
+               * project, it is one piece of a course. It was stated once, in a
+               * line under the call to action at the very bottom of the page —
+               * which is after the decision it is needed for.
+               */}
+              <Meta>
+                Part of the{" "}
+                <Link
+                  href={`/learn/${project.topicSlug}`}
+                  className="text-ink-muted underline decoration-hairline underline-offset-4 hover:text-accent"
+                >
+                  {project.topicName}
+                </Link>{" "}
+                course
+              </Meta>
               <Meta>~{project.estimatedMinutes} minutes</Meta>
               <Meta>Evidence: {project.evidenceType}</Meta>
               <EvalTierNote tier={project.evalTier} />
@@ -200,13 +217,13 @@ export default async function ProjectPage({
         <ProjectStartOffer slug={project.slug} topicName={project.topicName} />
 
         <Meta>
-          Part of{" "}
+          See the whole{" "}
           <Link href={`/learn/${project.topicSlug}`} className="text-accent">
-            {project.topicName}
+            {project.topicName} course
           </Link>
-          . See all{" "}
+          , or every{" "}
           <Link href="/projects" className="text-accent">
-            graded projects
+            graded brief we run
           </Link>
           .
         </Meta>

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WEEKLY_HOURS,
   catalogueFor,
+  matchChosen,
   matchSubject,
   rawGoalFrom,
   specFrom,
@@ -99,6 +100,55 @@ describe("matchSubject", () => {
       kind: "gap",
       subject: "",
       slug: "",
+    });
+  });
+});
+
+/**
+ * The learner having already chosen, which is the case the whole conversation
+ * used to throw away: a brief and a subject page each name exactly one pack,
+ * and clicking one of them is a decision, not a hint.
+ */
+describe("matchChosen", () => {
+  it("builds on the course they chose, whatever the model decided", async () => {
+    const match = await matchChosen(
+      db,
+      // The analyzer here has read the subject as something we do not run at
+      // all — which, before the pack travelled, would have sent someone who
+      // clicked a published brief off to generate a pack instead.
+      captured({ matchedPack: null, subject: "Taking nice pictures" }),
+      "photography",
+    );
+
+    expect(match.kind).toBe("covered");
+    expect(match.kind === "covered" && match.pack.slug).toBe("photography");
+  });
+
+  it("falls back to the conversation when no course was chosen", async () => {
+    const match = await matchChosen(
+      db,
+      captured({ matchedPack: "photography" }),
+      null,
+    );
+    expect(match.kind === "covered" && match.pack.slug).toBe("photography");
+  });
+
+  /*
+   * A slug arrives from a form field and a pack can be withdrawn between the
+   * click and the build, so it is resolved rather than believed. When it does
+   * not resolve, the conversation is all that is left — which is better than
+   * writing a `packId` pointing at nothing.
+   */
+  it("falls back to the conversation when the chosen course is not real", async () => {
+    const match = await matchChosen(
+      db,
+      captured({ subject: "Rust programming" }),
+      "no-such-pack-exists",
+    );
+    expect(match).toEqual({
+      kind: "gap",
+      subject: "Rust programming",
+      slug: "rust-programming",
     });
   });
 });

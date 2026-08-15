@@ -43,6 +43,21 @@ export function topicStartHref(topicName: string): string {
 export const PROJECT_PARAM = "project";
 
 /**
+ * The form field carrying the course the learner already chose.
+ *
+ * A hidden input rather than a query parameter, because the thing that needs it
+ * is the *action*, and by the time the action runs the URL is whatever the form
+ * posted to. It is a claim, not a fact — the action resolves it against the
+ * catalogue before anything is built on it.
+ *
+ * Lives here rather than in the `"use server"` module that reads it: every
+ * export from one of those must be an async function, and a string constant in
+ * one type-checks, lints, passes its tests, then fails in the bundler and takes
+ * the route down.
+ */
+export const PACK_FIELD = "pack";
+
+/**
  * A brief's offer, which names the project rather than describing it.
  *
  * `?topic=` was the wrong carrier for this and a sentence was the wrong payload.

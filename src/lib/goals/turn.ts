@@ -28,6 +28,26 @@ export function askedWith(intake: Intake, said: string): Message[] {
   return [...intake.messages, { r: "l", t: said }];
 }
 
+/**
+ * The course this conversation is committed to, named for the model.
+ *
+ * The name comes off the catalogue rather than out of a second stored column,
+ * because the catalogue is on disk and synchronous — a name lookup that cost a
+ * database round trip would cost one on every turn of every conversation.
+ *
+ * A locked pack that the catalogue does not know is a Generated one (§7.1),
+ * which exists only in the database. Its slug stands in for its name: worse
+ * prose in one line of a prompt, and the slug is still the thing the model is
+ * being told to echo, so nothing that matters is lost.
+ */
+export function committedPack(
+  packSlug: string | null,
+): { slug: string; name: string } | null {
+  if (!packSlug) return null;
+  const known = catalogueFor().find((c) => c.slug === packSlug);
+  return { slug: packSlug, name: known?.name ?? packSlug };
+}
+
 /** The context for this turn, including whether the analyzer must close. */
 export function contextFor(
   intake: Intake,
@@ -42,6 +62,7 @@ export function contextFor(
     // because this is the last turn it gets. Without this the conversation
     // ends on an unanswered question.
     finalTurn: shouldFinishNext(intake.clarity, messages),
+    committed: committedPack(intake.packSlug),
   };
 }
 
@@ -73,6 +94,10 @@ export async function recordTurn(
     chips: turn.chips,
     clarity: turn.clarity,
     done: isComplete(turn, withReply),
+    // Carried rather than re-derived. Everything else here is this turn's
+    // output; the chosen course is the learner's, from before the conversation
+    // started, and a turn is not allowed to change it.
+    packSlug: intake.packSlug,
   });
 
   return true;

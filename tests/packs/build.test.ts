@@ -297,6 +297,9 @@ live("pack builds and intake", () => {
         chips: ["1-2 hrs", "3-5 hrs"],
         clarity: 0.7,
         done: false,
+        // The course they arrived having chosen, which has to survive every
+        // turn — it is what the goal is finally built on.
+        packSlug: "photography",
       });
 
       const loaded = await loadIntake(db, IDS[0]!);
@@ -304,6 +307,7 @@ live("pack builds and intake", () => {
       expect(loaded.captured).toEqual(captured);
       expect(loaded.chips).toEqual(["1-2 hrs", "3-5 hrs"]);
       expect(loaded.clarity).toBeCloseTo(0.7);
+      expect(loaded.packSlug).toBe("photography");
     });
 
     it("replaces rather than accumulates, so starting over really does", async () => {
@@ -313,6 +317,7 @@ live("pack builds and intake", () => {
         chips: [],
         clarity: 0.3,
         done: false,
+        packSlug: "photography",
       });
       await saveIntake(db, IDS[0]!, {
         messages: [{ r: "l", t: "second" }],
@@ -320,11 +325,15 @@ live("pack builds and intake", () => {
         chips: [],
         clarity: 0,
         done: false,
+        packSlug: null,
       });
 
       const loaded = await loadIntake(db, IDS[0]!);
       expect(loaded.messages).toEqual([{ r: "l", t: "second" }]);
       expect(loaded.captured).toBeUndefined();
+      // Including the course: starting over on a subject we do not run must
+      // not leave the last conversation's pack behind to be built instead.
+      expect(loaded.packSlug).toBeNull();
     });
 
     it("treats a stored value it cannot parse as no conversation", async () => {

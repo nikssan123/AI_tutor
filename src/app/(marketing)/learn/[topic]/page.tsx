@@ -259,8 +259,10 @@ function TopicPage({ pack }: { pack: DomainPack }) {
             icon={<ChecklistIcon />}
           />
           <Meta>
-            You can read the marking checklist before you start, so you always
-            know what you are aiming at.
+            These briefs are part of this course rather than extras beside it —
+            they are what you hand in, and passing one is what makes the skills
+            above count as proven. You can read the marking checklist before you
+            start, so you always know what you are aiming at.
           </Meta>
           <ul className="grid list-none grid-cols-1 gap-4 p-0 m-0 lg:grid-cols-2">
             {projects.map((project, i) => (

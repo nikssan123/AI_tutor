@@ -506,7 +506,7 @@ describe("ProjectStartOffer", () => {
     render(<ProjectStartOffer slug="sales-dashboard" topicName="SQL" />);
 
     const href = screen
-      .getByRole("link", { name: /start this project/i })
+      .getByRole("link", { name: /start the SQL course/i })
       .getAttribute("href");
 
     expect(href).toBe(projectStartHref("sales-dashboard"));

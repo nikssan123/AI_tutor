@@ -17,6 +17,16 @@ export interface Intake {
   chips: string[];
   clarity: number;
   done: boolean;
+  /**
+   * The course this conversation is already committed to, or null.
+   *
+   * Set once, on the turn that opens the conversation, from the page the
+   * learner pressed a button on — a brief names its pack, a subject page *is*
+   * one. Carried by every later turn rather than re-derived, so the analyzer
+   * asks about them rather than about the subject, and so the pack that ends up
+   * on the goal is the one they chose rather than the one a model recognised.
+   */
+  packSlug: string | null;
 }
 
 export const EMPTY_INTAKE: Intake = {
@@ -25,6 +35,7 @@ export const EMPTY_INTAKE: Intake = {
   chips: [],
   clarity: 0,
   done: false,
+  packSlug: null,
 };
 
 /** Anything unparseable is treated as no conversation, so the screen restarts. */
@@ -59,6 +70,7 @@ export async function loadIntake(db: Db, userId: string): Promise<Intake> {
       : [],
     clarity: row.clarity,
     done: row.done,
+    packSlug: row.packSlug,
   };
 }
 
@@ -75,6 +87,7 @@ export async function saveIntake(
     chips: intake.chips,
     clarity: intake.clarity,
     done: intake.done,
+    packSlug: intake.packSlug,
     updatedAt: now,
   };
 

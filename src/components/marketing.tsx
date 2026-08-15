@@ -567,6 +567,14 @@ const CTA_LINK =
  * It says what setting up costs, for the same reason `CustomPathOffer` lists
  * its three questions rather than promising vaguely: the honest version of
  * "start this project" includes the intake standing between them and it.
+ *
+ * And it names the course, because "Start this project" was not the honest
+ * version of what the button does either. A brief is not something you can take
+ * on its own: it belongs to exactly one pack, is marked against that pack's
+ * rubric, and proves that pack's skills. Pressing this enrols the reader in the
+ * whole course — which was already true, was said once in a breadcrumb under
+ * the fold, and above it read as a menu of standalone projects sitting beside a
+ * separate menu of subjects.
  */
 export function ProjectStartOffer({
   slug,
@@ -578,19 +586,19 @@ export function ProjectStartOffer({
 }) {
   return (
     <Card className="flex flex-col items-start gap-5">
-      <Title>Want this one marked?</Title>
+      <Title>This brief is part of the {topicName} course</Title>
       <Lead>
-        We build the path that gets you to it — the skills above, in the order
-        they depend on each other — and this brief is what you hand in at the
-        end, marked against the checklist you have just read and nothing else.
+        Starting it starts the course: every skill above, in the order they
+        depend on each other, with this brief at the end as the thing you hand
+        in — marked against the checklist you have just read and nothing else.
       </Lead>
       <Meta tone="muted">
-        Setting it up takes about three minutes: what you want to do with{" "}
-        {topicName}, where you are starting from, and how many hours a week you
-        actually have.
+        About three minutes to set up: what you want to do with {topicName},
+        where you are starting from, and how many hours a week you actually
+        have. The subject we already have from this page.
       </Meta>
       <Link href={projectStartHref(slug)} className={CTA_LINK}>
-        Start this project
+        Start the {topicName} course
       </Link>
     </Card>
   );

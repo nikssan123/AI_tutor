@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
+import { entitlementsForUser } from "@/lib/billing/store";
 import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
+import { matchChosen } from "@/lib/goals/match";
 import {
   displayDeadline,
   displayHours,
@@ -13,14 +15,18 @@ import {
 import { LATEST } from "@/lib/goals/anchors";
 import { customPathHref } from "@/lib/goals/custom-path";
 import {
+  PACK_FIELD,
   projectStartHref,
   projectStartSeed,
 } from "@/lib/goals/project-start";
 import { findProject } from "@/lib/content";
+import { resolvePack } from "@/lib/content/resolve";
+import { slugify } from "@/lib/packs/generate/derive";
 import { withDestination } from "@/lib/account/next-url";
 import { loadIntake } from "@/lib/goals/intake-store";
 import {
   Button,
+  ButtonLink,
   Card,
   cx,
   Meta,
@@ -72,10 +78,32 @@ type Props = {
  */
 const MAX_TOPIC = 500;
 
-const ERRORS: Record<string, string> = {
+/**
+ * Every way this screen can hand somebody back to itself, said in full.
+ *
+ * `ReactNode` rather than `string` for one of them, and that one is why this
+ * comment exists. `generated` used to have no entry at all, so pressing "Build
+ * my plan" on a subject we do not cover bounced to `?error=generated` and fell
+ * through to the `subject` fallback — the screen said we could not work out
+ * what you wanted to learn, about a subject it had just spent five questions
+ * establishing. The truthful version is that we understood perfectly and the
+ * plan does not include building it, which is only useful said next to the way
+ * out of it.
+ */
+const ERRORS: Record<string, React.ReactNode> = {
   analyzer: "That didn't go through. Try saying it again.",
   subject: "We couldn't work out what you wanted to learn. Try again?",
   busy: "You already have a course being built. Give that one a moment.",
+  generated: (
+    <>
+      Building a course we don&rsquo;t already run isn&rsquo;t part of your
+      plan. Nothing you answered is lost — it is all still here.{" "}
+      <Link href="/pricing" className="underline underline-offset-4">
+        See which plans include it
+      </Link>
+      .
+    </>
+  ),
 };
 
 /** One captured field in the sidebar. Absent fields say so rather than hide. */
@@ -147,8 +175,60 @@ export default async function StartPage({ searchParams }: Props) {
   const seed = (topic ?? "").trim().slice(0, MAX_TOPIC);
   const started = intake.messages.length > 0;
 
+  /*
+   * The course they arrived having already chosen, if they did.
+   *
+   * A brief names its own; a typed subject names one only when it happens to be
+   * a course we run — which is the same test `matchSubject` applies at the very
+   * end, moved to the front where it costs a lookup instead of a model call. A
+   * subject that resolves to nothing is left alone: that is the case §7.1's
+   * Generated tier exists for, and the conversation is what decides it.
+   */
+  const chosen = brief
+    ? brief.topicSlug
+    : seed.length > 0
+      ? (await resolvePack(getDb(), slugify(seed)))?.slug
+      : undefined;
+
   /** The subject of the conversation already in progress, if there is one. */
   const heldSubject = captured?.subject ?? null;
+
+  /*
+   * Whether pressing "Build my plan" is going to work — asked before it is
+   * pressed rather than after.
+   *
+   * `buildFromConversationAction` makes exactly this decision and, on a plan
+   * without generated packs, answers it with a redirect back to this screen. A
+   * banner is the right thing to say once somebody has been stopped; it is the
+   * wrong thing to be the *first* mention of a limit, after five questions
+   * answered on a screen headed "Anything — if we don't already cover it, we'll
+   * build it". That promise is true of the product and not of every plan, and
+   * the honest place to say which is above the button.
+   *
+   * Both lookups are behind `intake.done`, so nothing is spent on this until
+   * the conversation has actually closed and the button exists. The decision
+   * itself is `matchChosen`'s, the same call the action makes, so the screen
+   * and the button cannot disagree about whether this subject is a gap.
+   */
+  const gap =
+    intake.done && captured
+      ? await matchChosen(getDb(), captured, intake.packSlug)
+      : undefined;
+  /*
+   * The subject we would have to author, and nothing when there is none.
+   *
+   * Carried as the subject rather than as a boolean because that is the one
+   * place it is guaranteed to be a real name: `matchSubject` returns a gap with
+   * a non-empty slug only for a subject that survived a trim, so the copy below
+   * cannot be handed an empty string or a null. Reading `captured.subject` for
+   * the same sentence would need a fallback for a case that cannot happen.
+   */
+  const unbuilt =
+    gap?.kind === "gap" && gap.slug.length > 0 ? gap.subject : undefined;
+  const canBuild =
+    unbuilt === undefined ||
+    (await entitlementsForUser(getDb(), session.user.id, undefined))
+      .entitlements.generatedPacks;
 
   /*
    * A brief takes the screen.
@@ -176,9 +256,21 @@ export default async function StartPage({ searchParams }: Props) {
   if (brief) {
     return (
       <AppFrame>
+        {/*
+         * The course, not the brief.
+         *
+         * This screen used to be headed `Start “Sales dashboard”`, which reads
+         * as an offer to do one piece of work — and a project is not a thing
+         * you can do on its own here. Every brief belongs to exactly one
+         * course, is marked against that course's rubric, and proves that
+         * course's skills; pressing this button enrols you in the whole thing.
+         * Saying so at the top is the honest version, and it is also the
+         * bigger offer: a reader who came for one brief is being handed the
+         * path that gets them to it.
+         */}
         <AppHeader
-          title={`Start “${brief.title}”`}
-          lead={`A few questions about you, then the path that gets you to this brief in ${brief.topicName}. It is what you hand in at the end, marked against the checklist you have already read.`}
+          title={`Start the ${brief.topicName} course`}
+          lead={`“${brief.title}” is one of its graded briefs, and it is what you hand in at the end — marked against the checklist you have already read. The course is how you get there: every skill that brief needs, in the order they build on each other, starting from wherever you already are.`}
         />
 
         {error ? (
@@ -186,12 +278,12 @@ export default async function StartPage({ searchParams }: Props) {
         ) : null}
 
         <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>
-          <Title>Let&rsquo;s work out what you need</Title>
+          <Title>What we still need</Title>
           <Meta>
-            No more than {MAX_TURNS} questions, and you can skip any of them. We
-            ask what you want to do with it, where you are starting from, and how
-            many hours a week you actually have — the brief itself we already
-            know.
+            No more than {MAX_TURNS} questions, and you can skip any of them.
+            The subject is settled — you chose it. What we ask about is you:
+            what you want to do with {brief.topicName}, where you are starting
+            from, and how many hours a week you actually have.
           </Meta>
           {/* Through `startFreshAction`, which clears any held conversation and
               then posts this as the opening line. Both halves matter: without
@@ -208,7 +300,13 @@ export default async function StartPage({ searchParams }: Props) {
                 then it is prose — and this is the only place that still has the
                 slug. */}
             <input type="hidden" name="project" value={brief.slug} />
-            <Button type="submit">Start this project</Button>
+            {/* The course itself, so the conversation is bound to it from the
+                first turn instead of having to recognise it back out of that
+                sentence at the end. */}
+            <input type="hidden" name={PACK_FIELD} value={brief.topicSlug} />
+            <Button type="submit">
+              Start the {brief.topicName} course
+            </Button>
           </form>
         </Card>
 
@@ -302,6 +400,12 @@ export default async function StartPage({ searchParams }: Props) {
                       plus one message is exactly what it expects. */}
                   <form action={replyAction}>
                     <input type="hidden" name="reply" value={seed} />
+                    {/* Only when what they typed is a course we run. A subject
+                        we do not have has no slug to carry, and the whole point
+                        of this screen is that it takes those too. */}
+                    {chosen ? (
+                      <input type="hidden" name={PACK_FIELD} value={chosen} />
+                    ) : null}
                     <Button type="submit">Start</Button>
                   </form>
                 </>
@@ -326,6 +430,9 @@ export default async function StartPage({ searchParams }: Props) {
                   <div className="flex flex-wrap items-center gap-5">
                     <form action={startFreshAction}>
                       <input type="hidden" name="reply" value={seed} />
+                      {chosen ? (
+                        <input type="hidden" name={PACK_FIELD} value={chosen} />
+                      ) : null}
                       <Button type="submit">Start on &ldquo;{seed}&rdquo;</Button>
                     </form>
                     <Link
@@ -367,9 +474,40 @@ export default async function StartPage({ searchParams }: Props) {
 
               {intake.done ? (
                 <Card className="flex flex-col items-start gap-4">
-                  <form action={buildFromConversationAction}>
-                    <Button type="submit">Build my plan</Button>
-                  </form>
+                  {/*
+                   * The wall, where it can still be acted on.
+                   *
+                   * Not `UpgradeNudge`: that component is for a limit hit
+                   * *beside* something that still works — a lesson that reads
+                   * without the tutor, a plan that exists without a new
+                   * session. Here the limit is standing on the only button on
+                   * the screen, and the button has to say so rather than sit
+                   * next to something that does.
+                   *
+                   * `startFreshAction` is not offered as the way out. The
+                   * subject is the thing they asked for; suggesting they pick
+                   * a different one to get past a price is the sort of nudge
+                   * §7.2 exists to keep out of this product.
+                   */}
+                  {canBuild ? (
+                    <form action={buildFromConversationAction}>
+                      <Button type="submit">Build my plan</Button>
+                    </form>
+                  ) : (
+                    <>
+                      <Title>We don&rsquo;t run {unbuilt} yet</Title>
+                      <Meta>
+                        We can build the whole course for it — the skills, the
+                        order they go in, and the graded briefs at the end —
+                        but that isn&rsquo;t part of your plan. Your answers
+                        stay here either way, and the button comes back the
+                        moment your plan covers it.
+                      </Meta>
+                      <ButtonLink href="/pricing" variant="text">
+                        See which plans include it
+                      </ButtonLink>
+                    </>
+                  )}
                   <form action={restartAction}>
                     <button
                       type="submit"

@@ -20,7 +20,10 @@ const getSessionMock = vi.fn();
 const runAnalyzerMock = vi.fn();
 const startBuildMock = vi.fn();
 const sendMock = vi.fn(async () => undefined);
-const createGoalMock = vi.fn(async () => "goal-1");
+// Typed to take its arguments so a test can read them back: a bare
+// `vi.fn(async () => …)` infers an empty tuple, and `mock.calls[0]![1]` on that
+// is a type error rather than the assertion it looks like.
+const createGoalMock = vi.fn(async (..._a: unknown[]) => "goal-1");
 const saveIntakeMock = vi.fn(
   async (_db: unknown, _userId: string, _intake: Intake) => undefined,
 );
@@ -167,6 +170,10 @@ beforeEach(() => {
   // previous test set — which would leak a brief into every screen after it.
   findProjectMock.mockReturnValue(undefined);
   runAnalyzerMock.mockResolvedValue(turn());
+  // Same reason as the brief above, and it bites harder: a test that drops the
+  // learner onto free leaves every later one there, so seven unrelated builds
+  // start failing on an entitlement none of them set.
+  entitlementsMock.mockResolvedValue(freshEntitlements());
   startBuildMock.mockResolvedValue({ kind: "started" });
   findBuildMock.mockResolvedValue(undefined);
   packMock.mockImplementation(async (_db: unknown, slug: unknown) =>
@@ -281,6 +288,7 @@ describe("the screen", () => {
   const BRIEF = {
     slug: "sales-dashboard",
     title: "Sales dashboard",
+    topicSlug: "sql-data-analysis",
     topicName: "SQL & Data Analysis",
   };
 
@@ -296,9 +304,22 @@ describe("the screen", () => {
       await StartPage({ searchParams: search({ project: BRIEF.slug }) }),
     );
 
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
-      "Sales dashboard",
+    /*
+     * The heading names the *course*, not the brief.
+     *
+     * `Start “Sales dashboard”` read as an offer to do one piece of work, and
+     * a brief is not something this product can sell on its own: it belongs to
+     * one pack, is marked against that pack's rubric, and proves that pack's
+     * skills. The button enrols them in the whole course, so the heading says
+     * so — with the brief named right under it, so a reader who came for that
+     * brief can still see they are in the right place.
+     */
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Start the SQL & Data Analysis course",
     );
+    expect(screen.getByText(/“Sales dashboard” is one of its graded briefs/))
+      .toBeDefined();
+
     // The reported symptom, asserted directly: not one word of the old chat.
     expect(screen.queryByText(/Studied any Japanese before\?/)).toBeNull();
     // And no sentence masquerading as a subject in a heading.
@@ -332,6 +353,73 @@ describe("the screen", () => {
     expect(seeded.value).toBe(
       'I want to learn SQL & Data Analysis so I can do the "Sales dashboard" project.',
     );
+  });
+
+  /*
+   * The brief's own course, sent as a slug alongside that sentence.
+   *
+   * The brief knows its pack — it belongs to exactly one — and the page used to
+   * throw that away and leave the analyzer to recognise it back out of the
+   * prose above at the end of the conversation. That is a model call standing
+   * in for a fact we were holding.
+   */
+  it("carries the course the brief belongs to", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    const { container } = render(
+      await StartPage({ searchParams: search({ project: BRIEF.slug }) }),
+    );
+
+    const pack = container.querySelector<HTMLInputElement>("input[name=pack]")!;
+    expect(pack.value).toBe("sql-data-analysis");
+  });
+
+  it("says the button enrols them in the whole course", async () => {
+    findProjectMock.mockReturnValue(BRIEF);
+    render(await StartPage({ searchParams: search({ project: BRIEF.slug }) }));
+
+    expect(
+      screen.getByRole("button", { name: "Start the SQL & Data Analysis course" }),
+    ).toBeDefined();
+    // And that the one thing it is not about to ask is the subject.
+    expect(screen.getByText(/The subject is settled/)).toBeDefined();
+  });
+
+  it("carries the course a typed subject resolves to", async () => {
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "Photography" }) }),
+    );
+    expect(
+      container.querySelector<HTMLInputElement>("input[name=pack]")!.value,
+    ).toBe("photography");
+  });
+
+  it("carries no course for a subject we do not run", async () => {
+    // Which is the case this screen exists for: §7.1's Generated tier decides
+    // it from the conversation, and there is nothing to lock in advance.
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "basket weaving" }) }),
+    );
+    expect(container.querySelector("input[name=pack]")).toBeNull();
+  });
+
+  it("carries the course through the offer to abandon an old conversation", async () => {
+    // The collision card is a second way into the same first turn, and a
+    // course dropped here would leave the one route in that still has to
+    // recognise the subject back out of prose.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "Studied any Japanese before?" }],
+      captured: captured({ subject: "Japanese" }),
+    };
+
+    const { container } = render(
+      await StartPage({ searchParams: search({ topic: "Photography" }) }),
+    );
+
+    expect(screen.getByText(/Start on “Photography”\?/)).toBeDefined();
+    expect(
+      container.querySelector<HTMLInputElement>("input[name=pack]")!.value,
+    ).toBe("photography");
   });
 
   it("warns before putting an unfinished conversation aside, and does not destroy it", async () => {
@@ -460,6 +548,7 @@ describe("the screen", () => {
       chips: ["1-2 hrs"],
       clarity: 0.3,
       done: false,
+      packSlug: null,
     };
 
     const { container } = render(await StartPage({ searchParams: search() }));
@@ -628,6 +717,98 @@ describe("the screen", () => {
     expect(screen.getByText(/couldn't work out what you wanted/)).toBeDefined();
   });
 
+  /**
+   * The bug this pair exists for: pressing "Build my plan" on a plan without
+   * generated packs bounced to `?error=generated`, which had no entry here and
+   * fell through to the `subject` fallback — so the screen said we could not
+   * work out what you wanted to learn, about a subject it had just spent five
+   * questions establishing. Reported, fairly, as nothing having happened.
+   */
+  it("says what a refused build actually was", async () => {
+    render(await StartPage({ searchParams: search({ error: "generated" }) }));
+
+    expect(screen.getByText(/isn’t part of your plan/)).toBeDefined();
+    expect(screen.queryByText(/couldn't work out what you wanted/)).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: /which plans include it/ })
+        .getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
+  /** A plan with no generated packs, resolved the way the action resolves it. */
+  const onFreePlan = () =>
+    entitlementsMock.mockResolvedValue({
+      ...freshEntitlements(),
+      planId: "free",
+      entitlements: {
+        evaluationsPerMonth: 1,
+        sessionsPerMonth: 3,
+        aiCurriculum: false,
+        generatedPacks: false,
+        premiumModels: false,
+      },
+      spendCapCents: 150,
+    });
+
+  /*
+   * Said before the button, not after it.
+   *
+   * A banner is the right thing once somebody has been stopped. It is the wrong
+   * thing to be the first mention of a limit, five answers into a screen headed
+   * "Anything — if we don't already cover it, we'll build it".
+   */
+  it("does not offer a button that its own action will refuse", async () => {
+    onFreePlan();
+    // `captured()` names Rust and matches no pack, so this is the gap the
+    // Generated tier exists for — the case the plan does not cover.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured(),
+      done: true,
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.queryByRole("button", { name: "Build my plan" })).toBeNull();
+    expect(screen.getByText(/We don’t run Rust programming yet/)).toBeDefined();
+    expect(
+      screen
+        .getByRole("link", { name: /which plans include it/ })
+        .getAttribute("href"),
+    ).toBe("/pricing");
+    // The answers are not thrown away by a wall, and saying so is the point.
+    expect(screen.getByRole("button", { name: "Start over" })).toBeDefined();
+  });
+
+  it("still offers the button for a subject we already run", async () => {
+    // The same plan. The wall is on authoring a new course, not on having one.
+    onFreePlan();
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured({ matchedPack: "photography" }),
+      done: true,
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
+    expect(screen.queryByText(/isn’t part of your plan/)).toBeNull();
+  });
+
+  it("asks nothing of billing while the conversation is still going", async () => {
+    // Two queries per render, on a screen that re-renders every turn. The
+    // button they pay to press does not exist yet.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "How much time do you have?" }],
+      captured: captured(),
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(entitlementsMock).not.toHaveBeenCalled();
+  });
+
   it("keeps the form reachable for anyone who would rather have one", async () => {
     render(await StartPage({ searchParams: search() }));
     const link = screen.getByRole("link", { name: /Do that instead/ });
@@ -728,6 +909,69 @@ describe("the conversation actions", () => {
       "REDIRECT:/start",
     );
     expect(runAnalyzerMock).not.toHaveBeenCalled();
+  });
+
+  /* ── The course they arrived having chosen ─────────────────────────────── */
+
+  it("tells the analyzer the subject is settled, from the first turn", async () => {
+    // Otherwise the opening question is "what do you want to get good at?"
+    // asked of someone who answered it by pressing a button.
+    await expect(
+      replyAction(form({ reply: "I want to learn Photography", pack: "photography" })),
+    ).rejects.toThrow("REDIRECT:/start#latest");
+
+    expect(runAnalyzerMock.mock.calls[0]![1]).toMatchObject({
+      committed: { slug: "photography", name: "Photography" },
+    });
+    expect(saveIntakeMock.mock.calls[0]![2].packSlug).toBe("photography");
+  });
+
+  it("keeps the course through the turns that do not name it", async () => {
+    // Every later turn comes from the composer, which has no course to send.
+    // Reading the field on those would let an empty one unlock the subject
+    // halfway through the conversation.
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "What are you shooting?" }],
+      packSlug: "photography",
+    };
+
+    await expect(replyAction(form({ reply: "Weddings" }))).rejects.toThrow(
+      "REDIRECT:/start#latest",
+    );
+    expect(saveIntakeMock.mock.calls[0]![2].packSlug).toBe("photography");
+  });
+
+  it("saves the course even when that first turn fails", async () => {
+    // They still chose it. Losing the lock to a bad minute from the model
+    // would put them back on a conversation about nothing in particular.
+    runAnalyzerMock.mockResolvedValue({ status: "refused", detail: "no" });
+
+    await expect(
+      replyAction(form({ reply: "Photography", pack: "photography" })),
+    ).rejects.toThrow("REDIRECT:/start?error=analyzer");
+    expect(saveIntakeMock.mock.calls[0]![2].packSlug).toBe("photography");
+  });
+
+  /*
+   * The field is a claim, not a fact: it arrives in a form body, so a signed-in
+   * learner can put anything in it. Unchecked it would ride all the way to
+   * `createGoal`'s `packId`, which is a foreign key.
+   */
+  it("drops a course that is not real rather than binding a goal to it", async () => {
+    await expect(
+      replyAction(form({ reply: "Rust", pack: "../../etc/passwd" })),
+    ).rejects.toThrow("REDIRECT:/start#latest");
+
+    expect(runAnalyzerMock.mock.calls[0]![1]).toMatchObject({ committed: null });
+    expect(saveIntakeMock.mock.calls[0]![2].packSlug).toBeNull();
+  });
+
+  it("leaves the subject open when no course was named", async () => {
+    await expect(replyAction(form({ reply: "basket weaving" }))).rejects.toThrow(
+      "REDIRECT:/start#latest",
+    );
+    expect(saveIntakeMock.mock.calls[0]![2].packSlug).toBeNull();
   });
 
   it("refuses to continue a conversation that has already closed", async () => {
@@ -859,6 +1103,47 @@ describe("turning the conversation into a goal", () => {
     };
     await expect(buildFromConversationAction()).rejects.toThrow(
       "REDIRECT:/start?error=subject",
+    );
+  });
+
+  /*
+   * The course the learner chose beats the one the model worked out.
+   *
+   * `captured()` here is a conversation the analyzer read as a subject we do
+   * not run — which is the honest reading of "I want to learn Photography so I
+   * can do the … project" going wrong, and before the pack travelled it was the
+   * reading that won. Someone who clicked a published brief could be sent off
+   * to *generate* a pack while the real one sat next to it.
+   */
+  it("builds the course they chose, not the one the model guessed", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      captured: captured({ subject: "Rust programming", matchedPack: null }),
+      packSlug: "photography",
+      done: true,
+    };
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/today",
+    );
+    expect(startBuildMock).not.toHaveBeenCalled();
+    expect(createGoalMock.mock.calls[0]![1]).toMatchObject({
+      packSlug: "photography",
+    });
+  });
+
+  it("falls back to the conversation when the chosen course is gone", async () => {
+    // Withdrawn between the click and the build. Better a plan for what they
+    // talked about than a goal pointing at a pack that is not there.
+    intake = {
+      ...EMPTY_INTAKE,
+      captured: captured(),
+      packSlug: "withdrawn-pack",
+      done: true,
+    };
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/start/building?subject=rust-programming",
     );
   });
 });
