@@ -121,7 +121,11 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
       "Our most capable models on the work that needs them",
       "Cancel before it renews and pay nothing more",
     ],
-    cta: "Start for €3",
+    // Currency-neutral, unlike every earlier version of this string. Both
+    // renderers build their own label from `formatMoney` because the amount
+    // differs by column, and a constant reading "Start for €3" beside a card
+    // priced in dollars is the drift this file exists to prevent.
+    cta: "Start the trial",
     emphasis: true,
   },
   learner: {
@@ -168,7 +172,16 @@ export const PLAN_COPY: Record<PlanId, PlanCopy> = {
  * The brief fixes this wording and it must not be softened: a trial that
  * renews on somebody who did not expect it is a chargeback and a refund rather
  * than revenue, and §13 risk 3 counts that as the trial's main danger.
- * `{price}` is filled with the formatted Pro monthly price.
+ *
+ * **Both amounts are placeholders.** The opening figure was typed — "€3 today"
+ * — while the renewal was interpolated, so a dollar reader got a euro sum and a
+ * dollar sum in the same sentence. It scanned as harmless while both columns
+ * read 3, and stopped being harmless the moment the columns diverged. This is
+ * the one paragraph on the site that gets read back to us during a chargeback;
+ * it does not get to carry a currency it made up.
+ *
+ * `{trial}` is the trial fee and `{price}` the Pro monthly, both formatted in
+ * the currency the page is rendering.
  */
 export const TRIAL_TERMS =
-  "€3 today. Full Pro access for 4 days. After 4 days your subscription renews automatically at {price}/month until cancelled. Cancel anytime from your account.";
+  "{trial} today. Full Pro access for 4 days. After 4 days your subscription renews automatically at {price}/month until cancelled. Cancel anytime from your account.";

@@ -12,6 +12,27 @@ import type { Interval, PlanId } from "./catalog";
  * amounts are net; Stripe Tax adds US sales tax on top where nexus exists. That
  * asymmetry is not a bug — it is what each market's law requires a consumer to
  * be shown.
+ *
+ * **The two columns are no longer the same number.** They were, and that was
+ * never a price — it was a coincidence of typography. A euro buys more than a
+ * dollar, so €24.99 and $24.99 are two different amounts of money wearing the
+ * same digits, and the US column is now set roughly 12% above the EU one, charm-
+ * rounded to a step somebody would recognise rather than to whatever an exchange
+ * rate produced that morning.
+ *
+ * The rate is an *assumption*, deliberately: ~1.10 USD to the euro, applied once,
+ * by hand, on 2026-08-15. Nothing here converts at runtime and nothing should.
+ * A price that moves with the market is a price nobody can quote, a renewal
+ * amount that drifts under a live subscription, and §6.3 rule 1 — the displayed
+ * price must equal the charged price — turned into a race against the FX feed.
+ * When the rate moves far enough to matter, somebody edits this table.
+ *
+ * **Read the two columns net before concluding the US pays more.** EU gross is
+ * VAT-inclusive, so €24.99 at a 21% rate is €20.65 to us, while $27.99 is $27.99
+ * to us with sales tax added on top. Net of tax and at 1.10, the US subscriber
+ * is worth about 23% more than the EU one — and was already worth about 10% more
+ * back when both columns read 24.99. The gap is a willingness-to-pay decision,
+ * which is a fine thing to make; it is just not the FX correction it looks like.
  */
 
 export const CURRENCIES = ["usd", "eur"] as const;
@@ -49,7 +70,7 @@ export const PRICES: readonly Price[] = [
     planId: "trial",
     interval: "month",
     currency: "usd",
-    amountCents: 300,
+    amountCents: 349,
     envVar: "STRIPE_PRICE_TRIAL_FEE_USD",
   },
   {
@@ -63,7 +84,7 @@ export const PRICES: readonly Price[] = [
     planId: "learner",
     interval: "month",
     currency: "usd",
-    amountCents: 1_299,
+    amountCents: 1_499,
     envVar: "STRIPE_PRICE_LEARNER_MONTH_USD",
   },
   {
@@ -77,7 +98,7 @@ export const PRICES: readonly Price[] = [
     planId: "pro",
     interval: "month",
     currency: "usd",
-    amountCents: 2_499,
+    amountCents: 2_799,
     envVar: "STRIPE_PRICE_PRO_MONTH_USD",
   },
   {
@@ -91,7 +112,7 @@ export const PRICES: readonly Price[] = [
     planId: "pro",
     interval: "year",
     currency: "usd",
-    amountCents: 19_900,
+    amountCents: 21_900,
     envVar: "STRIPE_PRICE_PRO_YEAR_USD",
   },
   {
@@ -186,10 +207,13 @@ export const CURRENCY_COOKIE = "mk_currency";
 /**
  * How much cheaper a year is than twelve months, as a whole percent.
  *
- * Computed rather than written down. §20.1 claimed 37% for $190 against $25/mo;
- * $199 against $24.99/mo is 33%, and a pricing page that overstates its own
- * discount is the kind of error that gets quoted back at you. Rounding is
- * *down* so the number on the page is never larger than the saving.
+ * Computed rather than written down, and computed **per currency**, which is
+ * the whole reason it takes an argument. §20.1 claimed 37% for $190 against
+ * $25/mo; €199 against €24.99/mo is 33% and $219 against $27.99/mo is 34%, so a
+ * single hard-coded figure would now be wrong on one of the two pages it
+ * appeared on. A pricing page that overstates its own discount is the kind of
+ * error that gets quoted back at you. Rounding is *down* so the number on the
+ * page is never larger than the saving.
  */
 export function annualSavingPercent(currency: Currency): number {
   const monthly = requirePrice("pro", "month", currency).amountCents * 12;

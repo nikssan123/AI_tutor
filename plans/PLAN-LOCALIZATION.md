@@ -197,8 +197,18 @@ which reads `x-vercel-ip-country`, falls back to `x-ou-country` (honoured only w
 > One thing changed and one number was wrong. Charm pricing replaced the round
 > numbers §6.2 argued for — that was Nikolay's call against this section's
 > reasoning, not an oversight. And **the annual discount is 33%, not 37%**:
-> $199 against $24.99×12 is not $190 against $25. `annualSavingPercent()`
+> €199 against €24.99×12 is not $190 against $25. `annualSavingPercent()`
 > computes it and rounds down.
+>
+> **And then the mirror broke (2026-08-15).** Of the two things this section got
+> right, only one survived: EUR is still VAT-inclusive, but the columns are no
+> longer mirrored. A euro buys more than a dollar, so mirrored digits were two
+> different prices, and the US column now sits ~12% above the EU one — trial
+> $3.49, Learner $14.99, Pro $27.99/mo, $219/yr. §6.2's real argument was
+> *"round local numbers beat FX-derived ones"*, and that survives intact: the gap
+> was applied once, by hand, at an assumed 1.10, and lands on a charm price.
+> Nothing converts at runtime. The annual discount is now 33% in euros and 34%
+> in dollars, which is why `annualSavingPercent()` takes a currency.
 
 ### 6.2 What VAT-inclusive display costs, stated honestly
 

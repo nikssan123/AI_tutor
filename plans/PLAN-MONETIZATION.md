@@ -123,6 +123,44 @@ Annual is **33% off** monthly (`24.99 × 12 = 299.88` → `199`). §20.1's frami
 
 EUR prices display **VAT-inclusive**, as EU consumer law requires and `PLAN-LOCALIZATION` §6.2 already established. Stripe Tax adds US sales tax on top where nexus exists.
 
+> **Built, and the two columns have since been separated (2026-08-15).** Nikolay:
+> *"the prices in usd and eur should not be the same — usd is lower value so
+> prices in usd should be higher."* The mirrored table above was never a pricing
+> decision; it was a coincidence of typography, and €24.99 and $24.99 are two
+> different amounts of money wearing the same digits. The US column now sits
+> ~12% above the EU one, applied once by hand at an assumed 1.10 and charm-
+> rounded to a step a reader recognises:
+>
+> | | USD | EUR |
+> |---|---|---|
+> | Trial fee | **$3.49** | **€3.00** |
+> | Learner monthly | **$14.99** | **€12.99** |
+> | Pro monthly | **$27.99** | **€24.99** |
+> | Pro annual | **$219.00** | **€199.00** |
+>
+> **No runtime conversion, now or later.** A price that tracks the market is a
+> price nobody can quote, a renewal amount that drifts under a live
+> subscription, and §6.3 rule 1 turned into a race against the FX feed. When the
+> rate moves far enough to matter, somebody edits the table.
+>
+> **The annual discount is now per currency:** 33% in euros, 34% in dollars.
+> `annualSavingPercent()` already took a currency, which is the only reason this
+> did not become a wrong claim on one of the two pages.
+>
+> **One thing to hold in view, because the stated reason does not survive the
+> arithmetic.** EU gross is VAT-inclusive and US is net, so €24.99 at a 21% rate
+> was already only €20.65 to us against $24.99 — the US subscriber was worth
+> ~10% *more* at identical digits, not less. At the new numbers it is ~23% more.
+> Charging the US more is a defensible willingness-to-pay call and it is the one
+> that has been made; it is simply not the FX correction it looks like, and if
+> the intent was parity of *net revenue* the USD column should move down rather
+> than up.
+>
+> `TRIAL_TERMS` was fixed in the same change. It hardcoded `"€3 today"` and
+> interpolated only the renewal, so a dollar reader was shown a euro sum and a
+> dollar sum in the same sentence — in the one paragraph on the site written to
+> be argued against during a chargeback. Both amounts are placeholders now.
+
 ### The rule that prevents the P0
 
 `PLAN-LOCALIZATION` §6.3 rule 1: *"The displayed price must equal the charged price. If the pricing page shows €25 and checkout charges $25, that is a P0 bug, not a rounding difference."*

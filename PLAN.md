@@ -1945,9 +1945,9 @@ Organic search → /check/python  →  Take the check (no signup)  →  Result: 
 > | | This section | Shipped |
 > |---|---|---|
 > | Paid tiers | one | **four**: Free · Trial · Learner · Pro |
-> | Price | $25/mo, $190/yr | **$24.99/€24.99 monthly, $199/€199 annual** |
-> | Trial | none | **€3/$3 for four days**, auto-renewing to Pro |
-> | Under $15 | rejected | **Learner at $12.99/€12.99** |
+> | Price | $25/mo, $190/yr | **€24.99/$27.99 monthly, €199/$219 annual** |
+> | Trial | none | **€3.00/$3.49 for four days**, auto-renewing to Pro |
+> | Under $15 | rejected | **Learner at €12.99/$14.99** |
 > | Processor | Merchant of Record (§18.1) | **Stripe** |
 >
 > **Two of this section's judgements survived contact and one did not.**
@@ -1958,9 +1958,13 @@ Organic search → /check/python  →  Take the check (no signup)  →  Result: 
 > described nothing in the code. It is now a conditional atomic upsert claimed at
 > submission time.
 >
-> *"Annual is pushed hard"* survived, with one correction: **the discount is 33%,
-> not 37%.** $199 against $24.99×12 is not $190 against $25. `annualSavingPercent()`
-> computes it and rounds down so the page cannot overstate it.
+> *"Annual is pushed hard"* survived, with one correction: **the discount is 33%
+> in euros and 34% in dollars, not 37%.** €199 against €24.99×12 is not $190
+> against $25, and the two currencies stopped agreeing on 2026-08-15 when the US
+> column was set ~12% above the EU one — a euro buys more than a dollar, so
+> identical digits in the two columns were never the same price.
+> `annualSavingPercent()` takes a currency and rounds down, so neither page can
+> overstate its own discount.
 >
 > **The $15 floor was the right risk and the wrong instrument.** Its stated fear
 > — "can't cover heavy users" — is answered by the quota, not by the price:

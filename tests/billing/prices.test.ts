@@ -54,9 +54,13 @@ describe("PRICES", () => {
     }
   });
 
-  it("prices the trial at €3/$3", () => {
+  it("keeps the trial fee trivial in both currencies", () => {
+    // The €3 is a friction remover, not a revenue line, and it stops working
+    // the moment it is a number somebody has to think about.
     for (const currency of CURRENCIES) {
-      expect(requirePrice("trial", "month", currency).amountCents).toBe(300);
+      expect(
+        requirePrice("trial", "month", currency).amountCents,
+      ).toBeLessThan(500);
     }
   });
 
@@ -68,12 +72,35 @@ describe("PRICES", () => {
     }
   });
 
-  it("mirrors USD and EUR rather than converting them", () => {
-    // §6.1 — "round local numbers beat FX-derived ones". Mirrored amounts are
-    // the observable consequence of that decision.
+  it("sets every US price above its EU counterpart", () => {
+    // A euro buys more than a dollar, so identical digits in the two columns
+    // were two different amounts of money — which is what they used to be, and
+    // it was never a decision, only a coincidence of typography.
     for (const usd of PRICES.filter((p) => p.currency === "usd")) {
       const eur = requirePrice(usd.planId, usd.interval, "eur");
-      expect(eur.amountCents).toBe(usd.amountCents);
+      expect(usd.amountCents).toBeGreaterThan(eur.amountCents);
+    }
+  });
+
+  it("still sets them by hand rather than off a rate", () => {
+    // §6.1 — "round local numbers beat FX-derived ones". The gap is applied
+    // once, by a person, and lands on a charm price; a table that tracked the
+    // market would move a renewal amount under a live subscription and turn
+    // §6.3 rule 1 into a race against the FX feed.
+    for (const price of PRICES) {
+      const cents = price.amountCents % 100;
+      expect([0, 49, 99]).toContain(cents);
+    }
+  });
+
+  it("keeps the gap within a band a person would call the same price", () => {
+    // Roughly 12%. Far enough to be a real correction, near enough that a
+    // reader comparing the two pages does not think they are being gouged.
+    for (const usd of PRICES.filter((p) => p.currency === "usd")) {
+      const eur = requirePrice(usd.planId, usd.interval, "eur");
+      const ratio = usd.amountCents / eur.amountCents;
+      expect(ratio).toBeGreaterThan(1.05);
+      expect(ratio).toBeLessThan(1.25);
     }
   });
 });
@@ -144,13 +171,14 @@ describe("resolveCurrency", () => {
 });
 
 describe("annualSavingPercent", () => {
-  it("is 33%, not §20.1's 37%", () => {
-    // $199 against $24.99 x 12. The plan document's 37% belonged to $190
-    // against $25, and a pricing page that overstates its own discount is the
-    // kind of error that gets quoted back at you.
-    for (const currency of CURRENCIES) {
-      expect(annualSavingPercent(currency)).toBe(33);
-    }
+  it("is 33% in euros and 34% in dollars, not §20.1's 37%", () => {
+    // The plan document's 37% belonged to $190 against $25. The two currencies
+    // no longer agree either, which is the reason this function takes one:
+    // €199 against €24.99 x 12 is 33%, $219 against $27.99 x 12 is 34%, and a
+    // single hard-coded figure would now be wrong on one of the two pages it
+    // appeared on.
+    expect(annualSavingPercent("eur")).toBe(33);
+    expect(annualSavingPercent("usd")).toBe(34);
   });
 
   it("never rounds up", () => {
