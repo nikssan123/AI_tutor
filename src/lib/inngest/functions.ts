@@ -5,7 +5,8 @@ import { submission as submissionTable } from "@/db/schema";
 import { getAnthropic } from "@/lib/ai/client";
 import { generatePack } from "@/lib/packs/generate";
 import { seedPack } from "@/lib/packs/seed";
-import { finishBuild, markBuildStage } from "@/lib/packs/build";
+import { findBuild, finishBuild, markBuildStage } from "@/lib/packs/build";
+import { notifyBuildFailed } from "@/lib/packs/notify";
 import { evaluateSubmission } from "@/lib/evaluation";
 import { entitlementsForUser } from "@/lib/billing/store";
 import { subsidisesPackBuilds } from "@/lib/billing/catalog";
@@ -175,7 +176,28 @@ export const buildPack = inngest.createFunction(
       await seedPack(getDb(), built);
     },
     finish: async (slug, outcome) => {
-      await finishBuild(getDb(), slug, outcome);
+      const db = getDb();
+      await finishBuild(db, slug, outcome);
+      if (outcome.status !== "failed") return;
+
+      /*
+       * The learner has no retry button any more, so somebody has to be told
+       * or the subject they asked for simply never gets built. Read back off
+       * the row rather than threaded through the handler: the row is what
+       * knows who asked, and it is the same record `/admin/packs` lists.
+       *
+       * After `finishBuild`, so the mail cannot describe a state the database
+       * does not yet have.
+       */
+      const build = await findBuild(db, slug);
+      if (!build) return;
+
+      await notifyBuildFailed(db, {
+        slug,
+        subject: build.subject,
+        detail: outcome.detail,
+        userId: build.requestedBy,
+      });
     },
   }),
 );

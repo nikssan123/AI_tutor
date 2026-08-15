@@ -167,9 +167,22 @@ vi.mock("@/lib/packs/generate", () => ({
   })),
 }));
 vi.mock("@/lib/packs/seed", () => ({ seedPack: vi.fn(async () => undefined) }));
+const buildRow = vi.fn(async () => ({
+  slug: "rust",
+  subject: "Rust",
+  requestedBy: "u1",
+  status: "failed" as const,
+  stage: null,
+  detail: null,
+  startedAt: new Date(),
+}));
 vi.mock("@/lib/packs/build", () => ({
   finishBuild: vi.fn(async () => undefined),
   markBuildStage: vi.fn(async () => undefined),
+  findBuild: () => buildRow(),
+}));
+vi.mock("@/lib/packs/notify", () => ({
+  notifyBuildFailed: vi.fn(async () => true),
 }));
 
 describe("the registered build function", () => {
@@ -280,6 +293,70 @@ describe("the registered build function", () => {
       expect.objectContaining({ userId: "u1", plan: "pro" }),
       expect.anything(),
     );
+  });
+
+  it("emails the team when a build fails, because nobody else will", async () => {
+    /*
+     * The learner has no retry button any more — a stopped build is ours. If
+     * this send does not happen the subject they asked for is simply never
+     * built, and nobody finds out.
+     */
+    const { notifyBuildFailed } = await import("@/lib/packs/notify");
+    vi.mocked(notifyBuildFailed).mockClear();
+
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(generatePack).mockResolvedValueOnce({
+      pack: null,
+      report: null,
+      source: "none",
+      dropped: [],
+      reasons: ["7 items; a diagnostic needs at least 24"],
+      attempts: 2,
+    });
+
+    await runFor("u1");
+
+    expect(notifyBuildFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        slug: "rust",
+        // The learner who asked, read back off the row rather than threaded
+        // through the handler — the row is what knows.
+        userId: "u1",
+        detail: "7 items; a diagnostic needs at least 24",
+      }),
+    );
+  });
+
+  it("does not email the team about a build that worked", async () => {
+    const { notifyBuildFailed } = await import("@/lib/packs/notify");
+    vi.mocked(notifyBuildFailed).mockClear();
+
+    await runFor("u1");
+
+    expect(notifyBuildFailed).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the row vanished under a failure", async () => {
+    // `discardPack` takes the pack and its build row together, so a row can be
+    // gone by the time the failure is recorded. Nothing to describe, so
+    // nothing is sent — rather than an alert naming an empty subject.
+    const { notifyBuildFailed } = await import("@/lib/packs/notify");
+    const { generatePack } = await import("@/lib/packs/generate");
+    vi.mocked(notifyBuildFailed).mockClear();
+    vi.mocked(generatePack).mockResolvedValueOnce({
+      pack: null,
+      report: null,
+      source: "none",
+      dropped: [],
+      reasons: ["nothing"],
+      attempts: 2,
+    });
+    buildRow.mockResolvedValueOnce(undefined as never);
+
+    await runFor("u1");
+
+    expect(notifyBuildFailed).not.toHaveBeenCalled();
   });
 
   it("bills a build nobody asked for to nobody, as it always did", async () => {

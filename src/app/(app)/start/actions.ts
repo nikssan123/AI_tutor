@@ -19,7 +19,13 @@ import {
   MAX_REPLY,
   recordTurn,
 } from "@/lib/goals/turn";
-import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
+import {
+  customSubjectFrom,
+  masteryFromCheck,
+  parseCustomGoalForm,
+  parseGoalForm,
+} from "@/lib/goals/intake";
+import { slugify } from "@/lib/packs/generate/derive";
 import { createGoal } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
@@ -154,6 +160,31 @@ async function requireBuildAllowance(
   if (!(await mayBuild(db, userId, slug))) {
     redirect("/start?error=generated");
   }
+}
+
+/**
+ * §7.1's Generated tier, from the point where the subject is settled.
+ *
+ * Shared by the conversation and the form for the reason `finish` is: they are
+ * two ways of saying what to build, not two things to build. The build is
+ * claimed here rather than on the wait screen so that a refresh of that screen
+ * cannot start a second one.
+ */
+async function beginBuild(
+  db: Db,
+  userId: string,
+  input: { slug: string; subject: string },
+): Promise<never> {
+  await requireBuildAllowance(db, userId, input.slug);
+
+  const started = await startBuild(db, { ...input, userId });
+
+  if (started.kind === "rate-limited") redirect("/start?error=busy");
+  if (started.kind === "started") await dispatchBuild(db, { ...input, userId });
+
+  // The wait screen either way: a dispatch that failed has marked the row, and
+  // that screen is where a stopped build is explained.
+  redirect(`/start/building?subject=${encodeURIComponent(input.slug)}`);
 }
 
 /**
@@ -345,28 +376,7 @@ export async function buildFromConversationAction(): Promise<void> {
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");
 
-    await requireBuildAllowance(db, userId, match.slug);
-
-    // §7.1's Generated tier. The build is claimed here rather than on the wait
-    // screen so that a refresh of that screen cannot start a second one.
-    const started = await startBuild(db, {
-      slug: match.slug,
-      subject: match.subject,
-      userId,
-    });
-
-    if (started.kind === "rate-limited") redirect("/start?error=busy");
-    if (started.kind === "started") {
-      await dispatchBuild(db, {
-        slug: match.slug,
-        subject: match.subject,
-        userId,
-      });
-    }
-
-    // The wait screen either way: a dispatch that failed has marked the row,
-    // and that screen is where the failure and its retry button live.
-    redirect(`/start/building?subject=${encodeURIComponent(match.slug)}`);
+    return beginBuild(db, userId, { slug: match.slug, subject: match.subject });
   }
 
   const spec = specFrom(
@@ -384,24 +394,89 @@ export async function buildFromConversationAction(): Promise<void> {
 /* ── The form, still here ─────────────────────────────────────────────────── */
 
 /**
- * The no-conversation path, unchanged.
+ * Back to the form, saying what went wrong and holding on to what they typed.
+ *
+ * The subject rides along because the box is the one field on this form that
+ * cannot be refilled from the list: a rejected form used to come back with
+ * "Rust" gone and Photography selected, which is the same small betrayal
+ * `/start` carries a typed topic through sign-in to avoid.
+ */
+function backToForm(error: string, subject: string): string {
+  const params = new URLSearchParams({ error });
+  if (subject.length > 0) params.set("subject", subject);
+
+  return `/start/form?${params.toString()}`;
+}
+
+/**
+ * A subject the form asked for and the catalogue does not have.
+ *
+ * The same Generated tier the conversation reaches, from the intake that has no
+ * model behind it. What it does first is write down the answers: from here on
+ * the pack does not exist yet, so a `GoalSpec` cannot, and everything they told
+ * us has to survive a wait of some minutes, a queue that might refuse it, and a
+ * build that might stop. The wait screen adopts from exactly this intake when
+ * the pack lands — the same one the conversation would have left.
+ */
+async function buildCustomSubject(
+  db: Db,
+  userId: string,
+  subject: string,
+  formData: FormData,
+): Promise<never> {
+  const parsed = parseCustomGoalForm(formData, subject);
+  if (!parsed.ok) redirect(backToForm(parsed.error, subject));
+
+  /*
+   * Whatever conversation was held is replaced, without asking.
+   *
+   * `finish` has always done this — a form submitted for a subject we cover
+   * clears the intake on its way to `/today` — so the form has never been the
+   * screen that preserves a half-finished chat. Doing it here keeps the two
+   * halves of the same form consistent, rather than making a custom subject
+   * the one submission that can fail because of something you typed elsewhere.
+   */
+  await saveIntake(db, userId, parsed.intake);
+
+  return beginBuild(db, userId, { slug: slugify(subject), subject });
+}
+
+/**
+ * The no-conversation path.
  *
  * Kept rather than deleted: it is the fallback when the analyzer is unavailable,
  * and it is the only intake that works with JavaScript and a model both out of
- * the picture. It fills the same `GoalSpec`.
+ * the picture. It fills the same `GoalSpec` — and, since the list can never be
+ * the whole answer, it reaches the same builder for a subject that is not on it.
  */
 export async function createGoalAction(formData: FormData): Promise<void> {
   const userId = await requireUser();
   const db = getDb();
 
-  const topic = String(formData.get("topic") ?? "");
-  const pack = await resolvePack(db, topic);
-  if (!pack) redirect("/start/form?error=subject");
+  /*
+   * What they typed, and what that resolves to.
+   *
+   * A typed subject is looked up the same way the conversation looks up the
+   * analyzer's: slugified against the catalogue. Someone who types "Photography"
+   * into the box has picked Photography, and building a second pack for it
+   * would be a worse answer to a better-spelled question.
+   */
+  const typed = customSubjectFrom(formData);
+  const chosen = typed.length > 0 ? slugify(typed) : String(formData.get("topic") ?? "");
+
+  const pack = await resolvePack(db, chosen);
+  if (!pack) {
+    // Nothing typed and nothing matched: either the radio named a pack that is
+    // no longer there, or "Something else" was chosen with an empty box.
+    if (typed.length === 0) {
+      redirect(backToForm("Pick a subject, or tell us what you want to learn.", ""));
+    }
+
+    return buildCustomSubject(db, userId, typed, formData);
+  }
 
   const parsed = parseGoalForm(formData, pack);
-  if (!parsed.ok) {
-    redirect(`/start/form?error=${encodeURIComponent(parsed.error)}`);
-  }
+  if (!parsed.ok) redirect(backToForm(parsed.error, typed));
 
   await finish(userId, pack, parsed.spec);
 }
@@ -438,25 +513,26 @@ export async function adoptBuiltPackAction(formData: FormData): Promise<void> {
   await finish(userId, pack, spec);
 }
 
-/** Retries a failed build, or abandons it and goes back to the conversation. */
-export async function requestBuildAction(formData: FormData): Promise<void> {
-  const userId = await requireUser();
-  const db = getDb();
-
-  if (formData.get("cancel")) redirect("/start");
-
-  const slug = String(formData.get("slug") ?? "").trim();
-  const subject = String(formData.get("subject") ?? "").trim();
-  if (slug.length === 0 || subject.length === 0) redirect("/start");
-
-  await requireBuildAllowance(db, userId, slug);
-
-  const started = await startBuild(db, { slug, subject, userId });
-  if (started.kind === "rate-limited") redirect("/start?error=busy");
-
-  if (started.kind === "started") {
-    await dispatchBuild(db, { slug, subject, userId });
-  }
-
-  redirect(`/start/building?subject=${encodeURIComponent(slug)}`);
+/**
+ * Leaves a stopped build behind and goes back to choosing.
+ *
+ * What is left of the old retry action, and the deletion is the change. A
+ * learner used to be able to press "Try again", which spent four model calls
+ * and about a pound on a guess — on the free tier, the catalogue's pound — made
+ * by the one person with no way to tell a subject that cannot be built from an
+ * afternoon when Anthropic was slow. Worse, it made a failure their problem to
+ * solve by pressing a button repeatedly.
+ *
+ * A stopped build is now ours: the team is emailed when the row is written, and
+ * retrying lives behind `requireAdmin` at `/admin/packs`. All this does is let
+ * somebody stop waiting.
+ *
+ * The row is left exactly as it is. It is the operator's queue now, and
+ * `mayBuild` already treats a subject this learner owns as retryable without
+ * spending their allowance again — so deleting it here would cost them the
+ * subject as well as the wait.
+ */
+export async function abandonBuildAction(): Promise<void> {
+  await requireUser();
+  redirect("/start");
 }

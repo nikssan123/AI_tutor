@@ -21,6 +21,19 @@ vi.mock("@/lib/packs/loader", async () => {
   return { ...actual, loadAllPacks: () => loadAllPacksMock() };
 });
 
+/**
+ * The stopped-build queue, empty by default.
+ *
+ * These cases are about the pack list, not the failure list, and both render
+ * rows into the same page — so an unmocked one would put whatever the database
+ * happens to hold into assertions about pack ordering.
+ */
+const stoppedMock = vi.fn(async () => [] as unknown[]);
+vi.mock("@/lib/packs/build", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/packs/build")>()),
+  stoppedBuilds: () => stoppedMock(),
+}));
+
 vi.mock("@/lib/admin/guard", () => ({
   requireAdmin: async () => ({
     userId: "u1",

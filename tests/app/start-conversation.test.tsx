@@ -138,7 +138,7 @@ const {
   restartAction,
   startFreshAction,
   adoptBuiltPackAction,
-  requestBuildAction,
+  abandonBuildAction,
 } = await import("@/app/(app)/start/actions");
 
 const SIGNED_IN = { user: { id: "u1", email: "a@b.co" } };
@@ -1389,7 +1389,14 @@ describe("the wait screen", () => {
 
     expect(screen.getByText("This one stopped partway")).toBeDefined();
     expect(screen.getByText(/40 minutes/)).toBeDefined();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+    /*
+     * No retry, and its absence is the assertion. It used to be a button here,
+     * which asked the learner to spend four model calls and about a pound on a
+     * guess — the catalogue's pound, on free — made by the one person who
+     * cannot tell a bad subject from a bad afternoon.
+     */
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.getByText(/team has been told/)).toBeDefined();
     // Nothing is polling a build that is not coming back.
     expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
   });
@@ -1428,7 +1435,12 @@ describe("the wait screen", () => {
     expect(
       screen.getByText("7 items; a diagnostic needs at least 24"),
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+    // The reason still shows in full — what is gone is only the learner's
+    // ability to spend a pound acting on it.
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Pick something else" }),
+    ).toBeDefined();
   });
 
   it("falls back to a plain sentence when a failure carried no detail", async () => {
@@ -1490,40 +1502,30 @@ describe("adopting a pack that finished building", () => {
   });
 });
 
-describe("retrying a failed build", () => {
-  it("starts it again and sends the event", async () => {
-    await expect(
-      requestBuildAction(form({ slug: "rust-programming", subject: "Rust" })),
-    ).rejects.toThrow("REDIRECT:/start/building?subject=rust-programming");
-    expect(sendMock).toHaveBeenCalledOnce();
-  });
-
-  it("abandons it when the learner picks something else", async () => {
-    await expect(requestBuildAction(form({ cancel: "1" }))).rejects.toThrow(
-      "REDIRECT:/start",
-    );
+describe("abandoning a stopped build", () => {
+  /*
+   * What is left of the old retry action. The learner can stop waiting; they
+   * cannot spend four model calls and about a pound on a guess about why it
+   * failed. Retrying moved to `/admin/packs`, where the person pressing it has
+   * the reason and the drop log in front of them.
+   */
+  it("goes back to choosing without touching the build", async () => {
+    await expect(abandonBuildAction()).rejects.toThrow("REDIRECT:/start");
     expect(startBuildMock).not.toHaveBeenCalled();
-  });
-
-  it("goes back rather than building nothing", async () => {
-    await expect(requestBuildAction(form({ slug: "", subject: "" }))).rejects.toThrow(
-      "REDIRECT:/start",
-    );
-  });
-
-  it("respects the one-build-at-a-time limit on a retry too", async () => {
-    startBuildMock.mockResolvedValue({ kind: "rate-limited" });
-    await expect(
-      requestBuildAction(form({ slug: "rust", subject: "Rust" })),
-    ).rejects.toThrow("REDIRECT:/start?error=busy");
-  });
-
-  it("does not re-send the event when a build is already running", async () => {
-    startBuildMock.mockResolvedValue({ kind: "already", build: { slug: "rust" } });
-    await expect(
-      requestBuildAction(form({ slug: "rust", subject: "Rust" })),
-    ).rejects.toThrow("REDIRECT:/start/building?subject=rust");
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves the row for the operator, and for the learner's own claim on it", async () => {
+    // The row is the admin queue now. It is also what `mayBuild` reads to let
+    // this learner keep the subject without spending their allowance twice, so
+    // clearing it here would cost them the subject as well as the wait.
+    await expect(abandonBuildAction()).rejects.toThrow("REDIRECT:");
+    expect(finishBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("still requires a signed-in learner", async () => {
+    getSessionMock.mockResolvedValue(null);
+    await expect(abandonBuildAction()).rejects.toThrow("REDIRECT:/sign-in");
   });
 });
 
@@ -1554,13 +1556,6 @@ describe("the last few edges", () => {
     );
   });
 
-  it("refuses to retry a build with a slug but no subject", async () => {
-    await expect(requestBuildAction(form({ slug: "rust" }))).rejects.toThrow(
-      "REDIRECT:/start",
-    );
-    expect(startBuildMock).not.toHaveBeenCalled();
-  });
-
   it("gives up when a finished pack cannot make a valid spec", async () => {
     // A conversation that captured a subject but nothing a GoalSpec accepts.
     intake = {
@@ -1578,13 +1573,6 @@ describe("forms with fields missing entirely", () => {
   it("ignores a reply form with no reply field on it", async () => {
     await expect(replyAction(new FormData())).rejects.toThrow("REDIRECT:/start");
     expect(runAnalyzerMock).not.toHaveBeenCalled();
-  });
-
-  it("ignores a retry form with nothing on it", async () => {
-    await expect(requestBuildAction(new FormData())).rejects.toThrow(
-      "REDIRECT:/start",
-    );
-    expect(startBuildMock).not.toHaveBeenCalled();
   });
 
   it("gives up when a covered subject cannot make a valid spec", async () => {
@@ -1649,38 +1637,38 @@ describe("a free account may commission one pack, ever", () => {
     expect(startBuildMock).toHaveBeenCalled();
   });
 
-  it("refuses a retry of a subject somebody else commissioned", async () => {
+  it("refuses a subject somebody else commissioned", async () => {
     // `startBuild` upserts, so this would move the row to them — a new subject
     // for this account, and the quota still applies to it.
     onFree();
     ownsBuildMock.mockResolvedValue(false);
-    const form = new FormData();
-    form.set("slug", "rust");
-    form.set("subject", "Rust");
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
 
-    await expect(requestBuildAction(form)).rejects.toThrow(
+    await expect(buildFromConversationAction()).rejects.toThrow(
       "REDIRECT:/start?error=generated",
     );
     expect(startBuildMock).not.toHaveBeenCalled();
   });
 
-  it("lets them retry the subject their allowance was spent on", async () => {
+  it("lets them ask again for the subject their allowance was spent on", async () => {
     /*
      * The defect. The quota counts build rows and a *failed* build leaves one,
      * so the account that spent its one subject and got nothing for it was
-     * refused the retry — the free tier's Generated path had no working failure
-     * path at all. The quota is one custom subject, not one attempt at one:
-     * `startBuild` upserts on the slug, so the retry reuses the row and the
-     * count does not move.
+     * refused when it asked again — the free tier's Generated path had no
+     * working failure path at all. The quota is one custom subject, not one
+     * attempt at one: `startBuild` upserts on the slug, so asking again reuses
+     * the row and the count does not move.
+     *
+     * Reached through the conversation rather than a retry button, because the
+     * button is gone: a stopped build is the team's to restart now. This is the
+     * path that remains — the learner comes back and asks for it again.
      */
     onFree();
     ownsBuildMock.mockResolvedValue(true);
-    const form = new FormData();
-    form.set("slug", "rust");
-    form.set("subject", "Rust");
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
 
-    await expect(requestBuildAction(form)).rejects.toThrow(
-      "REDIRECT:/start/building?subject=rust",
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/start/building?subject=rust-programming",
     );
     expect(startBuildMock).toHaveBeenCalled();
   });

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin/guard";
 import { getDb } from "@/db";
 import { generatedPacks } from "@/lib/admin/generated";
 import { loadAllPacks, PACKS_DIR } from "@/lib/packs/loader";
+import { stoppedBuilds } from "@/lib/packs/build";
 import { validatePack } from "@/lib/packs/validate";
 import {
   Button,
@@ -17,7 +18,11 @@ import {
   Status,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
-import { discardPackAction, promotePackAction } from "./actions";
+import {
+  discardPackAction,
+  promotePackAction,
+  retryBuildAction,
+} from "./actions";
 
 export const metadata: Metadata = {
   title: "Packs",
@@ -39,6 +44,10 @@ export default async function PacksIndexPage() {
   // §7.1's Generated tier lives only in the database, so it has no diff to
   // review and this is the only place anyone ever sees one.
   const generated = await generatedPacks(getDb());
+
+  // Failed and stalled together: the difference decides what an operator does
+  // next and not at all whether it needs doing.
+  const stopped = await stoppedBuilds(getDb());
 
   const packs = loadAllPacks(PACKS_DIR)
     .map((pack) => ({ pack, report: validatePack(pack) }))
@@ -104,6 +113,69 @@ export default async function PacksIndexPage() {
       )}
 
       {/* ── The review queue ───────────────────────────────────────────────── */}
+      {/*
+        Failures first, because they are the only thing on this page with a
+        learner waiting on the other end of it.
+        
+        The retry button lives here and nowhere else. It used to be on the wait
+        screen, which asked the learner to spend four model calls and about a
+        pound on a guess, and made a stopped build their problem to solve by
+        pressing something repeatedly. Whoever is reading this has the reason,
+        the drop log and the rest of the queue — the learner had none of that.
+      */}
+      <SectionHead label="Needs a person" title="Builds that stopped" />
+      <Meta>
+        Each one is a learner who asked for a subject and did not get it. They
+        have been told we are looking, and they have no way to retry it
+        themselves.
+      </Meta>
+
+      {stopped.length === 0 ? (
+        <Card>
+          <EmptyState message="Nothing has stopped. Every build either finished or is still running." />
+        </Card>
+      ) : (
+        <RowList>
+          {stopped.map((build, i) => (
+            <Row key={build.slug} style={stagger(i)}>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="truncate font-[550]">{build.subject}</span>
+                <span className="flex flex-wrap items-center gap-4">
+                  <Meta>{build.slug}</Meta>
+                  {/*
+                    Two different failures, said differently. A failed row
+                    stopped and wrote down why; a stalled one stopped without
+                    ever saying, so the first move is to find out where rather
+                    than to read a message nobody wrote.
+                  */}
+                  <Status tone={build.stalled ? "attention" : "problem"}>
+                    {build.stalled
+                      ? `Stalled at ${build.stage ?? "the start"}`
+                      : "Failed"}
+                  </Status>
+                  {/*
+                    A failed build nobody was told about is a second failure,
+                    and the only place it can be seen is here.
+                  */}
+                  {build.notifiedAt === null ? (
+                    <Status tone="problem">Team not told</Status>
+                  ) : (
+                    <Meta tone="muted">Team told</Meta>
+                  )}
+                </span>
+                {build.detail ? <Meta>{build.detail}</Meta> : null}
+              </span>
+              <form action={retryBuildAction}>
+                <input type="hidden" name="slug" value={build.slug} />
+                <Button type="submit" variant="text">
+                  Retry
+                </Button>
+              </form>
+            </Row>
+          ))}
+        </RowList>
+      )}
+
       {/* A section of the Packs page, not a second page, so `SectionHead` — an
           h2 like every other band in the product. Two h1s is a real semantics
           problem, not just a failing query. */}

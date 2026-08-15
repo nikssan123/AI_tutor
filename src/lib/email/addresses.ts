@@ -71,6 +71,19 @@ export function supportFrom(env: EnvLike = process.env): string {
   return env.EMAIL_SUPPORT_FROM ?? env.EMAIL_FROM ?? DEFAULT_SUPPORT_FROM;
 }
 
+/**
+ * Where the product writes to us rather than to a learner.
+ *
+ * A build that failed is nobody's job until somebody is told, and "somebody" is
+ * an inbox a person actually opens — so it falls back to the support address
+ * rather than to `hello@`, which is a from-address and not a destination.
+ * Overridable because the team that reads operational alerts is not always the
+ * team that answers support.
+ */
+export function teamInbox(env: EnvLike = process.env): string {
+  return env.EMAIL_TEAM ?? supportFrom(env);
+}
+
 /** `support@meritkeep.com` + `abc` → `support+abc@meritkeep.com`. */
 export function plusAddress(address: string, token: string): string {
   const at = address.lastIndexOf("@");

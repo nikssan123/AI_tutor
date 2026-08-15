@@ -8,6 +8,7 @@ import {
   plusAddress,
   supportFrom,
   systemFrom,
+  teamInbox,
   threadIdFromRecipients,
   threadReplyAddress,
 } from "@/lib/email/addresses";
@@ -65,6 +66,23 @@ describe("the two mailboxes", () => {
   it("falls back to a meritkeep.com default when nothing is configured", () => {
     expect(systemFrom({})).toBe(DEFAULT_FROM);
     expect(supportFrom({})).toBe(DEFAULT_SUPPORT_FROM);
+  });
+
+  it("sends operational alerts somewhere a person opens", () => {
+    /*
+     * Where the product writes to us rather than to a learner — a build that
+     * stopped, which nobody is going to fix until somebody reads it. It falls
+     * back to support rather than to `hello@`, which is a from-address and not
+     * a destination.
+     */
+    expect(teamInbox({})).toBe(DEFAULT_SUPPORT_FROM);
+    expect(teamInbox({ EMAIL_TEAM: "ops@meritkeep.com" })).toBe(
+      "ops@meritkeep.com",
+    );
+    // The team that reads alerts is not always the team that answers support.
+    expect(
+      teamInbox({ EMAIL_SUPPORT_FROM: "help@meritkeep.com" }),
+    ).toBe("help@meritkeep.com");
   });
 
   it("reads its own variable first", () => {

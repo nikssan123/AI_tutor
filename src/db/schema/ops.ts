@@ -284,6 +284,16 @@ export const packBuild = pgTable(
       .notNull()
       .defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /**
+     * When the team was emailed about this failure, and null if they were not.
+     *
+     * A failed build is nobody's job until somebody is told, and the learner is
+     * no longer the one who retries it — so the notification is part of the
+     * record rather than a side effect of it. Null on a failed row means the
+     * mail did not get out, which is a different problem from the build failing
+     * and is one an operator can only see if it is written down.
+     */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
   },
   (t) => [index("pack_build_status_idx").on(t.status, t.startedAt)],
 );

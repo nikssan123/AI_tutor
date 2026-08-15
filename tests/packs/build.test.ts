@@ -7,6 +7,8 @@ import {
   MAX_CONCURRENT_BUILDS_PER_USER,
   activeBuildsFor,
   buildInFlightFor,
+  markBuildNotified,
+  stoppedBuilds,
   buildsCommissionedBy,
   findBuild,
   finishBuild,
@@ -291,6 +293,59 @@ live("pack builds and intake", () => {
       await finishBuild(db, "rust", { status: "failed", detail: "thin" });
 
       expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(true);
+    });
+  });
+
+  describe("the operator's queue", () => {
+    it("lists a failed build with what an operator needs", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "failed", detail: "too thin" });
+
+      const stopped = await stoppedBuilds(db);
+      const rust = stopped.find((b) => b.slug === "rust")!;
+
+      expect(rust.subject).toBe("Rust");
+      expect(rust.detail).toBe("too thin");
+      // Who is waiting, which is what makes it somebody's job.
+      expect(rust.requestedBy).toBe(IDS[0]!);
+      expect(rust.stalled).toBe(false);
+      // Nobody told yet — the notification is a separate fact from the failure.
+      expect(rust.notifiedAt).toBeNull();
+    });
+
+    it("counts a run that outlived the timeout as stopped too", async () => {
+      // It stopped without ever saying why, which needs a person just as much
+      // as one that failed with a reason — and needs a different first move.
+      const longAgo = new Date(Date.now() - (BUILD_TIMEOUT_MINUTES + 5) * 60_000);
+      await startBuild(
+        db,
+        { slug: "welding", subject: "Welding", userId: IDS[0]! },
+        longAgo,
+      );
+
+      const stalled = (await stoppedBuilds(db)).find((b) => b.slug === "welding");
+      expect(stalled?.stalled).toBe(true);
+      expect(stalled?.status).toBe("building");
+    });
+
+    it("leaves a run that is merely slow alone", async () => {
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      expect((await stoppedBuilds(db)).some((b) => b.slug === "rust")).toBe(false);
+    });
+
+    it("records that the team was told", async () => {
+      /*
+       * Two writes rather than one, because the build failing and the mail
+       * going out can fail independently. A failed row with no `notifiedAt` is
+       * a second failure — nobody knows — and `/admin/packs` can only show that
+       * because it is written down separately.
+       */
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "failed", detail: "too thin" });
+      await markBuildNotified(db, "rust", NOW);
+
+      const rust = (await stoppedBuilds(db)).find((b) => b.slug === "rust")!;
+      expect(rust.notifiedAt?.toISOString()).toBe(NOW.toISOString());
     });
   });
 

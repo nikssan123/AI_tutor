@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt, lt, or } from "drizzle-orm";
 import type { Db } from "@/db";
 import { packBuild } from "@/db/schema";
 
@@ -35,6 +35,8 @@ export type BuildStage = (typeof BUILD_STAGES)[number];
 export interface PackBuild {
   slug: string;
   subject: string;
+  /** Who asked first. Null once they are gone; the pack outlives them. */
+  requestedBy: string | null;
   status: BuildStatus;
   /** Null before the worker picks the row up — queued, not yet started. */
   stage: BuildStage | null;
@@ -82,6 +84,7 @@ function toBuild(row: BuildRow): PackBuild {
   return {
     slug: row.slug,
     subject: row.subject,
+    requestedBy: row.requestedBy,
     status: statusOf(row.status),
     stage: stageOf(row.stage),
     detail: row.detail,
@@ -312,5 +315,80 @@ export async function finishBuild(
       detail: outcome.status === "failed" ? outcome.detail : null,
       finishedAt: now,
     })
+    .where(eq(packBuild.slug, slug));
+}
+
+/* ── The operator's side of a failure ─────────────────────────────────────── */
+
+/**
+ * A stopped build, with what an operator needs to decide what to do about it.
+ *
+ * Richer than `PackBuild` because the audience is different. A learner sees one
+ * build and needs to know whether to wait; an operator sees every build that
+ * stopped and needs to know which one to look at first, who is waiting on it,
+ * and whether anybody has been told.
+ */
+export interface StoppedBuild extends PackBuild {
+  finishedAt: Date | null;
+  /** When the team was emailed. Null means they were not — see `notifiedAt`. */
+  notifiedAt: Date | null;
+  /**
+   * True when the row still says `building` but has outlived the timeout.
+   *
+   * A run nobody will ever finish, which is not the same as one that failed and
+   * said why: it stopped without a reason, so the operator's first move is to
+   * find out where rather than to read a message that was never written.
+   */
+  stalled: boolean;
+}
+
+/**
+ * Every build that stopped, newest first.
+ *
+ * Failed rows and stalled ones together, because the difference matters to what
+ * an operator does next and not at all to whether it needs attention. Both are
+ * a learner who asked for a subject and did not get it.
+ */
+export async function stoppedBuilds(
+  db: Db,
+  now: Date = new Date(),
+): Promise<StoppedBuild[]> {
+  const cutoff = new Date(now.getTime() - BUILD_TIMEOUT_MINUTES * 60_000);
+
+  const rows = await db
+    .select()
+    .from(packBuild)
+    .where(
+      or(
+        eq(packBuild.status, "failed"),
+        and(eq(packBuild.status, "building"), lt(packBuild.startedAt, cutoff)),
+      ),
+    )
+    .orderBy(desc(packBuild.startedAt));
+
+  return rows.map((row) => ({
+    ...toBuild(row),
+    finishedAt: row.finishedAt,
+    notifiedAt: row.notifiedAt,
+    stalled: statusOf(row.status) === "building",
+  }));
+}
+
+/**
+ * Records that the team was told, so the admin list can show that they were.
+ *
+ * Separate from `finishBuild` rather than a field on it, because the two can
+ * fail independently: the build failing is one fact and the mail going out is
+ * another, and a row that recorded them together would have to claim the mail
+ * sent before it had.
+ */
+export async function markBuildNotified(
+  db: Db,
+  slug: string,
+  now: Date = new Date(),
+): Promise<void> {
+  await db
+    .update(packBuild)
+    .set({ notifiedAt: now })
     .where(eq(packBuild.slug, slug));
 }

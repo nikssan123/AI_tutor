@@ -24,6 +24,36 @@ let queue: GeneratedPackSummary[] = [];
 
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => revalidateMock(p) }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
+/**
+ * The stopped-build queue, empty by default.
+ *
+ * These cases are about the pack list, not the failure list, and both render
+ * rows into the same page — so an unmocked one would put whatever the database
+ * happens to hold into assertions about pack ordering.
+ */
+const stoppedMock = vi.fn(async () => [] as unknown[]);
+const findBuildMock = vi.fn(async () => ({
+  slug: "net-development",
+  subject: ".NET development",
+  requestedBy: "learner-1",
+  status: "failed" as const,
+  stage: null,
+  detail: "7 items",
+  startedAt: new Date(),
+}));
+const startBuildMock = vi.fn(async () => ({ kind: "started" as const }));
+vi.mock("@/lib/packs/build", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/packs/build")>()),
+  stoppedBuilds: () => stoppedMock(),
+  findBuild: () => findBuildMock(),
+  startBuild: (...a: unknown[]) => startBuildMock(...(a as [])),
+}));
+const sendMock = vi.fn(async () => undefined);
+vi.mock("@/lib/inngest/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/inngest/client")>()),
+  inngest: { send: (...a: unknown[]) => sendMock(...(a as [])) },
+}));
+
 vi.mock("@/lib/admin/guard", () => ({ requireAdmin: () => requireAdminMock() }));
 vi.mock("@/lib/admin/generated", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/admin/generated")>()),
@@ -33,9 +63,23 @@ vi.mock("@/lib/admin/generated", async (importOriginal) => ({
 }));
 
 const { default: PacksIndexPage } = await import("@/app/admin/packs/page");
-const { discardPackAction, promotePackAction } = await import(
+const { discardPackAction, promotePackAction, retryBuildAction } = await import(
   "@/app/admin/packs/actions"
 );
+
+const stopped = (over: Record<string, unknown> = {}) => ({
+  slug: "net-development",
+  subject: ".NET development",
+  requestedBy: "learner-1",
+  status: "failed" as const,
+  stage: null,
+  detail: "7 items; a diagnostic needs at least 24",
+  startedAt: new Date("2026-08-15T14:19:00.000Z"),
+  finishedAt: new Date("2026-08-15T14:42:00.000Z"),
+  notifiedAt: new Date("2026-08-15T14:42:01.000Z"),
+  stalled: false,
+  ...over,
+});
 
 const entry = (over: Partial<GeneratedPackSummary> = {}): GeneratedPackSummary =>
   ({
@@ -180,5 +224,151 @@ describe("the reviewer's two decisions", () => {
   it("treats a discard form with no slug as no slug", async () => {
     await discardPackAction(new FormData());
     expect(discardMock).toHaveBeenCalledWith({}, "");
+  });
+});
+
+
+describe("builds that stopped", () => {
+  /**
+   * The retry lives here and nowhere else.
+   *
+   * It used to be a button on the learner's wait screen, which asked somebody
+   * with no way to tell a bad subject from a bad afternoon to spend four model
+   * calls and about a pound on a guess — the catalogue's pound, on the free
+   * tier. Whoever reads this page has the reason and the drop log.
+   */
+  it("lists a stopped build with its reason", async () => {
+    stoppedMock.mockResolvedValue([stopped()]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByText(".NET development")).toBeDefined();
+    expect(
+      screen.getByText("7 items; a diagnostic needs at least 24"),
+    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
+  });
+
+  it("distinguishes a stall from a failure, because the first move differs", async () => {
+    // A failed run stopped and wrote down why. A stalled one stopped without
+    // ever saying, so the first move is to find out where.
+    stoppedMock.mockResolvedValue([
+      stopped({ stalled: true, status: "building", stage: "writing", detail: null }),
+    ]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByText(/Stalled at writing/)).toBeDefined();
+  });
+
+  it("says where a stall happened even when it never started", async () => {
+    // `stage` is null until the worker picks the row up, so a run that stalled
+    // in the queue has no phase to name.
+    stoppedMock.mockResolvedValue([
+      stopped({ stalled: true, status: "building", stage: null, detail: null }),
+    ]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByText(/Stalled at the start/)).toBeDefined();
+  });
+
+  it("shows when nobody was told, which is a second failure", async () => {
+    stoppedMock.mockResolvedValue([stopped({ notifiedAt: null })]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByText("Team not told")).toBeDefined();
+  });
+
+  it("says so plainly when nothing has stopped", async () => {
+    stoppedMock.mockResolvedValue([]);
+    render(await PacksIndexPage());
+
+    expect(screen.getByText(/Nothing has stopped/)).toBeDefined();
+  });
+});
+
+describe("retryBuildAction", () => {
+  const form = (slug: string) => {
+    const data = new FormData();
+    data.set("slug", slug);
+    return data;
+  };
+
+  it("checks the admin role before anything else", async () => {
+    // A server action is a public endpoint whatever page rendered the button.
+    requireAdminMock.mockRejectedValueOnce(new Error("NOT_ADMIN"));
+    await expect(retryBuildAction(form("net-development"))).rejects.toThrow(
+      "NOT_ADMIN",
+    );
+    expect(startBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("re-claims the slug and dispatches the build", async () => {
+    await retryBuildAction(form("net-development"));
+
+    expect(startBuildMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ slug: "net-development" }),
+    );
+    expect(sendMock).toHaveBeenCalledOnce();
+    expect(revalidateMock).toHaveBeenCalledWith("/admin/packs");
+  });
+
+  it("keeps the build on the learner who asked, not the operator", async () => {
+    /*
+     * `requestedBy` decides whose ceiling the run is charged against and
+     * whether the catalogue subsidises it, and both should answer for the
+     * person who wanted the subject. It is also what `mayBuild` reads to let
+     * that learner keep the subject as theirs.
+     */
+    await retryBuildAction(form("net-development"));
+
+    expect(startBuildMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: "learner-1" }),
+    );
+  });
+
+  it("falls back to the operator when the learner is gone", async () => {
+    // `requested_by` is nulled when an account is deleted; the subject still
+    // needs building.
+    findBuildMock.mockResolvedValueOnce({
+      slug: "net-development",
+      subject: ".NET development",
+      requestedBy: null,
+      status: "failed" as const,
+      stage: null,
+      detail: null,
+      startedAt: new Date(),
+    } as never);
+
+    await retryBuildAction(form("net-development"));
+
+    expect(startBuildMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: "admin-1" }),
+    );
+  });
+
+  it("does nothing for a slug with no build row", async () => {
+    findBuildMock.mockResolvedValueOnce(undefined as never);
+    await retryBuildAction(form("no-such-subject"));
+    expect(startBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores an empty slug rather than claiming one", async () => {
+    await retryBuildAction(form("  "));
+    expect(findBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a form with no slug field at all", async () => {
+    await retryBuildAction(new FormData());
+    expect(findBuildMock).not.toHaveBeenCalled();
+  });
+
+  it("does not re-send when the slug is already building", async () => {
+    // Two operators reading the same list must not start two runs of one
+    // subject; `startBuild` is the lock and this respects its answer.
+    startBuildMock.mockResolvedValueOnce({ kind: "already" } as never);
+    await retryBuildAction(form("net-development"));
+    expect(sendMock).not.toHaveBeenCalled();
   });
 });

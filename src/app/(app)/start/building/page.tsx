@@ -16,7 +16,7 @@ import {
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader } from "@/components/app-shell";
-import { adoptBuiltPackAction, requestBuildAction } from "../actions";
+import { abandonBuildAction, adoptBuiltPackAction } from "../actions";
 import {
   BUILD_STEPS,
   elapsedWords,
@@ -161,37 +161,40 @@ export default async function BuildingPage({ searchParams }: Props) {
       ? {
           title: "This one stopped partway",
           detail: `It has been going ${elapsedWords(runningFor)} with nothing finished, which is far past the point where anything more is coming.`,
-          note: "Starting it again writes it from the top — nothing half-built is kept. Or pick a subject we already cover in depth.",
         }
       : {
           title: "We couldn’t build this one",
           detail: build.detail ?? "Something went wrong while building it.",
-          note: "Rather than hand you a thin course, we stopped. You can try again, or pick a subject we already cover in depth.",
         };
 
     return (
       <AppFrame width="narrow">
         <AppHeader eyebrow="Stopped" title={stopped.title} lead={stopped.detail} />
-        <Meta>{stopped.note}</Meta>
+        {/*
+          No "Try again", and its absence is the point.
+          
+          A retry is four model calls and about a pound, and on the free tier it
+          is the catalogue paying — so a button here asked the one person who
+          cannot tell a bad subject from a bad afternoon to spend that money by
+          guessing. It also made a failure the learner's problem to solve, when
+          a build that stopped is ours.
+          
+          So the failure is routed to us instead: the team is emailed the moment
+          the row is written, and retrying is an admin action. What is left here
+          is the true sentence and a way onward that costs nothing.
+        */}
+        <Meta>
+          Nothing you answered is lost. Our team has been told and will look at
+          this one — you don&rsquo;t need to do anything. In the meantime you
+          can start on a subject we already cover in depth.
+        </Meta>
         <div className="flex flex-wrap gap-3">
-          <form action={requestBuildAction}>
-            <input type="hidden" name="slug" value={slug} />
-            {/* The row's own subject, which is the name the build was asked
-                for. Reading it back off the conversation was a longer way to
-                the same string, and a wrong one once the conversation had
-                moved on to something else. */}
-            <input type="hidden" name="subject" value={build.subject} />
-            <Button type="submit">Try again</Button>
+          <form action={abandonBuildAction}>
+            <Button type="submit">Pick something else</Button>
           </form>
-          <form action={requestBuildAction}>
-            <input type="hidden" name="cancel" value="1" />
-            <button
-              type="submit"
-              className="min-h-[var(--touch-min)] rounded-[var(--radius-control)] border border-hairline px-5 text-[length:var(--text-label-size)] hover:border-accent"
-            >
-              Pick something else
-            </button>
-          </form>
+          <ButtonLink href="/learn" variant="text">
+            See what we cover
+          </ButtonLink>
         </div>
       </AppFrame>
     );
