@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import {
   ANALYZER_PROMPT,
   CLARITY_THRESHOLD,
+  CapturedGoal,
   MAX_TURNS,
   buildAnalyzerContext,
   decodeTranscript,
@@ -83,6 +84,47 @@ describe("the prompt", () => {
     // §16.1's timeFit reads weeklyHours; a model that talks someone up to ten
     // hours builds a plan they abandon in week two.
     expect(ANALYZER_PROMPT.text).toContain("Believe what they tell you");
+  });
+});
+
+describe("CapturedGoal", () => {
+  /*
+   * The sidebar goes blank all at once or not at all.
+   *
+   * `loadIntake` reads the stored object through this schema and keeps nothing
+   * when the parse fails, so a single field added after conversations were
+   * already being saved takes every other field down with it — the card whose
+   * whole claim is that it repeats what it heard rendered five dashes over a
+   * row that had the subject, the level and the hours in it.
+   */
+  const beforePriorDomain = {
+    subject: "JavaScript",
+    matchedPack: null,
+    outcomeType: "career",
+    statedLevel: "none",
+    weeklyHours: 4,
+    deadline: null,
+    motivation: "Get a dev job",
+    constraints: [],
+    existingAssets: [],
+    levelSaid: "Complete beginner",
+    weeklyHoursSaid: "3-5 hrs",
+    deadlineSaid: null,
+  };
+
+  it("loads a conversation saved before priorDomain existed", () => {
+    const parsed = CapturedGoal.safeParse(beforePriorDomain);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.subject).toBe("JavaScript");
+    expect(parsed.data?.priorDomain).toBeUndefined();
+  });
+
+  it("still rejects a row that is wrong rather than merely old", () => {
+    expect(
+      CapturedGoal.safeParse({ ...beforePriorDomain, priorDomain: "juggling" })
+        .success,
+    ).toBe(false);
   });
 });
 

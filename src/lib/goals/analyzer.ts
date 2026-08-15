@@ -63,8 +63,15 @@ export const CapturedGoal = z.object({
    * The closed reading of `existingAssets`, asked for here because the analyzer
    * is already having this conversation — classifying it later would be a
    * second call to learn something this one was told.
+   *
+   * `nullish` for the same reason as the three `*Said` fields below: this was
+   * added after conversations were already being saved, and a stored row that
+   * predates it must still load. Required-nullable, it did not — `safeParse`
+   * failed on the one missing key, `loadIntake` turned the whole object into
+   * `undefined`, and the sidebar that exists to repeat what we heard went blank
+   * on every row. `matchChosen` already reads it as `?? DEFAULT_PRIOR_DOMAIN`.
    */
-  priorDomain: PriorDomain.nullable(),
+  priorDomain: PriorDomain.nullish(),
 
   /*
    * What the learner actually said, for the three fields where our normalised
