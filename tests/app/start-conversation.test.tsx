@@ -132,6 +132,17 @@ vi.mock("@/lib/packs/build", async (importOriginal) => ({
   buildsCommissionedBy: () => commissionedMock(),
   hasCommissioned: () => ownsBuildMock(),
 }));
+/**
+ * Telling the team a build stopped, from the one path that never reaches the
+ * worker — see "tells the team" below. Mocked rather than exercised because
+ * `tests/packs/notify.test.ts` already owns what the mail says; what matters
+ * here is only that the dispatch failure calls it at all.
+ */
+const notifyFailedMock = vi.fn(async (..._a: unknown[]) => true);
+vi.mock("@/lib/packs/notify", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/packs/notify")>()),
+  notifyBuildFailed: (...a: unknown[]) => notifyFailedMock(...(a as [])),
+}));
 // The wait screen asks whether the pack exists yet; that is the real answer,
 // and the build row is only how the learner got to the screen.
 vi.mock("@/lib/content/resolve", async (importOriginal) => ({
@@ -1308,13 +1319,44 @@ describe("turning the conversation into a goal", () => {
     );
     logged.mockRestore();
 
-    // Marked failed rather than left claimed: that is the state the wait screen
-    // renders with a "Try again" button, and the retry reuses this same slug —
-    // so the row, and therefore the quota, is untouched.
+    // Marked failed rather than left claimed: `startBuild` lets a failed row be
+    // retried on the same slug, so the row — and therefore the quota — survives
+    // for the operator who picks it up.
     expect(finishBuildMock).toHaveBeenCalledWith(
       expect.anything(),
       "rust-programming",
       expect.objectContaining({ status: "failed" }),
+    );
+  });
+
+  it("tells the team, because this is the failure the worker never sees", async () => {
+    /*
+     * The bug behind this one. `notifyBuildFailed` was reachable only from the
+     * worker, and a dispatch failure by definition never reaches the worker —
+     * so the single failure that means the queue itself is down was the single
+     * failure nobody was told about. The learner was meanwhile shown "our team
+     * has been told", which was false exactly when it mattered most.
+     */
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+    sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(buildFromConversationAction()).rejects.toThrow("REDIRECT:");
+    logged.mockRestore();
+
+    expect(notifyFailedMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        slug: "rust-programming",
+        // The learner who is waiting, so the mail says who to unblock.
+        userId: "u1",
+      }),
+    );
+
+    // After the row is written, never before: the mail must not describe a
+    // state the database does not have yet.
+    expect(finishBuildMock.mock.invocationCallOrder[0]!).toBeLessThan(
+      notifyFailedMock.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -1329,7 +1371,20 @@ describe("turning the conversation into a goal", () => {
     logged.mockRestore();
 
     const detail = finishBuildMock.mock.calls[0]![2] as { detail: string };
-    expect(detail.detail).toMatch(/try again/i);
+    expect(detail.detail).toMatch(/could not|couldn't/i);
+    expect(detail.detail).toMatch(/queue/i);
+    /*
+     * And explicitly not "try again". There is no retry button on the wait
+     * screen — it was removed on purpose — so a reason ending in "try again"
+     * sent the learner hunting for a control that does not exist. The same
+     * string is what an operator reads as `Reason:` in the mail.
+     */
+    expect(detail.detail).not.toMatch(/try again/i);
+
+    // The learner and the team are given the same sentence, so a support reply
+    // cannot contradict the screen the learner is looking at.
+    const mailed = notifyFailedMock.mock.calls[0]![1] as { detail: string };
+    expect(mailed.detail).toBe(detail.detail);
   });
 
   it("joins a build already running rather than sending a second event", async () => {
@@ -1537,7 +1592,15 @@ describe("the wait screen", () => {
      * cannot tell a bad subject from a bad afternoon.
      */
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
-    expect(screen.getByText(/team has been told/)).toBeDefined();
+    /*
+     * And the handover said plainly, on the screen where it is the only good
+     * news available. A stalled build was never reported by anything — nothing
+     * ran to report it — so the promise here is deliberately the operator's
+     * list rather than the mail, which holds either way.
+     */
+    expect(screen.getByText("A person is picking this up")).toBeDefined();
+    expect(screen.getByText("With our team")).toBeDefined();
+    expect(screen.getByText(/nothing for you to report/)).toBeDefined();
     // Nothing is polling a build that is not coming back.
     expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
   });
@@ -1582,6 +1645,18 @@ describe("the wait screen", () => {
     expect(
       screen.getByRole("button", { name: "Pick something else" }),
     ).toBeDefined();
+    /*
+     * The handover, which on this screen is the whole of the good news and used
+     * to be a clause buried mid-paragraph in the faintest type available. It
+     * gets a `Signal` now — the one element in the product that carries a
+     * colour on its edge — so the fact that somebody has this is the second
+     * thing read after the reason, not the fifth.
+     */
+    expect(screen.getByText("A person is picking this up")).toBeDefined();
+    expect(screen.getByText("With our team")).toBeDefined();
+    // And the offer kept out of that card: a different subject is not more
+    // reassurance about this one.
+    expect(screen.getByText(/subject we already cover in depth/)).toBeDefined();
   });
 
   it("falls back to a plain sentence when a failure carried no detail", async () => {

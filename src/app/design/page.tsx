@@ -374,9 +374,13 @@ export default function DesignPage() {
             state="Stopped"
             title="We couldn’t build this one"
           >
+            {/* The specimen deliberately does not promise that anybody has
+                been told. The screen this is drawn from makes that promise in
+                a `verified` card of its own, because it is a different fact
+                from "it stopped" and reads as good news rather than bad. */}
             <Lead>
-              Nothing you answered is lost. Our team has been told and will look
-              at this one.
+              It stopped partway through writing, and nothing you answered is
+              lost.
             </Lead>
           </Signal>
         </div>

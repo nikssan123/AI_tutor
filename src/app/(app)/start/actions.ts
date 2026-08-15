@@ -30,6 +30,7 @@ import { createGoal } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
 import { finishBuild, startBuild } from "@/lib/packs/build";
+import { notifyBuildFailed } from "@/lib/packs/notify";
 import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
@@ -93,16 +94,16 @@ async function chosenPack(
  * a free account's one custom subject on a build that never ran — and lifetime
  * means never getting it back. That is the bug this function exists to prevent.
  *
- * So a dispatch failure marks the row `failed` with a truthful reason. The wait
- * screen already renders that state, with the "Try again" button that reuses
- * this same slug and therefore the same row: the quota is untouched, the
- * learner is told what happened, and the recovery is one press. §24 E8's
- * "queued, retried, and the user is told — never a silent loss", applied to the
- * step before the queue.
+ * So a dispatch failure marks the row `failed` with a truthful reason and tells
+ * the team, exactly as a failure inside the worker does: the quota is untouched,
+ * the learner is told what happened, and somebody who can act on it finds out.
+ * §24 E8's "queued, retried, and the user is told — never a silent loss",
+ * applied to the step before the queue.
  *
  * The most likely cause in development is the Inngest dev server not running
- * (`pnpm inngest:dev`); in production it is the event API being briefly
- * unreachable. Both look the same from here and both want the same answer.
+ * (`pnpm inngest:dev`, or the `inngest` service in `docker-compose.yml`); in
+ * production it is the event API being briefly unreachable. Both look the same
+ * from here and both want the same answer.
  */
 async function dispatchBuild(
   db: Db,
@@ -125,10 +126,39 @@ async function dispatchBuild(
      */
     console.error("[packs] could not queue a build for", input.slug, error);
 
-    await finishBuild(db, input.slug, {
-      status: "failed",
-      detail:
-        "We couldn't get this into the queue. Nothing is lost — try again and it will pick up from here.",
+    /*
+     * No "try again" in it, because there is nothing here for the learner to
+     * press. The retry button was deliberately removed from the wait screen —
+     * a retry is four model calls and about a pound, guessed at by the one
+     * person who cannot tell a bad subject from a bad afternoon — so a reason
+     * ending in "try again" sent them looking for a control that is not there.
+     * It is also the line an operator reads as `Reason:` in the mail below.
+     */
+    const detail = "We couldn't get this into the queue, so it never started.";
+
+    await finishBuild(db, input.slug, { status: "failed", detail });
+
+    /*
+     * The half that was missing, and the reason this function is not simply
+     * `finishBuild` inline.
+     *
+     * `notifyBuildFailed` used to be reachable only from the worker, so the one
+     * failure that never reaches the worker — this one — was the one nobody was
+     * told about. The learner was still shown "our team has been told", which
+     * was false precisely when it mattered most: a dispatch failure means the
+     * queue itself is down, which is the thing you most want to hear about and
+     * the thing least likely to be noticed on its own.
+     *
+     * After `finishBuild`, so the mail cannot describe a state the database does
+     * not yet have — the same order the worker's `finish` uses. Nothing is read
+     * back off the row first, because unlike the worker this already holds every
+     * fact the mail needs.
+     */
+    await notifyBuildFailed(db, {
+      slug: input.slug,
+      subject: input.subject,
+      detail,
+      userId: input.userId,
     });
     return false;
   }

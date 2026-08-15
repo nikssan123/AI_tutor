@@ -12,6 +12,7 @@ import {
   cx,
   HeroBand,
   Meta,
+  Signal,
   Status,
   Title,
 } from "@/components/ui";
@@ -172,21 +173,52 @@ export default async function BuildingPage({ searchParams }: Props) {
         <AppHeader eyebrow="Stopped" title={stopped.title} lead={stopped.detail} />
         {/*
           No "Try again", and its absence is the point.
-          
+
           A retry is four model calls and about a pound, and on the free tier it
           is the catalogue paying — so a button here asked the one person who
           cannot tell a bad subject from a bad afternoon to spend that money by
           guessing. It also made a failure the learner's problem to solve, when
           a build that stopped is ours.
-          
-          So the failure is routed to us instead: the team is emailed the moment
-          the row is written, and retrying is an admin action. What is left here
-          is the true sentence and a way onward that costs nothing.
+
+          So the failure is routed to us instead, and *that* is the thing this
+          screen has to make unmissable. It used to be a clause in the middle of
+          a faint grey paragraph — the most reassuring fact available to
+          somebody who has just been told their course does not exist, set in
+          the smallest type on the page and sharing a sentence with two other
+          ideas. A `Signal` instead: the one element in the product that carries
+          a colour on its edge, which is exactly the weight "a person has this"
+          deserves here. It is the only one on the screen, per its own rule.
+
+          `verified` is the honest tone. The header above already carries the
+          bad news; this card is the part that is genuinely handled, and a green
+          edge under "With our team" says so faster than any sentence.
         */}
+        <Signal
+          tone="verified"
+          state="With our team"
+          title="A person is picking this up"
+        >
+          {/*
+            Written to be true of a stalled build as well as a failed one.
+
+            A row that failed was reported the moment it was written; one that
+            stalled was never reported by anything, because nothing ran to
+            report it — but both are on `/admin/packs`, and the list is what an
+            operator actually works through. So the promise is the list, not the
+            mail: it holds whichever way this build stopped, which "we have
+            emailed the team" would not.
+          */}
+          <Meta>
+            The subject you asked for is on our list, along with what happened
+            to it, and somebody here takes it from there. There is nothing for
+            you to report and nothing to try again — and nothing you answered
+            is lost.
+          </Meta>
+        </Signal>
+        {/* The offer, kept out of the card above: it is a different subject, not
+            more reassurance about this one. */}
         <Meta>
-          Nothing you answered is lost. Our team has been told and will look at
-          this one — you don&rsquo;t need to do anything. In the meantime you
-          can start on a subject we already cover in depth.
+          In the meantime you can start on a subject we already cover in depth.
         </Meta>
         <div className="flex flex-wrap gap-3">
           <form action={abandonBuildAction}>

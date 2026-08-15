@@ -79,6 +79,18 @@ vi.mock("@/lib/inngest/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/inngest/client")>()),
   inngest: { send: (...a: unknown[]) => sendMock(...(a as [])) },
 }));
+/*
+ * A queue that cannot be reached is now reported to the team as well as
+ * written down, so this path reaches the mail. Stubbed here for the same
+ * reason the two above are: what it sends is `tests/packs/notify.test.ts`'s
+ * subject, and the real one would write `notified_at` through a `db.update`
+ * the stub above deliberately does not have.
+ */
+const notifyFailedMock = vi.fn(async (..._a: unknown[]) => true);
+vi.mock("@/lib/packs/notify", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/packs/notify")>()),
+  notifyBuildFailed: (...a: unknown[]) => notifyFailedMock(...(a as [])),
+}));
 
 /*
  * The form moved to /start/form when §8 screen 3's conversation took over
@@ -442,6 +454,14 @@ describe("a subject we do not have", () => {
       expect.anything(),
       "rust",
       expect.objectContaining({ status: "failed" }),
+    );
+
+    // And somebody is told. This is the failure the worker never sees — it is
+    // the queue itself that is down — so nothing else would report it, and the
+    // learner is meanwhile promised on the wait screen that we know.
+    expect(notifyFailedMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ slug: "rust", userId: "u1" }),
     );
     logged.mockRestore();
   });

@@ -121,8 +121,21 @@ services:
       - "8288:8288"
     environment:
       INNGEST_DEV: "1"
-    depends_on:
-      - app
+    # Survives the app being restarted under it, which is the whole point.
+    #
+    # `unless-stopped` rather than nothing: this container is the difference
+    # between "Build my plan" working and a learner being told we could not
+    # queue it, and it is invisible when it is down — the app boots, every page
+    # renders, and the failure waits until somebody commissions a pack.
+    restart: unless-stopped
+    #
+    # No `depends_on: [app]`, deliberately. It read as the obvious dependency
+    # — the URL below names `app` — but it is the wrong one, and it cost a
+    # morning: `depends_on` makes compose stop this container whenever the app
+    # is recreated, and a `docker compose up -d app` then brings the app back
+    # without it. The queue had been dead for eight hours before a pack build
+    # found out. The dev server polls `-u` until it answers, so it needs the
+    # app to exist eventually, not first.
 
 volumes:
   db_data:
