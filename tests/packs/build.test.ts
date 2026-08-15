@@ -12,7 +12,6 @@ import {
   buildsCommissionedBy,
   findBuild,
   finishBuild,
-  hasCommissioned,
   markBuildStage,
   startBuild,
 } from "@/lib/packs/build";
@@ -260,41 +259,6 @@ live("pack builds and intake", () => {
     });
   });
 
-  describe("hasCommissioned", () => {
-    /**
-     * What the count cannot answer, and what a retry has to ask.
-     *
-     * A learner whose only build failed still has its row, so their count is 1
-     * and a lifetime quota of 1 refuses them — the subject they already spent it
-     * on. This is how "a second subject" is told apart from "the same one
-     * again", which costs the quota nothing because the retry reuses the row.
-     */
-    it("knows a subject this learner asked for", async () => {
-      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
-
-      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(true);
-    });
-
-    it("is false for a subject nobody has asked for", async () => {
-      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(false);
-    });
-
-    it("does not hand one learner another's subject", async () => {
-      // The upsert would move `requestedBy` to whoever asks next, so for them
-      // this genuinely is a new subject and the quota still applies.
-      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
-
-      expect(await hasCommissioned(db, IDS[1]!, "rust")).toBe(false);
-    });
-
-    it("still knows it after the build failed", async () => {
-      // The only state in which anybody asks: the retry path.
-      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
-      await finishBuild(db, "rust", { status: "failed", detail: "thin" });
-
-      expect(await hasCommissioned(db, IDS[0]!, "rust")).toBe(true);
-    });
-  });
 
   describe("the operator's queue", () => {
     it("lists a failed build with what an operator needs", async () => {

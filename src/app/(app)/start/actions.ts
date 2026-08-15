@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb, type Db } from "@/db";
-import { mayBuild } from "@/lib/billing/quota";
+import { mayBuild, mayUseIntake } from "@/lib/billing/quota";
 import { getAnthropic } from "@/lib/ai/client";
 import { logCall } from "@/lib/ai/runlog";
 import { resolvePack } from "@/lib/content/resolve";
@@ -152,14 +152,24 @@ async function dispatchBuild(
  * claim we then refuse to honour would lock the subject behind a build that
  * never runs.
  */
-async function requireBuildAllowance(
-  db: Db,
-  userId: string,
-  slug: string,
-): Promise<void> {
-  if (!(await mayBuild(db, userId, slug))) {
-    redirect("/start?error=generated");
-  }
+/**
+ * Refuses a learner who has already spent their one custom subject.
+ *
+ * Checked in every action that costs a model call or can commission a build,
+ * not only on the page that renders them: a server action is a public endpoint
+ * whatever the screen around it looked like, and the screen is a cache of a
+ * decision this makes fresh.
+ *
+ * `?error=generated` rather than a new code, because it is the same fact the
+ * learner has already been told — you have had the custom subject your plan
+ * builds — arriving at the door instead of after five questions.
+ */
+async function requireIntakeOpen(db: Db, userId: string): Promise<void> {
+  if (!(await mayUseIntake(db, userId))) redirect("/start?error=generated");
+}
+
+async function requireBuildAllowance(db: Db, userId: string): Promise<void> {
+  if (!(await mayBuild(db, userId))) redirect("/start?error=generated");
 }
 
 /**
@@ -175,7 +185,7 @@ async function beginBuild(
   userId: string,
   input: { slug: string; subject: string },
 ): Promise<never> {
-  await requireBuildAllowance(db, userId, input.slug);
+  await requireBuildAllowance(db, userId);
 
   const started = await startBuild(db, { ...input, userId });
 
@@ -245,6 +255,10 @@ export async function replyAction(formData: FormData): Promise<void> {
   const userId = await requireUser();
   const db = getDb();
 
+  // Before the model call, not after: a turn on a conversation that can never
+  // produce anything is money spent on a screen the learner will not be shown.
+  await requireIntakeOpen(db, userId);
+
   const said = String(formData.get("reply") ?? "").trim().slice(0, MAX_REPLY);
   if (said.length === 0) redirect("/start");
 
@@ -296,6 +310,8 @@ export async function replyAction(formData: FormData): Promise<void> {
 export async function openAction(): Promise<void> {
   const userId = await requireUser();
   const db = getDb();
+
+  await requireIntakeOpen(db, userId);
 
   const result = await logCall(
     db,
@@ -349,7 +365,12 @@ export async function restartAction(): Promise<void> {
  */
 export async function startFreshAction(formData: FormData): Promise<void> {
   const userId = await requireUser();
-  await clearIntake(getDb(), userId);
+  const db = getDb();
+
+  // Before the intake is cleared. Otherwise a learner who cannot open a new
+  // conversation loses the one they had to a refusal.
+  await requireIntakeOpen(db, userId);
+  await clearIntake(db, userId);
 
   // Straight into the conversation rather than back to a Start button: they
   // have already said what they want, twice.
@@ -367,6 +388,8 @@ export async function startFreshAction(formData: FormData): Promise<void> {
 export async function buildFromConversationAction(): Promise<void> {
   const userId = await requireUser();
   const db = getDb();
+
+  await requireIntakeOpen(db, userId);
 
   const intake = await loadIntake(db, userId);
   if (!intake.captured) redirect("/start");

@@ -801,9 +801,14 @@ describe("the screen", () => {
     expect(screen.queryByText(/We don’t run Rust programming yet/)).toBeNull();
   });
 
-  it("does not offer a button that its own action will refuse", async () => {
+  it("closes the conversation once the custom subject is spent", async () => {
+    /*
+     * Not a disabled button five questions in — no conversation at all. Every
+     * turn is a model call and the button at the end commissions a ~£1 build
+     * the catalogue pays for, so a free account that has had its one subject
+     * meets the answer at the door.
+     */
     onFreePlan();
-    // The quota spent: one custom subject per free account, ever.
     commissionedMock.mockResolvedValue(1);
     // `captured()` names Rust and matches no pack, so this is the gap the
     // Generated tier exists for — the case the plan does not cover.
@@ -815,28 +820,64 @@ describe("the screen", () => {
     };
     render(await StartPage({ searchParams: search() }));
 
+    // No conversation at all — not the transcript with the button removed.
     expect(screen.queryByRole("button", { name: "Build my plan" })).toBeNull();
-    expect(screen.getByText(/We don’t run Rust programming yet/)).toBeDefined();
-    expect(screen.getByText(/already had the custom subject/)).toBeDefined();
+    expect(screen.queryByText(/We don’t run Rust programming yet/)).toBeNull();
     expect(
-      screen
-        .getByRole("link", { name: /which plans build more/ })
-        .getAttribute("href"),
+      screen.getByText(/had the custom subject your plan builds/),
+    ).toBeDefined();
+
+    // And neither way onward is a dead end: the catalogue is still open with
+    // no model call and nothing to meter, and the plans page says what keeping
+    // the conversation costs.
+    expect(
+      screen.getByRole("link", { name: "Pick a subject" }).getAttribute("href"),
+    ).toBe("/start/form");
+    expect(
+      screen.getByRole("link", { name: /See the plans/ }).getAttribute("href"),
     ).toBe("/pricing");
-    // The answers are not thrown away by a wall, and saying so is the point.
-    expect(screen.getByRole("button", { name: "Start over" })).toBeDefined();
   });
 
-  it("still offers the button for the subject they already commissioned", async () => {
+  it("does not offer to retry the build at any price", async () => {
+    // A stopped build is not theirs to retry however much they pay — it is the
+    // team's. Selling a fix that money does not buy is what §4.2 law 3 is for.
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    render(await StartPage({ searchParams: search() }));
+
+    expect(document.body.textContent).not.toMatch(/try again/i);
+    expect(document.body.textContent).not.toMatch(/retry/i);
+  });
+
+  it("leaves a paid learner's conversation alone", async () => {
+    // `packBuildsLifetime` is null on every paid plan, so there is no door to
+    // close: the allowance is the monthly cap that bounds everything else.
+    commissionedMock.mockResolvedValue(9);
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "That's everything I need." }],
+      captured: captured(),
+      done: true,
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
+  });
+
+  it("closes even for the subject they already commissioned", async () => {
     /*
-     * The defect this closes, on the screen half of it. Free spends its one
-     * subject, the build fails, and the count — which counts rows, not
-     * successes — says the allowance is gone. The learner was then shown "you
-     * have already had the custom subject your plan builds" about the subject
-     * whose build had just failed, with nothing to spend it on.
+     * A deliberate reversal, and worth reading beside the case it replaced.
      *
-     * A retry reuses the row, so it costs the quota nothing, and `mayBuild`
-     * answers this for the button and the action alike.
+     * `mayBuild` was taught to let a learner re-commission the subject they
+     * already owned, because a failed build leaves a row and the count that
+     * meters the quota counts rows — so free spent its one subject, got
+     * nothing, and was told it had already had one. The fix was to let the
+     * retry through, since `startBuild` upserts and the count does not move.
+     *
+     * The retry does not live here any more. A stopped build is the team's to
+     * restart from `/admin/packs`, and handing the learner a fresh conversation
+     * would let a subject that cannot be built be re-commissioned at our
+     * expense as often as somebody felt like answering five questions.
      */
     onFreePlan();
     commissionedMock.mockResolvedValue(1);
@@ -849,8 +890,10 @@ describe("the screen", () => {
     };
     render(await StartPage({ searchParams: search() }));
 
-    expect(screen.getByRole("button", { name: "Build my plan" })).toBeDefined();
-    expect(screen.queryByText(/We don’t run Rust programming yet/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Build my plan" })).toBeNull();
+    expect(
+      screen.getByText(/had the custom subject your plan builds/),
+    ).toBeDefined();
   });
 
   it("still offers the button for a subject we already run", async () => {
@@ -868,9 +911,17 @@ describe("the screen", () => {
     expect(screen.queryByText(/already had the one custom subject/)).toBeNull();
   });
 
-  it("asks nothing of billing while the conversation is still going", async () => {
-    // Two queries per render, on a screen that re-renders every turn. The
-    // button they pay to press does not exist yet.
+  it("asks billing once, at the door, and not again per turn", async () => {
+    /*
+     * It used to ask nothing until the button existed, on the grounds that a
+     * screen re-rendering every turn should not query what the learner cannot
+     * press yet. That is still true of the *build* lookup — but the door check
+     * has to happen first now, because a free account whose subject is spent
+     * gets no conversation at all rather than five questions and a wall.
+     *
+     * One lookup, before anything else, and the mid-conversation render adds
+     * nothing on top of it.
+     */
     intake = {
       ...EMPTY_INTAKE,
       messages: [{ r: "a", t: "How much time do you have?" }],
@@ -878,7 +929,7 @@ describe("the screen", () => {
     };
     render(await StartPage({ searchParams: search() }));
 
-    expect(entitlementsMock).not.toHaveBeenCalled();
+    expect(entitlementsMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the form reachable for anyone who would rather have one", async () => {
@@ -1502,6 +1553,67 @@ describe("adopting a pack that finished building", () => {
   });
 });
 
+describe("the closed door", () => {
+  /**
+   * Every way into the conversation, refused for a free account that has had
+   * its one custom subject.
+   *
+   * Asserted per action rather than only on the page, because a server action
+   * is a public endpoint whatever the screen around it looked like — and two of
+   * these spend a model call before they produce anything a learner sees.
+   */
+  const spent = () => {
+    entitlementsMock.mockResolvedValue({
+      ...freshEntitlements(),
+      planId: "free",
+      entitlements: {
+        evaluationsPerMonth: 1,
+        sessionsPerMonth: 1,
+        aiCurriculum: false,
+        lessonsPerCourse: 1,
+        packBuildsLifetime: 1,
+        premiumModels: false,
+      },
+      spendCapCents: 120,
+    });
+    commissionedMock.mockResolvedValue(1);
+  };
+
+  it("refuses to open a new conversation", async () => {
+    spent();
+    await expect(openAction()).rejects.toThrow("REDIRECT:/start?error=generated");
+    expect(runAnalyzerMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a turn before it costs a model call", async () => {
+    // The ordering is the point: a turn on a conversation that can never
+    // produce anything is money spent on a screen nobody will be shown.
+    spent();
+    await expect(
+      replyAction(form({ reply: "I want to learn Rust" })),
+    ).rejects.toThrow("REDIRECT:/start?error=generated");
+    expect(runAnalyzerMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to start fresh without eating the old conversation", async () => {
+    // Guarded before `clearIntake`. Otherwise a learner who cannot open a new
+    // conversation loses the one they had to the refusal.
+    spent();
+    await expect(
+      startFreshAction(form({ reply: "Something else entirely" })),
+    ).rejects.toThrow("REDIRECT:/start?error=generated");
+    expect(clearIntakeMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves every paid plan alone", async () => {
+    // `packBuildsLifetime` is null on paid, so `remaining` is Infinity and
+    // there is no door to close.
+    commissionedMock.mockResolvedValue(9);
+    await expect(openAction()).rejects.toThrow("REDIRECT:/start");
+    expect(runAnalyzerMock).toHaveBeenCalled();
+  });
+});
+
 describe("abandoning a stopped build", () => {
   /*
    * What is left of the old retry action. The learner can stop waiting; they
@@ -1650,26 +1762,16 @@ describe("a free account may commission one pack, ever", () => {
     expect(startBuildMock).not.toHaveBeenCalled();
   });
 
-  it("lets them ask again for the subject their allowance was spent on", async () => {
-    /*
-     * The defect. The quota counts build rows and a *failed* build leaves one,
-     * so the account that spent its one subject and got nothing for it was
-     * refused when it asked again — the free tier's Generated path had no
-     * working failure path at all. The quota is one custom subject, not one
-     * attempt at one: `startBuild` upserts on the slug, so asking again reuses
-     * the row and the count does not move.
-     *
-     * Reached through the conversation rather than a retry button, because the
-     * button is gone: a stopped build is the team's to restart now. This is the
-     * path that remains — the learner comes back and asks for it again.
-     */
+  it("refuses even the subject their allowance was spent on", async () => {
+    // The action half of the reversal above. Guarded before the intake is read,
+    // so a conversation that cannot produce anything costs nothing to refuse.
     onFree();
     ownsBuildMock.mockResolvedValue(true);
     intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/start/building?subject=rust-programming",
+      "REDIRECT:/start?error=generated",
     );
-    expect(startBuildMock).toHaveBeenCalled();
+    expect(startBuildMock).not.toHaveBeenCalled();
   });
 });

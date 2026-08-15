@@ -195,33 +195,6 @@ export async function buildsCommissionedBy(
   return Number(row!.n);
 }
 
-/**
- * Whether this learner is the one this subject was commissioned by.
- *
- * The other half of `buildsCommissionedBy`, and it exists because that count
- * cannot answer the question a retry asks. A learner whose only build failed
- * has a row, so their count is 1, so a lifetime quota of 1 refuses them — and
- * what it refuses them is *the subject they already spent it on*. Asking who
- * owns the row separates "a second subject", which the quota is for, from
- * "the same subject again", which costs the quota nothing: `startBuild` upserts
- * on the slug, so the retry reuses the row and the count does not move.
- *
- * Owned by somebody else is not owned. The upsert would move `requestedBy` to
- * whoever asks next, and that genuinely is a new subject for them.
- */
-export async function hasCommissioned(
-  db: Db,
-  userId: string,
-  slug: string,
-): Promise<boolean> {
-  const [row] = await db
-    .select({ slug: packBuild.slug })
-    .from(packBuild)
-    .where(and(eq(packBuild.slug, slug), eq(packBuild.requestedBy, userId)))
-    .limit(1);
-
-  return row !== undefined;
-}
 
 export type StartOutcome =
   | { kind: "started" }

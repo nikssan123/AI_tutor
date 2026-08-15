@@ -4,9 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
-import { mayBuild } from "@/lib/billing/quota";
+import { mayUseIntake } from "@/lib/billing/quota";
 import { MAX_TURNS, turnsTaken } from "@/lib/goals/analyzer";
-import { matchChosen } from "@/lib/goals/match";
 import {
   displayDeadline,
   displayHours,
@@ -106,6 +105,54 @@ const ERRORS: Record<string, React.ReactNode> = {
   ),
 };
 
+/**
+ * What a free learner sees once their custom subject is spent.
+ *
+ * Two ways onward and neither is a dead end, which is the difference between a
+ * paywall and a wall. The catalogue is still open to them — `/start/form`
+ * resolves a pack we already have and creates a goal against it, with no model
+ * call and nothing to meter — and the plans page says what the conversation
+ * costs to keep.
+ *
+ * It does not say "upgrade to retry". A stopped build is not theirs to retry at
+ * any price; it is the team's, and telling somebody money would fix a thing
+ * money will not fix is the kind of sentence §4.2 law 3 exists to prevent.
+ */
+function IntakeClosed() {
+  return (
+    <AppFrame width="narrow">
+      <AppHeader
+        eyebrow="Set a goal"
+        title="You&rsquo;ve had the custom subject your plan builds"
+        lead="We built you a course for a subject nobody had curated. That is the one your plan includes, so this conversation is closed — but the catalogue is not."
+      />
+      <Card className="flex flex-col items-start gap-4">
+        <Title>Start on something we already cover</Title>
+        <Meta>
+          Every subject in the catalogue is open to you, with the same plan, the
+          same graded briefs and the same ledger.
+        </Meta>
+        <div className="flex flex-wrap gap-3">
+          <ButtonLink href="/start/form">Pick a subject</ButtonLink>
+          <ButtonLink href="/learn" variant="text">
+            See what we cover
+          </ButtonLink>
+        </div>
+      </Card>
+      <Card className="flex flex-col items-start gap-4">
+        <Title>Or build another one</Title>
+        <Meta>
+          Paid plans keep the conversation open, so you can have a course built
+          for any subject, as often as you want one.
+        </Meta>
+        <ButtonLink href="/pricing" variant="text">
+          See the plans
+        </ButtonLink>
+      </Card>
+    </AppFrame>
+  );
+}
+
 /** One captured field in the sidebar. Absent fields say so rather than hide. */
 function Captured({ label, value }: { label: string; value: string | null }) {
   return (
@@ -162,6 +209,25 @@ export default async function StartPage({ searchParams }: Props) {
       ),
     );
   }
+  /*
+   * The door, and the whole screen turns on it.
+   *
+   * A free account gets one custom subject. Once it has commissioned one there
+   * is nothing this conversation can do for them that does not cost money — a
+   * turn is a model call, and the button at the end commissions a ~£1 build the
+   * catalogue pays for — so it closes rather than running five questions to a
+   * wall. Everything below is skipped: no intake read, no analyzer, no
+   * `matchChosen`, no billing lookups.
+   *
+   * It is deliberately not a check on whether their build *worked*. A failure
+   * is the team's to retry (`/admin/packs`); handing back a fresh conversation
+   * would let a subject that cannot be built be re-commissioned indefinitely at
+   * our expense.
+   */
+  if (!(await mayUseIntake(getDb(), session.user.id))) {
+    return <IntakeClosed />;
+  }
+
   const intake = await loadIntake(getDb(), session.user.id);
   const captured = intake.captured;
   const asked = turnsTaken(intake.messages);
@@ -194,54 +260,16 @@ export default async function StartPage({ searchParams }: Props) {
   const heldSubject = captured?.subject ?? null;
 
   /*
-   * Whether pressing "Build my plan" is going to work — asked before it is
-   * pressed rather than after.
+   * No "can you build this" check on this screen at all, and its absence is
+   * the change.
    *
-   * `buildFromConversationAction` makes exactly this decision and, on a plan
-   * without generated packs, answers it with a redirect back to this screen. A
-   * banner is the right thing to say once somebody has been stopped; it is the
-   * wrong thing to be the *first* mention of a limit, after five questions
-   * answered on a screen headed "Anything — if we don't already cover it, we'll
-   * build it". That promise is true of the product and not of every plan, and
-   * the honest place to say which is above the button.
-   *
-   * Both lookups are behind `intake.done`, so nothing is spent on this until
-   * the conversation has actually closed and the button exists. The decision
-   * itself is `matchChosen`'s, the same call the action makes, so the screen
-   * and the button cannot disagree about whether this subject is a gap.
+   * It used to run `matchChosen` on every render of a finished conversation —
+   * the same call the action makes — purely to decide whether to put a wall
+   * where the button goes. The question is asked at the door now: a free
+   * account that has had its one custom subject never reaches this screen. So
+   * by the time the button is on the page the learner is certainly allowed to
+   * press it, and the screen is one database round-trip lighter for it.
    */
-  const gap =
-    intake.done && captured
-      ? await matchChosen(getDb(), captured, intake.packSlug)
-      : undefined;
-  /*
-   * The subject we would have to author, and nothing when there is none.
-   *
-   * The gap itself rather than its name, because the two questions below need
-   * different halves of it and deriving them separately would be the same
-   * condition written twice. `matchSubject` returns a gap with a non-empty slug
-   * only for a subject that survived a trim, so the copy cannot be handed an
-   * empty string or a null.
-   */
-  const gapAt = gap?.kind === "gap" && gap.slug.length > 0 ? gap : undefined;
-  const unbuilt = gapAt?.subject;
-  /*
-   * Whether pressing the button is going to work, asked the same way the action
-   * asks it — `mayBuild` is the one place that decides, so the offer and the
-   * refusal cannot drift apart.
-   *
-   * A quota rather than a plan flag since free got its one custom subject: the
-   * question stopped being "does your plan include this" and became "have you
-   * used yours". And it is asked about the *subject*, not just the learner,
-   * because a subject they already commissioned is not a second one — which is
-   * what makes a failed build retryable from here rather than only from the
-   * wait screen. It is only asked once the conversation has closed, which keeps
-   * every lookup off every earlier render.
-   */
-  let canBuild = true;
-  if (gapAt !== undefined) {
-    canBuild = await mayBuild(getDb(), session.user.id, gapAt.slug);
-  }
 
   /*
    * A brief takes the screen.
@@ -502,32 +530,9 @@ export default async function StartPage({ searchParams }: Props) {
                    * a different one to get past a price is the sort of nudge
                    * §7.2 exists to keep out of this product.
                    */}
-                  {canBuild ? (
-                    <form action={buildFromConversationAction}>
-                      <Button type="submit">Build my plan</Button>
-                    </form>
-                  ) : (
-                    <>
-                      <Title>We don&rsquo;t run {unbuilt} yet</Title>
-                      {/*
-                        Said as a thing they have already had rather than a
-                        thing they were never offered. Free builds one custom
-                        subject, and somebody standing here has spent it — so
-                        "not part of your plan" would be false twice over: they
-                        do get one, and they got it.
-                      */}
-                      <Meta>
-                        We can build the whole course for it — the skills, the
-                        order they go in, and the graded briefs at the end — but
-                        you&rsquo;ve already had the custom subject your plan
-                        builds. Your answers stay here either way, and the
-                        button comes back the moment your plan covers another.
-                      </Meta>
-                      <ButtonLink href="/pricing" variant="text">
-                        See which plans build more
-                      </ButtonLink>
-                    </>
-                  )}
+                  <form action={buildFromConversationAction}>
+                    <Button type="submit">Build my plan</Button>
+                  </form>
                   <form action={restartAction}>
                     <button
                       type="submit"

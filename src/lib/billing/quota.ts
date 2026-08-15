@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { spendLedger } from "@/db/schema";
 import { periodOf } from "@/lib/ai/runlog";
-import { buildsCommissionedBy, hasCommissioned } from "@/lib/packs/build";
+import { buildsCommissionedBy } from "@/lib/packs/build";
 import { entitlementsForUser } from "./store";
 import type { PlanId } from "./catalog";
 
@@ -153,33 +153,54 @@ export async function buildAllowanceFor(
 }
 
 /**
- * Whether this learner may commission *this* subject — the whole question, in
- * one place, for the screen that offers the button and the actions behind it.
+ * Whether this learner may commission a pack at all.
  *
- * The allowance alone was the wrong question and it shipped as one. A free
- * account gets one custom subject ever; the count that meters it is a count of
- * build rows; and a build that *failed* leaves a row. So the learner whose one
- * build went wrong was told they had "already had the one custom subject your
- * plan builds" the moment they pressed Try again — refused the retry of the
- * very subject the quota had been spent on, with no way to spend it on
- * anything. §7.1's Generated tier had no working failure path on the tier that
- * needs it most.
- *
- * The quota is one custom *subject*, not one attempt at one, which is what
- * `startBuild`'s upsert already implements: a retry reuses the row, so the
- * count does not move and letting it through cannot overspend the allowance.
- *
- * Asked in this order deliberately — anybody with an allowance left never pays
- * for the ownership lookup, which is every learner on a paid plan and every
- * free learner's first build.
+ * It used to ask about a particular subject as well, so that a learner whose
+ * one build had failed could retry *that* one without it counting twice — the
+ * quota being one custom subject rather than one attempt at one. That branch is
+ * gone, and it is worth saying why rather than leaving a simpler function with
+ * no history: a stopped build is no longer the learner's to retry. It belongs
+ * to whoever is reading `/admin/packs`, who can see why it failed, and a free
+ * account that has commissioned its subject does not get the conversation back
+ * (`mayUseIntake`) — so the subject half of the question can never be reached.
  */
 export async function mayBuild(
   db: Db,
   userId: string,
-  slug: string,
   plan?: PlanId,
 ): Promise<boolean> {
-  if ((await buildAllowanceFor(db, userId, plan)).remaining > 0) return true;
+  return (await buildAllowanceFor(db, userId, plan)).remaining > 0;
+}
 
-  return hasCommissioned(db, userId, slug);
+/**
+ * Whether this learner may still use §8 screen 3's conversation at all.
+ *
+ * The free tier's shape, stated at the door rather than five questions in. A
+ * free account gets one custom subject; once it has commissioned it, the
+ * conversation has done the only thing it can do for them and everything it
+ * could do next costs money — a turn is a model call, and the button at the end
+ * commissions a ~£1 build the catalogue pays for.
+ *
+ * So the answer is the build allowance, asked before the first question rather
+ * than after the last. What used to happen instead was worse than a refusal: a
+ * free learner answered five questions, watched a plan appear, pressed "Build
+ * my plan" and *then* met a wall — and if their one build had failed, met it
+ * with nothing to show for the subject it had been spent on.
+ *
+ * Deliberately not a check on whether the build *worked*. A learner whose build
+ * failed is not offered another go here; the failure is the team's to retry
+ * (`/admin/packs`), and giving them a fresh conversation would let a failing
+ * subject be re-commissioned indefinitely at our expense.
+ *
+ * The form at `/start/form` is untouched by this, and that is the line: it
+ * resolves a pack we already have and creates a goal against it. No model call,
+ * no build, nothing to meter — so a free learner who has spent their subject can
+ * still start a course on anything in the catalogue.
+ */
+export async function mayUseIntake(
+  db: Db,
+  userId: string,
+  plan?: PlanId,
+): Promise<boolean> {
+  return (await buildAllowanceFor(db, userId, plan)).remaining > 0;
 }
