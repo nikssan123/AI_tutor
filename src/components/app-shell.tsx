@@ -3,6 +3,7 @@ import {
   cx,
   DisplayTitle,
   Lead,
+  Skeleton,
   stagger,
   Title,
 } from "@/components/ui";
@@ -228,6 +229,77 @@ export function AppHeader({
 
       {action}
     </header>
+  );
+}
+
+/**
+ * The instant loading state for an authenticated screen — what `loading.tsx`
+ * renders under `AppFrame` while the page itself is still being rendered.
+ *
+ * This exists for a navigation reason before a visual one. Everything under
+ * `(app)` is dynamic, and Next skips prefetching a dynamic route *unless it has
+ * a loading boundary* — "Dynamic Route: prefetching is skipped, or the route is
+ * partially prefetched if `loading.tsx` is present"
+ * (`next/dist/docs/01-app/01-getting-started/04-linking-and-navigating.md`).
+ * Without one, clicking a nav item did nothing at all until the server had
+ * finished the whole page: the rail stayed lit on the screen you were leaving,
+ * which reads as an app that did not hear the tap. With one, the click swaps to
+ * this immediately and the page streams in behind it.
+ *
+ * §8.5.5's rule holds: a skeleton matching the final layout, never a spinner.
+ * Which is why the title is *text* wherever the screen's heading is the same in
+ * every branch — `/today` is always "Today" — and a bar only where it genuinely
+ * varies with the data (`/progress` opens "Your week" or "The last seven days"
+ * depending on whether a course is running, and a heading that changes under
+ * you is worse than one that arrives late).
+ *
+ * No `rise`. The entry animation is for content arriving; running it on
+ * something built to be replaced in ~150ms gives you two fades in a row, and
+ * the first is a fade *onto* a placeholder.
+ */
+export function AppLoading({
+  title,
+  width = "wide",
+  bands = 2,
+}: {
+  /** The screen's real heading, where it does not depend on the data. */
+  title?: string;
+  /** Matches the page's own `AppFrame`, so the swap does not shift the column. */
+  width?: "wide" | "narrow" | "full";
+  /** How many scroll bands the screen has below its header. */
+  bands?: number;
+}) {
+  return (
+    <AppFrame width={width}>
+      {/* The header block `AppHeader` draws: heading, one lead line, and the
+          ruled row of facts under it. */}
+      <header className="flex flex-col gap-5">
+        {title ? (
+          <DisplayTitle>{title}</DisplayTitle>
+        ) : (
+          <Skeleton className="h-10 w-64 max-w-full" />
+        )}
+        <Skeleton className="h-5 w-full max-w-[var(--measure)]" />
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-hairline pt-5">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      </header>
+
+      {Array.from({ length: bands }, (_, band) => (
+        <Skeleton key={band} className="h-44" />
+      ))}
+
+      {/*
+       * The skeletons are `aria-hidden`, so without this a screen reader is
+       * handed a page with nothing on it and no reason why. `status` rather
+       * than `alert`: it is polite, and it is the truth about the screen rather
+       * than something that went wrong.
+       */}
+      <span role="status" className="sr-only">
+        Loading
+      </span>
+    </AppFrame>
   );
 }
 
