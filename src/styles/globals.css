@@ -369,6 +369,31 @@ body {
 }
 
 /*
+ * The card a link sent you to.
+ *
+ * `/account?confirm=1#email` is what the unconfirmed-address banner points at,
+ * and the fragment on its own only scrolls: it lands you on a page of seven
+ * cards with nothing saying which one you were sent for. This is the saying.
+ *
+ * A ring rather than a tint, because the card is already `bg-surface` and
+ * washing it accent would make the one card you were sent to the only one that
+ * looks like a different component. And no pulse: the element it lands on
+ * carries `.rise`, whose animation this would have to fight for the shorthand,
+ * and §8.5.6 asks state to cross-fade rather than perform.
+ *
+ * Unlayered, so it beats the `shadow-*` utility Card sets — Tailwind's
+ * utilities live in `@layer utilities` and any unlayered rule outranks them.
+ */
+.spotlight {
+  /* Room above it. Landing flush with the top of the viewport reads as a page
+     that scrolled too far, and on a phone the app bar is up there. */
+  scroll-margin-block: 1.5rem;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    var(--shadow-lifted);
+}
+
+/*
  * Anchors glide rather than teleport.
  *
  * The goal intake redirects to the newest turn after every answer, and a hard

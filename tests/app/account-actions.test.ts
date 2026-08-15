@@ -33,7 +33,14 @@ const api = {
 
 const requireUserMock = vi.fn();
 
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+const cookieSet = vi.fn();
+const refreshMock = vi.fn();
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ set: cookieSet }),
+}));
+vi.mock("next/cache", () => ({ refresh: () => refreshMock() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
 }));
@@ -66,6 +73,10 @@ vi.mock("@/db", async (importOriginal) => ({
 }));
 
 const actions = await import("@/app/(app)/account/actions");
+const { snoozeVerifyBannerAction } = await import("@/app/(app)/actions");
+const { VERIFY_SNOOZE_COOKIE, VERIFY_SNOOZE_SECONDS } = await import(
+  "@/lib/account/verify-banner"
+);
 const { requestResetAction } = await import(
   "@/app/(app)/forgot-password/actions"
 );
@@ -559,5 +570,55 @@ describe("rememberThemeAction", () => {
   it("touches updatedAt, so the row does not look untouched since sign-up", async () => {
     await actions.rememberThemeAction("light");
     expect(setMock.mock.calls[0]![0]).toHaveProperty("updatedAt");
+  });
+});
+
+/**
+ * The one action the `(app)` chrome owns rather than a screen inside it: the
+ * close on the unconfirmed-address banner.
+ */
+describe("snoozeVerifyBannerAction", () => {
+  it("puts the banner away for a week, site-wide", async () => {
+    await snoozeVerifyBannerAction();
+
+    expect(cookieSet).toHaveBeenCalledWith(
+      VERIFY_SNOOZE_COOKIE,
+      "1",
+      expect.objectContaining({ path: "/", maxAge: VERIFY_SNOOZE_SECONDS }),
+    );
+  });
+
+  it("snoozes rather than switches off — a week, not a decade", async () => {
+    // Confirming the address is what makes a password reset possible, so this
+    // has to come back before the account needs the reset it cannot have.
+    await snoozeVerifyBannerAction();
+
+    const { maxAge } = cookieSet.mock.calls[0]![2] as { maxAge: number };
+    expect(maxAge).toBe(60 * 60 * 24 * 7);
+  });
+
+  it("keeps the cookie out of reach of a script, like every other one we set", async () => {
+    await snoozeVerifyBannerAction();
+    expect(cookieSet.mock.calls[0]![2]).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+    });
+  });
+
+  it("refreshes the router, so the banner goes on the click", async () => {
+    // Without JavaScript the browser's own POST re-renders the page. With it,
+    // the router has to be told or the banner sits there until you navigate.
+    await snoozeVerifyBannerAction();
+    expect(refreshMock).toHaveBeenCalledOnce();
+  });
+
+  it("writes nothing for a caller with no session", async () => {
+    // A Server Action is a public endpoint, whatever the button next to it
+    // looks like.
+    requireUserMock.mockRejectedValue(new Error("no session"));
+
+    await expect(snoozeVerifyBannerAction()).rejects.toThrow();
+    expect(cookieSet).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });

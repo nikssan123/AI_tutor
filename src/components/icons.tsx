@@ -170,6 +170,20 @@ export function ArrowIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * Closing something that put itself in front of you — currently the
+ * unconfirmed-address banner, which snoozes rather than disappears.
+ *
+ * Decorative like the rest of the set: the button around it carries the words.
+ */
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Svg>
+  );
+}
+
 /* ── Subject icons ──────────────────────────────────────────────────────── */
 
 /** Writing and communication. */

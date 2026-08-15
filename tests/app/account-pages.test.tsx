@@ -14,7 +14,13 @@ const requireUserMock = vi.fn();
 const currentUserMock = vi.fn();
 const currentSessionMock = vi.fn();
 
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+/** Whether this browser has already put the unconfirmed-address banner away. */
+const snoozed = vi.fn((_name: string) => false);
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ has: (name: string) => snoozed(name) }),
+}));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
@@ -69,6 +75,7 @@ beforeEach(() => {
   currentSessionMock.mockResolvedValue(null);
   listUserAccounts.mockResolvedValue(credential);
   googleEnabledMock.mockReturnValue(false);
+  snoozed.mockReturnValue(false);
 });
 
 afterEach(cleanup);
@@ -217,6 +224,59 @@ describe("/account — email", () => {
     requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
     render(await AccountPage({ searchParams: search({}) }));
     expect(screen.getByText(/link to the new address/i)).toBeDefined();
+  });
+
+  it("keeps the resend a text button, like every other control in a card", async () => {
+    // It was filled for a while, on the argument that the banner points at it.
+    // §8.5.5's one fill per screen belongs to Save; a second one inside a card
+    // made that card shout at a page of quiet ones.
+    //
+    // Asserting on `text-on-accent` rather than `bg-accent`, because the text
+    // variant carries `hover:bg-accent-weak` — `bg-accent` is a substring of it
+    // and the negative assertion would pass on a filled button too.
+    requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    render(await AccountPage({ searchParams: search({}) }));
+
+    const button = screen.getByRole("button", {
+      name: "Send me a confirmation code",
+    });
+    expect(button.className).toContain("bg-transparent");
+    expect(button.className).toContain("text-accent");
+    expect(button.className).not.toContain("text-on-accent");
+  });
+
+  it("rings the Email card when the banner is what sent you here", async () => {
+    // `/account?confirm=1#email`. The fragment scrolls; this is what says which
+    // card you were sent for, on a screen of seven.
+    requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    const { container } = render(
+      await AccountPage({ searchParams: search({ confirm: "1" }) }),
+    );
+
+    const card = container.querySelector("#email");
+    expect(card).not.toBeNull();
+    expect(card!.className).toContain("spotlight");
+  });
+
+  it("leaves the card unrung when nobody sent you", async () => {
+    requireUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    const { container } = render(
+      await AccountPage({ searchParams: search({}) }),
+    );
+    expect(container.querySelector("#email")!.className).not.toContain(
+      "spotlight",
+    );
+  });
+
+  it("drops the ring if the address was confirmed on the way here", async () => {
+    // Another tab, or a code typed a minute ago. A ring around "Confirmed" is
+    // the page pointing at nothing.
+    const { container } = render(
+      await AccountPage({ searchParams: search({ confirm: "1" }) }),
+    );
+    expect(container.querySelector("#email")!.className).not.toContain(
+      "spotlight",
+    );
   });
 });
 
@@ -396,9 +456,53 @@ describe("the (app) chrome", () => {
     expect(screen.getByText("Confirm it")).toBeDefined();
   });
 
+  it("points at the control it means, not just at the page", async () => {
+    // A bare `/account` was a click that did nothing at all when the banner
+    // was read from /account itself — which is where it sends people.
+    currentUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    render(await AppLayout({ children: <p>child</p> }));
+
+    expect(screen.getByText("Confirm it").getAttribute("href")).toBe(
+      "/account?confirm=1#email",
+    );
+  });
+
+  it("can be put away, through a form rather than a script", async () => {
+    // This segment ships no client JavaScript, so the close has to be a POST.
+    currentUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    render(await AppLayout({ children: <p>child</p> }));
+
+    const close = screen.getByRole("button", { name: /hide this for a week/i });
+    expect(close.closest("form")).not.toBeNull();
+  });
+
+  it("stays put away for the week it promised", async () => {
+    currentUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    snoozed.mockReturnValue(true);
+    render(await AppLayout({ children: <p>child</p> }));
+
+    expect(screen.queryByText(/address isn.t confirmed/i)).toBeNull();
+  });
+
+  it("reads the snooze cookie by the name the action writes", async () => {
+    // Two spellings of one cookie is a close button that closes nothing.
+    const { VERIFY_SNOOZE_COOKIE } = await import(
+      "@/lib/account/verify-banner"
+    );
+    currentUserMock.mockResolvedValue({ ...USER, emailVerified: false });
+    render(await AppLayout({ children: <p>child</p> }));
+
+    expect(snoozed).toHaveBeenCalledWith(VERIFY_SNOOZE_COOKIE);
+  });
+
   it("stays quiet once the address is confirmed", async () => {
     render(await AppLayout({ children: <p>child</p> }));
     expect(screen.queryByText(/address isn.t confirmed/i)).toBeNull();
+  });
+
+  it("does not open the jar for an account with nothing to nudge", async () => {
+    render(await AppLayout({ children: <p>child</p> }));
+    expect(snoozed).not.toHaveBeenCalled();
   });
 });
 

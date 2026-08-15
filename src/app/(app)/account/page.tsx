@@ -17,6 +17,7 @@ import {
   Button,
   ButtonLink,
   Card,
+  cx,
   Field,
   Meta,
   SelectField,
@@ -62,6 +63,23 @@ import {
  * unaffected: nothing here is prose, and the two cards that do hold a real form
  * split their own fields into two columns rather than stretching an input to
  * 976px.
+ *
+ * ## Why Profile and Email are the wide ones
+ *
+ * They are the two with a form in them, and that is the whole rule.
+ *
+ * Email was a normal half-width card until the password change moved to the
+ * inbox. That took two fields out of the Password card and left it a sentence
+ * and one text button — about 215px of card in a row whose other half, Email,
+ * was still 415px of address, state, resend and a change form. A grid row is as
+ * tall as its tallest cell, so the right column held ~230px of nothing between
+ * the Password card's bottom edge and the row below it: a hole in the middle of
+ * the page, which reads as something that failed to render.
+ *
+ * Widening Email fixes it at the cause rather than padding the symptom. Every
+ * card left in the grid is now the same shape — a title, a sentence, a control
+ * — so they pair off at roughly equal heights and any space left over is at the
+ * end of the last row, where the page was going to stop anyway.
  */
 export const metadata: Metadata = {
   title: "Account",
@@ -72,7 +90,9 @@ export const metadata: Metadata = {
 const CREDENTIAL = "credential";
 const GOOGLE = "google";
 
-type Props = { searchParams: Promise<{ ok?: string; error?: string }> };
+type Props = {
+  searchParams: Promise<{ ok?: string; error?: string; confirm?: string }>;
+};
 
 /**
  * The pair-up. Cards flow into it in source order, so the two that carry real
@@ -92,7 +112,21 @@ const grid = "grid items-start gap-6 sm:grid-cols-2";
 
 export default async function AccountPage({ searchParams }: Props) {
   const user = await requireUser();
-  const { ok, error } = await searchParams;
+  const { ok, error, confirm } = await searchParams;
+
+  /*
+   * Sent here by the unconfirmed-address banner.
+   *
+   * The banner's link used to be a bare `/account`, which from /account itself
+   * — where the banner is also drawn — was a click that did nothing at all.
+   * The fragment scrolls the Email card up; this rings it, so the control the
+   * banner meant is the one thing on the screen wearing a border.
+   *
+   * `emailVerified` is in the condition because the address can be confirmed
+   * between the click and the render — in another tab, or by a code typed a
+   * minute ago — and a ring around "Confirmed" is a page pointing at nothing.
+   */
+  const spotlight = Boolean(confirm) && !user.emailVerified;
 
   const accounts = await getAuth().api.listUserAccounts({
     headers: await headers(),
@@ -193,7 +227,19 @@ export default async function AccountPage({ searchParams }: Props) {
         </Card>
 
         {/* ── Email ──────────────────────────────────────────────────────── */}
-        <Card className="rise flex flex-col gap-6" style={stagger(2)}>
+        {/* `id` is the banner's target. It is not on the address input, which
+            already owns `newEmail`: the thing being pointed at is the card, and
+            an anchor on a field inside it would scroll past the state and the
+            resend to land on "Change it" — the one control in here that is not
+            what the banner meant. */}
+        <Card
+          id="email"
+          className={cx(
+            "rise flex flex-col gap-6 sm:col-span-2",
+            spotlight && "spotlight",
+          )}
+          style={stagger(2)}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Title>Email</Title>
             {user.emailVerified ? (
@@ -203,55 +249,93 @@ export default async function AccountPage({ searchParams }: Props) {
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-[length:var(--text-label-size)] font-[550] text-ink">
-              {user.email}
-            </span>
-            {user.emailVerified ? (
-              <Meta>We can send you a password reset if you ever need one.</Meta>
-            ) : (
-              <Meta>
-                Until you confirm this address, we cannot send you a password
-                reset.
-              </Meta>
-            )}
-          </div>
+          {/*
+           * Two columns, like Profile, and for the same reason turned around.
+           *
+           * This card holds a form, so it is one of the two that has something
+           * to fill a wide row with. Everything else on the screen is a
+           * sentence and a control. Left is the address you have and what we
+           * can do with it; right is the address you want instead.
+           */}
+          <div className={grid}>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <span className="text-[length:var(--text-label-size)] font-[550] text-ink">
+                  {user.email}
+                </span>
+                {user.emailVerified ? (
+                  <Meta>
+                    We can send you a password reset if you ever need one.
+                  </Meta>
+                ) : (
+                  <Meta>
+                    Until you confirm this address, we cannot send you a
+                    password reset.
+                  </Meta>
+                )}
+              </div>
 
-          {user.emailVerified ? null : (
-            <form action={resendVerificationAction}>
-              <Button variant="text" type="submit">
-                Send me a confirmation code
-              </Button>
-            </form>
-          )}
-
-          <form
-            action={changeEmailAction}
-            className="flex flex-col gap-3 border-t border-hairline pt-6"
-          >
-            <Field
-              label="Change it"
-              name="newEmail"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              hint={
-                user.emailVerified
-                  ? "We'll email your current address to approve the change. Nothing changes until you do."
-                  : "We'll send a confirmation link to the new address."
-              }
-              required
-            />
-            <div>
-              <Button variant="text" type="submit">
-                Change email
-              </Button>
+              {user.emailVerified ? null : (
+                <form action={resendVerificationAction}>
+                  {/*
+                   * A text button, like every other secondary control here —
+                   * and deliberately so. This was filled for a while, on the
+                   * argument that a resend is what the banner has been
+                   * pointing at, and it went back on Nikolay's call. The text
+                   * variant is the decision made *after* that round, not the
+                   * state that preceded it.
+                   *
+                   * §8.5.5's one filled button belongs to Save: this is
+                   * something you do to the account, not the reason you opened
+                   * the screen, and a second fill inside a card made the card
+                   * shout at a page of quiet ones. Being findable is carried
+                   * by the two things above it instead — the banner on every
+                   * screen, and the ring this card wears when the banner is
+                   * what sent you.
+                   */}
+                  <Button variant="text" type="submit">
+                    Send me a confirmation code
+                  </Button>
+                </form>
+              )}
             </div>
-          </form>
+
+            {/* The rule is the divider only while the columns are stacked. Side
+                by side they are two labelled things a gutter apart, which is
+                what the gutter is for. */}
+            <form
+              action={changeEmailAction}
+              className="flex flex-col gap-3 border-t border-hairline pt-6 sm:border-t-0 sm:pt-0"
+            >
+              <Field
+                label="Change it"
+                name="newEmail"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                hint={
+                  user.emailVerified
+                    ? "We'll email your current address to approve the change. Nothing changes until you do."
+                    : "We'll send a confirmation link to the new address."
+                }
+                required
+              />
+              <div>
+                <Button variant="text" type="submit">
+                  Change email
+                </Button>
+              </div>
+            </form>
+          </div>
         </Card>
 
-        {/* ── Password ───────────────────────────────────────────────────── */}
-        <Card className="rise flex flex-col gap-6" style={stagger(3)}>
+        {/* ── Password ─────────────────────────────────────────────────────
+         * `gap-4`, not the `gap-6` this had while it was a form. Emailing a
+         * link left it a sentence and a control, which is the shape Google,
+         * Appearance, Billing and Signing out all have — so it takes their
+         * spacing too and the row it sits in comes out level.
+         */}
+        <Card className="rise flex flex-col gap-4" style={stagger(3)}>
           <Title>Password</Title>
 
           {hasPassword ? (
