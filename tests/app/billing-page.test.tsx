@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { CANCELLATION_REASONS } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
+import { PLAN_COPY } from "@/lib/billing/plan-copy";
 
 /**
  * `/account/billing`.
@@ -97,22 +98,71 @@ describe("what you are on", () => {
     expect(screen.getByText(/renews 20 August/)).toBeTruthy();
   });
 
-  it("says what is left this month", async () => {
+  it("makes what is left the loudest thing on the screen", async () => {
     remainingMock.mockResolvedValue(7);
-    usedMock.mockResolvedValue(3);
     await renderPage();
 
-    expect(screen.getByText(/7 of 10 graded projects left this month/)).toBeTruthy();
-    expect(screen.getByText(/Used 3 so far/)).toBeTruthy();
+    // The `Figure` — the one number a learner opens this page to check.
+    expect(screen.getByText("7")).toBeTruthy();
+    expect(screen.getByText("of 10")).toBeTruthy();
+    expect(screen.getByText("graded projects left this month")).toBeTruthy();
   });
 
   it("says so plainly when the month is spent", async () => {
     remainingMock.mockResolvedValue(0);
-    usedMock.mockResolvedValue(10);
     await renderPage();
 
     expect(
       screen.getByText(/used all 10 of this month's graded projects/),
+    ).toBeTruthy();
+  });
+
+  it("says when the count starts again", async () => {
+    // Not "monthly": somebody who has just run out has to know whether that
+    // means days or weeks.
+    remainingMock.mockResolvedValue(0);
+    await renderPage();
+
+    const reset = new Date();
+    const next = new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "long",
+    }).format(
+      new Date(Date.UTC(reset.getUTCFullYear(), reset.getUTCMonth() + 1, 1)),
+    );
+
+    expect(
+      screen.getByText(new RegExp(`count starts again on ${next}`)),
+    ).toBeTruthy();
+  });
+
+  it("does not meter what it does not meter", async () => {
+    // Pro puts no ceiling on sessions, so the flat claim is true here.
+    await renderPage();
+    expect(
+      screen.getByText(/Lessons, practice and the tutor are not metered/),
+    ).toBeTruthy();
+  });
+
+  it("does not tell a capped plan its sessions are unmetered", async () => {
+    // Free is three learning sessions a month. Telling somebody their sessions
+    // are unmetered and then turning them away on the fourth is the worst way
+    // to get this wrong, so the sentence reads the plan rather than asserting
+    // over all of them.
+    entitlementsMock.mockResolvedValue(
+      resolved({ planId: "free", entitlements: PLANS.free.entitlements, source: "plan" }),
+    );
+    subscriptionMock.mockResolvedValue(undefined);
+    remainingMock.mockResolvedValue(1);
+    await renderPage();
+
+    expect(document.body.textContent).not.toMatch(/the tutor are not metered/);
+    expect(
+      screen.getByText(
+        new RegExp(
+          `Free also covers ${PLANS.free.entitlements.sessionsPerMonth} learning sessions a month`,
+        ),
+      ),
     ).toBeTruthy();
   });
 
@@ -122,7 +172,6 @@ describe("what you are on", () => {
     );
     subscriptionMock.mockResolvedValue(undefined);
     remainingMock.mockResolvedValue(0);
-    usedMock.mockResolvedValue(1);
     await renderPage();
 
     expect(
@@ -138,7 +187,20 @@ describe("what you are on", () => {
     remainingMock.mockResolvedValue(1);
     await renderPage();
 
-    expect(screen.getByText(/1 of 1 graded project left this month/)).toBeTruthy();
+    expect(screen.getByText("graded project left this month")).toBeTruthy();
+  });
+
+  it("lists what the plan actually includes", async () => {
+    // Read from `PLAN_COPY`, so a card that claims a quota the meter does not
+    // allow fails here rather than in a refund.
+    await renderPage();
+
+    expect(
+      screen.getByRole("heading", { name: "What Pro gives you" }),
+    ).toBeTruthy();
+    for (const feature of PLAN_COPY.pro.features) {
+      expect(screen.getByText(feature)).toBeTruthy();
+    }
   });
 
   it("tells a free account it is free, and points at the plans", async () => {
@@ -162,17 +224,49 @@ describe("what you are on", () => {
     expect(screen.getByText(/€199 a year/)).toBeTruthy();
   });
 
-  it("does not say 'used 0 so far'", async () => {
-    await renderPage();
-    expect(document.body.textContent).not.toMatch(/Used 0 so far/);
-  });
-
   it("explains a referral grant as costing nothing", async () => {
     entitlementsMock.mockResolvedValue(resolved({ source: "grant" }));
     subscriptionMock.mockResolvedValue(undefined);
     await renderPage();
 
     expect(screen.getByText(/from a referral/)).toBeTruthy();
+  });
+
+  it("still says when it renews if the currency is one we do not sell in", async () => {
+    // The column is plain text written from Stripe. Dropping the money is the
+    // right failure — the date is still true, and still what somebody came for.
+    subscriptionMock.mockResolvedValue(subscription({ currency: "gbp" }));
+    await renderPage();
+
+    expect(screen.getByText("renews 20 August")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Free, for as long as/);
+  });
+});
+
+describe("a payment that failed", () => {
+  beforeEach(() => {
+    subscriptionMock.mockResolvedValue(subscription({ status: "past_due" }));
+  });
+
+  it("says nothing has stopped yet, and what to do", async () => {
+    // §5's fourteen-day grace: the card failed, the account still works. The
+    // useful thing this screen can do is say so before it stops.
+    await renderPage();
+
+    expect(
+      screen.getByRole("heading", { name: /last payment did not go through/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Update your card" })).toBeTruthy();
+  });
+
+  it("is the one state that gets the filled button", async () => {
+    await renderPage();
+
+    const filled = screen
+      .getAllByRole("button")
+      .filter((b) => b.className.includes("text-on-accent"));
+    expect(filled).toHaveLength(1);
+    expect(filled[0]!.textContent).toBe("Update your card");
   });
 });
 

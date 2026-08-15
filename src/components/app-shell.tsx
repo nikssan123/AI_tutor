@@ -35,6 +35,17 @@ import { Wordmark } from "@/components/logo";
  * replaces is not "pick a width per page"; it is "pick one of two, for a
  * stated reason".
  *
+ * **Which is why `wide` is the default, and a new screen should leave it
+ * alone.** `narrow` is for a screen that is *one task* — a form you fill in,
+ * a question you answer. It is not for a screen that happens to be short.
+ * `/account` and `/account/billing` both shipped `narrow` and both had to be
+ * fixed for the same fault: a handful of cards, each a title and one control,
+ * stacked one per row in a 624px column, leaving ~350px of dead gutter either
+ * side of a page three viewports tall. A page made of several cards goes
+ * `wide` and pairs them into a grid; a page made of one form stays `narrow`.
+ * If a `wide` page then looks empty, the answer is the card layout, not the
+ * column width.
+ *
  * `pb-28` clears the mobile bottom bar, which is `fixed` and would otherwise
  * sit on top of the last thing on every page.
  */

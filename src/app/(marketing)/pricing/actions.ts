@@ -32,7 +32,23 @@ import { localeOf } from "@/lib/i18n/locales";
 
 export async function setCurrencyAction(formData: FormData): Promise<void> {
   const wanted = String(formData.get("currency") ?? "");
-  if (!isCurrency(wanted)) redirect("/pricing");
+
+  /*
+   * Which of the two price views to come back to.
+   *
+   * Currency lives in a cookie and the billing interval lives in the URL, so a
+   * POST that redirected to a bare `/pricing` silently returned a reader who
+   * was looking at yearly prices to the monthly ones — they pressed EUR and the
+   * page answered by undoing a different choice. Carried as a hidden field
+   * rather than read from a header, because the referer is not something to
+   * build behaviour on.
+   */
+  const back =
+    String(formData.get("interval") ?? "") === "year"
+      ? "/pricing?interval=year"
+      : "/pricing";
+
+  if (!isCurrency(wanted)) redirect(back);
 
   const jar = await cookies();
   jar.set(CURRENCY_COOKIE, wanted, {
@@ -44,7 +60,7 @@ export async function setCurrencyAction(formData: FormData): Promise<void> {
     path: "/",
   });
 
-  redirect("/pricing");
+  redirect(back);
 }
 
 /**

@@ -109,6 +109,25 @@ describe("setCurrencyAction", () => {
     );
   });
 
+  it("comes back to the view the reader was looking at", async () => {
+    // Currency is a cookie and the billing interval is in the URL, so a bare
+    // `/pricing` answered "I want euros" by also undoing "I want to see the
+    // year". Both the accepted and the refused path have to carry it.
+    await expect(
+      setCurrencyAction(form({ currency: "eur", interval: "year" })),
+    ).rejects.toThrow("REDIRECT:/pricing?interval=year");
+
+    await expect(
+      setCurrencyAction(form({ currency: "gbp", interval: "year" })),
+    ).rejects.toThrow("REDIRECT:/pricing?interval=year");
+  });
+
+  it("ignores an interval it does not recognise", async () => {
+    await expect(
+      setCurrencyAction(form({ currency: "eur", interval: "decade" })),
+    ).rejects.toThrow("REDIRECT:/pricing");
+  });
+
   it("ignores a form with no currency field at all", async () => {
     // `formData.get` returns null, not "", when the field is absent.
     await expect(setCurrencyAction(form({}))).rejects.toThrow(
