@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { masteryFromCheck, parseGoalForm } from "@/lib/goals/intake";
+import {
+  CUSTOM_SUBJECT,
+  customSubjectFrom,
+  masteryFromCheck,
+  parseCustomGoalForm,
+  parseGoalForm,
+} from "@/lib/goals/intake";
 import { STATED_CLARITY } from "@/lib/contracts/goal";
 import { encode, toDiagnostic } from "@/lib/check/session";
 import { findPack } from "@/lib/content";
@@ -103,6 +109,107 @@ describe("parseGoalForm", () => {
       pack,
     );
     expect(result.ok && result.spec.motivation.length).toBe(500);
+  });
+});
+
+describe("customSubjectFrom", () => {
+  it("reads the box only when the radio beside it is the one chosen", () => {
+    /*
+     * The box is revealed by its radio in CSS, but a box filled in and then
+     * hidden again is still submitted — so someone who types "Rust", thinks
+     * better of it and picks Photography sends both. The list is the answer.
+     */
+    expect(
+      customSubjectFrom(form({ topic: "photography", customSubject: "Rust" })),
+    ).toBe("");
+    expect(
+      customSubjectFrom(form({ topic: CUSTOM_SUBJECT, customSubject: "Rust" })),
+    ).toBe("Rust");
+  });
+
+  it("treats an empty box as no subject at all", () => {
+    expect(customSubjectFrom(form({ topic: CUSTOM_SUBJECT }))).toBe("");
+    expect(
+      customSubjectFrom(form({ topic: CUSTOM_SUBJECT, customSubject: "   " })),
+    ).toBe("");
+  });
+
+  it("bounds what a slug and a stored subject can hold", () => {
+    // `maxLength` on the input is a courtesy; nothing sent to a server is a
+    // control, and `CapturedGoal.subject` stops at 120.
+    const long = customSubjectFrom(
+      form({ topic: CUSTOM_SUBJECT, customSubject: "z".repeat(400) }),
+    );
+    expect(long.length).toBe(120);
+  });
+});
+
+describe("parseCustomGoalForm", () => {
+  it("fills the intake the wait screen will adopt from", () => {
+    const result = parseCustomGoalForm(
+      form({ ...valid, deadline: "2026-12-01", motivation: "job in March" }),
+      "Rust",
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.intake.captured).toMatchObject({
+      subject: "Rust",
+      // Nothing to match: the caller has already looked and found nothing.
+      matchedPack: null,
+      outcomeType: "career",
+      statedLevel: "beginner",
+      weeklyHours: 4,
+      deadline: "2026-12-01",
+      motivation: "job in March",
+    });
+    // Nothing was inferred — every field was asked for directly — and there is
+    // nothing left to ask, which is what lets `/start` offer the build button
+    // over a conversation that never happened.
+    expect(result.intake.clarity).toBe(STATED_CLARITY);
+    expect(result.intake.done).toBe(true);
+    expect(result.intake.packSlug).toBeNull();
+  });
+
+  it("keeps the learner's own words as the opening line", () => {
+    // `GoalSpec.rawGoal` promises to store what they wrote verbatim, and
+    // `rawGoalFrom` reads it back off the first thing they said.
+    const result = parseCustomGoalForm(
+      form({ ...valid, rawGoal: "write a kernel module without fear" }),
+      "Rust",
+    );
+
+    expect(result.ok && result.intake.messages).toEqual([
+      { r: "l", t: "write a kernel module without fear" },
+    ]);
+  });
+
+  it("writes a plain sentence when they left that blank", () => {
+    const result = parseCustomGoalForm(form(valid), "Rust");
+    expect(result.ok && result.intake.messages[0]!.t).toBe("Get good at rust");
+  });
+
+  it("quotes nobody, because a form has nothing to quote", () => {
+    // The `*Said` fields exist so the sidebar can repeat a learner's own
+    // wording back. Here the wording is ours: they picked it off our list.
+    const result = parseCustomGoalForm(form(valid), "Rust");
+    expect(result.ok && result.intake.captured).toMatchObject({
+      levelSaid: null,
+      weeklyHoursSaid: null,
+      deadlineSaid: null,
+    });
+  });
+
+  it.each([
+    ["a nonsense budget", { weeklyHours: "41" }, /Weekly hours/],
+    ["an unknown level", { statedLevel: "godlike" }, /starting from/],
+    ["an unknown outcome", { outcomeType: "vibes" }, /what this is for/i],
+    ["a hand-typed deadline", { deadline: "next tuesday" }, /deadline/i],
+  ])("rejects %s before anything is built", (_label, patch, message) => {
+    const result = parseCustomGoalForm(form({ ...valid, ...patch }), "Rust");
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatch(message);
   });
 });
 

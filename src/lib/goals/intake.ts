@@ -10,6 +10,8 @@ import { decode, replay, toDiagnostic } from "@/lib/check/session";
 import type { DomainPack } from "@/lib/packs/types";
 import type { MasteryState } from "@/lib/engine";
 import { subjectInProse } from "@/lib/subject-name";
+import { CapturedGoal } from "./analyzer";
+import type { Intake } from "./intake-store";
 
 /**
  * §24 E3 — goal intake, deterministically.
@@ -27,6 +29,37 @@ import { subjectInProse } from "@/lib/subject-name";
  */
 
 /**
+ * The subject radio's "not one of these" value, and the box that goes with it.
+ *
+ * §7.1's Generated tier is the whole reason the conversation accepts anything
+ * at all, and the form is the same intake with the model taken out — so it
+ * takes anything too. Two underscores because a pack slug cannot contain one:
+ * this value shares a field with real slugs, and a sentinel that could also be
+ * a pack is one that collides with a pack eventually.
+ */
+export const CUSTOM_SUBJECT = "__other";
+
+/** What `CapturedGoal.subject` holds, which is where a typed one ends up. */
+export const MAX_CUSTOM_SUBJECT = 120;
+
+/**
+ * The subject they typed, and nothing at all unless they also chose it.
+ *
+ * The box is revealed by its own radio in CSS, so it cannot be *filled in* for
+ * a subject that is not selected — but a box filled in and then hidden again is
+ * still submitted, so somebody who types "Rust", thinks better of it and picks
+ * Photography sends both. Reading the field only when the radio names it keeps
+ * the list the answer and the box a detail of one row.
+ */
+export function customSubjectFrom(form: FormData): string {
+  if (String(form.get("topic") ?? "") !== CUSTOM_SUBJECT) return "";
+
+  return String(form.get("customSubject") ?? "")
+    .trim()
+    .slice(0, MAX_CUSTOM_SUBJECT);
+}
+
+/**
  * What the learner typed, kept verbatim; the form's own words otherwise.
  *
  * Bounded here rather than left to the schema so that an over-long goal is
@@ -34,12 +67,67 @@ import { subjectInProse } from "@/lib/subject-name";
  * field nothing reads yet. The `maxLength` on the input is a courtesy; it is
  * not a control, because nothing sent to a server is.
  */
-function rawGoalFor(form: FormData, pack: DomainPack): string {
+function rawGoalFor(form: FormData, subject: string): string {
   const typed = String(form.get("rawGoal") ?? "").trim();
   return typed.length > 0
     ? typed.slice(0, 500)
-    : `Get good at ${subjectInProse(pack.name)}`;
+    : `Get good at ${subjectInProse(subject)}`;
 }
+
+/**
+ * The fields that are the same question whatever the subject turns out to be.
+ *
+ * Shared by the two parsers below rather than written twice, for the reason
+ * `GoalSpec` is shared by the form and the conversation: a subject we have and
+ * a subject we are about to write are not two different intakes, and three
+ * validation rules kept in two places drift.
+ */
+type Answers = {
+  hours: number;
+  level: StatedLevel;
+  outcome: OutcomeType;
+  deadline: string | null;
+  motivation: string;
+};
+
+type AnswersResult =
+  | { ok: true; answers: Answers }
+  | { ok: false; error: string };
+
+function answersFrom(form: FormData): AnswersResult {
+  const hours = Number(form.get("weeklyHours"));
+  if (!Number.isFinite(hours) || hours < MIN_WEEKLY_HOURS || hours > MAX_WEEKLY_HOURS) {
+    return {
+      ok: false,
+      error: `Weekly hours must be a number between ${MIN_WEEKLY_HOURS} and ${MAX_WEEKLY_HOURS}.`,
+    };
+  }
+
+  const level = StatedLevel.safeParse(form.get("statedLevel"));
+  if (!level.success) return { ok: false, error: "Pick where you're starting from." };
+
+  const outcome = OutcomeType.safeParse(form.get("outcomeType"));
+  if (!outcome.success) return { ok: false, error: "Pick what this is for." };
+
+  const rawDeadline = String(form.get("deadline") ?? "").trim();
+
+  return {
+    ok: true,
+    answers: {
+      hours,
+      level: level.data,
+      outcome: outcome.data,
+      deadline: rawDeadline.length > 0 ? rawDeadline : null,
+      motivation: String(form.get("motivation") ?? "").trim().slice(0, 500),
+    },
+  };
+}
+
+/**
+ * The one field neither parser can check itself: a date input hands back a real
+ * ISO date, and a hand-typed one hands back anything.
+ */
+const BAD_DEADLINE = "That deadline isn't a date we can read.";
 
 export type GoalFormResult =
   | { ok: true; spec: GoalSpec }
@@ -56,44 +144,95 @@ export function parseGoalForm(
   form: FormData,
   pack: DomainPack,
 ): GoalFormResult {
-  const hours = Number(form.get("weeklyHours"));
-  if (!Number.isFinite(hours) || hours < MIN_WEEKLY_HOURS || hours > MAX_WEEKLY_HOURS) {
-    return {
-      ok: false,
-      error: `Weekly hours must be a number between ${MIN_WEEKLY_HOURS} and ${MAX_WEEKLY_HOURS}.`,
-    };
-  }
-
-  const level = StatedLevel.safeParse(form.get("statedLevel"));
-  if (!level.success) return { ok: false, error: "Pick where you're starting from." };
-
-  const outcome = OutcomeType.safeParse(form.get("outcomeType"));
-  if (!outcome.success) return { ok: false, error: "Pick what this is for." };
-
-  const rawDeadline = String(form.get("deadline") ?? "").trim();
-  const deadline = rawDeadline.length > 0 ? rawDeadline : null;
+  const parsed = answersFrom(form);
+  if (!parsed.ok) return parsed;
+  const { answers } = parsed;
 
   const spec = GoalSpec.safeParse({
-    rawGoal: rawGoalFor(form, pack),
+    rawGoal: rawGoalFor(form, pack.name),
     domain: pack.slug,
     targetOutcome: pack.name,
-    outcomeType: outcome.data,
-    statedLevel: level.data,
-    weeklyHours: hours,
-    deadline,
-    motivation: String(form.get("motivation") ?? "").trim().slice(0, 500),
+    outcomeType: answers.outcome,
+    statedLevel: answers.level,
+    weeklyHours: answers.hours,
+    deadline: answers.deadline,
+    motivation: answers.motivation,
     constraints: [],
     existingAssets: [],
     clarity: STATED_CLARITY,
   });
 
-  if (!spec.success) {
-    // The only field left that can fail is the deadline, which arrives from a
-    // date input and so is either a real ISO date or something hand-typed.
-    return { ok: false, error: "That deadline isn't a date we can read." };
-  }
+  if (!spec.success) return { ok: false, error: BAD_DEADLINE };
 
   return { ok: true, spec: spec.data };
+}
+
+export type CustomGoalResult =
+  | { ok: true; intake: Intake }
+  | { ok: false; error: string };
+
+/**
+ * The same form, for a subject we do not have yet.
+ *
+ * It cannot produce a `GoalSpec`, because a spec names a pack and the pack is
+ * about to be written. What it produces instead is the intake the conversation
+ * would have left behind — which is what the wait screen adopts from when the
+ * build lands, and what `/start` renders if the build is refused or fails. The
+ * alternative was a second store for form answers, and then two ways to turn a
+ * finished build into a goal.
+ *
+ * `clarity` is `STATED_CLARITY` for the reason the form's own spec is: nothing
+ * here was inferred. Every field was asked for directly and answered directly.
+ */
+export function parseCustomGoalForm(
+  form: FormData,
+  subject: string,
+): CustomGoalResult {
+  const parsed = answersFrom(form);
+  if (!parsed.ok) return parsed;
+  const { answers } = parsed;
+
+  const captured = CapturedGoal.safeParse({
+    subject,
+    // Nothing to match: the caller has already looked, and this is what it
+    // found nothing for.
+    matchedPack: null,
+    outcomeType: answers.outcome,
+    statedLevel: answers.level,
+    weeklyHours: answers.hours,
+    deadline: answers.deadline,
+    motivation: answers.motivation,
+    constraints: [],
+    existingAssets: [],
+    priorDomain: null,
+    // The three `*Said` fields stay empty on purpose. They exist so the
+    // sidebar can quote a learner instead of paraphrasing them, and a form
+    // has nothing to quote — they picked our wording off our own list.
+    levelSaid: null,
+    weeklyHoursSaid: null,
+    deadlineSaid: null,
+  });
+
+  if (!captured.success) return { ok: false, error: BAD_DEADLINE };
+
+  return {
+    ok: true,
+    intake: {
+      /*
+       * Their own words as the opening line, because that is where
+       * `rawGoalFrom` looks for them — `GoalSpec.rawGoal` promises to store
+       * what the learner wrote verbatim, and a form answer thrown away here
+       * would come back as "Get good at rust" once the pack is built.
+       */
+      messages: [{ r: "l", t: rawGoalFor(form, subject) }],
+      captured: captured.data,
+      chips: [],
+      clarity: STATED_CLARITY,
+      // There is nothing left to ask. The form asked all of it.
+      done: true,
+      packSlug: null,
+    },
+  };
 }
 
 /**

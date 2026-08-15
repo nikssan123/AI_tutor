@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { allTopics } from "@/lib/content";
 import { answeredTopics } from "@/lib/check/session";
+import { CUSTOM_SUBJECT, MAX_CUSTOM_SUBJECT } from "@/lib/goals/intake";
 import { SubjectIcon } from "@/components/icons";
 import {
   Button,
@@ -45,15 +46,24 @@ const LEVELS = [
   { value: "advanced", label: "Experienced, filling gaps" },
 ];
 
-type Props = { searchParams: Promise<{ error?: string }> };
+type Props = { searchParams: Promise<{ error?: string; subject?: string }> };
 
 export default async function StartPage({ searchParams }: Props) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const { error } = await searchParams;
+  const { error, subject } = await searchParams;
   const topics = allTopics();
   const jar = await cookies();
+
+  /*
+   * A subject they typed on a submission that came back with an error.
+   *
+   * The action puts it here rather than dropping it, so a form rejected over
+   * the hours field does not also quietly swap the subject they asked for back
+   * to the first one on the list. It also decides which row opens checked.
+   */
+  const typed = (subject ?? "").trim().slice(0, MAX_CUSTOM_SUBJECT);
 
   // A visitor who took a check before signing up should see that it counted for
   // something, on the screen where it starts counting (§24 E11). Shared with
@@ -104,7 +114,7 @@ export default async function StartPage({ searchParams }: Props) {
     <AppFrame width="narrow">
       <AppHeader
         title="What do you want to get good at?"
-        lead="Pick a subject and tell us how much time you actually have. We’ll work out what to do first — and what to skip because you can already do it."
+        lead="Pick a subject — or name one we don’t cover yet, and we’ll write it — and tell us how much time you actually have. We’ll work out what to do first, and what to skip because you can already do it."
       />
 
       {error ? <Status tone="problem">{error}</Status> : null}
@@ -126,7 +136,7 @@ export default async function StartPage({ searchParams }: Props) {
                       type="radio"
                       name="topic"
                       value={topic.slug}
-                      defaultChecked={i === 0}
+                      defaultChecked={i === 0 && typed.length === 0}
                       required
                       className="accent-[var(--color-accent)]"
                     />
@@ -145,6 +155,62 @@ export default async function StartPage({ searchParams }: Props) {
                   </label>
                 </li>
               ))}
+
+              {/*
+                The subject we do not have, on the screen that used to end at
+                the ones we do.
+
+                §7.1's Generated tier is why the conversation accepts anything
+                at all, and this form is that same intake with the model taken
+                out — so a list of seven radios was quietly a different product:
+                it told anyone whose subject was missing that we could not teach
+                it, on the one screen that exists to take the answer.
+
+                The box is revealed by its own radio, in CSS, so the no-script
+                path is unchanged and the box can never be filled in for a
+                subject that is not selected. The action does not trust that:
+                it reads the field only when the radio names it.
+              */}
+              <li className="group border-t border-hairline last:rounded-b-[var(--radius-card)] last:overflow-hidden">
+                <label className="flex min-h-[var(--touch-min)] cursor-pointer items-center gap-3 px-6 py-4 transition-colors duration-[var(--dur-fast)] hover:bg-accent-weak has-checked:bg-accent-weak">
+                  <input
+                    type="radio"
+                    name="topic"
+                    value={CUSTOM_SUBJECT}
+                    defaultChecked={typed.length > 0}
+                    required
+                    className="accent-[var(--color-accent)]"
+                  />
+                  <span className="text-accent">
+                    {/* The neutral mark: we do not know what this is yet. */}
+                    <SubjectIcon taxonomyParent={null} />
+                  </span>
+                  <span className="font-[550]">Something else</span>
+                  <span className="ml-auto">
+                    <Meta tone="muted">We&rsquo;ll write it</Meta>
+                  </span>
+                </label>
+
+                <div className="hidden flex-col gap-2 px-6 pb-6 group-has-[:checked]:flex">
+                  <label htmlFor="customSubject" className={fieldLabel}>
+                    What do you want to learn?
+                  </label>
+                  <Meta>
+                    Nobody has written this one for us, so we&rsquo;ll write it
+                    first — the skills, the order they go in, and the graded
+                    briefs at the end. It takes a few minutes, and you can close
+                    the tab while it runs.
+                  </Meta>
+                  <input
+                    id="customSubject"
+                    name="customSubject"
+                    maxLength={MAX_CUSTOM_SUBJECT}
+                    defaultValue={typed}
+                    placeholder="Rust, tarot, medieval Latin…"
+                    className={input}
+                  />
+                </div>
+              </li>
             </ul>
           </fieldset>
         </Card>
