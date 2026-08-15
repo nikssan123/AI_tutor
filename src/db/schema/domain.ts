@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -60,6 +61,55 @@ export const domainPack = pgTable(
       .defaultNow(),
   },
   (t) => [uniqueIndex("domain_pack_slug_idx").on(t.slug)],
+);
+
+/**
+ * §7.1's `resource_index` — the vetted external references for a pack.
+ *
+ * A table rather than a column on `domain_pack`, for the reason skills and items
+ * are tables: a link checker updates one row at a time, and the freshness sweep
+ * §14.6 wants is a query over rows, not a read-modify-write of a JSON blob that
+ * two writers can lose halfway through.
+ *
+ * `published_at` is text, not a date. It is a date-only string the *source*
+ * stated (`2024-03-11`), and putting it through a timestamp column would attach
+ * a timezone nobody claimed and shift it by a day depending on where the server
+ * is. `checked_at` is a real instant, because we made it.
+ */
+export const packResource = pgTable(
+  "pack_resource",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    packId: uuid("pack_id")
+      .notNull()
+      .references(() => domainPack.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    /** Who stands behind it — an institution, a project, or a person. */
+    publisher: text("publisher").notNull(),
+    /** tutorial | reference | course | book | specification | video | dataset */
+    kind: text("kind").notNull(),
+    /** Skill ids this covers. Jsonb, as `project.target_skill_ids` already is. */
+    skillIds: jsonb("skill_ids").notNull(),
+    /** What it is good for and where it stops — never a summary of the page. */
+    assessment: text("assessment").notNull(),
+    /** YYYY-MM-DD as stated by the source, or null where it states none. */
+    publishedAt: text("published_at"),
+    /** When the link checker last looked. Null means nobody has. */
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    /**
+     * What that check found — a finding with `checked_at` on it, never a claim
+     * about right now. Defaults true so a resource seeded before any check is
+     * treated as intact rather than as known-dead.
+     */
+    reachable: boolean("reachable").notNull().default(true),
+  },
+  (t) => [
+    uniqueIndex("pack_resource_pack_slug_idx").on(t.packId, t.slug),
+    // The freshness sweep reads by pack; the re-check reads everything stale.
+    index("pack_resource_checked_idx").on(t.checkedAt),
+  ],
 );
 
 export const skill = pgTable(

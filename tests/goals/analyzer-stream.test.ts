@@ -176,6 +176,7 @@ describe("analyzerStream", () => {
       outputTokens: 25,
       cacheReadInputTokens: 40,
       cacheCreationInputTokens: 10,
+      webSearchRequests: 0,
     });
     expect(result.attempts).toBe(1);
     expect(result.promptName).toBe("goal_analyzer");

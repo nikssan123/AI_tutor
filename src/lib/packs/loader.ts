@@ -7,6 +7,7 @@ import {
   PackItem,
   PackManifest,
   PackProject,
+  PackResource,
   PackRubric,
   type DomainPack,
 } from "./types";
@@ -18,10 +19,11 @@ import {
  * human has to review 40 items and 4 rubrics by hand (§23 Phase 0) and a
  * 900-line single file makes that review worse.
  *
- *   pack.yaml      manifest, skills, dependencies
- *   items.yaml     assessment item bank
- *   rubrics.yaml   rubrics
- *   projects.yaml  project briefs
+ *   pack.yaml       manifest, skills, dependencies
+ *   items.yaml      assessment item bank
+ *   rubrics.yaml    rubrics
+ *   projects.yaml   project briefs
+ *   resources.yaml  §7.1's resource index — optional, like the rest
  */
 
 export const PACKS_DIR = "packs";
@@ -29,6 +31,9 @@ export const PACKS_DIR = "packs";
 const ItemsFile = z.object({ items: z.array(PackItem).default([]) });
 const RubricsFile = z.object({ rubrics: z.array(PackRubric).default([]) });
 const ProjectsFile = z.object({ projects: z.array(PackProject).default([]) });
+const ResourcesFile = z.object({
+  resources: z.array(PackResource).default([]),
+});
 
 export class PackParseError extends Error {
   constructor(file: string, detail: string) {
@@ -90,11 +95,19 @@ export function loadPack(dir: string): DomainPack {
     readYaml(projectsPath) ?? {},
   ).projects;
 
+  const resourcesPath = join(dir, "resources.yaml");
+  const resources = parseWith(
+    resourcesPath,
+    ResourcesFile,
+    readYaml(resourcesPath) ?? {},
+  ).resources;
+
   return parseWith(dir, DomainPackSchema, {
     ...manifest,
     items,
     rubrics,
     projects,
+    resources,
   });
 }
 

@@ -306,6 +306,67 @@ describe("§7.2 — tier claims must be backed", () => {
   });
 });
 
+describe("§7.1 — the resource index", () => {
+  it("blocks a resource covering a skill the pack does not have", () => {
+    const pack = fixture("valid-minimal");
+    pack.resources[0]!.skills = ["gamma"];
+    expect(blockingChecks(pack)).toContain("no_hallucinated_skills");
+  });
+
+  it("warns — never blocks — on a link that did not resolve", () => {
+    /*
+     * The finding is that a page did not answer when the checker looked, which
+     * is a reason to stop recommending it and not a reason to refuse to load
+     * the pack: the rest of it still teaches. Assembly drops these before a
+     * generated pack is written, so a warning here means a link died *after*
+     * authoring — exactly what a re-check is for.
+     */
+    const pack = fixture("valid-minimal");
+    pack.resources[0]!.reachable = false;
+    const issue = validatePack(pack).issues.find(
+      (i) => i.check === "resource_reachable",
+    );
+
+    expect(issue?.severity).toBe("warning");
+    expect(validatePack(pack).passed).toBe(true);
+    // The date is the point: "did not resolve" with no when is not a finding.
+    expect(issue?.message).toContain("2026-08-01");
+  });
+
+  it("says so plainly when nobody has ever checked the link", () => {
+    const pack = fixture("valid-minimal");
+    pack.resources[1]!.reachable = false;
+    const issue = validatePack(pack).issues.find(
+      (i) => i.check === "resource_reachable",
+    );
+    expect(issue?.message).toContain("did not resolve when last checked");
+    expect(issue?.message).not.toContain("(");
+  });
+
+  it("warns when two resources cite the same page", () => {
+    const pack = fixture("valid-minimal");
+    pack.resources[1]!.url = pack.resources[0]!.url;
+    const issue = validatePack(pack).issues.find(
+      (i) => i.check === "unique_resources",
+    );
+    expect(issue?.severity).toBe("warning");
+  });
+
+  it("blocks two resources sharing a slug, because the engine keys on it", () => {
+    const pack = fixture("valid-minimal");
+    pack.resources[1]!.slug = pack.resources[0]!.slug;
+    expect(blockingChecks(pack)).toContain("unique_slugs");
+  });
+
+  it("counts them, so a reviewer can see a pack nobody researched", () => {
+    expect(validatePack(fixture("valid-minimal")).stats.resources).toBe(2);
+    expect(
+      validatePack({ ...fixture("valid-minimal"), resources: [] }).stats
+        .resources,
+    ).toBe(0);
+  });
+});
+
 describe("toEngineGraph", () => {
   it("maps slugs to engine ids and preserves edge direction", () => {
     const graph = toEngineGraph(fixture("valid-minimal"));

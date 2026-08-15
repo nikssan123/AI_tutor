@@ -5,6 +5,7 @@ import { createClient } from "@/db";
 import {
   assessmentItem,
   domainPack,
+  packResource,
   project,
   skill,
   skillDependency,
@@ -12,7 +13,13 @@ import {
 import { loadPack, loadAllPacks } from "@/lib/packs/loader";
 import { seedPack } from "@/lib/packs/seed";
 import { packFromDb } from "@/lib/packs/read";
-import { itemId, projectId, rubricId, skillId } from "@/lib/packs/ids";
+import {
+  itemId,
+  projectId,
+  resourceId,
+  rubricId,
+  skillId,
+} from "@/lib/packs/ids";
 import type { DomainPack } from "@/lib/packs/types";
 
 /**
@@ -48,6 +55,7 @@ function canonical(pack: DomainPack): DomainPack {
     items: [...pack.items].sort(by((i) => i.slug)),
     rubrics: [...pack.rubrics].sort(by((r) => r.slug)),
     projects: [...pack.projects].sort(by((p) => p.slug)),
+    resources: [...pack.resources].sort(by((r) => r.slug)),
   };
 }
 
@@ -291,6 +299,65 @@ live("packFromDb (integration)", () => {
     await db.delete(skill).where(eq(skill.packId, packRow.id));
 
     expect(await packFromDb(db, pack.slug)).toBeUndefined();
+  });
+
+  it("round-trips a resource, dates and all", async () => {
+    /*
+     * The two nullable fields are the whole reason this needs its own case.
+     * `publishedAt` is what §14.6 ages material out on and `checkedAt` is what
+     * makes `reachable` readable as a finding rather than a promise — a read
+     * path that invented either would have the freshness check acting on a
+     * date nobody stated.
+     */
+    const pack = fixture("valid-minimal");
+    await seedPack(db, pack);
+
+    const fromDb = await packFromDb(db, pack.slug);
+    const dated = fromDb!.resources.find((r) => r.slug === "the-alpha-handbook")!;
+    const undated = fromDb!.resources.find((r) => r.slug === "beta-by-example")!;
+
+    expect(dated.publishedAt).toBe("2025-03-01");
+    expect(dated.checkedAt).toBe("2026-08-01T00:00:00.000Z");
+    expect(dated.skills).toEqual(["alpha"]);
+    expect(undated.publishedAt).toBeNull();
+    // Never checked, and the row says so rather than implying a check happened.
+    expect(undated.checkedAt).toBeNull();
+    expect(undated.reachable).toBe(true);
+  });
+
+  it("drops a resource whose skills have all left the pack", async () => {
+    // `skill_ids` is jsonb, so nothing stops an id surviving there after the
+    // skill it named is gone — and `PackResource.skills` needs at least one
+    // pack-local slug, so a resource down to none cannot be expressed.
+    const pack = fixture("valid-minimal");
+    await seedPack(db, pack);
+
+    await db
+      .update(packResource)
+      .set({ skillIds: [skillId(pack.slug, "deleted-long-ago")] })
+      .where(eq(packResource.id, resourceId(pack.slug, "the-alpha-handbook")));
+
+    const fromDb = await packFromDb(db, pack.slug);
+    expect(fromDb!.resources.map((r) => r.slug)).toEqual(["beta-by-example"]);
+  });
+
+  it("prunes a stale skill id but keeps a resource that still covers one", async () => {
+    const pack = fixture("valid-minimal");
+    await seedPack(db, pack);
+
+    await db
+      .update(packResource)
+      .set({
+        skillIds: [
+          skillId(pack.slug, "alpha"),
+          skillId(pack.slug, "deleted-long-ago"),
+        ],
+      })
+      .where(eq(packResource.id, resourceId(pack.slug, "beta-by-example")));
+
+    const fromDb = await packFromDb(db, pack.slug);
+    const kept = fromDb!.resources.find((r) => r.slug === "beta-by-example")!;
+    expect(kept.skills).toEqual(["alpha"]);
   });
 
   it("drops a stale skill id from a project's target list", async () => {

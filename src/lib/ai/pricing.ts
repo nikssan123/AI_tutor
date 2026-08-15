@@ -42,6 +42,22 @@ export const RATES: Record<ModelId, Rate> = {
 export const CACHE_READ_MULTIPLIER = 0.1;
 
 /**
+ * The server-side web search tool, in cents per search: $10 per 1,000.
+ *
+ * It is billed per *request*, not per token, which is why it needs a constant of
+ * its own rather than a row in `RATES`. Until the Resource Researcher there was
+ * no call site that spent it, and `costCentsFor` counted only the four token
+ * buckets — so a step that searched would have recorded its searches as $0.00 in
+ * the ledger `shouldDegrade` reads. That is the under-counting this file's
+ * header calls the failure mode §14.9.7 exists to prevent, and it is why this
+ * lands in the same change as the first call that searches rather than after it.
+ *
+ * At the researcher's ~8 searches a pack this is ~8¢ against ~7¢ of tokens: the
+ * search fee is the larger half of that call, not a rounding error.
+ */
+export const WEB_SEARCH_CENTS_PER_REQUEST = 1;
+
+/**
  * Cache writes bill at 1.25× input for the 5-minute TTL, which is what
  * `call.ts` requests. A 1-hour TTL would be 2×; if that is ever set, this
  * constant has to move with it.
@@ -73,7 +89,8 @@ export function costCentsFor(model: string, usage: CallUsage): number | null {
     perToken(
       usage.cacheCreationInputTokens,
       rate.input * CACHE_WRITE_MULTIPLIER,
-    )
+    ) +
+    usage.webSearchRequests * WEB_SEARCH_CENTS_PER_REQUEST
   );
 }
 
@@ -98,6 +115,11 @@ export function uncachedCostCentsFor(
     outputTokens: usage.outputTokens,
     cacheReadInputTokens: 0,
     cacheCreationInputTokens: 0,
+    // Carried rather than zeroed: this is the counterfactual for the *cache*,
+    // and searches cost the same whether or not the prefix was cached. Dropping
+    // them here would make the "saving" the dashboard reports include money the
+    // cache never had anything to do with.
+    webSearchRequests: usage.webSearchRequests,
   });
 }
 

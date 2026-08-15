@@ -1,0 +1,23 @@
+# §7.1's resource index. Two entries, because the two nullable fields are where
+# this shape differs from every other pack entity and both need a fixture:
+# `publishedAt` is null when the source states no date, and `checkedAt` is null
+# until a link checker has looked.
+resources:
+  - slug: the-alpha-handbook
+    url: https://example.test/alpha
+    title: The Alpha Handbook
+    publisher: Example Press
+    kind: reference
+    skills: [alpha]
+    assessment: Complete on alpha; says nothing at all about beta.
+    publishedAt: "2025-03-01"
+    checkedAt: "2026-08-01T00:00:00.000Z"
+    reachable: true
+  - slug: beta-by-example
+    url: https://example.test/beta
+    title: Beta by Example
+    publisher: Someone's Blog
+    kind: tutorial
+    skills: [alpha, beta]
+    assessment: Worked examples only; undated, and it shows in places.
+    publishedAt: null

@@ -105,6 +105,7 @@ const NO_USAGE: CallUsage = {
   outputTokens: 0,
   cacheReadInputTokens: 0,
   cacheCreationInputTokens: 0,
+  webSearchRequests: 0,
 };
 
 /**

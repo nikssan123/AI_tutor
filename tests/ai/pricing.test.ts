@@ -7,6 +7,7 @@ import {
   PRICED_MODELS,
   RATES,
   uncachedCostCentsFor,
+  WEB_SEARCH_CENTS_PER_REQUEST,
 } from "@/lib/ai/pricing";
 import type { CallUsage } from "@/lib/ai/call";
 
@@ -22,6 +23,7 @@ const usage = (over: Partial<CallUsage> = {}): CallUsage => ({
   outputTokens: 0,
   cacheReadInputTokens: 0,
   cacheCreationInputTokens: 0,
+  webSearchRequests: 0,
   ...over,
 });
 
@@ -100,6 +102,27 @@ describe("costCentsFor", () => {
     expect(costCentsFor("claude-opus-5", usage())).toBe(0);
   });
 
+  it("bills web searches per request rather than per token", () => {
+    // $10 per 1,000 searches. The Resource Researcher's eight-search cap is
+    // ~8c, which is the larger half of that call — a ledger that counted only
+    // tokens would report the expensive part as free.
+    expect(
+      costCentsFor("claude-sonnet-5", usage({ webSearchRequests: 8 })),
+    ).toBeCloseTo(8 * WEB_SEARCH_CENTS_PER_REQUEST, 6);
+  });
+
+  it("adds the search fee on top of the token cost, not instead of it", () => {
+    const searched = costCentsFor(
+      "claude-sonnet-5",
+      usage({ inputTokens: 1_000_000, webSearchRequests: 3 }),
+    )!;
+    const quiet = costCentsFor(
+      "claude-sonnet-5",
+      usage({ inputTokens: 1_000_000 }),
+    )!;
+    expect(searched - quiet).toBeCloseTo(3 * WEB_SEARCH_CENTS_PER_REQUEST, 6);
+  });
+
   it("returns null — never zero — for a model with no published rate", () => {
     // Zero would flow into the ledger as "this call was free", which is a lie
     // that accumulates.
@@ -136,6 +159,22 @@ describe("uncachedCostCentsFor", () => {
     const plain = usage({ inputTokens: 100, outputTokens: 50 });
     expect(uncachedCostCentsFor("claude-opus-5", plain)).toBeCloseTo(
       costCentsFor("claude-opus-5", plain)!,
+      6,
+    );
+  });
+
+  it("carries search fees into the counterfactual rather than zeroing them", () => {
+    // The counterfactual asks what the *cache* saved. Searches cost the same
+    // either way, so dropping them here would credit the cache with money it
+    // had nothing to do with.
+    const searched = usage({ cacheReadInputTokens: 1_000, webSearchRequests: 4 });
+    const counterfactual = uncachedCostCentsFor("claude-sonnet-5", searched)!;
+    const withoutSearches = uncachedCostCentsFor(
+      "claude-sonnet-5",
+      usage({ cacheReadInputTokens: 1_000 }),
+    )!;
+    expect(counterfactual - withoutSearches).toBeCloseTo(
+      4 * WEB_SEARCH_CENTS_PER_REQUEST,
       6,
     );
   });

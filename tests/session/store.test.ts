@@ -105,6 +105,7 @@ const okGrade = (
     outputTokens: 5,
     cacheReadInputTokens: 0,
     cacheCreationInputTokens: 0,
+    webSearchRequests: 0,
   },
   costCents: 0.01,
   uncachedCostCents: 0.01,
@@ -218,6 +219,7 @@ live("the session store", () => {
       outputTokens: 30,
       cacheReadInputTokens: 1_150,
       cacheCreationInputTokens: 0,
+      webSearchRequests: 0,
     },
     costCents: 0.2,
     uncachedCostCents: 0.9,
@@ -906,6 +908,7 @@ live("answering a check", () => {
         usage: {
           inputTokens: 1, outputTokens: 1,
           cacheReadInputTokens: 0, cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
         },
         costCents: 0, uncachedCostCents: 0, latencyMs: 1,
       }),
@@ -1638,6 +1641,7 @@ live("the session view and its lesson", () => {
         usage: {
           inputTokens: 1_200, outputTokens: 40,
           cacheReadInputTokens: 1_150, cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
         },
         costCents: 0.2,
         uncachedCostCents: 0.9,

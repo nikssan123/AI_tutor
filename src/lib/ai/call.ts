@@ -55,6 +55,27 @@ export interface StructuredCall<T> {
   };
   /** The contract that decides whether the model's output is usable. */
   parse: (raw: unknown) => ParseOutcome<T>;
+  /**
+   * Anthropic-hosted tools the model may reach for before answering.
+   *
+   * Declaring any of these changes the shape of the call in two ways that are
+   * not optional, so they are handled here rather than left to each caller.
+   *
+   * **`tool_choice` stops being forced.** Every other step in the product pins
+   * the model to exactly one tool, which is what makes the output structured.
+   * A forced choice means the model must call *that* tool first, so it could
+   * never search — the two are mutually exclusive, and asking for both silently
+   * gets you the schema without the research.
+   *
+   * **The turn can pause.** A server tool runs inside the request, and a long
+   * one comes back `pause_turn` with no answer yet; the fix is to re-send with
+   * the partial assistant turn appended, which `callStructured` does.
+   *
+   * They render before the submit tool and ahead of the cached system prompt,
+   * so they must be module constants — a tool list assembled per request would
+   * invalidate §14.9.4's breakpoint on every call.
+   */
+  serverTools?: Anthropic.ToolUnion[];
   /** §14.9.7 limit 1 — degrade Opus to Sonnet before queueing or notifying. */
   degraded?: boolean;
   maxTokens?: number;
@@ -75,6 +96,13 @@ export interface CallUsage {
   outputTokens: number;
   cacheReadInputTokens: number;
   cacheCreationInputTokens: number;
+  /**
+   * Server-side web searches, which are billed per request rather than per
+   * token (`WEB_SEARCH_CENTS_PER_REQUEST`). A fifth field rather than a fudge
+   * into `inputTokens`, because the two are priced on different scales and a
+   * ledger that hid one inside the other could not be checked against a bill.
+   */
+  webSearchRequests: number;
 }
 
 /**
@@ -108,6 +136,7 @@ const EMPTY_USAGE: CallUsage = {
   outputTokens: 0,
   cacheReadInputTokens: 0,
   cacheCreationInputTokens: 0,
+  webSearchRequests: 0,
 };
 
 function addUsage(a: CallUsage, b: Anthropic.Usage): CallUsage {
@@ -118,6 +147,10 @@ function addUsage(a: CallUsage, b: Anthropic.Usage): CallUsage {
       a.cacheReadInputTokens + (b.cache_read_input_tokens ?? 0),
     cacheCreationInputTokens:
       a.cacheCreationInputTokens + (b.cache_creation_input_tokens ?? 0),
+    // Null on every call that used no server tool, which is every call in the
+    // product but one.
+    webSearchRequests:
+      a.webSearchRequests + (b.server_tool_use?.web_search_requests ?? 0),
   };
 }
 
@@ -184,16 +217,35 @@ export function structuredRequest<T>(
       },
     ],
     tools: [
+      ...(call.serverTools ?? []),
       {
         name: call.tool.name,
         description: call.tool.description,
         input_schema: call.tool.inputSchema as Anthropic.Tool.InputSchema,
       },
     ],
-    tool_choice: { type: "tool", name: call.tool.name },
+    // See `serverTools`: a forced choice and a server tool cannot both apply,
+    // so a call that may search asks rather than pins. The submit tool is still
+    // the only way to return an answer, because its schema is the only thing
+    // `parse` accepts — "auto" widens what the model may do on the way there,
+    // not what counts as arriving.
+    tool_choice:
+      call.serverTools && call.serverTools.length > 0
+        ? { type: "auto" }
+        : { type: "tool", name: call.tool.name },
     messages,
   };
 }
+
+/**
+ * How many times a paused turn may be resumed before the attempt is abandoned.
+ *
+ * A server tool loop that pauses this many times is not close to finishing, and
+ * every resume re-sends the whole transcript — so the cost of waiting grows
+ * while the odds do not. Four is enough for the researcher's handful of
+ * searches and short of anything that looks like a loop.
+ */
+export const MAX_PAUSE_RESUMES = 4;
 
 export async function callStructured<T>(
   client: Anthropic,
@@ -234,11 +286,28 @@ export async function callStructured<T>(
       );
     }
 
-    const response = await client.messages.create(
+    let response = await client.messages.create(
       structuredRequest(call, messages),
     );
-
     usage = addUsage(usage, response.usage);
+
+    /*
+     * A server tool that runs long returns `pause_turn` — a real turn with real
+     * usage on it, just not a finished one. Resuming is re-sending the same
+     * conversation with the partial assistant turn appended; the server picks
+     * up where it stopped rather than starting over. No extra user message: the
+     * trailing tool use is the signal, and "continue" would be read as an
+     * instruction.
+     */
+    for (
+      let resumes = 0;
+      response.stop_reason === "pause_turn" && resumes < MAX_PAUSE_RESUMES;
+      resumes += 1
+    ) {
+      messages.push({ role: "assistant", content: response.content });
+      response = await client.messages.create(structuredRequest(call, messages));
+      usage = addUsage(usage, response.usage);
+    }
 
     // §14.9.5 — check stop_reason *before* reading content, and never retry the
     // identical prompt after a refusal.
@@ -250,9 +319,17 @@ export async function callStructured<T>(
       };
     }
 
+    /*
+     * Still `tool_use` alone, even with server tools in play: a search the
+     * model ran arrives as `server_tool_use`, a different block type, so there
+     * is nothing here to disambiguate from.
+     */
     const block = response.content.find((b) => b.type === "tool_use");
     if (!block) {
-      lastError = "no tool call was made";
+      lastError =
+        response.stop_reason === "pause_turn"
+          ? `still working after ${MAX_PAUSE_RESUMES} resumes`
+          : "no tool call was made";
       continue;
     }
 

@@ -136,6 +136,11 @@ export async function recordAgentRun(
     cache_read_tokens: meta.usage.cacheReadInputTokens,
     input_tokens: meta.usage.inputTokens,
     output_tokens: meta.usage.outputTokens,
+    // Shipped beside the token counts because it is priced on a different
+    // scale: at $10 per 1,000 searches, eight of them cost more than the tokens
+    // of the call that made them, and a cost that moved with no token movement
+    // to explain it would look like a mispricing rather than research.
+    web_search_requests: meta.usage.webSearchRequests,
     latency_ms: meta.latencyMs,
   });
 }

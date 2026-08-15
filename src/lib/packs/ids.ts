@@ -57,3 +57,6 @@ export const rubricId = (packSlug: string, slug: string): string =>
 
 export const projectId = (packSlug: string, slug: string): string =>
   deterministicUuid(`project:${packSlug}/${slug}`);
+
+export const resourceId = (packSlug: string, slug: string): string =>
+  deterministicUuid(`resource:${packSlug}/${slug}`);

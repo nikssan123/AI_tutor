@@ -5,10 +5,12 @@ import { degradesGeneration, type PlanId } from "@/lib/billing/catalog";
 import type { DraftItem, PackGraphDraft } from "@/lib/contracts/pack";
 import type { DomainPack } from "../types";
 import type { ValidationReport } from "../validate";
+import { checkDrafts, type LinkCheckDeps } from "../resources";
 import { assemblePack, meetsQualityFloor } from "./assemble";
 import { skillRef } from "./derive";
 import { generatePackGraph } from "./graph";
 import { batchSkills, generateItems, type RefSkill } from "./items";
+import { generateResources } from "./resources";
 import { generateRubrics } from "./rubrics";
 
 /**
@@ -56,6 +58,8 @@ export interface PackGenerateDeps {
   /** Null for system-initiated work; the run is still logged, nobody is billed. */
   userId: string | null;
   plan?: PlanId;
+  /** The link checker's seam. Defaults to the real `fetch` and the real clock. */
+  linkCheck?: LinkCheckDeps;
 }
 
 export interface PackGenerateInput {
@@ -134,14 +138,23 @@ export async function generatePack(
       continue;
     }
 
-    // The bank and the rubrics do not depend on each other, and both depend
-    // only on the graph, so they are asked for together.
-    const [items, rubrics] = await Promise.all([
+    // The bank, the rubrics and the reading list do not depend on each other,
+    // and all three depend only on the graph, so they are asked for together.
+    const [items, rubrics, researched] = await Promise.all([
       gatherItems(deps, graph.value, input.subject, degraded),
       logCall(
         deps.db,
         deps.userId,
         await generateRubrics(
+          deps.client,
+          { subject: input.subject, skills: withRefs(graph.value) },
+          { degraded },
+        ),
+      ),
+      logCall(
+        deps.db,
+        deps.userId,
+        await generateResources(
           deps.client,
           { subject: input.subject, skills: withRefs(graph.value) },
           { degraded },
@@ -154,13 +167,46 @@ export async function generatePack(
       continue;
     }
 
+    /*
+     * A failed search is a thinner pack, not a failed one — the same call the
+     * item batches make. Resources are additive: nothing in the diagnostic, the
+     * planner or the grader reads them, so a pack without them teaches exactly
+     * what it would have taught anyway and simply cannot point anywhere else.
+     * Failing the whole run here would throw away the graph, which is the
+     * expensive call, over the cheap one.
+     *
+     * The link check is where the money already spent gets its value: it is the
+     * difference between a list of URLs a model produced and a list of pages
+     * that answered. Every one of them is checked before assembly, so a pack is
+     * never written carrying a citation we have not tried.
+     */
+    const resources =
+      researched.status === "ok"
+        ? await checkDrafts(researched.value.resources, deps.linkCheck)
+        : [];
+
+    // Built fresh per attempt and combined at the end, so `dropped` keeps
+    // saying what the *last* attempt lost rather than accumulating every
+    // attempt's losses into one list nobody can read.
+    const researchDrops =
+      researched.status === "ok"
+        ? []
+        : [
+            `no reading list — the research call ${
+              researched.status === "refused"
+                ? "was declined"
+                : "returned nothing usable"
+            }`,
+          ];
+
     const assembled = assemblePack({
       slug: input.slug,
       graph: graph.value,
       items,
       rubrics: rubrics.value,
+      resources,
     });
-    dropped = assembled.dropped;
+    dropped = [...researchDrops, ...assembled.dropped];
 
     // One gate: the validator's blocking issues and the generator's own floor.
     // A repair step would have nothing to do — every repairable case is already
@@ -175,7 +221,12 @@ export async function generatePack(
       pack: assembled.pack,
       report: assembled.report,
       source: "generated",
-      dropped: assembled.dropped,
+      // The combined list, not `assembled.dropped`: a pack that shipped without
+      // a reading list because the search was declined has lost something, and
+      // a drop log that only covered assembly would show a pack with no
+      // resources and no reason — indistinguishable from a subject nobody had
+      // anything to recommend for.
+      dropped,
       reasons: [],
       attempts,
     };

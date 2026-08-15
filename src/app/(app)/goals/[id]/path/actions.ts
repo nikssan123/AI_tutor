@@ -8,6 +8,7 @@ import { getAuth } from "@/lib/auth";
 import { getAnthropic } from "@/lib/ai/client";
 import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
+import { citedResources } from "@/lib/packs/resources";
 import { activeGoal, masteryFor, setGoalDepth } from "@/lib/goals/store";
 import { CourseDepthSpec } from "@/lib/contracts/goal";
 import { projectSkills } from "@/lib/goals/projection";
@@ -101,6 +102,10 @@ export async function buildPathAction(goalId: string): Promise<void> {
         targetSkillIds: p.targetSkills,
         estimatedMinutes: p.estimatedMinutes,
       })),
+      // §14.6 check 7 has something to check as of the Resource Researcher.
+      // Empty for a pack nobody has researched, which is the honest input:
+      // the check reports "not researched" rather than "all citations fresh".
+      resources: citedResources(pack),
     },
     {
       graph,

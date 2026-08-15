@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import {
   assessmentItem,
   domainPack,
+  packResource,
   project,
   rubric,
   skill,
@@ -29,6 +30,7 @@ export interface SeedResult {
   items: number;
   rubrics: number;
   projects: number;
+  resources: number;
 }
 
 export async function seedPack(
@@ -119,6 +121,18 @@ export async function seedPack(
         .values(row)
         .onConflictDoUpdate({ target: project.id, set: row });
     }
+
+    /*
+     * Resources are replaced wholesale rather than merged: a link dropped from
+     * the pack has usually been dropped *because* the checker found it dead, and
+     * an upsert would leave the dead one in the table for the freshness sweep to
+     * keep reporting. Deleting by pack and re-inserting is also the only way a
+     * renamed resource does not leave its old slug behind.
+     */
+    await tx.delete(packResource).where(eq(packResource.packId, rows.pack.id));
+    if (rows.resources.length > 0) {
+      await tx.insert(packResource).values(rows.resources);
+    }
   });
 
   return {
@@ -128,6 +142,7 @@ export async function seedPack(
     items: rows.items.length,
     rubrics: rows.rubrics.length,
     projects: rows.projects.length,
+    resources: rows.resources.length,
   };
 }
 

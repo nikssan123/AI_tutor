@@ -45,6 +45,9 @@ const EMPTY_USAGE: CallUsage = {
   outputTokens: 0,
   cacheReadInputTokens: 0,
   cacheCreationInputTokens: 0,
+  // The tutor declares no server tools, so this is zero by construction rather
+  // than by omission.
+  webSearchRequests: 0,
 };
 
 /**
@@ -100,6 +103,8 @@ export async function* streamChat(
         cacheReadInputTokens: event.message.usage.cache_read_input_tokens ?? 0,
         cacheCreationInputTokens:
           event.message.usage.cache_creation_input_tokens ?? 0,
+        webSearchRequests:
+          event.message.usage.server_tool_use?.web_search_requests ?? 0,
       };
       continue;
     }

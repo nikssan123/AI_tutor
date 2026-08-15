@@ -33,6 +33,7 @@ export interface ValidationReport {
     rubrics: number;
     projects: number;
     skillsWithoutItems: number;
+    resources: number;
   };
 }
 
@@ -122,6 +123,7 @@ export function validatePack(pack: DomainPack): ValidationReport {
     ["item", pack.items.map((i) => i.slug)],
     ["rubric", pack.rubrics.map((r) => r.slug)],
     ["project", pack.projects.map((p) => p.slug)],
+    ["resource", pack.resources.map((r) => r.slug)],
   ] as const) {
     for (const duplicate of findDuplicates([...values])) {
       issues.push(
@@ -353,6 +355,47 @@ export function validatePack(pack: DomainPack): ValidationReport {
     }
   }
 
+  // --- Resources -----------------------------------------------------------
+  for (const resource of pack.resources) {
+    for (const covered of resource.skills) {
+      if (!skillSlugs.has(covered)) {
+        issues.push(
+          issue(
+            "no_hallucinated_skills",
+            "blocking",
+            `resource "${resource.slug}" covers unknown skill "${covered}"`,
+          ),
+        );
+      }
+    }
+
+    /*
+     * A warning, not a block. The checker's finding is that the link did not
+     * resolve *when it looked*, which is a reason to stop recommending the page
+     * and not a reason to refuse to load the pack — the rest of it still
+     * teaches. Assembly drops these before a generated pack is ever written, so
+     * a warning here means a link died after authoring, which is exactly the
+     * thing a re-check is supposed to surface rather than fail on.
+     */
+    if (!resource.reachable) {
+      issues.push(
+        issue(
+          "resource_reachable",
+          "warning",
+          `resource "${resource.slug}" did not resolve when last checked${
+            resource.checkedAt ? ` (${resource.checkedAt.slice(0, 10)})` : ""
+          }`,
+        ),
+      );
+    }
+  }
+
+  for (const url of findDuplicates(pack.resources.map((r) => r.url))) {
+    issues.push(
+      issue("unique_resources", "warning", `two resources cite ${url}`),
+    );
+  }
+
   // §7.2 — a pack whose tier claims machine verification needs something to
   // machine-verify against.
   if (pack.evalTier === 1 && pack.projects.length === 0) {
@@ -378,6 +421,7 @@ export function validatePack(pack: DomainPack): ValidationReport {
       rubrics: pack.rubrics.length,
       projects: pack.projects.length,
       skillsWithoutItems: skillsWithoutItems.length,
+      resources: pack.resources.length,
     },
   };
 }

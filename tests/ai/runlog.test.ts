@@ -31,6 +31,7 @@ const usage = (over: Partial<CallUsage> = {}): CallUsage => ({
   outputTokens: 500,
   cacheReadInputTokens: 0,
   cacheCreationInputTokens: 0,
+  webSearchRequests: 0,
   ...over,
 });
 

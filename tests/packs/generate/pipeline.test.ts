@@ -272,38 +272,159 @@ describe("the three calls", () => {
   });
 });
 
-describe("generatePack", () => {
-  /** Graph, then one items response per area batch, then rubrics. */
-  const happyPath = () => {
-    const batches = batchSkills(withRefs(GRAPH));
-    return [
-      GRAPH,
-      ...batches.map((b) => itemsFor(b.map((s) => s.ref))),
-      RUBRICS,
-    ];
+/** §7.1's resource index, as the researcher would return it. */
+const RESOURCES = {
+  resources: [
+    {
+      url: "https://doc.rust-lang.org/book/",
+      title: "The Rust Programming Language",
+      publisher: "Rust project",
+      kind: "book" as const,
+      skills: [skillRef(0)],
+      assessment: "The canonical introduction; assumes no Rust and some code.",
+      publishedAt: "2025-02-20",
+    },
+    {
+      url: "https://doc.rust-lang.org/std/",
+      title: "The standard library",
+      publisher: "Rust project",
+      kind: "reference" as const,
+      skills: [skillRef(1)],
+      assessment: "A reference, not a tutorial — useless as a starting point.",
+      publishedAt: null,
+    },
+    {
+      url: "https://rustlings.cool/",
+      title: "Rustlings",
+      publisher: "Rust project",
+      kind: "tutorial" as const,
+      skills: [skillRef(2)],
+      assessment: "Small exercises; good for compiler fluency, not for design.",
+      publishedAt: "2025-06-01",
+    },
+    {
+      url: "https://this-week-in-rust.org/",
+      title: "This Week in Rust",
+      publisher: "TWiR",
+      kind: "reference" as const,
+      skills: [skillRef(3)],
+      assessment: "A newsletter — worth following, never worth learning from.",
+      publishedAt: "2026-01-05",
+    },
+  ],
+};
+
+/** Every link answers, so nothing is dropped for being dead. */
+const reachable = { fetch: async () => ({ status: 200 }) };
+
+/** Queue this to have the model decline a call rather than answer it badly. */
+const REFUSED = Symbol("refused");
+
+/**
+ * A model that answers by *which* tool it was asked for.
+ *
+ * `generatePack` makes three calls concurrently — items, rubrics and resources
+ * — and a schema retry on any one of them interleaves with the others, so a
+ * positional queue stopped describing what these tests meant the moment there
+ * were three. Keying on the submit tool says "asked for rubrics, answer this"
+ * and holds however the calls land.
+ *
+ * Queues repeat their last entry rather than running dry: a test that wants a
+ * call to keep failing says so once. Items are a function of the refs asked
+ * for, because which batch a skill lands in is `batchSkills`'s business and not
+ * something a fixture should have to predict.
+ */
+function modelByTool(answers: {
+  graph?: unknown[];
+  items?: (refs: string[]) => unknown;
+  rubrics?: unknown[];
+  resources?: unknown[];
+}) {
+  const queues: Record<string, unknown[]> = {
+    submit_skill_graph: [...(answers.graph ?? [GRAPH])],
+    submit_rubrics: [...(answers.rubrics ?? [RUBRICS])],
+    submit_resources: [...(answers.resources ?? [RESOURCES])],
   };
+  const items = answers.items ?? ((refs: string[]) => itemsFor(refs));
+
+  const create = vi.fn(
+    async (body: Anthropic.MessageCreateParamsNonStreaming) => {
+      // The submit tool is last: any server tool renders ahead of it.
+      const tools = body.tools as Array<{ name: string }>;
+      const asked = tools[tools.length - 1]!.name;
+      const queue = queues[asked];
+      const input = queue
+        ? queue.length > 1
+          ? queue.shift()
+          : queue[0]
+        : items([...String(body.messages[0]!.content).matchAll(/^(s\d+):/gm)].map(
+            (m) => m[1]!,
+          ));
+
+      // The sentinel a test uses to say "this call is declined", which is a
+      // different outcome from a schema failure and takes a different path.
+      if (input === REFUSED) {
+        return {
+          id: "msg",
+          type: "message",
+          role: "assistant",
+          model: body.model,
+          stop_reason: "refusal",
+          stop_details: { type: "refusal", explanation: "declined" },
+          stop_sequence: null,
+          usage: { input_tokens: 10, output_tokens: 0 },
+          content: [],
+        };
+      }
+
+      return {
+        id: "msg",
+        type: "message",
+        role: "assistant",
+        model: body.model,
+        stop_reason: "tool_use",
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 10 },
+        content: [{ type: "tool_use", id: "t", name: asked, input }],
+      };
+    },
+  );
+
+  return { client: { messages: { create } } as unknown as Anthropic, create };
+}
+
+describe("generatePack", () => {
+  const deps = (over: Record<string, unknown> = {}) => ({
+    db,
+    userId: null,
+    linkCheck: reachable,
+    ...over,
+  });
 
   it("returns a validated pack on a clean run", async () => {
-    const { client } = modelReturning(happyPath());
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const { client } = modelByTool({});
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
 
     expect(outcome.source).toBe("generated");
     expect(outcome.attempts).toBe(1);
     expect(outcome.pack!.slug).toBe("rust");
     expect(outcome.report!.passed).toBe(true);
+    expect(outcome.pack!.resources).toHaveLength(4);
   });
 
   it("asks for the graph on the deep tier and the rest on standard", async () => {
     // §14.8 — "never default everything to Opus", and never the reverse either:
     // the graph is the one call the rest cannot correct.
-    const { client, create } = modelReturning(happyPath());
-    await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const { client, create } = modelByTool({});
+    await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
 
     const models = create.mock.calls.map(
       (c) => c[0].model,
@@ -314,24 +435,26 @@ describe("generatePack", () => {
 
   it("retries once when the graph cannot be written", async () => {
     const bad = { ...GRAPH, skills: EIGHT.slice(0, 2) };
-    const { client } = modelReturning([bad, bad, ...happyPath()]);
+    const { client } = modelByTool({ graph: [bad, bad, GRAPH] });
 
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
     expect(outcome.attempts).toBe(2);
     expect(outcome.source).toBe("generated");
   });
 
   it("gives up after two attempts rather than spending a third", async () => {
     const bad = { ...GRAPH, skills: EIGHT.slice(0, 2) };
-    const { client } = modelReturning([bad, bad, bad, bad, bad, bad]);
+    const { client } = modelByTool({ graph: [bad] });
 
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
     expect(outcome.source).toBe("none");
     expect(outcome.pack).toBeNull();
     expect(outcome.attempts).toBe(2);
@@ -344,32 +467,28 @@ describe("generatePack", () => {
      * honest outcome is "we could not build this", never a pack of eleven
      * skills and four questions.
      */
-    const batches = batchSkills(withRefs(GRAPH));
-    // Valid responses, just far too few items — one per area rather than three
+    // Valid responses, just far too few items — one per batch rather than three
     // per skill. An empty `items` array would fail the contract instead, which
     // is a different path (and burns a schema retry).
-    const one = (ref: string) => ({
-      items: [
-        {
-          skill: ref,
-          type: "short_text" as const,
-          difficulty: 0.5,
-          prompt: `The only question written for ${ref}, long enough to pass.`,
-          concepts: ["a claim"],
-        },
-      ],
+    const { client } = modelByTool({
+      items: (refs) => ({
+        items: [
+          {
+            skill: refs[0],
+            type: "short_text" as const,
+            difficulty: 0.5,
+            prompt: `The only question written for ${refs[0]}, long enough to pass.`,
+            concepts: ["a claim"],
+          },
+        ],
+      }),
     });
-    const thin = [
-      GRAPH,
-      ...batches.map((b) => one(b[0]!.ref)),
-      RUBRICS,
-    ];
-    const { client } = modelReturning([...thin, ...thin]);
 
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
     expect(outcome.source).toBe("none");
     expect(outcome.reasons.join(" ")).toContain("diagnostic needs at least");
   });
@@ -377,19 +496,18 @@ describe("generatePack", () => {
   it("keeps the drop log on a failure, because it is the explanation", async () => {
     // The defect the live probe exposed: a pack failing the floor with the
     // reasons thrown away leaves "7 items" and no way to find out why.
-    const batches = batchSkills(withRefs(GRAPH));
-    const strays = [
-      GRAPH,
-      { items: itemsFor(["s0"]).items.map((i) => ({ ...i, skill: "s99" })) },
-      ...batches.slice(1).map(() => ({ items: [] })),
-      RUBRICS,
-    ];
-    const { client } = modelReturning([...strays, ...strays]);
+    const { client } = modelByTool({
+      items: (refs) =>
+        refs.includes("s0")
+          ? { items: itemsFor(["s0"]).items.map((i) => ({ ...i, skill: "s99" })) }
+          : { items: [] },
+    });
 
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
     expect(outcome.source).toBe("none");
     expect(outcome.dropped.join(" ")).toContain("unknown skill");
   });
@@ -402,45 +520,72 @@ describe("generatePack", () => {
      * graph call it would throw away is the expensive one.
      */
     const batches = batchSkills(withRefs(GRAPH));
-    const run = [
-      GRAPH,
-      // callStructured retries a schema failure once, so a bad batch burns two.
-      { nonsense: true },
-      { nonsense: true },
-      ...batches.slice(1).map((b) => itemsFor(b.map((s) => s.ref))),
-      RUBRICS,
-    ];
-    const { client, create } = modelReturning([...run, ...run]);
+    const { client, create } = modelByTool({
+      items: (refs) => (refs.includes("s0") ? { nonsense: true } : itemsFor(refs)),
+    });
 
-    await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
 
-    // Every remaining batch and the rubrics call still went out.
-    const tools = create.mock.calls.map(
-      (c) => (c[0].tools as Array<{ name: string }>)[0]!.name,
-    );
+    // Every remaining batch, the rubrics call and the research call still went
+    // out — the failing batch took none of them with it.
+    const tools = create.mock.calls.map((c) => {
+      const declared = c[0].tools as Array<{ name: string }>;
+      return declared[declared.length - 1]!.name;
+    });
     expect(tools.filter((t) => t === "submit_items").length).toBeGreaterThan(
       batches.length - 1,
     );
     expect(tools).toContain("submit_rubrics");
+    expect(tools).toContain("submit_resources");
+  });
+
+  it("ships the pack without a reading list when the research fails", async () => {
+    /*
+     * Resources are additive: nothing in the diagnostic, the planner or the
+     * grader reads them, so a pack without them teaches exactly what it would
+     * have taught anyway and simply cannot point anywhere else. Failing here
+     * would throw away the graph — the expensive call — over the cheap one.
+     */
+    const { client } = modelByTool({ resources: [{ resources: [] }] });
+
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
+
+    expect(outcome.source).toBe("generated");
+    expect(outcome.pack!.resources).toEqual([]);
+    // §14.6 wants drops shown: a pack with no reading list says why it has none
+    // rather than looking like a subject nobody had anything to recommend for.
+    expect(outcome.dropped.join(" ")).toContain("returned nothing usable");
+  });
+
+  it("distinguishes a declined search from an unusable one", async () => {
+    const { client } = modelByTool({ resources: [REFUSED] });
+
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
+
+    expect(outcome.source).toBe("generated");
+    expect(outcome.dropped.join(" ")).toContain("was declined");
   });
 
   it("fails when the rubrics cannot be written", async () => {
-    const batches = batchSkills(withRefs(GRAPH));
-    const noRubrics = [
-      GRAPH,
-      ...batches.map((b) => itemsFor(b.map((s) => s.ref))),
-      { rubrics: [] },
-      { rubrics: [] },
-    ];
-    const { client } = modelReturning([...noRubrics, ...noRubrics]);
+    const { client } = modelByTool({ rubrics: [{ rubrics: [] }] });
 
-    const outcome = await generatePack(
-      { client, db, userId: null },
-      { slug: "rust", subject: "Rust", rawGoal: null },
-    );
+    const outcome = await generatePack(deps({ client }) as never, {
+      slug: "rust",
+      subject: "Rust",
+      rawGoal: null,
+    });
     expect(outcome.source).toBe("none");
     expect(outcome.reasons.join(" ")).toContain("rubrics");
   });
@@ -459,9 +604,9 @@ describe("generatePack", () => {
       }),
     } as never;
 
-    const { client, create } = modelReturning(happyPath());
+    const { client, create } = modelByTool({});
     await generatePack(
-      { client, db: capped, userId: "u1", plan: "free" },
+      deps({ client, db: capped, userId: "u1", plan: "free" }) as never,
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
 
@@ -489,9 +634,9 @@ describe("generatePack", () => {
       }),
     } as never;
 
-    const { client, create } = modelReturning(happyPath());
+    const { client, create } = modelByTool({});
     await generatePack(
-      { client, db: unspent, userId: "u1", plan: "learner" },
+      deps({ client, db: unspent, userId: "u1", plan: "learner" }) as never,
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
 
@@ -514,9 +659,9 @@ describe("generatePack", () => {
       }),
     } as never;
 
-    const { client, create } = modelReturning(happyPath());
+    const { client, create } = modelByTool({});
     await generatePack(
-      { client, db: unspent, userId: "u1", plan: "pro" },
+      deps({ client, db: unspent, userId: "u1", plan: "pro" }) as never,
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
 

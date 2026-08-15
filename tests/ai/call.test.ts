@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   callStructured,
+  MAX_PAUSE_RESUMES,
   MAX_SCHEMA_ATTEMPTS,
   modelFor,
   type ParseOutcome,
@@ -251,6 +252,8 @@ describe("callStructured", () => {
       // §14.9.4 — this is the number the caching assertion reads. A silent
       // cache miss triples the bill with no error and no log line.
       cacheReadInputTokens: 900,
+      // No server tools on this call, so nothing to bill per request.
+      webSearchRequests: 0,
     });
   });
 
@@ -359,5 +362,127 @@ describe("callStructured", () => {
 
     const body = create.mock.calls[0]![0];
     expect(body.model).toBe(MODELS.standard);
+  });
+});
+
+describe("server tools", () => {
+  const searching = {
+    ...call,
+    serverTools: [
+      { type: "web_search_20260209", name: "web_search", max_uses: 8 },
+    ] as Anthropic.ToolUnion[],
+  };
+
+  it("declares them ahead of the submit tool and stops forcing a choice", async () => {
+    /*
+     * Two halves of one fact. A forced `tool_choice` obliges the model to call
+     * that tool first, so it could never search — declaring a server tool and
+     * pinning the submit tool would quietly return the schema with none of the
+     * research in it. Order matters too: tools render before the cached system
+     * prompt, so the server tool has to be a stable prefix.
+     */
+    const { client, create } = stub([reply()]);
+    await callStructured(client, searching);
+
+    const body = create.mock.calls[0]![0];
+    expect((body.tools as Array<{ type?: string }>)[0]!.type).toBe(
+      "web_search_20260209",
+    );
+    expect((body.tools as Array<{ name: string }>)[1]!.name).toBe("submit");
+    expect(body.tool_choice).toEqual({ type: "auto" });
+  });
+
+  it("keeps forcing the tool on every call that declares none", async () => {
+    const { client, create } = stub([reply()]);
+    await callStructured(client, { ...call, serverTools: [] });
+    expect(create.mock.calls[0]![0].tool_choice).toEqual({
+      type: "tool",
+      name: "submit",
+    });
+  });
+
+  it("counts the searches the server ran", async () => {
+    const { client } = stub([
+      reply({
+        usage: usage({
+          server_tool_use: { web_search_requests: 5, web_fetch_requests: 0 },
+        }),
+      } as Partial<Anthropic.Message>),
+    ]);
+    const result = await callStructured(client, searching);
+    expect(result.usage.webSearchRequests).toBe(5);
+  });
+
+  it("resumes a paused turn instead of treating it as an answer", async () => {
+    /*
+     * A server tool that runs long comes back `pause_turn`: a real turn, with
+     * real usage on it, that has not finished. Re-sending with the partial
+     * assistant turn appended is how the server picks up where it stopped.
+     */
+    const paused = reply({
+      stop_reason: "pause_turn",
+      content: [
+        { type: "server_tool_use", id: "srv_1", name: "web_search", input: {} },
+      ],
+    } as Partial<Anthropic.Message>);
+    const { client, create } = stub([paused, reply()]);
+
+    const result = await callStructured(client, searching);
+
+    expect(result.status).toBe("ok");
+    expect(create).toHaveBeenCalledTimes(2);
+    // The resume carries the partial turn, and adds no "continue" of its own —
+    // the trailing tool use is the signal, and a user message would be read as
+    // an instruction.
+    const resumed = create.mock.calls[1]![0].messages;
+    expect(resumed).toHaveLength(2);
+    expect(resumed[1]!.role).toBe("assistant");
+  });
+
+  it("bills every leg of a paused turn, not just the one that answered", async () => {
+    const paused = reply({
+      stop_reason: "pause_turn",
+      usage: usage({
+        server_tool_use: { web_search_requests: 3, web_fetch_requests: 0 },
+      }),
+    } as Partial<Anthropic.Message>);
+    const { client } = stub([
+      paused,
+      reply({
+        usage: usage({
+          server_tool_use: { web_search_requests: 2, web_fetch_requests: 0 },
+        }),
+      } as Partial<Anthropic.Message>),
+    ]);
+
+    const result = await callStructured(client, searching);
+    expect(result.usage.webSearchRequests).toBe(5);
+    expect(result.usage.inputTokens).toBe(200);
+  });
+
+  it("gives up on a turn that will not stop pausing", async () => {
+    // Every resume re-sends the whole transcript, so the cost of waiting grows
+    // while the odds do not.
+    const paused = () =>
+      reply({
+        stop_reason: "pause_turn",
+        // Mid-search: no submit call yet. A paused turn that *had* already
+        // emitted one would be an answer, and is taken as one.
+        content: [
+          { type: "server_tool_use", id: "srv", name: "web_search", input: {} },
+        ],
+      } as Partial<Anthropic.Message>);
+    const { client, create } = stub(
+      Array.from({ length: 20 }, paused),
+    );
+
+    const result = await callStructured(client, searching);
+
+    expect(result.status).toBe("invalid");
+    expect(result.status === "invalid" && result.detail).toContain("resumes");
+    // Two schema attempts, each spending its own resume budget.
+    expect(create.mock.calls.length).toBe(
+      MAX_SCHEMA_ATTEMPTS * (MAX_PAUSE_RESUMES + 1),
+    );
   });
 });

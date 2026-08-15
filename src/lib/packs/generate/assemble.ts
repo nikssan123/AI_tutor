@@ -9,6 +9,7 @@ import {
 import { MIN_PRODUCTION_TO_MCQ_RATIO, validatePack } from "../validate";
 import { PRODUCTION_ITEM_TYPES, type DomainPack } from "../types";
 import { DomainPackSchema } from "../types";
+import type { CheckedResource } from "../resources";
 import {
   PRIORS_BY_LEVEL,
   nameResolver,
@@ -39,6 +40,8 @@ export interface AssembleInput {
   graph: PackGraphDraft;
   items: DraftItem[];
   rubrics: RubricsDraft;
+  /** Already link-checked (`checkDrafts`); empty when the research call failed. */
+  resources: CheckedResource[];
 }
 
 export interface AssembleResult {
@@ -203,6 +206,70 @@ export function enforceRatio(
   );
 }
 
+/**
+ * The resource index, with everything we cannot stand behind removed.
+ *
+ * Three drops, and the order matters only in what gets reported. A dead link is
+ * dropped because the whole point of researching rather than recalling was to
+ * cite something that exists — keeping it would leave the pack making the exact
+ * claim the checker just disproved. A duplicate URL is dropped because a list
+ * that recommends one page twice reads as padding. A resource whose skills all
+ * fall outside the pack is dropped for the same reason an item is: it points at
+ * something this pack does not teach.
+ *
+ * Unresolvable skills are pruned rather than fatal — a resource that covers
+ * three skills and names a fourth we do not have is still a good resource for
+ * the three.
+ */
+function resourcesFrom(
+  checked: CheckedResource[],
+  resolve: (name: string) => string | undefined,
+  dropped: string[],
+): DomainPack["resources"] {
+  const slugs = uniqueSlugs(checked.map((r) => r.title));
+  const seen = new Set<string>();
+  const kept: DomainPack["resources"] = [];
+
+  for (const resource of checked) {
+    if (!resource.reachable) {
+      dropped.push(`resource "${resource.title}" — ${resource.url} did not resolve`);
+      continue;
+    }
+    if (seen.has(resource.url)) {
+      dropped.push(`resource "${resource.title}" repeats ${resource.url}`);
+      continue;
+    }
+
+    const skills = resource.skills.flatMap((ref) => {
+      const slug = resolve(ref);
+      return slug ? [slug] : [];
+    });
+
+    if (skills.length === 0) {
+      dropped.push(
+        `resource "${resource.title}" covers no skill this pack contains`,
+      );
+      continue;
+    }
+
+    seen.add(resource.url);
+    kept.push({
+      slug: slugs.get(resource.title)!,
+      url: resource.url,
+      title: resource.title,
+      publisher: resource.publisher,
+      kind: resource.kind,
+      skills: [...new Set(skills)],
+      assessment: resource.assessment,
+      publishedAt: resource.publishedAt,
+      checkedAt: resource.checkedAt,
+      reachable: true,
+    });
+  }
+
+  return kept;
+}
+
 export function assemblePack(input: AssembleInput): AssembleResult {
   const dropped: string[] = [];
   const { graph } = input;
@@ -320,6 +387,7 @@ export function assemblePack(input: AssembleInput): AssembleResult {
     items,
     rubrics,
     projects,
+    resources: resourcesFrom(input.resources, resolveSkill, dropped),
   };
 
   const pack = DomainPackSchema.parse(candidate);

@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import {
   assessmentItem,
   domainPack,
+  packResource,
   project,
   rubric,
   skill,
@@ -70,12 +71,17 @@ export async function packFromDb(
 
   if (!packRow) return undefined;
 
-  const [skillRows, itemRows, rubricRows, projectRows] = await Promise.all([
-    db.select().from(skill).where(eq(skill.packId, packRow.id)),
-    db.select().from(assessmentItem).where(eq(assessmentItem.packId, packRow.id)),
-    db.select().from(rubric).where(eq(rubric.packId, packRow.id)),
-    db.select().from(project).where(eq(project.packId, packRow.id)),
-  ]);
+  const [skillRows, itemRows, rubricRows, projectRows, resourceRows] =
+    await Promise.all([
+      db.select().from(skill).where(eq(skill.packId, packRow.id)),
+      db
+        .select()
+        .from(assessmentItem)
+        .where(eq(assessmentItem.packId, packRow.id)),
+      db.select().from(rubric).where(eq(rubric.packId, packRow.id)),
+      db.select().from(project).where(eq(project.packId, packRow.id)),
+      db.select().from(packResource).where(eq(packResource.packId, packRow.id)),
+    ]);
 
   // UUID → slug, for every reference the rows below carry.
   const skillSlug = new Map(skillRows.map((s) => [s.id, s.slug]));
@@ -188,6 +194,37 @@ export async function packFromDb(
               return ref ? [ref] : [];
             }),
             acceptanceCriteria: p.acceptanceCriteria,
+          },
+        ];
+      })
+      .sort((a, b) => a.slug.localeCompare(b.slug)),
+
+    /*
+     * A resource whose every skill has left the pack is dropped, for the same
+     * reason an orphaned dependency edge is: `PackResource.skills` needs at
+     * least one pack-local slug, and inventing one to keep the row would be
+     * citing a page against a skill nobody teaches. Skills that merely went
+     * missing individually are pruned, which matches how assembly built it.
+     */
+    resources: resourceRows
+      .flatMap((r) => {
+        const skills = (r.skillIds as string[]).flatMap((id) => {
+          const ref = skillSlug.get(id);
+          return ref ? [ref] : [];
+        });
+        if (skills.length === 0) return [];
+        return [
+          {
+            slug: r.slug,
+            url: r.url,
+            title: r.title,
+            publisher: r.publisher,
+            kind: r.kind,
+            skills,
+            assessment: r.assessment,
+            publishedAt: r.publishedAt,
+            checkedAt: r.checkedAt ? r.checkedAt.toISOString() : null,
+            reachable: r.reachable,
           },
         ];
       })

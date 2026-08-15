@@ -1,4 +1,4 @@
-import { itemId, packId, projectId, rubricId, skillId } from "./ids";
+import { itemId, packId, projectId, resourceId, rubricId, skillId } from "./ids";
 import type { DomainPack } from "./types";
 
 /**
@@ -80,6 +80,20 @@ export interface PackRows {
     estimatedMinutes: number;
     isPublic: boolean;
   }>;
+  resources: Array<{
+    id: string;
+    packId: string;
+    slug: string;
+    url: string;
+    title: string;
+    publisher: string;
+    kind: string;
+    skillIds: string[];
+    assessment: string;
+    publishedAt: string | null;
+    checkedAt: Date | null;
+    reachable: boolean;
+  }>;
 }
 
 export function toRows(pack: DomainPack): PackRows {
@@ -158,6 +172,22 @@ export function toRows(pack: DomainPack): PackRows {
       acceptanceCriteria: p.acceptanceCriteria,
       estimatedMinutes: p.estimatedMinutes,
       isPublic: p.isPublic,
+    })),
+    resources: pack.resources.map((r) => ({
+      id: resourceId(pack.slug, r.slug),
+      packId: id,
+      slug: r.slug,
+      url: r.url,
+      title: r.title,
+      publisher: r.publisher,
+      kind: r.kind,
+      skillIds: r.skills.map(skill),
+      assessment: r.assessment,
+      publishedAt: r.publishedAt,
+      // The column is an instant and the pack carries an ISO string, the same
+      // conversion `quality.reviewedAt` makes two fields up.
+      checkedAt: r.checkedAt ? new Date(r.checkedAt) : null,
+      reachable: r.reachable,
     })),
   };
 }

@@ -9,7 +9,12 @@ import type {
 import { factualSpotChecker, generateCurriculum, type ArchitectInput } from "./architect";
 import { canonicalCurriculum, type CanonicalProject } from "./canonical";
 import { applyRepairs, isRepairable } from "./repair";
-import { runValidator, type SpotChecker, type ValidationInput } from "./validate";
+import {
+  runValidator,
+  type CitedResource,
+  type SpotChecker,
+  type ValidationInput,
+} from "./validate";
 
 /**
  * §24 E6, end to end: generate, validate, repair, and fall back.
@@ -54,6 +59,17 @@ export interface GenerateDeps {
   /** Overridable so tests need no model; defaults to the Opus adversarial pass. */
   spotCheck?: SpotChecker;
   projects?: CanonicalProject[];
+  /**
+   * §7.1's resource index for the pack being planned against, from
+   * `citedResources`.
+   *
+   * §14.6's `resource_freshness` is the seventh of nine checks and it had never
+   * run: nothing ever set this field, so it returned "no resources cited yet"
+   * and the report counted a pass. Left unset it still does — a pack nobody has
+   * researched has nothing to age out — but a pack that *has* been researched
+   * now gets its citations checked rather than assumed.
+   */
+  resources?: CitedResource[];
 }
 
 export async function generateValidatedCurriculum(
@@ -69,6 +85,7 @@ export async function generateValidatedCurriculum(
     now: input.now,
     constraints: input.constraints,
     rubricCriteria: input.rubricCriteria,
+    resources: deps.resources,
   });
 
   // §14.9.7 limit 1 — "checked *before* every call", not after the bill lands.

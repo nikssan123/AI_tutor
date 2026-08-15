@@ -152,6 +152,50 @@ export const PackProject = z.object({
 export type PackProject = z.infer<typeof PackProject>;
 
 /**
+ * §7.1's `resource_index` — vetted external references, as pack data.
+ *
+ * A pack's skills, items and rubrics are things we assert. A resource is a
+ * pointer at something somebody else published, and the difference shows up in
+ * the two fields no other pack entity has: `publishedAt`, which is what §14.6's
+ * freshness check ages out, and `checkedAt`/`reachable`, which is the last time
+ * a link checker looked and what it found.
+ *
+ * **`reachable` is a finding with a date on it, not a promise.** It says a
+ * request to this URL resolved on `checkedAt` — which is the strongest thing
+ * any stored value can say about a page we do not control. A pack that claimed
+ * a link "works" would be making a claim about the present out of a fact about
+ * the past, and §4.2 law 3 is exactly the rule against that.
+ */
+export const ResourceKind = z.enum([
+  "tutorial",
+  "reference",
+  "course",
+  "book",
+  "specification",
+  "video",
+  "dataset",
+]);
+export type ResourceKind = z.infer<typeof ResourceKind>;
+
+export const PackResource = z.object({
+  slug,
+  url: z.string().url(),
+  title: z.string().min(1),
+  publisher: z.string().min(1),
+  kind: ResourceKind,
+  /** Pack-local skill slugs. A resource pointing outside its pack is dropped. */
+  skills: z.array(slug).min(1),
+  assessment: z.string().min(1),
+  /** ISO-8601 date, or null where the source states none. */
+  publishedAt: z.string().nullable().default(null),
+  /** ISO-8601 timestamp of the last link check. */
+  checkedAt: z.string().nullable().default(null),
+  /** What that check found. Never a claim about right now. */
+  reachable: z.boolean().default(true),
+});
+export type PackResource = z.infer<typeof PackResource>;
+
+/**
  * §7.1 — *who* checked the pack, not just that someone did.
  *
  * The badge on a subject page says "Written and checked by hand", and for three
@@ -218,6 +262,12 @@ export const DomainPackSchema = PackManifest.extend({
   items: z.array(PackItem).default([]),
   rubrics: z.array(PackRubric).default([]),
   projects: z.array(PackProject).default([]),
+  /**
+   * Defaulted rather than required, because every pack that exists today has
+   * none. A pack without resources is a pack nobody has researched yet, which
+   * is a true statement about all seven curated ones until the backfill runs.
+   */
+  resources: z.array(PackResource).default([]),
 });
 
 export type DomainPack = z.infer<typeof DomainPackSchema>;

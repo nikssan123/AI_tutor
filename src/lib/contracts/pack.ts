@@ -155,3 +155,72 @@ export const RubricsDraft = z.object({
   projects: z.array(DraftProject).min(1).max(6),
 });
 export type RubricsDraft = z.infer<typeof RubricsDraft>;
+
+/* ── Resources ────────────────────────────────────────────────────────────── */
+
+/**
+ * §7.1's `resource_index` — the one thing in a generated pack that does not come
+ * out of the model's weights.
+ *
+ * Everything else here is judgement about a subject, which is what a model is
+ * for. A *reference* is a fact about the world on a particular day: whether the
+ * page exists, who published it, when. §14.6's freshness check is written to
+ * catch exactly the case where those facts have rotted, and until this contract
+ * existed it had nothing to check — the researcher was a row in the model table
+ * and an optional field nobody filled in.
+ *
+ * The URL is the reason this call searches rather than recalls. A model asked
+ * for "the best SQL tutorial" will produce a plausible URL from memory, and a
+ * plausible URL is worse than none: it fails the reachability check at best, and
+ * at worst resolves to something else entirely.
+ */
+
+/** Between these, a pack has enough to point a learner at without a shelf. */
+export const MIN_GENERATED_RESOURCES = 4;
+export const MAX_GENERATED_RESOURCES = 24;
+
+export const DraftResource = z.object({
+  /** Exactly as returned by the search — never reconstructed or tidied. */
+  url: z.string().url().max(600),
+  title: z.string().min(2).max(200),
+  /** Who published it: "Harvard CS50", "PostgreSQL docs", "Julia Evans". */
+  publisher: z.string().min(2).max(120),
+  kind: z.enum([
+    "tutorial",
+    "reference",
+    "course",
+    "book",
+    "specification",
+    "video",
+    "dataset",
+  ]),
+  /** Refs (`s3`) of the skills this covers, as `items.ts` and `rubrics.ts` use. */
+  skills: z.array(z.string().min(1)).min(1).max(8),
+  /**
+   * What it is good for and what it is not — the same standard §12's guides
+   * hold citations to. A bare link is a search result; an assessment is why we
+   * are sending someone there rather than somewhere else.
+   */
+  assessment: z.string().min(20).max(600),
+  /**
+   * ISO-8601, or null where the source does not state one.
+   *
+   * Null rather than a guess, and `resourceFreshness` treats it as "cannot be
+   * judged stale" rather than "fresh" — the check only ages out a date it was
+   * actually given. A model filling this in from vibes would turn the one
+   * signal that catches rot into noise.
+   */
+  publishedAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
+    .nullable(),
+});
+export type DraftResource = z.infer<typeof DraftResource>;
+
+export const ResourcesDraft = z.object({
+  resources: z
+    .array(DraftResource)
+    .min(MIN_GENERATED_RESOURCES)
+    .max(MAX_GENERATED_RESOURCES),
+});
+export type ResourcesDraft = z.infer<typeof ResourcesDraft>;

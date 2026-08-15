@@ -8,6 +8,7 @@ import {
 import { skillRef } from "@/lib/packs/generate/derive";
 import { detectCycle } from "@/lib/engine/graph";
 import { toEngineGraph } from "@/lib/packs/validate";
+import type { CheckedResource } from "@/lib/packs/resources";
 import type {
   DraftItem,
   DraftSkill,
@@ -93,12 +94,26 @@ const RUBRICS: RubricsDraft = {
   ],
 };
 
+const resource = (over: Partial<CheckedResource> = {}): CheckedResource => ({
+  url: "https://example.test/guide",
+  title: "A Guide",
+  publisher: "Example",
+  kind: "tutorial",
+  skills: ["s0"],
+  assessment: "Good on the basics, stops before anything advanced.",
+  publishedAt: "2025-01-15",
+  reachable: true,
+  checkedAt: "2026-08-15T00:00:00.000Z",
+  ...over,
+});
+
 const assemble = (
   skills: DraftSkill[],
   over: {
     items?: DraftItem[];
     rubrics?: RubricsDraft;
     graph?: Partial<PackGraphDraft>;
+    resources?: CheckedResource[];
   } = {},
 ) =>
   assemblePack({
@@ -106,6 +121,7 @@ const assemble = (
     graph: graphOf(skills, over.graph),
     items: over.items ?? itemsFor(skills),
     rubrics: over.rubrics ?? RUBRICS,
+    resources: over.resources ?? [],
   });
 
 const EIGHT = Array.from({ length: 8 }, (_, i) => skill(i));
@@ -462,6 +478,86 @@ describe("enforceRatio", () => {
   });
 });
 
+describe("the resource index", () => {
+  it("resolves skill references and derives a slug from the title", () => {
+    const { pack } = assemble(EIGHT, {
+      resources: [resource({ title: "The Rust Book", skills: ["s0", "s2"] })],
+    });
+
+    expect(pack.resources).toHaveLength(1);
+    expect(pack.resources[0]!.slug).toBe("the-rust-book");
+    expect(pack.resources[0]!.skills).toEqual([
+      pack.skills[0]!.slug,
+      pack.skills[2]!.slug,
+    ]);
+  });
+
+  it("drops a link the checker could not reach, and says which", () => {
+    // The whole reason this call searches rather than recalls is to cite a page
+    // that exists. Writing one the checker just disproved would be worse than
+    // citing nothing.
+    const { pack, dropped } = assemble(EIGHT, {
+      resources: [
+        resource({ title: "Gone", url: "https://example.test/404", reachable: false }),
+        resource({ title: "Live" }),
+      ],
+    });
+
+    expect(pack.resources.map((r) => r.title)).toEqual(["Live"]);
+    expect(dropped.join(" ")).toContain("did not resolve");
+  });
+
+  it("drops a second citation of the same URL", () => {
+    const { pack, dropped } = assemble(EIGHT, {
+      resources: [
+        resource({ title: "First" }),
+        resource({ title: "Second" }),
+      ],
+    });
+
+    expect(pack.resources).toHaveLength(1);
+    expect(dropped.join(" ")).toContain("repeats");
+  });
+
+  it("drops a resource whose skills are all outside the pack", () => {
+    const { pack, dropped } = assemble(EIGHT, {
+      resources: [resource({ skills: ["s99"] })],
+    });
+
+    expect(pack.resources).toHaveLength(0);
+    expect(dropped.join(" ")).toContain("covers no skill this pack contains");
+  });
+
+  it("prunes the unknown skills off a resource that still covers a real one", () => {
+    // A resource good for three skills and wrong about a fourth is still good
+    // for the three.
+    const { pack } = assemble(EIGHT, {
+      resources: [resource({ skills: ["s1", "s404"] })],
+    });
+
+    expect(pack.resources[0]!.skills).toEqual([pack.skills[1]!.slug]);
+  });
+
+  it("carries the dates through untouched", () => {
+    // `publishedAt` is what §14.6 ages out and `checkedAt` is what makes
+    // `reachable` readable as a finding. Either one invented here is a lie the
+    // freshness check would then act on.
+    const { pack } = assemble(EIGHT, {
+      resources: [resource({ publishedAt: null })],
+    });
+
+    expect(pack.resources[0]!.publishedAt).toBeNull();
+    expect(pack.resources[0]!.checkedAt).toBe("2026-08-15T00:00:00.000Z");
+    expect(pack.resources[0]!.reachable).toBe(true);
+  });
+
+  it("leaves the pack valid when the research call returned nothing", () => {
+    const { pack, report } = assemble(EIGHT, { resources: [] });
+    expect(pack.resources).toEqual([]);
+    expect(report.passed).toBe(true);
+  });
+});
+
 describe("meetsQualityFloor", () => {
   it("passes a pack with enough items across enough skills", () => {
     const { pack, report } = assemble(EIGHT);
@@ -532,6 +628,7 @@ describe("meetsQualityFloor", () => {
         mcqItems: 0,
         rubrics: 1,
         projects: 1,
+        resources: 0,
         skillsWithoutItems: 0,
       },
     });
