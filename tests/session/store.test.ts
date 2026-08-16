@@ -38,7 +38,13 @@ import {
   startSession,
 } from "@/lib/session/store";
 import { answerCheck, checkBlockAt, isBlank } from "@/lib/session/run";
-import { lessonForBlock, sessionView, supportFor } from "@/lib/session/view";
+import {
+  cachedLessonFor,
+  lessonForBlock,
+  lessonRequestFor,
+  sessionView,
+  supportFor,
+} from "@/lib/session/view";
 import {
   appendBlocks,
   recentSignals,
@@ -437,6 +443,43 @@ live("the session store", () => {
        * themselves, so this is belt and braces — but a test that seeds a global
        * cache and walks away is worth not writing twice.
        */
+      await db
+        .delete(lessonTable)
+        .where(eq(lessonTable.skillId, skillId(pack.slug, skill.id)));
+    });
+
+    /**
+     * What the tutor reads, so it answers in the lesson's own names.
+     *
+     * It has to find the row under exactly the key `lessonForBlock` wrote it
+     * under — which is the whole reason both build it through
+     * `lessonRequestFor` rather than each assembling one. A key that disagrees
+     * does not fail loudly; it misses, and the tutor quietly invents a parallel
+     * example again.
+     */
+    it("finds the lesson the page cached, and never generates one", async () => {
+      const userId = await newUser();
+      const pack = findPack("photography")!;
+      const skill = toEngineGraph(pack).skills[0]!;
+      const key = {
+        userId,
+        packSlug: pack.slug,
+        skill,
+        mastery: initialMastery(skill.id, skill.bktPriors),
+        minutes: 12,
+        now: NOW,
+      };
+
+      // Nothing cached yet: a miss, and `explode` proves no model was reached
+      // for. A tutor question must not be the thing that buys a lesson.
+      expect(await cachedLessonFor(db, key)).toBeUndefined();
+
+      await saveLesson(db, await lessonRequestFor(db, key), LESSON, NOW);
+
+      expect((await cachedLessonFor(db, key))?.workedExample).toBe(
+        LESSON.workedExample,
+      );
+
       await db
         .delete(lessonTable)
         .where(eq(lessonTable.skillId, skillId(pack.slug, skill.id)));

@@ -119,6 +119,46 @@ describe("tutorMessages", () => {
     expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(messages.at(-1)!.content).toContain("three");
   });
+
+  /**
+   * The lesson's example, handed over so the instruction to reuse it is one the
+   * model can actually follow.
+   *
+   * Nothing in the learner context has ever contained a lesson, so a tutor told
+   * to reuse the lesson's names had no way to know them — which is how one
+   * session came to hold three namings of one idea: `Greeter.App` on the page,
+   * `MyApp` in the first answer, `Demo`/`App`/`Lib` in the second.
+   */
+  it("hands over the worked example the learner is looking at", () => {
+    const messages = tutorMessages({
+      learnerContext: CONTEXT,
+      block: undefined,
+      workedExample: "Join orders to items and count.",
+      history: [],
+      message: "why?",
+    });
+
+    expect(messages.at(-1)!.content).toContain("Join orders to items and count.");
+    expect(messages.at(-1)!.content).toContain("reuse its names");
+  });
+
+  /**
+   * Both frames ride in the message, never the system prefix. §14.9.4 caches up
+   * to the end of the system block, and the block and its lesson both change as
+   * the learner moves through the session — above the breakpoint they would
+   * invalidate the cached prefix on every block.
+   */
+  it("says nothing about a lesson when none is cached", () => {
+    const messages = tutorMessages({
+      learnerContext: CONTEXT,
+      block: undefined,
+      history: [],
+      message: "why?",
+    });
+
+    expect(messages.at(-1)!.content).not.toContain("worked example");
+    expect(messages.at(-1)!.content).toContain("Where they are");
+  });
 });
 
 describe("describeBlock", () => {
@@ -158,6 +198,36 @@ describe("what the tutor is forbidden to do", () => {
 
   it("is told to hand the work back", () => {
     expect(TUTOR_PROMPT.text).toContain("They are here to be able to do it");
+  });
+
+  /**
+   * The hole the "hand the work back" rule left open.
+   *
+   * That rule is scoped to *artefacts* — write the query, take the photo, draft
+   * the email. A check block is not an artefact, so a tutor asked "explain this
+   * differently" mid-recall answered with the complete solution on a different
+   * example, obeyed every word of the prompt, and took the retrieval the block
+   * exists for. Handing it over on different names is still handing it over.
+   */
+  it("is told not to answer the question the learner is being asked", () => {
+    expect(TUTOR_PROMPT.text).toContain(
+      "When they are answering a question, do not answer it",
+    );
+    expect(TUTOR_PROMPT.text).toContain("it is the recall you have taken from them");
+  });
+
+  /**
+   * One example per idea, for the whole conversation. A learner who has met
+   * four namings of one thing is now learning the namings.
+   */
+  it("is told to keep one example rather than invent a new one each answer", () => {
+    expect(TUTOR_PROMPT.text).toContain("Use the example you are given");
+    expect(TUTOR_PROMPT.text).toContain("keep it for the rest of the conversation");
+  });
+
+  /** A changed prompt is a different prompt, and the run log has to say so. */
+  it("carries a version that moved with the text", () => {
+    expect(TUTOR_PROMPT.version).toBe(2);
   });
 
   it("replays a bounded transcript", () => {

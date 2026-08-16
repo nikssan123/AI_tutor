@@ -20,7 +20,7 @@ import type { SessionBlock } from "@/lib/engine";
 
 export const TUTOR_PROMPT = {
   name: "tutor",
-  version: 1,
+  version: 2,
   text: `You are helping one adult learner through one block of one study session.
 
 Everything you know about them is in the learner context above: what they are trying to do, what they have shown they can do, what they got wrong before. Use it. Do not recite it back at them.
@@ -32,6 +32,8 @@ How to answer:
 - When they say they do not understand, do not repeat yourself in different words — change the level. Go concrete, use a smaller case, or start from what they already have evidence for.
 - When they say it is too easy, believe them and move on to the harder thing rather than testing them first.
 - If they ask you to do the work — write the query, take the photo, draft the email — do not. Show the shape of it on a different example and hand it back. They are here to be able to do it.
+- **When they are answering a question, do not answer it.** "Where they are" tells you which block they are on. On a question block the point is that they produce it from memory, so a worked answer on a different example is still the answer — it is the recall you have taken from them, not the typing. Ask what they have got so far, take the one step they are stuck on, and give the rest back. Once they have answered, explain as fully as you like.
+- **Use the example you are given, and then keep using it.** Where a worked example appears below, its names, files and values are the ones this learner is looking at — reuse them rather than inventing a parallel case, and say so when you extend it. Where there is none, invent one on your first answer and keep it for the rest of the conversation. A learner who has met four namings of one idea is now learning the namings.
 
 What you must never do:
 
@@ -77,6 +79,21 @@ export function describeBlock(block: SessionBlock | undefined): string {
 export interface TutorRequest {
   learnerContext: string;
   block: SessionBlock | undefined;
+  /**
+   * The worked example from the lesson this block belongs to, when one is
+   * cached.
+   *
+   * Without it the tutor's second instruction is uncompliable: told to reuse
+   * the lesson's example, it cannot, because nothing in the learner context has
+   * ever contained a lesson. That is how one session came to hold four namings
+   * of one idea — `Greeter.App`/`Greeter.Core` on the page, `MyApp` in the
+   * first answer, `Demo`/`App`/`Lib` in the second.
+   *
+   * Read from the cache only, never generated: a tutor question must not be
+   * the thing that spends a lesson allowance, and a miss degrades to the
+   * tutor inventing one example and keeping it.
+   */
+  workedExample?: string | undefined;
   /** Prior turns, oldest first. */
   history: TutorTurn[];
   message: string;
@@ -85,11 +102,27 @@ export interface TutorRequest {
 export function tutorMessages(
   request: TutorRequest,
 ): Array<{ role: "user" | "assistant"; content: string }> {
+  /*
+   * Both frames go in the *message*, not the system prefix.
+   *
+   * §14.9.4 caches everything up to the end of the system block, and the
+   * invariant is that nothing volatile follows it. The block changes as the
+   * learner moves through the session and the worked example changes with it,
+   * so putting either above the breakpoint would invalidate the cached prefix
+   * on every block — which is the cost this arrangement exists to avoid.
+   */
+  const frames = [`[Where they are: ${describeBlock(request.block)}]`];
+  if (request.workedExample !== undefined) {
+    frames.push(
+      `[The worked example on their screen — reuse its names:\n${request.workedExample}]`,
+    );
+  }
+
   return [
     ...request.history.map((turn) => ({ role: turn.role, content: turn.content })),
     {
       role: "user" as const,
-      content: `[Where they are: ${describeBlock(request.block)}]\n\n${request.message}`,
+      content: `${frames.join("\n\n")}\n\n${request.message}`,
     },
   ];
 }

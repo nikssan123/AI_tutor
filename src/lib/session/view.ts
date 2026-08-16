@@ -176,6 +176,64 @@ export interface LessonOutcome {
   locked?: boolean;
 }
 
+/** Everything both `lessonForBlock` and `cachedLessonFor` need to build a key. */
+export interface LessonKeyInput {
+  userId: string;
+  packSlug: string;
+  skill: EngineSkill;
+  mastery: MasteryState;
+  minutes: number;
+  now: Date;
+  priorDomain?: PriorDomain | undefined;
+}
+
+/**
+ * The §14.9.4 cache key for one learner's lesson on one skill.
+ *
+ * Extracted so the tutor can look a lesson up under exactly the key the page
+ * stored it under. Rebuilding this by hand at the second call site is how the
+ * two would come to disagree — and a key that disagrees does not fail loudly,
+ * it silently misses and the tutor invents its own example again.
+ *
+ * PLAN-ADAPTATION step 3's `stuck` signal is read here rather than passed in,
+ * for the same reason: it is part of the key, so it belongs with the key.
+ */
+export async function lessonRequestFor(
+  db: Db,
+  input: LessonKeyInput,
+): Promise<LessonRequest> {
+  const level = masteryBand(input.mastery);
+  const signals = await recentSignals(db, input.userId, input.packSlug, input.now);
+  const stuck = signals.some(
+    (s) => s.signal === "stuck" && s.skillSlug === input.skill.id,
+  );
+
+  return {
+    packSlug: input.packSlug,
+    skillSlug: input.skill.id,
+    skillName: input.skill.name,
+    canDoStatement: input.skill.canDoStatement,
+    level,
+    minutes: input.minutes,
+    support: supportFor(level, stuck),
+    priorDomain: input.priorDomain ?? DEFAULT_PRIOR_DOMAIN,
+  };
+}
+
+/**
+ * The lesson the learner is looking at, if one is already written.
+ *
+ * **Cache read only — this never generates.** A tutor question must not be the
+ * thing that spends a lesson allowance or buys a model call, so a miss returns
+ * nothing and the tutor falls back to inventing one example and keeping it.
+ */
+export async function cachedLessonFor(
+  db: Db,
+  input: LessonKeyInput,
+): Promise<LessonContent | undefined> {
+  return cachedLesson(db, await lessonRequestFor(db, input));
+}
+
 /**
  * The lesson for an explain block: cache first, model second.
  *
@@ -211,31 +269,7 @@ export async function lessonForBlock(
     lessonsPerCourse?: number | null | undefined;
   },
 ): Promise<LessonOutcome> {
-  const level = masteryBand(input.mastery);
-
-  // PLAN-ADAPTATION step 3. Asked here rather than threaded down from the page,
-  // because this is the only function that decides what a lesson looks like and
-  // splitting that decision across two files is how the two would disagree.
-  const signals = await recentSignals(
-    db,
-    input.userId,
-    input.packSlug,
-    input.now,
-  );
-  const stuck = signals.some(
-    (s) => s.signal === "stuck" && s.skillSlug === input.skill.id,
-  );
-
-  const request: LessonRequest = {
-    packSlug: input.packSlug,
-    skillSlug: input.skill.id,
-    skillName: input.skill.name,
-    canDoStatement: input.skill.canDoStatement,
-    level,
-    minutes: input.minutes,
-    support: supportFor(level, stuck),
-    priorDomain: input.priorDomain ?? DEFAULT_PRIOR_DOMAIN,
-  };
+  const request = await lessonRequestFor(db, input);
 
   /*
    * The plan's per-course allowance — **before the cache, deliberately.**

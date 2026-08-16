@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { getAnthropic } from "@/lib/ai/client";
 import { currentSession } from "@/lib/account/session";
 import { recordAgentRun } from "@/lib/ai/runlog";
-import { sessionView } from "@/lib/session/view";
+import { cachedLessonFor, sessionView } from "@/lib/session/view";
 import {
   logTurn,
   transcriptFor,
@@ -91,9 +91,32 @@ export async function POST(request: Request): Promise<Response> {
 
   const history = await transcriptFor(db, view.session.id, auth.user.id);
 
+  /*
+   * The lesson on the learner's screen, so the tutor answers in its names.
+   *
+   * A cache read, never a generation — `cachedLessonFor` cannot call a model,
+   * so a tutor question can neither spend a lesson allowance nor buy a call.
+   * A miss is fine and expected on a `review` or `reflect` block, which have no
+   * skill and therefore no lesson; the tutor then invents one example and is
+   * told to keep it.
+   */
+  const lesson =
+    view.skill && view.mastery && view.block
+      ? await cachedLessonFor(db, {
+          userId: auth.user.id,
+          packSlug: view.goal.packSlug,
+          skill: view.skill,
+          mastery: view.mastery,
+          minutes: view.block.estMinutes,
+          now,
+          priorDomain: view.goal.spec.priorDomain,
+        })
+      : undefined;
+
   const stream = tutorStream(getAnthropic(), {
     learnerContext: view.learnerContext,
     block: view.block,
+    workedExample: lesson?.workedExample,
     history,
     message: parsed.message,
   });

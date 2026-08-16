@@ -9,6 +9,7 @@ import { PLANS } from "@/lib/billing/catalog";
 
 const currentSessionMock = vi.fn();
 const sessionViewMock = vi.fn();
+const cachedLessonMock = vi.fn();
 const noteTurnMock = vi.fn();
 const transcriptMock = vi.fn();
 const tutorStreamMock = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("@/lib/account/session", () => ({
 }));
 vi.mock("@/lib/session/view", () => ({
   sessionView: (...a: unknown[]) => sessionViewMock(...(a as [])),
+  cachedLessonFor: (...a: unknown[]) => cachedLessonMock(...(a as [])),
 }));
 vi.mock("@/lib/session/signals", () => ({
   noteTurn: (...a: unknown[]) => noteTurnMock(...(a as [])),
@@ -89,6 +91,7 @@ beforeEach(() => {
   });
   noteTurnMock.mockResolvedValue("none");
   transcriptMock.mockResolvedValue([]);
+  cachedLessonMock.mockResolvedValue(undefined);
   tutorStreamMock.mockReturnValue(answering(["Because ", "of the grain."]));
 });
 
@@ -100,6 +103,47 @@ describe("POST /api/tutor", () => {
     expect(await response.text()).toBe("Because of the grain.");
     expect(logTurnMock).toHaveBeenCalledOnce();
     expect(recordRunMock.mock.calls[0]![1]).toMatchObject({ status: "ok" });
+  });
+
+  /**
+   * The lesson on the learner's screen, handed to the tutor so it answers in
+   * the lesson's own names rather than inventing a parallel example.
+   *
+   * A cache read, never a generation: a tutor question must not be the thing
+   * that spends a lesson allowance or buys a model call.
+   */
+  it("passes the cached lesson's worked example to the tutor", async () => {
+    sessionViewMock.mockResolvedValue({
+      session: { id: "sess-1" },
+      goal: { packSlug: "sql-data-analysis", spec: { priorDomain: "none" } },
+      block: { type: "check", skillId: "join-grain", estMinutes: 7 },
+      skill: { id: "join-grain", name: "Join grain" },
+      mastery: { skillId: "join-grain" },
+      learnerContext: "## Learner",
+    });
+    cachedLessonMock.mockResolvedValue({
+      workedExample: "Join orders to items and count.",
+    });
+
+    await (await POST(post({ sessionId: "sess-1", message: "why?" }))).text();
+
+    expect(tutorStreamMock.mock.calls[0]![1]).toMatchObject({
+      workedExample: "Join orders to items and count.",
+    });
+  });
+
+  /**
+   * A `review` or `reflect` block has no skill, so there is no lesson to look
+   * up. The tutor is then told to invent one example and keep it, which is the
+   * degraded case rather than a broken one — so nothing may be read at all.
+   */
+  it("does not go looking for a lesson on a block with no skill", async () => {
+    await (await POST(post({ sessionId: "sess-1", message: "why?" }))).text();
+
+    expect(cachedLessonMock).not.toHaveBeenCalled();
+    expect(tutorStreamMock.mock.calls[0]![1]).toMatchObject({
+      workedExample: undefined,
+    });
   });
 
   it("logs a refusal as one", async () => {
