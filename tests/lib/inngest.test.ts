@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EVENTS, inngest } from "@/lib/inngest/client";
+import { spendLedger } from "@/db/schema";
 import {
   buildPack,
   buildPackHandler,
@@ -95,6 +96,7 @@ describe("the ping function — E1's durability proof", () => {
  * generator, seeder and build row are code too, and nothing else runs them.
  */
 let submissionRows: unknown[] = [{ userId: "u1" }];
+const spendUpdates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
 
 /**
  * The submission lookup ends in `.limit()`; the entitlement lookup adds an
@@ -116,6 +118,15 @@ vi.mock("@/db", () => {
     getDb: () => ({
       db: true,
       select: () => ({ from: () => ({ where: rows }) }),
+      // The meter is claimed at the button, so a failed marking has to give it
+      // back. `refundEvaluation` runs for real against this.
+      update: (table: unknown) => ({
+        set: (values: Record<string, unknown>) => ({
+          where: async () => {
+            spendUpdates.push({ table, values });
+          },
+        }),
+      }),
     }),
   };
 });
@@ -723,7 +734,8 @@ describe("the registered evaluate function", () => {
 
   beforeEach(() => {
     heldMastery = [];
-    submissionRows = [{ userId: "u1" }];
+    spendUpdates.length = 0;
+    submissionRows = [{ userId: "u1", submittedAt: new Date("2026-08-16T12:00:00Z") }];
     storedSubmission = {
       id: "s1",
       userId: "u1",
@@ -810,6 +822,31 @@ describe("the registered evaluate function", () => {
     storedSubmission = { ...(storedSubmission as object), projectSlug: "gone" };
     const { result } = await run();
     expect(result.reason).toContain("no longer available");
+  });
+
+  it("gives the evaluation back when the marking never happened", async () => {
+    /*
+     * The meter is claimed at the button — before the queue — so somebody over
+     * their limit is told at the press rather than after a minute of waiting.
+     * Nothing gave it back on failure, so a marking the learner never received
+     * still came out of the month's allowance, and the screen's "you can hand
+     * it in again" charged them a second one. Found on a real submission: the
+     * grader marked the work fine and the contract threw the result away.
+     */
+    evaluationOutcome = { result: null, reason: "nothing to quote" };
+    await run();
+
+    expect(spendUpdates).toHaveLength(1);
+    expect(spendUpdates[0]!.table).toBe(spendLedger);
+    // A SQL expression rather than a number read back and written down, so two
+    // failures landing together cannot both refund the same count. What the
+    // expression does is asserted against a real database in the quota suite.
+    expect(typeof spendUpdates[0]!.values.evaluationsUsed).not.toBe("number");
+  });
+
+  it("keeps the evaluation when the marking landed", async () => {
+    await run();
+    expect(spendUpdates).toHaveLength(0);
   });
 
   it("marks a submission failed rather than leaving it in grading", async () => {

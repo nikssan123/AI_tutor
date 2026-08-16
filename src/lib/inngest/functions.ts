@@ -16,6 +16,7 @@ import {
   outcomeDetail,
 } from "@/lib/curriculum/build-state";
 import { entitlementsForUser } from "@/lib/billing/store";
+import { refundEvaluation } from "@/lib/billing/quota";
 import { subsidisesPackBuilds } from "@/lib/billing/catalog";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
 import { resolvePack } from "@/lib/content/resolve";
@@ -419,6 +420,26 @@ export const evaluate = inngest.createFunction(
     fail: async (submissionId, reason) => {
       const db = getDb();
       await setStatus(db, submissionId, "failed");
+
+      /*
+       * The meter was claimed at the button — before the queue, so a learner
+       * over their limit is told at the press rather than after a minute of
+       * waiting. Nothing gave it back when the marking then failed, so an
+       * evaluation the learner never received still came out of the month's
+       * allowance, and the screen's "you can hand it in again" cost them a
+       * second one. Read the row for the owner and the period it was spent in.
+       */
+      const [row] = await db
+        .select({
+          userId: submissionTable.userId,
+          submittedAt: submissionTable.submittedAt,
+        })
+        .from(submissionTable)
+        .where(eq(submissionTable.id, submissionId))
+        .limit(1);
+
+      if (row) await refundEvaluation(db, row.userId, row.submittedAt);
+
       void reason;
     },
   }),

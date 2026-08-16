@@ -10,11 +10,17 @@ import {
 } from "@/lib/evaluation";
 import {
   GRADER_PROMPT,
+  GRADER_TOOL_SCHEMA,
   buildGradeContext,
   gradeSubmission,
   renderRubric,
 } from "@/lib/evaluation/grade";
-import type { Band, EvaluationDraft } from "@/lib/contracts/evaluation";
+import type { Band } from "@/lib/contracts/evaluation";
+import {
+  ADVICE_CEILING,
+  ADVICE_SHOWN,
+  EvaluationDraft,
+} from "@/lib/contracts/evaluation";
 import type { EvalTier, RubricCriterion } from "@/lib/packs/types";
 
 /** §14.5 end to end, with the model stubbed. */
@@ -117,6 +123,85 @@ describe("the grader's prompt", () => {
 
   it("refuses to credit what is not in the work", () => {
     expect(GRADER_PROMPT.text).toContain("it did not happen");
+  });
+
+  it("puts no ceiling on the three advice lists it asks for", () => {
+    // The prompt above asks for every problem found and says not to
+    // self-filter. A `maxItems` here would be that instruction reversed one
+    // screen later, and the model would obey the schema.
+    for (const key of ["strengths", "gaps", "nextActions"] as const) {
+      expect(GRADER_TOOL_SCHEMA.properties[key]).not.toHaveProperty("maxItems");
+      expect(GRADER_TOOL_SCHEMA.properties[key].description).toContain(
+        "Ordered by how much each one matters",
+      );
+    }
+  });
+});
+
+/**
+ * The advice lists — the cap that used to throw a good marking away.
+ *
+ * A learner handed in work, the grader marked it in full and returned seven
+ * gaps, and the contract answered `gaps: Too big: expected array to have <=6
+ * items`. The whole evaluation went in the bin, the retry did the same, the
+ * submission landed in `failed` saying "We couldn't mark this one" — and the
+ * month's evaluation had already been spent on it. Six was a number about the
+ * screen, enforced against the model.
+ */
+describe("the advice lists", () => {
+  const listed = (n: number) =>
+    Array.from({ length: n }, (_, i) => `entry ${i + 1}`);
+
+  const parse = (n: number) =>
+    EvaluationDraft.safeParse({
+      criteria: GOOD.criteria,
+      strengths: listed(n),
+      gaps: listed(n),
+      nextActions: listed(n),
+    });
+
+  it("takes more than the screen shows, and keeps the ones that matter", () => {
+    const result = parse(ADVICE_SHOWN + 1);
+
+    expect(result.success).toBe(true);
+    // Truncated, not rejected — and from the top, because the lists are ordered
+    // by how much each entry matters.
+    expect(result.data!.gaps).toHaveLength(ADVICE_SHOWN);
+    expect(result.data!.gaps[0]).toBe("entry 1");
+    expect(result.data!.gaps.at(-1)).toBe(`entry ${ADVICE_SHOWN}`);
+    expect(result.data!.strengths).toHaveLength(ADVICE_SHOWN);
+    expect(result.data!.nextActions).toHaveLength(ADVICE_SHOWN);
+  });
+
+  it("leaves a shorter list alone", () => {
+    const result = parse(2);
+    expect(result.success).toBe(true);
+    expect(result.data!.gaps).toEqual(["entry 1", "entry 2"]);
+  });
+
+  it("still refuses a response that has run away", () => {
+    // A runaway guard, not a limit on thoroughness. Seven is a grader doing
+    // what it was told; forty-one is a response that has gone wrong.
+    expect(parse(ADVICE_CEILING).success).toBe(true);
+    expect(parse(ADVICE_CEILING + 1).success).toBe(false);
+  });
+
+  it("marks the submission that used to fail", async () => {
+    // The regression itself, through the grader: seven gaps came back and the
+    // learner was told their work could not be marked.
+    const { client } = modelReturning([
+      { ...GOOD, gaps: listed(ADVICE_SHOWN + 1) },
+    ]);
+    const result = await gradeSubmission(client, {
+      project: PROJECT,
+      criteria: CRITERIA,
+      artefact: ARTEFACT,
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.value.gaps).toHaveLength(
+      ADVICE_SHOWN,
+    );
   });
 });
 

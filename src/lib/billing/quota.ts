@@ -18,7 +18,7 @@ import type { PlanId } from "./catalog";
  * read, a decision and a write.
  */
 
-export type QuotaWriter = Pick<Db, "insert" | "select">;
+export type QuotaWriter = Pick<Db, "insert" | "select" | "update">;
 
 export interface QuotaOutcome {
   /** Whether the caller may go ahead. */
@@ -98,6 +98,39 @@ export async function consumeEvaluation(
   }
 
   return { ok: true, used: row.used, limit };
+}
+
+/**
+ * Give the evaluation back when the marking never happened.
+ *
+ * The meter is claimed at the button, before the queue, so the learner finds
+ * out immediately rather than after a minute of waiting for a grade that was
+ * never coming. The cost of claiming early is this: a submission that ends in
+ * `failed` has already spent one of the month's evaluations on nothing, and
+ * the screen then invites them to "hand it in again" — at the price of a second
+ * one. Two of a free plan's allowance, for our error.
+ *
+ * Floored at zero, and against the period the submission was *made* in, not the
+ * period the failure was noticed in: a job that fails across a month boundary
+ * must not take a credit out of a month that never had it.
+ */
+export async function refundEvaluation(
+  db: QuotaWriter,
+  userId: string,
+  submittedAt: Date,
+): Promise<void> {
+  await db
+    .update(spendLedger)
+    .set({
+      evaluationsUsed: sql`greatest(${spendLedger.evaluationsUsed} - 1, 0)`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(spendLedger.userId, userId),
+        eq(spendLedger.period, periodOf(submittedAt)),
+      ),
+    );
 }
 
 /**

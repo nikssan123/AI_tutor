@@ -47,14 +47,45 @@ export const CriterionVerdict = z.object({
 });
 export type CriterionVerdict = z.infer<typeof CriterionVerdict>;
 
+/** How many of each advice list the marked screen shows. */
+export const ADVICE_SHOWN = 6;
+
+/**
+ * A runaway guard, not a limit on thoroughness. Forty entries is a response
+ * that has gone wrong; seven is a grader doing what it was told.
+ */
+export const ADVICE_CEILING = 40;
+
+/**
+ * One of the three advice lists — **capped by truncation, never by refusal.**
+ *
+ * This cap used to reject. A learner handed in work, the grader marked it in
+ * full, returned seven gaps, and `gaps: Too big: expected array to have <=6
+ * items` threw the entire evaluation away; the retry did the same; the
+ * submission landed in `failed` saying "We couldn't mark this one", and the
+ * month's evaluation had already been spent on it. Nothing was wrong with the
+ * marking. Six was a number about the screen.
+ *
+ * It also contradicted the prompt to its face: the grader is told "report every
+ * problem you find... do not decide something is too minor to mention", which
+ * is deliberate — conservative-reporting instructions measurably depress
+ * recall. Asking for everything and then discarding the answer for having
+ * everything in it is a contract at war with itself. The lists are ordered by
+ * how much each entry matters, so the top few are exactly what to keep.
+ */
+const AdviceList = z
+  .array(z.string().min(1).max(400))
+  .max(ADVICE_CEILING)
+  .transform((list) => list.slice(0, ADVICE_SHOWN));
+
 export const EvaluationDraft = z.object({
   criteria: z.array(CriterionVerdict).min(1).max(12),
   /** What the work does well, in the learner's terms. */
-  strengths: z.array(z.string().min(1).max(400)).max(6),
+  strengths: AdviceList,
   /** What to fix, ordered by how much it matters. */
-  gaps: z.array(z.string().min(1).max(400)).max(6),
+  gaps: AdviceList,
   /** Concrete next actions, not encouragement. */
-  nextActions: z.array(z.string().min(1).max(400)).max(6),
+  nextActions: AdviceList,
 });
 export type EvaluationDraft = z.infer<typeof EvaluationDraft>;
 

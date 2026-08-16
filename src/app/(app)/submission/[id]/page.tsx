@@ -24,6 +24,7 @@ import {
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
+import { PollWhileMarking } from "./poll-while-marking";
 
 /**
  * §8 screen 9 — the evaluation result.
@@ -81,7 +82,22 @@ export default async function SubmissionPage({ params }: Props) {
          refreshes itself into that one, so a narrower column here was a page
          that changed width under the reader the moment marking finished. */
       <AppFrame>
-        {failed ? null : <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />}
+        {failed ? null : (
+          <>
+            <PollWhileMarking seconds={REFRESH_SECONDS} />
+            {/*
+             * The same poll for a browser with no JavaScript. Written as raw
+             * markup rather than as a `<meta>` element: React hoists metadata
+             * tags into the document head, and one hoisted out of here would
+             * reload the page for everybody — which is the thing being fixed.
+             */}
+            <noscript
+              dangerouslySetInnerHTML={{
+                __html: `<meta http-equiv="refresh" content="${REFRESH_SECONDS}">`,
+              }}
+            />
+          </>
+        )}
 
         <AppHeader
           eyebrow={failed ? "Not marked" : "Marking"}

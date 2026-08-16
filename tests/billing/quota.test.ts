@@ -6,6 +6,7 @@ import {
   consumeEvaluation,
   evaluationsRemaining,
   evaluationsUsed,
+  refundEvaluation,
 } from "@/lib/billing/quota";
 import { periodOf } from "@/lib/ai/runlog";
 
@@ -132,6 +133,42 @@ live("against a real database", () => {
       const outcome = await consumeEvaluation(db, LEARNER, 2);
       expect(outcome.ok).toBe(true);
       expect(await evaluationsUsed(db, LEARNER)).toBe(1);
+    });
+  });
+
+  describe("refundEvaluation", () => {
+    /*
+     * The meter is claimed at the button, before the queue. That is right — it
+     * is how somebody over their limit finds out at the press rather than after
+     * a minute of waiting — but it means a submission that ends in `failed` has
+     * spent an evaluation on a marking the learner never received, and the
+     * screen then invites them to hand it in again at the price of another.
+     */
+    it("gives back an evaluation that bought nothing", async () => {
+      await consumeEvaluation(db, LEARNER, 3, NOW);
+      await consumeEvaluation(db, LEARNER, 3, NOW);
+      expect(await evaluationsUsed(db, LEARNER, NOW)).toBe(2);
+
+      await refundEvaluation(db, LEARNER, NOW);
+      expect(await evaluationsUsed(db, LEARNER, NOW)).toBe(1);
+    });
+
+    it("never refunds below zero", async () => {
+      // A double failure on one submission, or a refund for a claim that was
+      // itself refused. Neither may hand out an evaluation nobody paid for.
+      await refundEvaluation(db, LEARNER, NOW);
+      await refundEvaluation(db, LEARNER, NOW);
+      expect(await evaluationsUsed(db, LEARNER, NOW)).toBe(0);
+    });
+
+    it("credits the month the evaluation was spent in", async () => {
+      // A job that fails across a month boundary must not take a credit out of
+      // a month that never had it.
+      await consumeEvaluation(db, LEARNER, 3, NOW);
+      await refundEvaluation(db, LEARNER, NOW);
+
+      expect(await evaluationsUsed(db, LEARNER, NOW)).toBe(0);
+      expect(await evaluationsUsed(db, LEARNER, NEXT_MONTH)).toBe(0);
     });
   });
 

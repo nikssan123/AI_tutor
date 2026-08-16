@@ -72,16 +72,29 @@ export const GRADER_TOOL_SCHEMA = {
         additionalProperties: false,
       },
     },
-    strengths: { type: "array", items: { type: "string" } },
+    /*
+     * No `maxItems` on any of the three, on purpose. The prompt above asks for
+     * every problem found and says not to self-filter, and a cap here would be
+     * the same instruction reversed one screen later. The learner is shown the
+     * most important few; the ordering is what makes that safe, so the ordering
+     * is what is asked for.
+     */
+    strengths: {
+      type: "array",
+      items: { type: "string" },
+      description: "Ordered by how much each one matters. The strongest first.",
+    },
     gaps: {
       type: "array",
       items: { type: "string" },
-      description: "Ordered by how much each one matters.",
+      description:
+        "Ordered by how much each one matters. List everything you found; the most important few are what the learner is shown.",
     },
     nextActions: {
       type: "array",
       items: { type: "string" },
-      description: "Concrete things to do, not encouragement.",
+      description:
+        "Concrete things to do, not encouragement. Ordered by how much each one matters, most worth doing first.",
     },
   },
   required: ["criteria", "strengths", "gaps", "nextActions"],

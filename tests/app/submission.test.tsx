@@ -30,6 +30,7 @@ const entitlementsMock = vi.fn(async () => ({
 const consumeMock = vi.fn(async () => ({ ok: true, used: 1, limit: 10 }));
 const captureMock = vi.fn();
 const nudgeMock = vi.fn(async (..._a: unknown[]) => undefined as unknown);
+const routerRefreshMock = vi.fn();
 
 const pack = findPack("photography")!;
 
@@ -39,6 +40,15 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");
   },
+  useRouter: () => ({ refresh: routerRefreshMock }),
+}));
+// The poller is a client component that renders nothing, so what the page owes
+// is that it is *there* while marking and gone once there is nothing to wait
+// for. What it does when it is there is asserted against the real one below.
+vi.mock("@/app/(app)/submission/[id]/poll-while-marking", () => ({
+  PollWhileMarking: ({ seconds }: { seconds: number }) => (
+    <div data-testid="poll-while-marking">every {seconds}s</div>
+  ),
 }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
@@ -345,7 +355,23 @@ describe("the result screen", () => {
 
     render(await SubmissionPage({ params: params() }));
     expect(screen.getByText("Marking your work")).toBeDefined();
-    expect(document.querySelector('meta[http-equiv="refresh"]')).toBeTruthy();
+    // Polls without reloading — a full reload every few seconds blanked the
+    // page, rebuilt the shell and reset the scroll, over and over, for the
+    // whole minute a learner spends watching their work be marked.
+    expect(screen.getByTestId("poll-while-marking")).toBeDefined();
+    expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+  });
+
+  it("still polls the old way with no JavaScript", async () => {
+    // The enhancement is client-side; the fallback must not depend on it. The
+    // tag is raw markup inside `<noscript>` because React hoists a `<meta>`
+    // element into the head — where it would reload the page for everybody.
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(stored({ status: "grading" }));
+
+    render(await SubmissionPage({ params: params() }));
+    const fallback = document.querySelector("noscript");
+    expect(fallback?.textContent).toContain('http-equiv="refresh"');
   });
 
   it("says nothing was recorded when marking failed", async () => {
@@ -354,8 +380,9 @@ describe("the result screen", () => {
 
     render(await SubmissionPage({ params: params() }));
     expect(screen.getByText(/Nothing has been added to your record/)).toBeDefined();
-    // Nothing to wait for, so it stops refreshing.
-    expect(document.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+    // Nothing to wait for, so it stops looking.
+    expect(screen.queryByTestId("poll-while-marking")).toBeNull();
+    expect(document.querySelector("noscript")).toBeNull();
   });
 
   it("leaves out the sections it has nothing for", async () => {
@@ -456,5 +483,37 @@ describe("the moment after a verdict lands", () => {
 
     render(await SubmissionPage({ params: params() }));
     expect(nudgeMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The poller itself — the real one, not the stub the page test uses.
+ *
+ * It replaced `<meta http-equiv="refresh">`, which reloaded the whole document
+ * every few seconds while a learner watched their work being marked: the page
+ * blanked, the shell was rebuilt and the scroll reset, repeatedly, for the
+ * minute or so that marking takes.
+ */
+describe("polling while the work is marked", () => {
+  it("asks the server again on the interval, without reloading", async () => {
+    vi.useFakeTimers();
+    const { PollWhileMarking } = await vi.importActual<
+      typeof import("@/app/(app)/submission/[id]/poll-while-marking")
+    >("@/app/(app)/submission/[id]/poll-while-marking");
+
+    const { unmount } = render(<PollWhileMarking seconds={5} />);
+    expect(routerRefreshMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(routerRefreshMock).toHaveBeenCalledTimes(3);
+
+    // And it stops when the page does. An interval left running after the
+    // marked screen arrives is a refresh loop nothing is waiting for.
+    unmount();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(routerRefreshMock).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
   });
 });
