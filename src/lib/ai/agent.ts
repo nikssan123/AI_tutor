@@ -51,6 +51,19 @@ export interface AgentTool {
    * be a claim about what is happening made by the party that cannot see it.
    */
   label: string;
+  /**
+   * The view this tool puts on screen, when it has one.
+   *
+   * Declared so a panel can hold the right amount of space open while the
+   * lookup runs, instead of reflowing the moment a month grid lands. A tool
+   * that only informs the model's next sentence leaves it unset, and nothing is
+   * reserved — a skeleton for a view that never comes is worse than no skeleton
+   * at all.
+   *
+   * A `string` rather than a widget name, because this module knows nothing
+   * about this product's widgets and should not start now.
+   */
+  shows?: string;
   /** Never throws; a tool that fails says so in `forModel`. See `runTool`. */
   run: (input: unknown) => Promise<ToolOutcome>;
 }
@@ -58,7 +71,7 @@ export interface AgentTool {
 /** What the route multiplexes onto one NDJSON stream (§3). */
 export type AgentFrame =
   | { t: "text"; v: string }
-  | { t: "tool"; label: string }
+  | { t: "tool"; label: string; shows?: string }
   | { t: "widget"; name: string; payload: unknown };
 
 /** Why the loop stopped, which is worth telling apart in the log. */
@@ -326,7 +339,9 @@ export async function* streamAgent(
         continue;
       }
 
-      yield { t: "tool", label: known.label };
+      yield known.shows === undefined
+        ? { t: "tool", label: known.label }
+        : { t: "tool", label: known.label, shows: known.shows };
 
       const outcome = await runTool(known, parseInput(tool.json));
       if (outcome.forView) {

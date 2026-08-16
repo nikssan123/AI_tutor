@@ -597,8 +597,34 @@ Three decisions inside that:
   layout at all — every row written before the migration — falls back to its
   prose rather than leaving a hole.
 
-**Phase 4 — polish.** Suggested questions, tool-running labels, skeletons,
-keyboard and screen-reader pass, daily cap copy.
+**Phase 4 — polish. Done.** Suggested questions and tool labels landed early, in
+Phase 1. This phase is the other four:
+
+- **Reserved space, not a guessed skeleton.** A tool now declares the view it
+  will show (`AgentTool.shows`), the frame carries it, and the panel holds a
+  skeleton of roughly that height while the lookup runs. Declared rather than
+  inferred because `find_page` shows nothing — a skeleton for a view that never
+  arrives is worse than no skeleton. `agent.ts` takes it as a `string`, because
+  that module knows nothing about this product's widgets and should not start.
+- **The stop stops being a surprise.** `GET` returns the day's remaining count
+  beside the thread, the panel warns at `WARNING_MARGIN` (3) and closes the
+  composer at zero with a sentence saying why. The count is decremented on send
+  rather than on a successful reply: a question that failed still reached the
+  route and still counted there. The route enforces it regardless — this exists
+  so nobody meets the wall mid-thought.
+- **Keyboard and screen reader.** Focus moves into the composer on open (a
+  non-modal drawer moves nothing on its own, so a keyboard user would otherwise
+  tab the whole transcript to reach the control they opened it for), the waiting
+  line is `role="status"`, and the launcher takes an `aria-label` — "Ask" is
+  right on a button and thin in a list of landmarks read aloud.
+- **Open/closed remembered per device.** Restored in an effect rather than read
+  during render, because reading `localStorage` while rendering differs between
+  the server's HTML and the client's first pass. Worth having because following
+  the assistant's own link to another page is most of what it is for.
+
+One thing this shook out: `localStorage` persists across tests in one jsdom
+environment, so a test leaving the panel open opened it for the next. The suite
+clears it per test.
 
 `pnpm verify` clean at the end of every phase.
 

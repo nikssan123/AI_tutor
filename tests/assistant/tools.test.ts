@@ -444,6 +444,25 @@ describe("buildTools", () => {
     }
   });
 
+  /**
+   * A panel holds space open for what a tool says it will show, so a tool that
+   * renders a view must declare which — and one that renders none must not.
+   */
+  it("declares the view each tool shows, and only where there is one", () => {
+    const shows = Object.fromEntries(
+      buildTools(context).map((tool) => [tool.name, tool.shows]),
+    );
+
+    expect(shows).toEqual({
+      find_page: undefined,
+      my_calendar: "calendar_month",
+      whats_next: "ahead_list",
+      my_standing: "week_digest",
+      my_courses: "course_list",
+      my_plan: "plan_card",
+    });
+  });
+
   /** §9.1 — the model picks which tool, never whose data. */
   it("gives no tool an argument that names a learner", () => {
     for (const tool of buildTools(context)) {

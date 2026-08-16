@@ -188,6 +188,9 @@ describe("streamAgent", () => {
 
     // The label is the tool's own words, not the model's.
     expect(frames).toContainEqual({ t: "tool", label: "Looking that up…" });
+    // And no `shows`, because this tool declares no view — a panel must not
+    // hold space open for something that never arrives.
+    expect(frames.find((frame) => frame.t === "tool")).not.toHaveProperty("shows");
     expect(outcome.text).toBe("Billing does that.");
     expect(outcome.stopped).toBe("end");
 
@@ -242,6 +245,25 @@ describe("streamAgent", () => {
         { type: "text", text: "Let me check." },
         { type: "tool_use", id: "tu_1", name: "find_page", input: {} },
       ],
+    });
+  });
+
+
+  it("passes on the view a tool says it will show", async () => {
+    const showing = tool({ shows: "calendar_month" });
+    const { client } = stub(
+      [start(), opensTool(0, "tu_1", "find_page"), toolJson(0, "{}"), end("tool_use")],
+      [start(), text("There."), end()],
+    );
+
+    const { frames } = await collect(
+      streamAgent(client, { ...call, tools: [showing] }, () => 0),
+    );
+
+    expect(frames).toContainEqual({
+      t: "tool",
+      label: "Looking that up…",
+      shows: "calendar_month",
     });
   });
 

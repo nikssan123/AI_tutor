@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 
 const {
   applyFrame,
+  readLeft,
   readTurns,
   AssistantPanel,
   hiddenOn,
@@ -377,6 +378,26 @@ describe("readTurns", () => {
   });
 });
 
+
+describe("readLeft", () => {
+  it("takes the count the server sent", () => {
+    expect(readLeft({ left: 3 })).toBe(3);
+    expect(readLeft({ left: 0 })).toBe(0);
+  });
+
+  /**
+   * Null means "not yet known", and it must not read as "none left": a panel
+   * that guessed low would disable a box somebody is entitled to use.
+   */
+  it("says it does not know rather than guessing", () => {
+    expect(readLeft(null)).toBeNull();
+    expect(readLeft({})).toBeNull();
+    expect(readLeft({ left: "3" })).toBeNull();
+    expect(readLeft({ left: Number.NaN })).toBeNull();
+    expect(readLeft("left")).toBeNull();
+  });
+});
+
 describe("hiddenOn", () => {
   /**
    * The session already has the tutor, and the tutor is the one that can
@@ -399,13 +420,17 @@ describe("AssistantPanel", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     pathnameMock.mockReturnValue("/today");
+    // The panel now remembers open/closed per device, and jsdom keeps one
+    // `localStorage` for the whole file — so without this a test that left the
+    // panel open would open it for the next one.
+    window.localStorage.clear();
   });
 
   it("renders nothing at all inside a session", () => {
     pathnameMock.mockReturnValue("/session/abc-123");
     render(<AssistantPanel />);
 
-    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask about your account" })).toBeNull();
   });
 
 
@@ -433,7 +458,7 @@ describe("AssistantPanel", () => {
     render(<AssistantPanel />);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     await waitFor(() => expect(screen.getByText("Here it is.")).toBeDefined());
     expect(screen.getByText("what am I paying?")).toBeDefined();
@@ -449,7 +474,7 @@ describe("AssistantPanel", () => {
     } as unknown as Response);
 
     render(<AssistantPanel />);
-    const launcher = screen.getByRole("button", { name: "Ask" });
+    const launcher = screen.getByRole("button", { name: "Ask about your account" });
 
     fireEvent.click(launcher);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -469,7 +494,7 @@ describe("AssistantPanel", () => {
     } as unknown as Response);
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Show me my calendar" })).toBeDefined(),
@@ -480,7 +505,7 @@ describe("AssistantPanel", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "What am I paying?" })).toBeDefined(),
@@ -507,7 +532,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
 
     await waitFor(() => expect(screen.getByText("On the free plan.")).toBeDefined());
@@ -523,16 +548,189 @@ describe("AssistantPanel", () => {
     expect(screen.queryByText("ancient history")).toBeNull();
   });
 
+
+  /** A thread reads once; the count it came with drives the warning. */
+  function threadWith(left: number, turns: unknown[] = []) {
+    return vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+      init?.method === "POST"
+        ? Promise.resolve(
+            streaming('{"t":"text","v":"ok"}\n{"t":"done"}\n') as unknown as Response,
+          )
+        : Promise.resolve({
+            ok: true,
+            json: async () => ({ turns, left }),
+          } as unknown as Response),
+    );
+  }
+
+  it("warns before the wall rather than after it", async () => {
+    threadWith(2);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+
+    await waitFor(() => expect(screen.getByText("2 questions left today.")).toBeDefined());
+  });
+
+  it("counts the last one in the singular", async () => {
+    threadWith(1);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+
+    await waitFor(() => expect(screen.getByText("One question left today.")).toBeDefined());
+  });
+
+  it("says nothing while there is plenty left", async () => {
+    threadWith(30);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Ask the assistant")).toBeDefined(),
+    );
+    expect(screen.queryByText(/questions left today/)).toBeNull();
+  });
+
+  /** A disabled box with no explanation is worse than any amount of crowding. */
+  it("closes the box when the day is spent, and says why", async () => {
+    threadWith(0);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/That’s today’s questions/)).toBeDefined(),
+    );
+    expect(
+      (screen.getByLabelText("Ask the assistant") as HTMLInputElement).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Show me my calendar" }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("counts down as questions are asked", async () => {
+    threadWith(4);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "What am I paying?" })).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
+
+    // Decremented on send, not on a successful reply: a question that failed
+    // still reached the route and still counted there.
+    await waitFor(() => expect(screen.getByText("3 questions left today.")).toBeDefined());
+  });
+
+  /** Somebody who pressed "Ask" means to type. */
+  it("puts the cursor in the box on open", async () => {
+    threadWith(30);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Ask the assistant")),
+    );
+  });
+
+  /* Following the assistant's own link to another page is most of what it is
+     for, so the thread should still be there when you arrive. */
+  it("remembers that it was open, across a page load", async () => {
+    threadWith(30);
+
+    const first = render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+    await waitFor(() => expect(screen.getByRole("complementary")).toBeDefined());
+    first.unmount();
+
+    render(<AssistantPanel />);
+    await waitFor(() => expect(screen.getByRole("complementary")).toBeDefined());
+  });
+
+  it("stays shut when it was shut", async () => {
+    threadWith(30);
+
+    const first = render(<AssistantPanel />);
+    const launcher = screen.getByRole("button", { name: "Ask about your account" });
+    fireEvent.click(launcher);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    first.unmount();
+
+    render(<AssistantPanel />);
+    expect(screen.queryByRole("complementary")).toBeNull();
+  });
+
+  /**
+   * The space a view is about to take, held open while its lookup runs — so
+   * the composer does not jump when a month grid lands.
+   */
+  it("holds room for the view a running tool has declared", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+      init?.method === "POST"
+        ? Promise.resolve(
+            streaming(
+              '{"t":"text","v":"One moment."}\n{"t":"tool","label":"Checking your calendar…","shows":"calendar_month"}\n',
+            ) as unknown as Response,
+          )
+        : Promise.resolve({
+            ok: true,
+            json: async () => ({ turns: [], left: 30 }),
+          } as unknown as Response),
+    );
+
+    const { container } = render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Show me my calendar" })).toBeDefined(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Checking your calendar…")).toBeDefined(),
+    );
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
+  });
+
+  /** A skeleton for a view that never arrives is worse than none. */
+  it("holds no room for a lookup that shows nothing", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+      init?.method === "POST"
+        ? Promise.resolve(
+            streaming('{"t":"tool","label":"Looking that up…"}\n') as unknown as Response,
+          )
+        : Promise.resolve({
+            ok: true,
+            json: async () => ({ turns: [], left: 30 }),
+          } as unknown as Response),
+    );
+
+    const { container } = render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "What should I do next?" })).toBeDefined(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
+
+    await waitFor(() => expect(screen.getByText("Looking that up…")).toBeDefined());
+    expect(container.querySelector(".animate-pulse")).toBeNull();
+  });
+
   it("shows nothing but the button until it is opened", () => {
     render(<AssistantPanel />);
 
-    expect(screen.getByRole("button", { name: "Ask" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Ask about your account" })).toBeDefined();
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
   it("opens and closes, and hands focus back to the button", () => {
     render(<AssistantPanel />);
-    const launcher = screen.getByRole("button", { name: "Ask" });
+    const launcher = screen.getByRole("button", { name: "Ask about your account" });
 
     fireEvent.click(launcher);
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeDefined();
@@ -547,7 +745,7 @@ describe("AssistantPanel", () => {
 
   it("closes on Escape", () => {
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("complementary")).toBeNull();
@@ -555,7 +753,7 @@ describe("AssistantPanel", () => {
 
   it("ignores other keys", () => {
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     fireEvent.keyDown(window, { key: "a" });
     expect(screen.getByRole("complementary")).toBeDefined();
@@ -563,7 +761,7 @@ describe("AssistantPanel", () => {
 
   it("says what it is for, and what it cannot do, before anything is asked", () => {
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     expect(screen.getByText(/can&rsquo;t change them|can’t change them/)).toBeDefined();
     expect(screen.getByRole("button", { name: "Show me my calendar" })).toBeDefined();
@@ -586,7 +784,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() => expect(screen.getByText("Two things")).toBeDefined());
@@ -605,7 +803,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     const input = screen.getByLabelText("Ask the assistant") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "what does **this** mean?" } });
@@ -626,7 +824,7 @@ describe("AssistantPanel", () => {
       );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() =>
@@ -646,7 +844,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
 
     await waitFor(() => expect(screen.getByText("Billing.")).toBeDefined());
@@ -669,7 +867,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
 
     await waitFor(() =>
@@ -695,7 +893,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() => expect(screen.getByText("Window functions")).toBeDefined());
@@ -727,7 +925,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() =>
@@ -749,7 +947,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
 
     await waitFor(() =>
@@ -772,7 +970,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() => expect(screen.getByText("What changed")).toBeDefined());
@@ -787,7 +985,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
 
     await waitFor(() => expect(screen.getByText("You are on Pro.")).toBeDefined());
@@ -799,7 +997,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     const input = screen.getByLabelText("Ask the assistant") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "what am I paying?" } });
@@ -816,7 +1014,7 @@ describe("AssistantPanel", () => {
     } as unknown as Response);
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
 
     const input = screen.getByLabelText("Ask the assistant") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "   " } });
@@ -839,7 +1037,7 @@ describe("AssistantPanel", () => {
     } as unknown as Response);
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
 
     await waitFor(() =>
@@ -853,7 +1051,7 @@ describe("AssistantPanel", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue("nope");
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
 
     await waitFor(() =>
@@ -867,7 +1065,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
 
     await waitFor(() =>
@@ -883,7 +1081,7 @@ describe("AssistantPanel", () => {
     );
 
     render(<AssistantPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask about your account" }));
     fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
 
     await waitFor(() => expect(screen.getByText("Checking…")).toBeDefined());

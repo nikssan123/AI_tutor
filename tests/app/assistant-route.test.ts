@@ -185,12 +185,36 @@ describe("GET", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({ turns });
+    expect(await response.json()).toEqual({
+      turns,
+      left: PLANS.pro.entitlements.assistantMessagesPerDay,
+    });
     expect(threadMock).toHaveBeenCalledWith({}, "u1");
   });
 
   it("hands back nothing for a learner who has never asked", async () => {
-    expect(await (await GET()).json()).toEqual({ turns: [] });
+    expect(await (await GET()).json()).toEqual({
+      turns: [],
+      left: PLANS.pro.entitlements.assistantMessagesPerDay,
+    });
+  });
+
+  /**
+   * So the stop is not a surprise. The route enforces it regardless — this is
+   * what lets the panel say "two left" before the wall rather than after it.
+   */
+  it("says how many questions are left today", async () => {
+    messagesTodayMock.mockResolvedValue(2);
+
+    const body = (await (await GET()).json()) as { left: number };
+    expect(body.left).toBe(PLANS.pro.entitlements.assistantMessagesPerDay - 2);
+  });
+
+  it("never reports fewer than none left", async () => {
+    messagesTodayMock.mockResolvedValue(999);
+
+    const body = (await (await GET()).json()) as { left: number };
+    expect(body.left).toBe(0);
   });
 });
 

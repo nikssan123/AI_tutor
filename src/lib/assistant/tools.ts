@@ -10,6 +10,7 @@ import {
   aheadListPayload,
   calendarMonthPayload,
   summarise,
+  type WidgetName,
   type WidgetView,
 } from "./widgets";
 
@@ -102,6 +103,7 @@ export function findPageTool(): AgentTool {
 export function calendarTool(context: AssistantContext): AgentTool {
   return {
     name: "my_calendar",
+    shows: "calendar_month" satisfies WidgetName,
     description:
       "Show the learner their own calendar for a month: what they worked, what is due, and what is projected. Use it for any question about dates, this month, a named month, deadlines or what is coming up.",
     label: "Checking your calendar…",
@@ -142,6 +144,7 @@ export function calendarTool(context: AssistantContext): AgentTool {
 export function aheadTool(context: AssistantContext): AgentTool {
   return {
     name: "whats_next",
+    shows: "ahead_list" satisfies WidgetName,
     description:
       "Show what the learner has coming: overdue work first, then soonest. Use it for 'what should I do next', 'what am I behind on', 'anything due'.",
     label: "Checking what's ahead…",
@@ -176,6 +179,7 @@ export function aheadTool(context: AssistantContext): AgentTool {
 export function standingTool(context: AssistantContext): AgentTool {
   return {
     name: "my_standing",
+    shows: "week_digest" satisfies WidgetName,
     description:
       "Show how the learner's week went: which skills moved, how much they logged, and what is starting to slip. Use it for 'how am I doing', 'what did I get done', 'am I forgetting anything'.",
     label: "Checking your week…",
@@ -202,6 +206,7 @@ export function standingTool(context: AssistantContext): AgentTool {
 export function coursesTool(context: AssistantContext): AgentTool {
   return {
     name: "my_courses",
+    shows: "course_list" satisfies WidgetName,
     description:
       "List the learner's courses and the state of each — running, put aside, finished. Use it for 'what am I studying', 'what did I pause', 'what have I finished'.",
     label: "Checking your courses…",
@@ -230,6 +235,7 @@ export function coursesTool(context: AssistantContext): AgentTool {
 export function planTool(context: AssistantContext): AgentTool {
   return {
     name: "my_plan",
+    shows: "plan_card" satisfies WidgetName,
     description:
       "Show the learner's current plan, what it includes, and when it renews. Use it for anything about what they are paying, what they get, upgrading, cancelling or refunds.",
     label: "Checking your plan…",

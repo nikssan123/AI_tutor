@@ -8,8 +8,14 @@ import { CourseList } from "@/components/course-list";
 import { GeneratedProse } from "@/components/generated-prose";
 import { PlanCard } from "@/components/plan-card";
 import { WeekDigest } from "@/components/week-digest";
+import { cx, Skeleton } from "@/components/ui";
 import { isPlanId } from "@/lib/billing/catalog";
-import { appendText, type Segment } from "@/lib/assistant/widgets";
+import {
+  appendText,
+  WIDGET_NAMES,
+  type Segment,
+  type WidgetName,
+} from "@/lib/assistant/widgets";
 import type {
   AheadListPayload,
   CalendarMonthPayload,
@@ -43,12 +49,20 @@ interface Turn {
   segments: Segment[];
   /** What a tool is doing right now. Cleared as soon as anything else lands. */
   note?: string;
+  /**
+   * The view the running tool is about to produce, when it declares one.
+   *
+   * Held so the panel can keep the right amount of space open rather than
+   * reflowing the moment a month grid lands. Unset for a lookup that shows
+   * nothing — a skeleton for a view that never arrives is worse than none.
+   */
+  awaiting?: WidgetName;
 }
 
 /** What the route sends, as far as this panel is concerned (§3). */
 export type PanelFrame =
   | { t: "text"; v: string }
-  | { t: "tool"; label: string }
+  | { t: "tool"; label: string; shows?: WidgetName }
   | { t: "widget"; view: WidgetView }
   | { t: "done" }
   | { t: "error"; message: string };
@@ -122,6 +136,28 @@ export function readWidget(name: unknown, payload: unknown): WidgetView | null {
   return null;
 }
 
+/**
+ * Roughly how tall each view lands, so the space is held while it loads.
+ *
+ * Approximate on purpose. The point is not to match to the pixel — it is that
+ * the composer does not jump when a month grid arrives, which a fixed-height
+ * placeholder achieves and an absent one does not. A value that is a little
+ * wrong costs a small settle; no value at all costs the whole panel reflowing
+ * under somebody's cursor.
+ */
+const RESERVED: Record<WidgetName, string> = {
+  calendar_month: "h-80",
+  ahead_list: "h-28",
+  week_digest: "h-44",
+  course_list: "h-20",
+  plan_card: "h-56",
+};
+
+/** The space a view is about to take, held open while its lookup runs. */
+export function Reserved({ widget }: { widget: WidgetName }) {
+  return <Skeleton className={cx("w-full", RESERVED[widget])} />;
+}
+
 /** One view, rendered by the same component the page it came from renders. */
 export function Widget({ view }: { view: WidgetView }) {
   switch (view.widget) {
@@ -183,7 +219,8 @@ export function parseFrame(raw: string): PanelFrame | null {
     return { t: "text", v: frame.v };
   }
   if (frame.t === "tool" && typeof frame.label === "string") {
-    return { t: "tool", label: frame.label };
+    const shows = WIDGET_NAMES.find((name) => name === frame.shows);
+    return shows ? { t: "tool", label: frame.label, shows } : { t: "tool", label: frame.label };
   }
   if (frame.t === "widget") {
     const view = readWidget(frame.name, frame.payload);
@@ -269,13 +306,15 @@ export function applyFrame(turns: Turn[], frame: PanelFrame): Turn[] {
       return replace({
         segments: appendText(last.segments, frame.v),
         note: undefined,
+        awaiting: undefined,
       });
     case "tool":
-      return replace({ note: frame.label });
+      return replace({ note: frame.label, awaiting: frame.shows });
     case "widget":
       return replace({
         segments: [...last.segments, { kind: "view", view: frame.view }],
         note: undefined,
+        awaiting: undefined,
       });
     case "error":
       return replace({
@@ -284,10 +323,32 @@ export function applyFrame(turns: Turn[], frame: PanelFrame): Turn[] {
           last.segments.length === 0 ? frame.message : `\n\n${frame.message}`,
         ),
         note: undefined,
+        awaiting: undefined,
       });
     case "done":
-      return replace({ note: undefined });
+      return replace({ note: undefined, awaiting: undefined });
   }
+}
+
+/** Where the open/closed state is remembered. */
+const OPEN_KEY = "meritkeep.assistant.open";
+
+/**
+ * How many questions before the stop somebody is warned.
+ *
+ * Three of five on free, three of thirty on pro — the remainder rather than a
+ * ratio, for the reason `TUTOR_TURN_WARNING_MARGIN` is one: what matters is how
+ * many are left, not what fraction. The warning exists because a stop mid-thought
+ * is a surprise, and somebody who knows they have three left asks the three they
+ * most want answered.
+ */
+export const WARNING_MARGIN = 3;
+
+/** The day's remaining questions, if the server said. */
+export function readLeft(body: unknown): number | null {
+  if (typeof body !== "object" || body === null) return null;
+  const left = (body as Record<string, unknown>).left;
+  return typeof left === "number" && Number.isFinite(left) ? left : null;
 }
 
 const OPENERS = [
@@ -317,10 +378,26 @@ export function hiddenOn(pathname: string): boolean {
 }
 
 export function AssistantPanel() {
+  /*
+   * Closed on the server and on the first paint, then restored.
+   *
+   * Reading `localStorage` during render would differ between the server's HTML
+   * and the client's first pass, which is a hydration mismatch. An effect after
+   * mount costs one frame of a closed panel and is correct.
+   */
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
+  /**
+   * Questions left today, once the server has said. Null until then.
+   *
+   * Null rather than a hopeful number: a panel that guessed and guessed low
+   * would disable a composer somebody is entitled to use, and one that guessed
+   * high would promise a question the route then refuses.
+   */
+  const [left, setLeft] = useState<number | null>(null);
   const launcher = useRef<HTMLButtonElement>(null);
+  const composer = useRef<HTMLInputElement>(null);
   const loaded = useRef(false);
   const pathname = usePathname();
 
@@ -338,6 +415,10 @@ export function AssistantPanel() {
    * their history should be would be a worse answer than an empty panel.
    */
   useEffect(() => {
+    if (window.localStorage.getItem(OPEN_KEY) === "1") setOpen(true);
+  }, []);
+
+  useEffect(() => {
     if (!open || loaded.current) return;
     loaded.current = true;
 
@@ -347,6 +428,7 @@ export function AssistantPanel() {
         if (!response.ok) return;
 
         const body: unknown = await response.json();
+        setLeft(readLeft(body));
         const stored = readTurns(body);
         // Only when it is still empty: a question asked while this was in
         // flight must not be overwritten by the history it predates.
@@ -355,6 +437,24 @@ export function AssistantPanel() {
         // Nothing to say and nobody to tell — see above.
       }
     })();
+  }, [open]);
+
+  /*
+   * Into the box, on open.
+   *
+   * Somebody who pressed "Ask" means to type. Leaving focus on the launcher
+   * makes a keyboard user tab past the whole transcript to reach the one
+   * control they opened the panel for — and this is a non-modal drawer, so
+   * nothing else moves focus for them.
+   */
+  useEffect(() => {
+    if (open) composer.current?.focus();
+  }, [open]);
+
+  /* Remembered per device, so a thread survives following the assistant's own
+     link to another page — which is most of what it is for. */
+  useEffect(() => {
+    window.localStorage.setItem(OPEN_KEY, open ? "1" : "0");
   }, [open]);
 
   // Escape closes from anywhere, which is the one dialog affordance worth
@@ -377,9 +477,17 @@ export function AssistantPanel() {
     launcher.current?.focus();
   }
 
+  // Only once the server has said. Null means "not yet known", which must not
+  // read as "none left" — that would disable a box somebody may use.
+  const spent = left === 0;
+
   async function ask(message: string) {
-    if (pending || message.trim() === "") return;
+    if (pending || spent || message.trim() === "") return;
     setPending(true);
+    // Optimistically, and on send rather than on a successful reply: a question
+    // that failed still reached the route and still counted there, so putting
+    // it back would drift the panel above the truth.
+    setLeft((n) => (n === null ? null : Math.max(0, n - 1)));
     setTurns((prior) => [
       ...prior,
       { role: "user", segments: [{ kind: "text", text: message }] },
@@ -441,6 +549,9 @@ export function AssistantPanel() {
         onClick={() => setOpen((was) => !was)}
         aria-expanded={open}
         aria-controls="assistant-panel"
+        /* The visible word is "Ask", which is right on the button and thin in
+           a list of landmarks read aloud. */
+        aria-label="Ask about your account"
         className="fixed bottom-6 right-6 z-30 rounded-[var(--radius-pill)] bg-accent px-5 py-3 font-[550] text-on-accent shadow-[var(--shadow-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         Ask
@@ -479,7 +590,10 @@ export function AssistantPanel() {
                     }
                   >
                     {turn.segments.length === 0 ? (
-                      <span className="text-ink-muted">
+                      /* `role="status"` so a screen reader is told the wait is
+                         a wait, and told what kind — this is the one line in
+                         the thread that changes without the reader acting. */
+                      <span role="status" className="text-ink-muted">
                         {turn.note ?? "Thinking…"}
                       </span>
                     ) : (
@@ -526,8 +640,11 @@ export function AssistantPanel() {
                       )
                     )}
                     {turn.note && turn.segments.length > 0 ? (
-                      <span className="text-ink-muted">{turn.note}</span>
+                      <span role="status" className="text-ink-muted">
+                        {turn.note}
+                      </span>
                     ) : null}
+                    {turn.awaiting ? <Reserved widget={turn.awaiting} /> : null}
                   </li>
                 ))}
               </ul>
@@ -541,6 +658,7 @@ export function AssistantPanel() {
                   <button
                     key={opener}
                     type="button"
+                    disabled={spent}
                     onClick={() => void ask(opener)}
                     className="rounded-[var(--radius-pill)] border border-hairline px-3 py-1.5 text-[length:var(--text-meta-size)] text-ink-muted hover:text-ink"
                   >
@@ -550,6 +668,20 @@ export function AssistantPanel() {
               </div>
             )}
           </div>
+
+          {/* The soft warning, then the stop. The route enforces both whatever
+              this says — a route handler is a public URL — so this exists only
+              so neither is a surprise. */}
+          {spent ? (
+            <p role="status" className="text-[length:var(--text-meta-size)] text-ink-muted">
+              That&rsquo;s today&rsquo;s questions. It starts fresh tomorrow —
+              everything it looks up is on your pages meanwhile.
+            </p>
+          ) : left !== null && left <= WARNING_MARGIN ? (
+            <p role="status" className="text-[length:var(--text-meta-size)] text-ink-muted">
+              {left === 1 ? "One question left" : `${left} questions left`} today.
+            </p>
+          ) : null}
 
           <form
             onSubmit={(event) => {
@@ -564,15 +696,18 @@ export function AssistantPanel() {
             className="flex items-center gap-2"
           >
             <input
+              ref={composer}
               name="message"
-              placeholder="Ask about your account"
+              placeholder={
+                spent ? "No questions left today" : "Ask about your account"
+              }
               aria-label="Ask the assistant"
-              disabled={pending}
+              disabled={pending || spent}
               className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-hairline bg-ground px-3.5 py-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || spent}
               className="rounded-[var(--radius-control)] bg-accent px-3.5 py-2 font-[550] text-on-accent disabled:opacity-60"
             >
               Ask

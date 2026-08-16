@@ -80,10 +80,31 @@ export async function GET(): Promise<Response> {
   const auth = await currentSession();
   if (!auth) return new Response("Sign in first.", { status: 401 });
 
-  const turns = await assistantThread(getDb(), auth.user.id);
+  const db = getDb();
+  const now = new Date();
+  const planId = resolvePlanId(auth.user.plan);
+
+  const [turns, asked] = await Promise.all([
+    assistantThread(db, auth.user.id),
+    messagesToday(db, auth.user.id, now),
+  ]);
+
+  /*
+   * How many questions are left today, so the panel can say so before the wall
+   * rather than after it.
+   *
+   * The same shape the tutor's turn counter takes, and for the same reason: a
+   * stop that arrives mid-thought is a surprise, and somebody who knows they
+   * have two left asks the two they most want answered. The route enforces it
+   * regardless — this is so it is not a shock.
+   */
+  const left = Math.max(
+    0,
+    PLANS[planId].entitlements.assistantMessagesPerDay - asked,
+  );
 
   return Response.json(
-    { turns },
+    { turns, left },
     { headers: { "cache-control": "no-store" } },
   );
 }
