@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { shortDate } from "@/lib/calendar/dates";
 import { findPack } from "@/lib/content";
 import { cookieName, encode } from "@/lib/check/session";
 import { EMPTY_INTAKE, type Intake } from "@/lib/goals/intake-store";
@@ -56,6 +57,21 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
  */
 const apiKey = vi.fn(() => true);
 vi.mock("@/lib/ai/client", () => ({ hasApiKey: () => apiKey() }));
+/**
+ * The dated band under the session card. Stubbed for `todayFor`'s reason: what
+ * it computes is tested in tests/calendar/upcoming.test.ts, and the question
+ * here is whether the rows reach the screen saying what they rest on.
+ */
+const upcomingMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
+/**
+ * The page reads the real clock, so these are relative. A fixed "18 Aug" would
+ * be a test that passes in August and fails in September.
+ */
+const dayFromNow = (days: number) =>
+  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+vi.mock("@/lib/calendar/upcoming", () => ({
+  upcomingFor: (...a: unknown[]) => upcomingMock(...(a as [])),
+}));
 vi.mock("@/lib/billing/gate", () => ({
   nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
 }));
@@ -153,6 +169,7 @@ beforeEach(() => {
   coursesForMock.mockResolvedValue([]);
   buildInFlightForMock.mockResolvedValue(undefined);
   apiKey.mockReturnValue(true);
+  upcomingMock.mockResolvedValue([]);
 });
 
 afterEach(cleanup);
@@ -456,6 +473,119 @@ describe("with a plan", () => {
     render(await TodayPage({ searchParams: search() }));
 
     expect(screen.queryByText(/A tutor sits with you/)).toBeNull();
+  });
+
+  /**
+   * `/progress` holds the month and keeps it, but "is anything about to land on
+   * me" is a question a learner has every morning — and answering it used to
+   * cost two clicks and a scroll past the week's own read.
+   */
+  it("says what is coming, in the words the dates already have", async () => {
+    const day = dayFromNow(5);
+    upcomingMock.mockResolvedValue([
+      {
+        day,
+        kind: "retrieval",
+        certainty: "due",
+        title: "3 questions come back to you",
+        detail: "Metering · Exposure triangle · White balance",
+      },
+    ]);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("3 questions come back to you")).toBeDefined();
+    expect(
+      screen.getByText("Metering · Exposure triangle · White balance"),
+    ).toBeDefined();
+    // Both halves of a date: the day itself — weekday included, so it can be
+    // checked against your own week — and how far off it is.
+    expect(screen.getByText(shortDate(day))).toBeDefined();
+    expect(screen.getByText("in 5 days")).toBeDefined();
+  });
+
+  it("offers the month rather than reproducing it", async () => {
+    upcomingMock.mockResolvedValue([
+      {
+        day: dayFromNow(4),
+        kind: "retrieval",
+        certainty: "due",
+        title: "3 questions come back to you",
+        detail: "Metering",
+      },
+    ]);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(
+      screen.getByRole("link", { name: "See the month" }).getAttribute("href"),
+    ).toBe("/progress");
+  });
+
+  /**
+   * Overdue is a fact about a date that has passed, so it is only ever said
+   * about something that was actually owed — the same distinction `/progress`
+   * draws, because a projection cannot be late.
+   */
+  it("marks work that was owed and has not been done", async () => {
+    upcomingMock.mockResolvedValue([
+      {
+        day: dayFromNow(-3),
+        kind: "retrieval",
+        certainty: "due",
+        title: "1 question comes back to you",
+        detail: "Metering",
+      },
+    ]);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText("Waiting")).toBeDefined();
+  });
+
+  it("does not call a projection overdue", async () => {
+    const day = dayFromNow(-3);
+    upcomingMock.mockResolvedValue([
+      {
+        day,
+        kind: "lapse",
+        certainty: "projected",
+        title: "Exposure triangle stops counting",
+        detail: "You showed this once.",
+      },
+    ]);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.getByText(shortDate(day))).toBeDefined();
+    expect(screen.getByText("3 days ago")).toBeDefined();
+  });
+
+  /**
+   * §8 screen 6's "no feed, no browse" is the rule this band is closest to
+   * breaking, and a permanent row saying "nothing is due" is exactly the
+   * furniture that rule exists to keep off the screen.
+   */
+  it("drops the whole band rather than furnishing an empty one", async () => {
+    upcomingMock.mockResolvedValue([]);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText("What's coming")).toBeNull();
+    expect(screen.queryByRole("link", { name: "See the month" })).toBeNull();
+  });
+
+  it("asks for the band against the learner's own goal and pack", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    const [, input] = upcomingMock.mock.calls[0] as [
+      unknown,
+      { userId: string; goal: { id: string } },
+    ];
+    expect(input.userId).toBe("u1");
+    expect(input.goal.id).toBe("g1");
   });
 
   it("says when it is backing off rather than quietly grinding", async () => {

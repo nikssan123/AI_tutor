@@ -18,6 +18,8 @@ import {
   HeroBand,
   Lead,
   Meta,
+  Row,
+  RowList,
   Signal,
   stagger,
   Status,
@@ -29,6 +31,8 @@ import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { nudgeAt } from "@/lib/billing/gate";
 import { buildInFlightFor } from "@/lib/packs/build";
 import { hasApiKey } from "@/lib/ai/client";
+import { upcomingFor } from "@/lib/calendar/upcoming";
+import { dayOf, relativeDay, shortDate } from "@/lib/calendar/dates";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
 
@@ -203,6 +207,33 @@ export default async function TodayPage({ searchParams }: Props) {
    * screen that is doing six already.
    */
   const building = await buildInFlightFor(getDb(), session.user.id, now);
+
+  /*
+   * The next few dated things, which had no surface on this screen at all.
+   *
+   * `/progress` holds the month and keeps it — a grid is a screen you go to,
+   * not one you glance at — but "is anything about to land on me" is a question
+   * a learner has every morning, and answering it used to cost two clicks and a
+   * scroll. A hand-in four days out was something you found out about by going
+   * looking for it.
+   *
+   * Three rows, capped, and the band disappears when there is nothing: §8
+   * screen 6's "no feed, no browse" is the rule this is closest to breaking, and
+   * a permanent row saying "nothing is due" would be exactly the furniture that
+   * rule exists to keep off the screen.
+   *
+   * After the plan rather than beside it, for `building`'s reason: the empty
+   * branch above never reaches here, and pairing the reads would buy a query on
+   * every visit to save one round trip.
+   */
+  /** The learner's own today, for "in 4 days" and for what counts as overdue. */
+  const todayKey = dayOf(now.toISOString());
+  const upcoming = await upcomingFor(getDb(), {
+    userId: session.user.id,
+    goal: view.goal,
+    pack,
+    now,
+  });
 
   return (
     <AppFrame>
@@ -386,7 +417,50 @@ export default async function TodayPage({ searchParams }: Props) {
         </Signal>
       ) : null}
 
-      <section className="rise flex flex-col gap-6" style={stagger(4)}>
+      {/* ── What's coming ────────────────────────────────────────────────── */}
+      {upcoming.length > 0 ? (
+        <section className="rise flex flex-col gap-6" style={stagger(4)}>
+          <SectionHead
+            label="Ahead"
+            title="What's coming"
+            action={
+              <Link
+                href="/progress"
+                className="font-[550] text-accent underline-offset-4 hover:underline"
+              >
+                See the month
+              </Link>
+            }
+          />
+          <RowList>
+            {upcoming.map((entry) => {
+              // Overdue is a fact about a date that has passed, so it is only
+              // ever said about something that was actually owed — the same
+              // distinction `/progress` draws, in the same words.
+              const waiting =
+                entry.certainty === "due" && entry.day < todayKey;
+              return (
+                <Row key={`${entry.day}-${entry.kind}-${entry.title}`}>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-[550] text-ink">{entry.title}</span>
+                    <Meta>{entry.detail}</Meta>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    {waiting ? (
+                      <Status tone="attention">Waiting</Status>
+                    ) : (
+                      <Meta tone="muted">{shortDate(entry.day)}</Meta>
+                    )}
+                    <Meta>{relativeDay(todayKey, entry.day)}</Meta>
+                  </span>
+                </Row>
+              );
+            })}
+          </RowList>
+        </section>
+      ) : null}
+
+      <section className="rise flex flex-col gap-6" style={stagger(5)}>
         <SectionHead
           label="The rest of it"
           title="Your path"
