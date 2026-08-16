@@ -100,6 +100,8 @@ function view(
       targetOutcome: "a portfolio of ten",
     });
 
+  const weeks = buildMonth({ month: "2026-08", today: TODAY, entries });
+
   return {
     goal: {
       id: "g1",
@@ -113,7 +115,7 @@ function view(
     previousMonth: "2026-07",
     nextMonth: "2026-09",
     today: TODAY,
-    weeks: buildMonth({ month: "2026-08", today: TODAY, entries }),
+    weeks,
     ahead: entries.filter(
       (e) => e.certainty !== "recorded" && e.kind !== "checkpoint",
     ),
@@ -127,6 +129,14 @@ function view(
     },
     deadline: overrides.deadline ?? null,
     hasPath: overrides.hasPath ?? true,
+    /*
+     * Derived the way `calendarFor` derives them rather than passed in, so a
+     * fixture cannot claim a month is empty while handing the screen a grid
+     * full of marks. `nextAfter` itself is not imported: this file mocks the
+     * view module wholesale, and it is one `find` over an already-sorted list.
+     */
+    hasMarks: weeks.flat().some((cell) => cell.certainties.length > 0),
+    next: entries.find((e) => e.day > weeks.at(-1)!.at(-1)!.day),
   };
 }
 
@@ -324,6 +334,21 @@ describe("the streak, after the merge", () => {
   });
 });
 
+/**
+ * The grid's own squares. Every other `li` on this screen is a row in a list of
+ * sentences, and several of those sentences now appear twice on the page: once
+ * in a list, once in the card that opens on the day they land on. Scoping is
+ * what keeps a test about one of them from matching the other.
+ */
+const dayCell = (day: number): HTMLElement =>
+  screen
+    .getAllByRole("listitem")
+    .find((li) => li.firstElementChild?.textContent === String(day))!;
+
+/** The band with this heading, for the same reason. */
+const band = (heading: string): HTMLElement =>
+  screen.getByText(heading).closest("section")!;
+
 describe("the month", () => {
   it("draws the month it was given, and offers the ones either side", async () => {
     calendarForMock.mockResolvedValue(view());
@@ -361,7 +386,12 @@ describe("the month", () => {
     }
   });
 
-  it("writes out what sits on a marked day", async () => {
+  /**
+   * Said twice, in two registers. A screen reader gets the whole day in one
+   * line; a pointer or a tab stop opens a card that breaks it into the things
+   * on it, each with the mark it carries in the grid.
+   */
+  it("writes out what sits on a marked day, for reading out", async () => {
     calendarForMock.mockResolvedValue(view());
     render(await ProgressPage({ searchParams: search() }));
 
@@ -371,10 +401,157 @@ describe("the month", () => {
     ).toBeDefined();
   });
 
+  it("opens a card on the day naming each thing on it", async () => {
+    calendarForMock.mockResolvedValue(view());
+    render(await ProgressPage({ searchParams: search() }));
+
+    const card = within(dayCell(10)).getByText("Mon 10 Aug").parentElement!;
+
+    // The date as a heading, then the thing and what it rests on.
+    expect(within(card).getByText("120 minutes")).toBeDefined();
+    expect(within(card).getByText("You sat down 2 times.")).toBeDefined();
+    // Hidden from anyone who is already being read the line above.
+    expect(card.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  /** Hover is not the only way in: a day with something on it is a tab stop,
+      and an empty one is not — a month of empty squares is not a tab trap. */
+  it("makes only the days that have something to say focusable", async () => {
+    calendarForMock.mockResolvedValue(view());
+    render(await ProgressPage({ searchParams: search() }));
+
+    const marked = screen
+      .getAllByRole("listitem")
+      .filter((li) => li.getAttribute("tabindex") === "0");
+
+    expect(marked.length).toBeGreaterThan(0);
+    for (const li of marked) {
+      expect(li.textContent).toMatch(/—/);
+    }
+  });
+
+  /**
+   * The day number takes the colour of the strongest thing on it, so a day
+   * reads as one object rather than a number with an unrelated stripe under it.
+   */
+  it("colours the day number to match what sits on it", async () => {
+    calendarForMock.mockResolvedValue(view());
+    render(await ProgressPage({ searchParams: search() }));
+
+    /*
+     * Found by the line a screen reader is given rather than by the numeral: a
+     * six-week grid holds two 28ths, and the first of them is the padding day
+     * from July.
+     */
+    const numeral = (day: RegExp) =>
+      screen.getByText(day).closest("li")!.firstElementChild!.className;
+
+    expect(numeral(/^Mon 10 Aug —/)).toContain("text-accent"); // you worked
+    expect(numeral(/^Tue 18 Aug —/)).toContain("text-attention"); // owed
+    // A projection has a hue of its own rather than borrowing the accent, which
+    // means "this happened, and we checked". See `planned` in theme.ts.
+    expect(numeral(/^Fri 28 Aug —/)).toContain("text-planned");
+  });
+
+  /**
+   * Two competing `text-*` utilities resolve by stylesheet order rather than by
+   * the order they appear in the attribute, so a numeral that carried both
+   * would be a colour decided by whatever Tailwind happened to emit last.
+   */
+  it("gives every day number exactly one colour", async () => {
+    calendarForMock.mockResolvedValue(view());
+    render(await ProgressPage({ searchParams: search() }));
+
+    const isColour = (c: string) =>
+      /^text-(ink|ink-muted|ink-faint|accent|attention|on-accent|planned)$/.test(
+        c,
+      );
+
+    // The grid's own squares: every other `li` on the screen is a row in a
+    // list of sentences, and the day number is the thing under test.
+    const days = screen
+      .getAllByRole("listitem")
+      .filter((li) => /^\d{1,2}$/.test(li.firstElementChild?.textContent ?? ""));
+
+    expect(days.length).toBeGreaterThan(28);
+    for (const li of days) {
+      const classes = li.firstElementChild!.className.split(" ");
+      expect(classes.filter(isColour)).toHaveLength(1);
+    }
+  });
+
   it("says plainly that a projected day is not a promise", async () => {
     calendarForMock.mockResolvedValue(view());
     render(await ProgressPage({ searchParams: search() }));
     expect(screen.getByText(/Nothing on them has been promised to you/)).toBeDefined();
+  });
+
+  /**
+   * The month a learner sees the day their path is built, and the reading it
+   * used to invite. Four of five checkpoints land past the end of this grid, so
+   * the calendar looked empty to somebody who had just been given five dates.
+   * A grid cannot say that about itself; the sentence under it can.
+   */
+  it("says where the dates went when this month has none", async () => {
+    calendarForMock.mockResolvedValue(
+      view({
+        entries: buildEntries({
+          worked: [],
+          retrieval: [],
+          lapses: [],
+          checkpoints: [checkpoint({ day: "2026-11-07", dayAtActualPace: null })],
+          deadline: null,
+          targetOutcome: "a portfolio of ten",
+        }),
+      }),
+    );
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText(/Nothing lands in August 2026/)).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "November 2026" }).getAttribute("href"),
+    ).toBe("/progress?month=2026-11");
+  });
+
+  it("does not send them looking for dates that do not exist", async () => {
+    calendarForMock.mockResolvedValue(
+      view({
+        entries: [],
+        checkpoints: [],
+      }),
+    );
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText(/Days fill in as you work/)).toBeDefined();
+    expect(screen.queryByText(/The next thing on your calendar/)).toBeNull();
+  });
+
+  it("keeps quiet about an empty month when the month is not empty", async () => {
+    calendarForMock.mockResolvedValue(view());
+    render(await ProgressPage({ searchParams: search() }));
+    expect(screen.queryByText(/Nothing lands in/)).toBeNull();
+  });
+
+  /**
+   * Today is already the loudest square on the grid, so a day that is both
+   * today and marked keeps today's treatment rather than fighting it.
+   */
+  it("does not re-weight today when today carries a mark", async () => {
+    calendarForMock.mockResolvedValue(
+      view({
+        entries: buildEntries({
+          worked: [{ day: TODAY, minutes: 45, sessions: 1 }],
+          retrieval: [],
+          lapses: [],
+          checkpoints: [],
+          deadline: null,
+          targetOutcome: "a portfolio of ten",
+        }),
+      }),
+    );
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText("Fri 14 Aug — 45 minutes")).toBeDefined();
   });
 });
 
@@ -383,7 +560,11 @@ describe("what's coming", () => {
     calendarForMock.mockResolvedValue(view());
     render(await ProgressPage({ searchParams: search() }));
 
-    const row = screen.getByText("1 question comes back to you").closest("li")!;
+    // Scoped to the band: the same sentence is also on the card that opens on
+    // the 18th, which is the point of the card and not a duplicate list.
+    const row = within(band("What's coming"))
+      .getByText("1 question comes back to you")
+      .closest("li")!;
     expect(within(row).getByText("Metering and histogram")).toBeDefined();
     expect(within(row).getByText("Tue 18 Aug")).toBeDefined();
     expect(within(row).getByText("in 4 days")).toBeDefined();
@@ -393,7 +574,7 @@ describe("what's coming", () => {
     calendarForMock.mockResolvedValue(view());
     render(await ProgressPage({ searchParams: search() }));
 
-    const row = screen
+    const row = within(band("What's coming"))
       .getByText("Exposure triangle stops counting")
       .closest("li")!;
     expect(row.textContent).not.toMatch(/decay|half.life|mastery/i);
@@ -448,6 +629,31 @@ describe("what's coming", () => {
 
     expect(screen.getByText(/Nothing is waiting on you/)).toBeDefined();
   });
+
+  /**
+   * The empty state that made a working build look like a broken one. This band
+   * excludes checkpoints on purpose — they are priced in their own — so a
+   * learner whose path had just been cut into modules read "nothing is waiting
+   * on you" and concluded the build had produced nothing.
+   */
+  it("says where the dated work went, rather than that there is none", async () => {
+    calendarForMock.mockResolvedValue(
+      view({
+        entries: buildEntries({
+          worked: [],
+          retrieval: [],
+          lapses: [],
+          checkpoints: [checkpoint()],
+          deadline: null,
+          targetOutcome: "a portfolio of ten",
+        }),
+      }),
+    );
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText(/What you are working towards is dated below/)).toBeDefined();
+    expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
+  });
 });
 
 describe("checkpoints", () => {
@@ -455,18 +661,25 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(view());
     render(await ProgressPage({ searchParams: search() }));
 
-    expect(screen.getByText("Ten frames of one thing")).toBeDefined();
-    expect(screen.getByText("Marked against a rubric")).toBeDefined();
+    // The checkpoint's own card. Its title is also on the grid, in the card
+    // that opens on the day it lands — which is the point of that card.
+    const ahead = within(band("What's ahead"));
+    expect(ahead.getByText("Ten frames of one thing")).toBeDefined();
+    expect(ahead.getByText("Marked against a rubric")).toBeDefined();
     expect(
-      screen.getByText(/About 6 hours of work between here and it/),
+      ahead.getByText(/About 6 hours of work between here and it/),
     ).toBeDefined();
-    expect(
-      screen.getByText("Fri 28 Aug at the 3 hours a week you set aside"),
-    ).toBeDefined();
+    /*
+     * The date and its pace, in that order and in that weight. They used to be
+     * one sentence in 13px faint grey — the smallest type on a card whose whole
+     * job is to say when something lands, which is how a screen full of dates
+     * came to be reported as having none.
+     */
+    expect(ahead.getByText("Fri 28 Aug")).toBeDefined();
+    expect(ahead.getByText("at the 3 hours a week you set aside")).toBeDefined();
     // The honest half, and the one nobody else in this category shows you.
-    expect(
-      screen.getByText("Fri 4 Sep at the 2 hours you actually did"),
-    ).toBeDefined();
+    expect(ahead.getByText("Fri 4 Sep")).toBeDefined();
+    expect(ahead.getByText("at the 2 hours you actually did")).toBeDefined();
   });
 
   it("says nothing is marked when nothing is", async () => {

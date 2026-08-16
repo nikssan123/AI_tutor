@@ -10,7 +10,13 @@ import { coursesFor } from "@/lib/goals/courses";
 import { standingFor } from "@/lib/goals/standing";
 import { deadlineVerdict } from "@/lib/calendar/checkpoints";
 import { CERTAINTIES } from "@/lib/calendar/month";
-import { relativeDay, shortDate, WEEKDAYS } from "@/lib/calendar/dates";
+import {
+  monthLabel,
+  monthOf,
+  relativeDay,
+  shortDate,
+  WEEKDAYS,
+} from "@/lib/calendar/dates";
 import { formatDeadline } from "@/lib/goals/captured-display";
 import { CourseList } from "@/components/course-list";
 import { NothingRunning } from "@/components/nothing-running";
@@ -65,11 +71,31 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** §8.5.5 — a dot plus a word, never colour on its own. */
+/** §8.5.5 — a mark plus a word, never colour on its own. */
 const LEGEND: Record<Certainty, string> = {
   recorded: "You worked",
   due: "Due",
   projected: "Projected",
+};
+
+/**
+ * The day number, in the colour of the strongest thing on that day.
+ *
+ * The same three hues as the bar under it, so a day reads as one object rather
+ * than as a number with an unrelated stripe. `--accent` and `--attention` are
+ * the tokens `Status` already sets text in, so the contrast is measured rather
+ * than assumed.
+ *
+ * Projected is `--planned`, which exists because of this screen. It had been
+ * `--ink-muted` — quieter than an ordinary day — so on the calendar of somebody
+ * whose path has just been built, where every dated thing is a projection, the
+ * only marks on the month were drawn in the faintest ink available. See the
+ * token's note in `theme.ts` for why it is not simply the accent.
+ */
+const NUMERAL: Record<Certainty, string> = {
+  recorded: "text-accent",
+  due: "text-attention",
+  projected: "text-planned",
 };
 
 function hours(value: number): string {
@@ -81,20 +107,38 @@ function weeks(value: number): string {
 }
 
 /**
- * The three marks. Recorded is the accent, because the accent means *verified*
- * and a session you finished is the only thing on this grid that happened.
+ * The three marks: a bar under the day, in the colour of what sits on it.
+ *
+ * **It was a 6px dot, and one of the three was a hairline ring.** A projected
+ * day — which is every day on the calendar of somebody whose path has just been
+ * built — carried its entire meaning in a hollow circle of `--ink-faint` a
+ * third the height of the numeral beside it, on a square tinted `--raised`,
+ * which in light *is* `--surface`. Nothing marked anything, and the report was
+ * the obvious one: the dates are hardly visible.
+ *
+ * The mistake underneath it was encoding *uncertainty* as *low contrast*. A
+ * projection is not a promise, and the way to say so is hue and the legend that
+ * spells it out — not by drawing the only thing on the calendar in the faintest
+ * ink available. A bar carries several times the ink of a dot at the same
+ * width, which buys the legibility without a ring round the numeral or a box
+ * behind it: the grid stays a grid, and today's filled disc stays the one thing
+ * on it that is filled.
+ *
+ * Recorded is the accent, because the accent means *verified* and a session you
+ * finished is the only thing here that happened.
  */
 function Mark({ certainty }: { certainty: Certainty }) {
   return (
     <span
       aria-hidden="true"
       className={cx(
-        "inline-block size-1.5 rounded-full",
+        // `w-4` is the width it wants; flex shrinks it when a day carries all
+        // three and the column is a phone's width, rather than pushing the
+        // marks out of the square.
+        "inline-block h-[3px] w-4 rounded-full",
         certainty === "recorded" && "bg-accent",
         certainty === "due" && "bg-attention",
-        // Hollow: nothing has happened, and nothing is owed. It is a guess with
-        // arithmetic behind it, and it should look like one.
-        certainty === "projected" && "border border-ink-faint",
+        certainty === "projected" && "bg-planned",
       )}
     />
   );
@@ -351,38 +395,122 @@ export default async function ProgressPage({ searchParams }: Props) {
               key={week[0]!.day}
               className="m-0 grid list-none grid-cols-7 gap-1 p-0"
             >
-              {week.map((cell) => (
+              {week.map((cell) => {
+                const marked = cell.certainties.length > 0;
+
+                return (
                 <li
                   key={cell.day}
+                  /* `group` and `relative` for the card below; the tab stop so
+                     it is not hover-only for anybody driving by keyboard. Only
+                     days that have something to say become stops. */
                   className={cx(
-                    "flex min-h-14 flex-col items-center gap-1.5 rounded-[var(--radius-control)] py-2",
-                    cell.certainties.length > 0 && "bg-raised",
+                    "relative flex min-h-14 flex-col items-center gap-1.5 rounded-[var(--radius-control)] py-2",
+                    cell.description &&
+                      "group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                   )}
+                  tabIndex={cell.description ? 0 : undefined}
                 >
                   <span
                     className={cx(
                       "flex size-6 items-center justify-center rounded-full text-[length:var(--text-meta-size)] tabular-nums",
-                      cell.isToday && "bg-accent font-[650] text-on-accent",
-                      !cell.isToday && cell.inMonth && "text-ink",
-                      // Padding days are real days and stay readable, quietly:
-                      // a session on the 31st belongs where you would look.
-                      !cell.isToday && !cell.inMonth && "text-ink-faint",
+                      /*
+                       * Exactly one colour class, chosen here rather than
+                       * layered as conditions. Two competing `text-*`
+                       * utilities resolve by stylesheet order, not by the order
+                       * they appear in the attribute — see `Meta` in
+                       * components/ui, which learned this the hard way.
+                       */
+                      cell.isToday
+                        ? "bg-accent font-[650] text-on-accent"
+                        : marked
+                          ? cx(NUMERAL[cell.certainties[0]!], "font-[650]")
+                          : cell.inMonth
+                            ? "text-ink"
+                            // Padding days are real days and stay readable,
+                            // quietly: a session on the 31st belongs where you
+                            // would look for it.
+                            : "text-ink-faint",
                     )}
                   >
                     {Number(cell.day.slice(8))}
                   </span>
-                  <span className="flex h-1.5 items-center gap-1">
+                  {/* Bounded and centred, so three marks on one day shrink to
+                      fit the column instead of widening it. */}
+                  <span className="flex h-[3px] w-full max-w-16 items-center justify-center gap-1">
                     {cell.certainties.map((certainty) => (
                       <Mark key={certainty} certainty={certainty} />
                     ))}
                   </span>
                   {/* §8.5.5 bans colour as the sole carrier of meaning, and a
-                      grid of dots is exactly where that would happen. */}
+                      grid of marks is exactly where that would happen. */}
                   {cell.description ? (
                     <span className="sr-only">{cell.description}</span>
                   ) : null}
+
+                  {/*
+                   * What is on the day, on hover and on focus.
+                   *
+                   * The grid can only ever carry three hues and a date; the
+                   * sentence saying *which* checkpoint lands on the 25th lived
+                   * in a list further down the page, or in a screen reader's
+                   * ear, and for anybody with a mouse it was a scroll away from
+                   * the square they were pointing at.
+                   *
+                   * It is a card, not a tooltip: the same surface, hairline and
+                   * elevation every other card on the product uses, so it
+                   * belongs to the page rather than looking like something the
+                   * browser drew. One row per thing, each carrying the mark it
+                   * has in the grid, so the card explains the square rather
+                   * than repeating it.
+                   *
+                   * `aria-hidden`, because the `sr-only` line above already
+                   * says all of it and hearing it twice is worse than once. And
+                   * CSS only — a card on hover is not worth a byte of
+                   * JavaScript on a screen that works without any.
+                   */}
+                  {cell.items.length > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        "pointer-events-none invisible absolute bottom-[calc(100%+8px)] left-1/2 z-20",
+                        "flex w-max max-w-64 -translate-x-1/2 flex-col gap-2.5 text-left",
+                        "rounded-[var(--radius-card)] border border-hairline bg-raised p-3.5",
+                        "opacity-0 shadow-[var(--shadow-raised)]",
+                        "transition-opacity duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+                        "group-hover:visible group-hover:opacity-100",
+                        "group-focus-visible:visible group-focus-visible:opacity-100",
+                      )}
+                    >
+                      <span className="text-[length:var(--text-label-size)] font-[650] text-ink">
+                        {shortDate(cell.day)}
+                      </span>
+
+                      {cell.items.map((item) => (
+                        <span
+                          key={`${item.kind}-${item.title}`}
+                          className="flex items-start gap-2.5"
+                        >
+                          <span className="mt-[7px] flex shrink-0">
+                            <Mark certainty={item.certainty} />
+                          </span>
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <span className="text-[length:var(--text-meta-size)] font-[550] leading-[var(--text-meta-line)] text-ink">
+                              {item.title}
+                            </span>
+                            <Meta>{item.detail}</Meta>
+                          </span>
+                        </span>
+                      ))}
+
+                      {/* The point of the card, drawn as a corner of it: same
+                          fill, same hairline, two sides showing. */}
+                      <span className="absolute -bottom-[5px] left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-hairline bg-raised" />
+                    </span>
+                  ) : null}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ))}
 
@@ -394,6 +522,39 @@ export default async function ProgressPage({ searchParams }: Props) {
               </span>
             ))}
           </div>
+          {/*
+           * A month with nothing on it, saying which.
+           *
+           * The grid could not tell the difference between "your calendar is
+           * empty" and "everything on it is in September", and a learner who
+           * had just watched a path get built read the first when the second
+           * was true — five dated hand-ins, four of them past the end of this
+           * grid. A calendar that cannot say where its own dates went is a
+           * calendar people stop opening.
+           */}
+          {!calendar.hasMarks ? (
+            <Meta>
+              {calendar.next ? (
+                <>
+                  Nothing lands in {calendar.label}. The next thing on your
+                  calendar is {shortDate(calendar.next.day)} &mdash;{" "}
+                  <Link
+                    href={`/progress?month=${monthOf(calendar.next.day)}`}
+                    className="font-[550] text-accent underline-offset-4 hover:underline"
+                  >
+                    {monthLabel(monthOf(calendar.next.day))}
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  Nothing lands in {calendar.label} yet. Days fill in as you
+                  work, as questions come back to you, and as the work you hand
+                  in gets dated.
+                </>
+              )}
+            </Meta>
+          ) : null}
           <Meta tone="muted">
             Projected days move as your pace does. Nothing on them has been
             promised to you.
@@ -421,11 +582,12 @@ export default async function ProgressPage({ searchParams }: Props) {
                     {waiting ? (
                       <Status tone="attention">Waiting</Status>
                     ) : (
-                      // `tone`, not a class: two competing `text-ink-*`
-                      // utilities resolve by stylesheet order, so an override
-                      // here works or does not depending on what Tailwind
-                      // emitted last (see `Meta` in components/ui).
-                      <Meta tone="muted">{shortDate(entry.day)}</Meta>
+                      // The date is the reason the row is in this list, so it
+                      // is set in the row's own ink rather than in the faint
+                      // grey the qualifier under it uses.
+                      <span className="text-[length:var(--text-label-size)] font-[650] text-ink tabular-nums">
+                        {shortDate(entry.day)}
+                      </span>
                     )}
                     <Meta>{relativeDay(today, entry.day)}</Meta>
                   </span>
@@ -435,9 +597,21 @@ export default async function ProgressPage({ searchParams }: Props) {
           </RowList>
         ) : (
           <Card>
+            {/*
+              Two empty states, because there are two different reasons to be
+              empty and only one of them means "there is nothing".
+
+              A learner whose path has just been built has five dated hand-ins
+              and an empty list here, because this band deliberately excludes
+              checkpoints — they are priced in their own band below. Told
+              "nothing is waiting on you", they reasonably conclude the build
+              produced nothing. So when there *is* dated work, this says where
+              it went.
+            */}
             <Meta>
-              Nothing is waiting on you and nothing is due. Today&rsquo;s
-              session is the whole of it.
+              {checkpoints.length > 0
+                ? "Nothing is due yet: no questions are coming back to you and nothing has stopped counting. What you are working towards is dated below."
+                : "Nothing is waiting on you and nothing is due. Today’s session is the whole of it."}
             </Meta>
           </Card>
         )}
@@ -512,11 +686,25 @@ export default async function ProgressPage({ searchParams }: Props) {
                       About {hours(checkpoint.hoursAway)} of work between here
                       and it.
                     </Meta>
-                    <div className="flex flex-wrap gap-x-8 gap-y-2 border-t border-hairline pt-3">
-                      <Meta tone="muted">
-                        {shortDate(checkpoint.day)} at the{" "}
-                        {hours(commitment.weeklyHours)} a week you set aside
-                      </Meta>
+                    {/*
+                      The date, set like the fact it is.
+
+                      Both dates used to be inside `Meta` — 13px, faint, the
+                      smallest type on a card whose entire purpose is to tell
+                      you when something lands. The pace each one rests on is
+                      the qualifier, so the qualifier is what takes the small
+                      type, and the date takes the line.
+                    */}
+                    <div className="flex flex-wrap gap-x-10 gap-y-3 border-t border-hairline pt-3">
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-[length:var(--text-lead-size)] font-[650] text-ink tabular-nums">
+                          {shortDate(checkpoint.day)}
+                        </span>
+                        <Meta tone="muted">
+                          at the {hours(commitment.weeklyHours)} a week you set
+                          aside
+                        </Meta>
+                      </span>
                       {/* The same second estimate the card above gives for the
                           whole course, per hand-in. */}
                       {checkpoint.dayAtActualPace === null ? (
@@ -525,10 +713,15 @@ export default async function ProgressPage({ searchParams }: Props) {
                           to give you
                         </Meta>
                       ) : (
-                        <Meta>
-                          {shortDate(checkpoint.dayAtActualPace)} at the{" "}
-                          {hours(commitment.thisWeekHours)} you actually did
-                        </Meta>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="text-[length:var(--text-lead-size)] font-[650] text-ink tabular-nums">
+                            {shortDate(checkpoint.dayAtActualPace)}
+                          </span>
+                          <Meta>
+                            at the {hours(commitment.thisWeekHours)} you
+                            actually did
+                          </Meta>
+                        </span>
                       )}
                     </div>
                   </Card>

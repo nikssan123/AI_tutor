@@ -22,6 +22,17 @@ export interface DayCell {
   isToday: boolean;
   /** Which kinds of mark this day carries, in `CERTAINTIES` order. */
   certainties: Certainty[];
+  /**
+   * Everything on the day, in the order the schedule put it.
+   *
+   * The marks can say *what kind* of thing sits on a square and no more, so
+   * until this existed the only way to find out which checkpoint landed on the
+   * 25th was to read the lists further down the page — or to be using a screen
+   * reader, which got the whole sentence. This is what the card on hover reads
+   * from, and it is the same rows the lists are built from rather than a second
+   * description of them.
+   */
+  items: CalendarEntry[];
   /** The day and everything on it, in words. Null when the day is empty. */
   description: string | null;
 }
@@ -48,6 +59,7 @@ export function buildMonth(input: MonthInput): DayCell[][] {
         inMonth: monthOf(day) === input.month,
         isToday: day === input.today,
         certainties: CERTAINTIES.filter((c) => present.has(c)),
+        items: entries,
         description:
           entries.length === 0
             ? null

@@ -29,6 +29,7 @@
   --color-on-accent: var(--on-accent);
   --color-attention: var(--attention);
   --color-problem: var(--problem);
+  --color-planned: var(--planned);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);

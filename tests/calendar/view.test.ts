@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dueSkills, readRange } from "@/lib/calendar/view";
+import { dueSkills, nextAfter, readRange } from "@/lib/calendar/view";
+import type { CalendarEntry } from "@/lib/calendar/schedule";
 import type { RetrievalCandidate } from "@/lib/engine";
 
 /**
@@ -72,5 +73,39 @@ describe("dueSkills", () => {
     expect(
       dueSkills([queued("deleted", "2026-08-18T09:30:00.000Z")], new Map()),
     ).toEqual([]);
+  });
+});
+
+describe("nextAfter", () => {
+  const entry = (day: string): CalendarEntry => ({
+    day,
+    kind: "checkpoint",
+    certainty: "projected",
+    title: `Something on ${day}`,
+    detail: "",
+  });
+
+  /**
+   * What the month on screen does not reach. A learner whose path has just been
+   * built has five dated hand-ins and a grid that shows one of them, or none —
+   * and a calendar that cannot say where its own dates went is one people stop
+   * opening.
+   */
+  it("finds the first thing beyond the last day drawn", () => {
+    const entries = [entry("2026-08-25"), entry("2026-09-19"), entry("2026-10-10")];
+    expect(nextAfter(entries, "2026-09-05")?.day).toBe("2026-09-19");
+  });
+
+  it("has nothing to offer when the grid already reaches the end", () => {
+    expect(nextAfter([entry("2026-08-25")], "2026-08-31")).toBeUndefined();
+  });
+
+  /** The boundary that matters: a thing on the last day drawn is on screen. */
+  it("does not send them looking for a day they can already see", () => {
+    expect(nextAfter([entry("2026-09-05")], "2026-09-05")).toBeUndefined();
+  });
+
+  it("has nothing to offer for an empty calendar", () => {
+    expect(nextAfter([], "2026-08-31")).toBeUndefined();
   });
 });

@@ -53,7 +53,25 @@ describe("buildMonth", () => {
   it("says nothing about a day with nothing on it", () => {
     const cell = cellFor("2026-08-20");
     expect(cell.certainties).toEqual([]);
+    expect(cell.items).toEqual([]);
     expect(cell.description).toBeNull();
+  });
+
+  /**
+   * The marks can say what *kind* of thing sits on a square and no more, so the
+   * card that opens on the day reads the rows themselves — the same rows the
+   * lists further down are built from, rather than a second description of
+   * them.
+   */
+  it("carries the things on a day, not just how certain they are", () => {
+    const cell = cellFor(TODAY, [
+      entry(),
+      entry({ kind: "checkpoint", certainty: "projected", title: "Ten frames", detail: "Something to make." }),
+    ]);
+
+    expect(cell.items.map((i) => i.title)).toEqual(["25 minutes", "Ten frames"]);
+    expect(cell.items.map((i) => i.certainty)).toEqual(["recorded", "projected"]);
+    expect(cell.items[1]!.detail).toBe("Something to make.");
   });
 
   it("carries one mark per kind of thing, in one fixed order", () => {

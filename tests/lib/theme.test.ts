@@ -41,16 +41,35 @@ describe("§8.5.3 — the palette", () => {
     expect(dark.ink.toUpperCase()).not.toBe("#FFFFFF");
   });
 
-  it("keeps the palette to three hues plus neutrals", () => {
-    // §8.5.3 — "No separate success colour. Verified IS the accent." A fourth
-    // hue would make the accent stop being semantically load-bearing.
-    const hues = new Set([light.accent, light.attention, light.problem]);
-    expect(hues.size).toBe(3);
+  /**
+   * §8.5.3's rule is "no separate *success* colour — verified IS the accent",
+   * and the reason is that a fourth semantic competing with verified would take
+   * the accent's one job away. `planned` is the opposite of that case: it is
+   * the calendar's third certainty, a date that has not happened and is not
+   * owed, which had been drawn in `--ink-muted` — quieter than an ordinary day.
+   * Letting it wear the accent instead is exactly what the rule forbids, so it
+   * gets a hue of its own and the accent keeps meaning "this happened".
+   *
+   * The ban that matters is still asserted: no success colour, ever.
+   */
+  it("adds no hue that competes with the accent", () => {
+    const hues = new Set([
+      light.accent,
+      light.attention,
+      light.problem,
+      light.planned,
+    ]);
+    expect(hues.size).toBe(4);
     expect(light).not.toHaveProperty("success");
+    expect(light).not.toHaveProperty("verified");
   });
 
   it("brightens the accent in dark so it still reads on a dark ground", () => {
     expect(luminance(dark.accent)).toBeGreaterThan(luminance(light.accent));
+  });
+
+  it("brightens the projected hue in dark for the same reason", () => {
+    expect(luminance(dark.planned)).toBeGreaterThan(luminance(light.planned));
   });
 
   it("inverts the hairline relationship, as §8.5.4 requires", () => {
@@ -90,6 +109,15 @@ describe("§8.5.4 — WCAG 2.2 AA contrast in both themes", () => {
     expect(contrast(palette.inkMuted, palette.surface)).toBeGreaterThanOrEqual(
       4.5,
     );
+  });
+
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("%s: a projected date clears 4.5:1 on surface", (_name, palette) => {
+    // It colours a 13px numeral, so it is held to the small-text bar rather
+    // than the 3:1 one a decorative mark could live at.
+    expect(contrast(palette.planned, palette.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each([

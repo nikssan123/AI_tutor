@@ -35,6 +35,27 @@ export interface Palette {
   onAccent: string;
   attention: string;
   problem: string;
+  /**
+   * Something dated that has not happened and is not owed — a projection.
+   *
+   * §8.5.3 keeps the palette to three hues because "verified IS the accent",
+   * and a fourth semantic competing with *verified* would take that away. This
+   * is the opposite case, and it is why the rule bends here rather than
+   * breaking: the calendar's three certainties are recorded, due and
+   * *projected*, and the third had no colour at all. It was drawn in
+   * `--ink-muted` — quieter than an ordinary day — so on the calendar of
+   * somebody whose path had just been built, where every dated thing is a
+   * projection, the only marks on the month were the faintest ink available.
+   * The report was "I don't see the color".
+   *
+   * The alternative was to let a projected date wear the accent, which would
+   * have made the accent mean "there is something here" instead of "this
+   * happened, and we checked". So the accent keeps its one job, and the thing
+   * that is *not yet real* gets a hue that says so: cool, secondary to jade,
+   * and unmistakably not amber. §4.2 law 3 is unaffected — a projection still
+   * says it is one, in the legend, in the hover card and in words.
+   */
+  planned: string;
   shadowRaised: string;
   /**
    * §8.5.3 keeps elevation to one shadow because product screens separate with
@@ -67,6 +88,8 @@ export const light: Palette = {
   onAccent: "#FFFFFF",
   attention: "#B26A00",
   problem: "#B3261E",
+  // 5.28:1 on --surface, so it can carry the 13px numeral it colours.
+  planned: "#2F6DB5",
   shadowRaised:
     "0 1px 2px rgb(23 25 28 / .04), 0 12px 32px rgb(23 25 28 / .07)",
   shadowLifted:
@@ -95,6 +118,9 @@ export const dark: Palette = {
   onAccent: "#06231B",
   attention: "#E0A33C",
   problem: "#F2726A",
+  // Lifted the same way the accent is, for the same reason: 7.79:1 on
+  // --surface, against the light value's 5.28:1 on white.
+  planned: "#7FB0E8",
   shadowRaised: "0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .35)",
   shadowLifted: "0 2px 4px rgb(0 0 0 / .4), 0 24px 56px -12px rgb(0 0 0 / .6)",
 };
@@ -113,6 +139,7 @@ export const CSS_VAR: Record<keyof Palette, string> = {
   onAccent: "--on-accent",
   attention: "--attention",
   problem: "--problem",
+  planned: "--planned",
   shadowRaised: "--shadow-raised",
   shadowLifted: "--shadow-lifted",
 };

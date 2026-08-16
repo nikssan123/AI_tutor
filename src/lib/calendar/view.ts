@@ -80,6 +80,25 @@ export interface CalendarView {
   deadline: string | null;
   /** False when no path has been built, so there are no checkpoints to date. */
   hasPath: boolean;
+  /**
+   * Whether the month on screen has anything on it at all.
+   *
+   * A learner who has just had their path built has five dated checkpoints and
+   * a month that shows one of them, or none — the rest are September, October,
+   * November. The grid then reads as "the calendar is empty", which is a
+   * misreading it invites: the dates exist, they are simply not in this view.
+   * So the screen is given the fact rather than left to infer it from a grid it
+   * cannot count.
+   */
+  hasMarks: boolean;
+  /**
+   * The next dated thing the month on screen does not reach.
+   *
+   * Undefined when there is genuinely nothing ahead, which is a different
+   * sentence and a different offer: one is "look later", the other is "there is
+   * nothing to look at yet".
+   */
+  next: CalendarEntry | undefined;
 }
 
 export interface CalendarOptions {
@@ -200,6 +219,8 @@ export async function calendarFor(
     targetOutcome: goal.spec.targetOutcome,
   });
 
+  const weeks = buildMonth({ month, today, entries });
+
   return {
     goal,
     pack,
@@ -208,11 +229,29 @@ export async function calendarFor(
     previousMonth: shiftMonth(month, -1),
     nextMonth: shiftMonth(month, 1),
     today,
-    weeks: buildMonth({ month, today, entries }),
+    weeks,
     ahead: entries.filter(IN_AHEAD).slice(0, AHEAD_LIMIT),
     checkpoints,
     commitment,
     deadline: goal.spec.deadline,
     hasPath: curriculum !== undefined,
+    hasMarks: weeks.flat().some((cell) => cell.certainties.length > 0),
+    // The grid's own last day rather than the month's: the trailing padding
+    // days are on screen, so something landing on one of them is not something
+    // the learner has to go and look for.
+    next: nextAfter(entries, weeks.at(-1)!.at(-1)!.day),
   };
+}
+
+/**
+ * The first entry beyond a day, or nothing.
+ *
+ * `buildEntries` sorts by day, so the first match is the earliest — which is
+ * the only property this relies on and the reason it is not re-sorting here.
+ */
+export function nextAfter(
+  entries: CalendarEntry[],
+  lastDay: DayKey,
+): CalendarEntry | undefined {
+  return entries.find((entry) => entry.day > lastDay);
 }
