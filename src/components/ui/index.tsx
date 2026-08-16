@@ -167,13 +167,29 @@ export function Figure({
 /* ── Surfaces ───────────────────────────────────────────────────────────── */
 
 export function Card({
+  flush = false,
   className,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: React.HTMLAttributes<HTMLDivElement> & {
+  /**
+   * Drops the padding, for a card that rules a strip edge-to-edge or bleeds an
+   * image to its corners.
+   *
+   * **A prop rather than `className="p-0"`, which is what four call sites were
+   * using and none of them worked.** Two competing padding utilities resolve by
+   * the order Tailwind emitted them, not the order they are written, and
+   * Tailwind emits `.p-0` *before* `.p-6` — so the override can never win. Every
+   * one of those cards has been rendering with 24px of padding it was written
+   * not to have, which is why their ruled strips stopped short of the card edge
+   * on both sides.
+   */
+  flush?: boolean;
+}) {
   return (
     <div
       className={cx(
-        "bg-surface rounded-[var(--radius-card)] p-6",
+        "bg-surface rounded-[var(--radius-card)]",
+        flush ? "p-0" : "p-6",
         // §8.5.4 — in dark, elevation comes from a lighter surface, not shadow.
         "shadow-[var(--shadow-raised)]",
         className,

@@ -251,7 +251,7 @@ export function composeSession(input: ComposeInput): ComposeResult {
     blocks.push({
       type: "explain",
       skillId: top.skillId,
-      content: `Teach: ${topSkill.canDoStatement}`,
+      content: `A short lesson on ${topSkill.name}.`,
       estMinutes: explainMinutes,
     });
     used += explainMinutes;
@@ -263,10 +263,23 @@ export function composeSession(input: ComposeInput): ComposeResult {
     Math.max(1, Math.round(afterExplain * 0.4)),
     afterExplain,
   );
+  /*
+   * The three blocks of a learn session used to be the same sentence three
+   * times, each behind a different colon: "Teach: X", "In your own words: X",
+   * "Practise: X". A learner read the skill statement in the header, then again
+   * as the lesson's objective, then again as the question — and the question,
+   * being a can-do statement rather than a question, did not read as something
+   * you could answer at all.
+   *
+   * There is still no item bank behind this block (`itemId` is null), so what
+   * changes is only the framing: an instruction that says what to do with the
+   * statement, rather than a label stuck in front of it. A real question here
+   * needs a generated or authored item, which is a different piece of work.
+   */
   blocks.push({
     type: "check",
     skillId: top.skillId,
-    prompt: `In your own words: ${topSkill.canDoStatement}`,
+    prompt: `From memory, describe how you would do this: ${topSkill.canDoStatement}`,
     expected: topSkill.canDoStatement,
     isRetrieval: false,
     itemId: null,
@@ -279,7 +292,9 @@ export function composeSession(input: ComposeInput): ComposeResult {
     blocks.push({
       type: "apply",
       skillId: top.skillId,
-      brief: `Practise: ${topSkill.canDoStatement}`,
+      // The same sentence the apply *session* uses for the same act, rather
+      // than a second phrasing for "make something that proves it".
+      brief: `Produce work that demonstrates: ${topSkill.canDoStatement}`,
       rubricId: null,
       evidenceType: topSkill.area,
       estMinutes: afterCheck,

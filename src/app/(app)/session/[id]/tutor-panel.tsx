@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TUTOR_TURN_WARNING_MARGIN } from "@/lib/session/tutor";
+import { GeneratedProse } from "@/components/generated-prose";
 
 /**
  * The tutor panel — the only client component in the signed-in product.
@@ -70,6 +71,22 @@ export function TutorPanel({
   const left = Math.max(0, turnLimit - asked);
   const spent = left === 0;
 
+  /*
+   * Keep the newest words in view as they stream.
+   *
+   * The transcript is a capped scroll box, so without this an answer arrives
+   * below the fold of its own panel: you ask a question, the box stays showing
+   * the top of the conversation, and the reply appears to have gone nowhere.
+   * Pinned on every change rather than only on a new turn, because a streamed
+   * answer grows one chunk at a time and each chunk is what pushes the last
+   * line out of sight.
+   */
+  const thread = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const el = thread.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns]);
+
   async function ask(message: string) {
     if (pending || spent || message.trim() === "") return;
     setPending(true);
@@ -123,24 +140,56 @@ export function TutorPanel({
         </p>
       </noscript>
 
+      {/*
+        The transcript scrolls inside itself rather than growing the page.
+
+        The panel lives in the session's sticky rail, so an unbounded list would
+        push the box you type in off the bottom of the screen — the one control
+        that has to stay reachable, on the one component that exists to rescue
+        somebody who is stuck. Capped in viewport units so it is a proportion of
+        the screen rather than a guess at a number of turns.
+      */}
       {turns.length > 0 ? (
-        <ul className="flex list-none flex-col gap-3 p-0 m-0">
-          {turns.map((turn, i) => (
-            <li
-              key={i}
-              className={
-                turn.role === "user"
-                  ? "rounded-[var(--radius-control)] bg-raised px-4 py-3"
-                  : "px-1 whitespace-pre-wrap"
-              }
-            >
-              {turn.content === "" ? (
-                <span className="text-ink-muted">Thinking&hellip;</span>
-              ) : (
-                turn.content
-              )}
-            </li>
-          ))}
+        <ul
+          ref={thread}
+          className="flex max-h-[46vh] list-none flex-col gap-5 overflow-y-auto p-0 m-0"
+        >
+          {turns.map((turn, i) =>
+            turn.role === "user" ? (
+              /*
+               * The question, as a quoted line rather than a chat bubble.
+               *
+               * A bubble pair is the wrong furniture here: this is not two
+               * people talking, it is one thing you asked and the answer to it,
+               * and the answer is the part with the code in it. A rule and a
+               * quieter tone say "you said this" in a fraction of the space,
+               * which the answer then gets.
+               */
+              <li
+                key={i}
+                className="border-l-2 border-hairline ps-3 text-[length:var(--text-label-size)] text-ink-muted"
+              >
+                {turn.content}
+              </li>
+            ) : (
+              <li key={i}>
+                {turn.content === "" ? (
+                  <span className="text-[length:var(--text-label-size)] text-ink-muted">
+                    Thinking&hellip;
+                  </span>
+                ) : (
+                  /*
+                   * The tutor writes markdown — `**bold**` run-ins, fenced
+                   * blocks of the very commands the lesson is about, numbered
+                   * steps — and every one of them used to reach the learner as
+                   * the literal characters, in a `whitespace-pre-wrap` blob.
+                   * Same renderer as the lesson, one size down.
+                   */
+                  <GeneratedProse variant="compact" text={turn.content} />
+                )}
+              </li>
+            ),
+          )}
         </ul>
       ) : null}
 

@@ -707,6 +707,20 @@ describe("Card", () => {
     const cls = container.firstElementChild!.className;
     expect(cls).toContain("rounded-[var(--radius-card)]");
     expect(cls).toContain("shadow-[var(--shadow-raised)]");
+    expect(cls).toContain("p-6");
+  });
+
+  /**
+   * The padding has to come off through a prop, because it cannot come off
+   * through a class. Tailwind emits `.p-0` *before* `.p-6`, so
+   * `className="p-0"` — which four call sites were using — loses every time,
+   * and their edge-to-edge strips were quietly inset by 24px on both sides.
+   */
+  it("drops its padding on `flush`, which a className cannot do", () => {
+    const { container } = render(<Card flush>content</Card>);
+    const cls = container.firstElementChild!.className;
+    expect(cls).toContain("p-0");
+    expect(cls).not.toContain("p-6");
   });
 });
 

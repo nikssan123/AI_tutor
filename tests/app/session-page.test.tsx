@@ -171,9 +171,29 @@ describe("the session screen", () => {
     expect(screen.getByText("Join grain")).toBeDefined();
   });
 
-  it("renders an explain block's can-do statement", async () => {
+  /**
+   * The can-do statement is the lesson's job, not the block's.
+   *
+   * The block used to open with it in a `Lead` and the lesson opened with its
+   * own objective directly underneath, which is one claim written twice in the
+   * same size and the same grey — the reader's first two paragraphs said the
+   * same thing.
+   */
+  it("does not repeat the can-do statement above an explain block's lesson", async () => {
     await show(await SessionPage({ params, searchParams: search }));
-    expect(screen.getByText(skill.canDoStatement)).toBeDefined();
+    expect(screen.queryByText(skill.canDoStatement)).toBeNull();
+  });
+
+  /**
+   * Unless there is no lesson to say it. Without a skill there is no lesson
+   * either, so the block's own brief is the only thing left on the screen that
+   * says what this block is about.
+   */
+  it("falls back to the block's own brief when no skill resolved", async () => {
+    sessionViewMock.mockResolvedValue({ ...view(), skill: undefined });
+
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText("c")).toBeDefined();
   });
 
   it("offers a box to answer a check", async () => {

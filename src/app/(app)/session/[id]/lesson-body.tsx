@@ -5,7 +5,8 @@ import { lessonForBlock } from "@/lib/session/view";
 import type { EngineSkill, MasteryState } from "@/lib/engine";
 import type { PriorDomain } from "@/lib/contracts/goal";
 import type { PlanId } from "@/lib/billing/catalog";
-import { Lead, Meta, Title } from "@/components/ui";
+import { cx, Meta, Status, Title } from "@/components/ui";
+import { GeneratedProse } from "@/components/generated-prose";
 
 /**
  * The lesson body, in its own file so it can be awaited on its own.
@@ -112,25 +113,70 @@ export async function LessonBody(props: LessonBodyProps) {
   }
 
   return (
-    <article className="flex flex-col gap-5">
-      <Lead className="text-ink">{content.objective}</Lead>
+    /*
+     * `gap-14` between the parts of a lesson, against `gap-7` between the
+     * paragraphs inside one. The ratio is the whole of what makes a long lesson
+     * scannable: every gap on the page has to be unmistakably bigger or smaller
+     * than the gaps either side of it, and this article used `gap-10` over
+     * `gap-4` over a 25.6px line — three spacings close enough together that
+     * the eye read them as one.
+     */
+    <article className="flex flex-col gap-14">
+      {/*
+       * The objective, and then nothing else claiming to be the objective. The
+       * block used to open with the skill's can-do statement in a `Lead` and
+       * this line directly under it, which are the same sentence written twice
+       * — the reader's first two paragraphs said one thing.
+       *
+       * Written out rather than `<Lead className="text-ink">`, which is what it
+       * was and which never worked: `Lead` carries `text-ink-muted`, and two
+       * competing `text-*` utilities resolve by the order Tailwind emitted them
+       * rather than the order they are written. The opening claim of the lesson
+       * has been rendering a tone quieter than the body under it.
+       */}
+      <p
+        className={cx(
+          /* `text-pretty`, not `text-balance`. Balancing equalises every line
+             of a block, which is what you want for a two-line heading and very
+             much not for a six-line standfirst — it wrapped this one at about
+             45 characters and left the column looking half-used. */
+          "max-w-[var(--measure)] text-ink text-pretty",
+          "text-[length:var(--text-title-size)] leading-[1.35] font-[550]",
+          "tracking-[var(--text-title-tracking)]",
+        )}
+      >
+        {content.objective}
+      </p>
 
       {content.sections.map((section) => (
-        <div key={section.heading} className="flex flex-col gap-1.5">
+        <section key={section.heading} className="flex flex-col gap-5">
           <Title>{section.heading}</Title>
-          <p className="whitespace-pre-wrap">{section.body}</p>
-        </div>
+          <GeneratedProse variant="reading" text={section.body} />
+        </section>
       ))}
 
-      <div className="flex flex-col gap-1.5 rounded-[var(--radius-control)] bg-raised p-5">
-        <Meta>Worked example</Meta>
-        <p className="whitespace-pre-wrap">{content.workedExample}</p>
-      </div>
+      {/*
+       * The worked example, which §16.4 makes the part a stuck learner reads,
+       * marked as the one passage to follow along with.
+       *
+       * The rule is the whole mark, and it runs the full height of the passage
+       * rather than sitting under a label — it is the only thing on the page
+       * saying "this bit is a single sequence, follow it top to bottom".
+       */}
+      <section className="flex flex-col gap-5 border-l-2 border-accent ps-6">
+        <Title>Worked example</Title>
+        <GeneratedProse variant="reading" text={content.workedExample} />
+      </section>
 
-      <div className="flex flex-col gap-1.5">
-        <Meta>What people get wrong</Meta>
-        <p className="whitespace-pre-wrap">{content.commonMistake}</p>
-      </div>
+      {/*
+       * The mistake, in the one tone the design has for "this is the bit that
+       * catches people". It was a 13px faint label over body text — the most
+       * useful four lines in the lesson, set as the quietest thing on screen.
+       */}
+      <section className="flex flex-col gap-5">
+        <Status tone="attention">What people get wrong</Status>
+        <GeneratedProse variant="reading" text={content.commonMistake} />
+      </section>
     </article>
   );
 }
