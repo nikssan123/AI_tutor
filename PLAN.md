@@ -934,7 +934,7 @@ Added after the authenticated surface was reviewed as "dull and simple". §8.5.9
 
 | Rule | Why |
 |---|---|
-| **One frame: `AppFrame`, `wide` or `narrow`.** No page picks its own | The exception in §8.5.9 was "narrow *for task screens*", not "choose per page" |
+| **One frame: `AppFrame`, one width.** No page picks its own | The exception in §8.5.9 was "narrow *for task screens*", not "choose per page" — and it was retired on the product side entirely, see §8.5.11 |
 | **Bands open with `SectionHead`** — accent eyebrow, display-size title | A heading demoted to 14px is not a heading. The eyebrow is a plain label, not marketing's numbered step: a learner reading their own record is not being walked through five stages |
 | **`AppHeader` carries the facts on a rule**, not as another paragraph | Every screen had the same true, useful numbers rendered as loose `Meta` lines. On a row under a hairline they read as instruments |
 | **One `Figure` per band, never a row** | The product had no size between `h1` and body. A screen needs a loudest thing; a *grid* of them is the density ban |
@@ -943,6 +943,28 @@ Added after the authenticated surface was reviewed as "dull and simple". §8.5.9
 **One token added: `--on-accent`.** Not composition — a bug the rework surfaced. `text-on-accent` was in use at six call sites and defined nowhere, so under `@theme { --color-*: initial }` it compiled to nothing; `Button` meanwhile hard-coded `text-white`, which measures **2.17:1** on dark's `#35C79A`. The product's one filled button was its least readable control in half of its themes. Pinned in `tests/lib/theme.test.ts` in both themes.
 
 **What did not change.** No new hue, no gradient, no illustration, no percentage, no data table, no second accent. Nothing on any screen says something it did not say before — §8.5.9's closing line holds here too: this adds shape to what was already there.
+
+## 8.5.11 Retiring the narrow column
+
+§8.5.9 gave the product one documented exception — task screens keep `max-w-2xl` — and §8.5.10 carried it over as "`wide` or `narrow`, for a stated reason". It is withdrawn: `AppFrame` and `AppLoading` now take `wide` or `full`, and `narrow` is not a value either of them answers to.
+
+**Not because the reasoning was wrong, but because the exception never held its own line.** Every screen that claimed it was eventually fixed back, and the fixes all read the same way:
+
+| Screen | What `narrow` actually produced |
+|---|---|
+| `/account`, `/account/billing` | Several cards, each a title and one control, stacked one per row in a 624px column — ~350px of dead gutter either side of a page three viewports tall |
+| `/start/building` | One `AppHeader` and nothing else, adrift in the same column |
+| `/submission/[id]` | A waiting screen that `meta refresh`es into a `wide` graded screen, so the page changed width under the reader the moment marking finished |
+| `/account/referrals` | Three stacked cards, the `/account` fault exactly |
+| `/session/[id]` | A loading boundary left at `narrow` after the page went `wide` — a 624px placeholder that jumped to 1024px on arrival, the layout shift a skeleton exists to prevent, backwards |
+
+**What makes one width safe is that the frame is not the measure.** `Lead`, `Meta` and `GeneratedProse` cap themselves at `--measure`; a screen that is genuinely one column of prose caps its own content and lets the frame stay wide. `/session` does exactly that with a `max-w-[46rem]` wrapper its header, lesson and tutor dock all line up inside — 46rem rather than `--measure` because `--measure` is in `ch` and moves with font size, which is right for a paragraph and wrong for a column three components have to agree on. So a wide frame never widens a reading line. It only decides what may sit *beside* one.
+
+**The cautionary tale is `/session`, and it is not the one it looks like.** Its tutor sat below the fold through a three-thousand-pixel explain block — a fault of vertical order, the tutor being the last section in the document. It was chased with width regardless: `wide` plus a 22rem rail, which gave a chat answering in fenced shell commands 352px and took a third of the row off the lesson to pay for it. Docking the tutor to the foot of the viewport resolved it. A column width was made to carry an argument about document order, and lost twice before anyone changed the order.
+
+**§8.5.9's marketing exception is untouched.** `PageFrame narrow` still holds the running skill check, and sign-in still sits in `AuthFrame`'s `max-w-md` card. This is a rule about the authenticated product, where the drift was.
+
+**Pinned in `tests/app/loading-states.test.tsx`** — every `(app)` loading boundary is asserted to open in `max-w-5xl`, across all ten rather than one at a time. Each boundary had only ever been checked against the width it chose for itself, which is why `/session` could disagree with its own page and nothing noticed.
 
 ---
 

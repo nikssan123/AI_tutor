@@ -45,7 +45,7 @@ export default async function ReferralsPage() {
   const link = canonical(`/r/${code}`);
 
   return (
-    <AppFrame width="narrow">
+    <AppFrame>
       <AppHeader
         title="Learn together"
         lead={`Give a friend ${REWARD_DAYS} days of Pro. When they subscribe, you get ${REWARD_DAYS} days too.`}

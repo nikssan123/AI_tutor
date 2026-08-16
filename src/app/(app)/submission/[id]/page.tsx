@@ -77,7 +77,10 @@ export default async function SubmissionPage({ params }: Props) {
     const failed = stored.status === "failed";
 
     return (
-      <AppFrame width="narrow">
+      /* The same frame the graded screen below uses. This waiting branch
+         refreshes itself into that one, so a narrower column here was a page
+         that changed width under the reader the moment marking finished. */
+      <AppFrame>
         {failed ? null : <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />}
 
         <AppHeader

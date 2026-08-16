@@ -77,11 +77,22 @@ describe("(app) loading boundaries", () => {
     },
   );
 
-  it("holds the column the screen under it uses", () => {
-    const { container } = render(<SessionLoading />);
-    // A `wide` placeholder collapsing to `narrow` on arrival is a layout shift
-    // the skeleton exists to prevent.
-    expect(container.querySelector("main")?.className).toContain("max-w-2xl");
+  /**
+   * The product has one width, and a boundary is the first thing that can
+   * break it.
+   *
+   * `/session` is why this is asserted across all of them rather than on the
+   * screen that had the bug: its page went `wide` and its boundary was left at
+   * `narrow`, so the placeholder was a 624px column that jumped to 1024px on
+   * arrival — the layout shift a skeleton exists to prevent, running backwards.
+   * Nothing in the suite noticed, because each boundary was only ever checked
+   * against the width it had chosen for itself.
+   */
+  it.each(BOUNDARIES)("%s opens in the one product column", (_name, Loading) => {
+    const { container } = render(<Loading />);
+    const main = container.querySelector("main")!;
+    expect(main.className).toContain("max-w-5xl");
+    expect(main.className).not.toContain("max-w-2xl");
   });
 });
 

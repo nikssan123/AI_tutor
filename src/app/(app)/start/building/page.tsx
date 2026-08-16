@@ -149,7 +149,7 @@ export default async function BuildingPage({ searchParams }: Props) {
    */
   if (!build) {
     return (
-      <AppFrame width="narrow">
+      <AppFrame>
         <AppHeader
           eyebrow="Nothing to watch"
           title="Nothing is being built under that name"
@@ -189,7 +189,7 @@ export default async function BuildingPage({ searchParams }: Props) {
         };
 
     return (
-      <AppFrame width="narrow">
+      <AppFrame>
         <AppHeader eyebrow="Stopped" title={stopped.title} lead={stopped.detail} />
         {/*
           No "Try again", and its absence is the point.
@@ -258,11 +258,11 @@ export default async function BuildingPage({ searchParams }: Props) {
   const current = at === -1 ? null : BUILD_STEPS[at]!;
 
   return (
-    /* `narrow`, and this is the exception §8.5.9 describes rather than a page
-       choosing its own width: there is one object on this screen and you are
-       watching it. A four-row list across `wide` would be four short rows and
-       700px of gutter. */
-    <AppFrame width="narrow">
+    /* The one product width, which the three branches of this route now share:
+       a build you are watching, one that stopped, and one that was never
+       there. They refresh into each other, so a per-branch column would move
+       the page under someone who is doing nothing but watching it. */
+    <AppFrame>
       {/* No script: the page asks the browser to come back. */}
       <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />
 

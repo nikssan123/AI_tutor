@@ -26,15 +26,26 @@ describe("AppFrame — one width, one rhythm (§8.5.9)", () => {
     expect(container.querySelector("main")!.className).toContain("max-w-5xl");
   });
 
-  it("keeps a task screen in the narrow column — the documented exception", () => {
-    const { container } = render(
-      <AppFrame width="narrow">
-        <p>child</p>
-      </AppFrame>,
-    );
-    const main = container.querySelector("main")!;
-    expect(main.className).toContain("max-w-2xl");
-    expect(main.className).not.toContain("max-w-5xl");
+  /**
+   * §8.5.9's narrow column is retired: a product screen gets one width, and
+   * the only other option is the operator's data grid.
+   *
+   * The type no longer admits `width="narrow"`, which is the real guard — this
+   * pins the runtime half, that there is no third value the map still answers
+   * to and no path by which a frame emits `max-w-2xl`.
+   */
+  it("answers to two widths, and neither of them is the narrow column", () => {
+    for (const width of ["wide", "full"] as const) {
+      const { container } = render(
+        <AppFrame width={width}>
+          <p>child</p>
+        </AppFrame>,
+      );
+      expect(container.querySelector("main")!.className).not.toContain(
+        "max-w-2xl",
+      );
+      cleanup();
+    }
   });
 
   it("lets the operator's data grid off the measure entirely", () => {

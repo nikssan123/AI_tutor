@@ -31,21 +31,41 @@ import { Wordmark } from "@/components/logo";
 /**
  * One width and one vertical rhythm for every authenticated route.
  *
- * `narrow` is §8.5.9's documented exception, and it is a real one — a goal
- * form or a sign-in read across 1024px would be worse, not better. The rule it
- * replaces is not "pick a width per page"; it is "pick one of two, for a
- * stated reason".
+ * **There is one product width and a screen does not get to pick it.** The
+ * `narrow` column (`max-w-2xl`) was §8.5.9's documented exception for a screen
+ * that is *one task*, and it is retired: not because the reasoning was wrong,
+ * but because in practice every screen that claimed it was eventually fixed
+ * back, and the fix always read the same way.
  *
- * **Which is why `wide` is the default, and a new screen should leave it
- * alone.** `narrow` is for a screen that is *one task* — a form you fill in,
- * a question you answer. It is not for a screen that happens to be short.
- * `/account` and `/account/billing` both shipped `narrow` and both had to be
- * fixed for the same fault: a handful of cards, each a title and one control,
- * stacked one per row in a 624px column, leaving ~350px of dead gutter either
- * side of a page three viewports tall. A page made of several cards goes
- * `wide` and pairs them into a grid; a page made of one form stays `narrow`.
- * If a `wide` page then looks empty, the answer is the card layout, not the
- * column width.
+ * - `/account` and `/account/billing` shipped `narrow`: a handful of cards,
+ *   each a title and one control, stacked one per row in a 624px column,
+ *   leaving ~350px of dead gutter either side of a page three viewports tall.
+ * - `/start/building` shipped `narrow` holding one `AppHeader` and nothing
+ *   else, and `/submission` changed width under the reader when marking
+ *   finished and the waiting screen refreshed into the graded one.
+ *
+ * `/session` is the one worth reading twice, because it is the case where the
+ * width was not the problem *or* the fix. Its tutor sat below the fold through
+ * three thousand pixels of explain block — caused by the tutor being the last
+ * section in the document, which is vertical order, not column width. It was
+ * chased with width anyway: `wide` plus a 22rem rail, which left a chat
+ * answering in fenced shell commands 352px to do it in and took a third of the
+ * row off the lesson to pay for it. Docking the tutor to the foot of the
+ * viewport is what actually resolved it. So the lesson is not "narrow was
+ * wrong here" — it is that a column width was made to carry an argument about
+ * document order, and lost twice before anyone changed the order.
+ *
+ * The exception kept being claimed by screens it was not written for, and
+ * "one of two, for a stated reason" turned out to cost more in drift than it
+ * bought in fit. What makes one width safe is that **the frame is not the
+ * measure**: `Lead`, `Meta` and `GeneratedProse` all cap themselves at
+ * `--measure`, so a wide frame never widens a reading line — it only gives the
+ * cards, rails and grids beside that line somewhere to go. A form on a wide
+ * frame is the same form; its inputs are laid out by its own `Card`, not by
+ * the `<main>` around it.
+ *
+ * So if a screen looks empty here, the answer is its card layout — pair them
+ * into a grid, or say more — and never the column width.
  *
  * `pb-28` clears the mobile bottom bar, which is `fixed` and would otherwise
  * sit on top of the last thing on every page.
@@ -69,7 +89,7 @@ export function AppFrame({
    * else, which is the one element on the page whose useful width is set by the
    * data rather than by a reading measure.
    */
-  width?: "wide" | "narrow" | "full";
+  width?: "wide" | "full";
   /**
    * Drops the bottom padding, for the one screen that pins a control to the
    * bottom of the viewport itself (`/start`'s composer). Anything rendered
@@ -90,7 +110,7 @@ export function AppFrame({
       className={cx(
         "mx-auto flex w-full flex-col gap-14 px-6 pt-10",
         flush ? "pb-0" : "pb-28",
-        { narrow: "max-w-2xl", wide: "max-w-5xl", full: "max-w-none" }[width],
+        { wide: "max-w-5xl", full: "max-w-none" }[width],
         className,
       )}
     >
@@ -264,8 +284,13 @@ export function AppLoading({
 }: {
   /** The screen's real heading, where it does not depend on the data. */
   title?: string;
-  /** Matches the page's own `AppFrame`, so the swap does not shift the column. */
-  width?: "wide" | "narrow" | "full";
+  /**
+   * Matches the page's own `AppFrame`, so the swap does not shift the column.
+   * Only the operator's data grids pass it — everything else is `wide`, which
+   * is what stopped `/session` opening a 624px placeholder in front of a
+   * 1024px screen.
+   */
+  width?: "wide" | "full";
   /** How many scroll bands the screen has below its header. */
   bands?: number;
 }) {

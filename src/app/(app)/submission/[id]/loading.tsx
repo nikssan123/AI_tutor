@@ -1,10 +1,9 @@
 import { AppLoading } from "@/components/app-shell";
 
 /**
- * `narrow`: work that is still being marked opens in the same column the
- * marking screen uses while it waits, and only widens once there is a verdict
- * to lay out.
+ * One band: whichever branch lands — work still being marked, or the verdict —
+ * opens with the header and a single card under it.
  */
 export default function Loading() {
-  return <AppLoading width="narrow" bands={1} />;
+  return <AppLoading bands={1} />;
 }

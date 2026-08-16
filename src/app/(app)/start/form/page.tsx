@@ -109,9 +109,12 @@ export default async function StartPage({ searchParams }: Props) {
   );
 
   return (
-    /* §8.5.9 — a task screen, so it keeps the narrow column. A goal form read
-       across 1024px would be worse, not better. */
-    <AppFrame width="narrow">
+    /* The one product width. This held the narrow column on the grounds that a
+       goal form read across 1024px would be worse — but the form is not read
+       across the frame: every field sits in a `Card` that lays out its own
+       rows, and the lead above caps itself at `--measure`. What the frame
+       decides here is the gutter, not the line length. */
+    <AppFrame>
       <AppHeader
         title="What do you want to get good at?"
         lead="Pick a subject — or name one we don’t cover yet, and we’ll write it — and tell us how much time you actually have. We’ll work out what to do first, and what to skip because you can already do it."
