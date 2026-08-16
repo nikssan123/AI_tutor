@@ -183,15 +183,38 @@ export default async function TodayPage({ searchParams }: Props) {
   const { pack, projection, session: planned, skillNames, openSessionId } = view;
 
   /*
-   * `startSessionAction` sends somebody here when the month's sessions are
-   * spent. It is the one wall on this screen, so it is the one thing that may
-   * ask them to pay — and it asks with what a paid plan would have done
-   * instead, rather than with an error.
+   * The one thing on this screen allowed to ask them to pay — and it is *one*
+   * thing, which is the whole reason this reads as a single value rather than
+   * two renders.
+   *
+   * Two questions can be true at once here. `startSessionAction` sends somebody
+   * back with `?error=sessions` when the month's sessions are spent, and
+   * separately every free learner is standing in front of a course they can
+   * read one lesson of. Rendering both would put two upgrade cards on one
+   * screen, which is precisely the accumulation `src/lib/billing/nudge.ts`
+   * exists to prevent — each prompt reasonable alone, nobody ever seeing them
+   * together.
+   *
+   * So they are ordered instead. **The wall they just hit wins**, because it is
+   * about the thing they were trying to do a second ago and answers it with
+   * what a paid plan would have done instead. The standing card is what is
+   * there the rest of the time: it says what free includes on a screen that is
+   * spending their allowance, rather than waiting for them to be stopped —
+   * which for a learner who never presses anything twice is never.
    */
-  const spent =
+  const wall =
     error === "sessions"
       ? await nudgeAt(getDb(), session.user.id, session.user.plan, "sessions_spent")
       : undefined;
+
+  const spent =
+    wall ??
+    (await nudgeAt(
+      getDb(),
+      session.user.id,
+      session.user.plan,
+      "course_locked",
+    ));
 
   /*
    * A second subject being authored while this course runs — the one important

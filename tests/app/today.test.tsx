@@ -898,40 +898,84 @@ describe("what the pack is", () => {
   });
 });
 
-describe("when the month's sessions are spent", () => {
-  it("offers the upgrade above the session band", async () => {
-    // The one wall on this screen, so the one thing on it that may ask for
-    // money — and it asks with what a paid plan would have done instead.
-    nudgeMock.mockResolvedValue({
-      reason: "sessions_spent",
-      headline: "That's this month's sessions",
-      body: "On a paid plan you would have carried straight on.",
-      cta: "Compare the plans",
-      href: "/pricing",
-    });
+describe("asking for money", () => {
+  const SESSIONS = {
+    reason: "sessions_spent",
+    headline: "That's this month's sessions",
+    body: "On a paid plan you would have carried straight on.",
+    cta: "Compare the plans",
+    href: "/pricing",
+  };
+
+  const LOCKED = {
+    reason: "course_locked",
+    headline: "You can see all of this course, and read one lesson of it",
+    body: "Free includes one lesson on any course.",
+    cta: "Try everything for four days",
+    href: "/pricing",
+  };
+
+  it("offers the upgrade above the session band when they are stopped", async () => {
+    nudgeMock.mockResolvedValue(SESSIONS);
 
     render(await TodayPage({ searchParams: search({ error: "sessions" }) }));
 
     expect(
-      screen.getByRole("heading", { name: "That's this month's sessions" }),
+      screen.getByRole("heading", { name: SESSIONS.headline }),
     ).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Compare the plans" }).getAttribute("href"),
     ).toBe("/pricing");
   });
 
-  it("says nothing on an ordinary visit", async () => {
+  it("says what free includes on an ordinary visit", async () => {
+    /*
+     * This screen used to ask for nothing at all unless somebody had just been
+     * bounced off a second session. That made the whole paywall unreachable for
+     * the learner it was written for: sign up, read the one lesson free
+     * includes, browse for a week, never press anything twice, never be
+     * stopped, never be asked. A standing condition needs no wall.
+     */
+    nudgeMock.mockResolvedValue(LOCKED);
+
     render(await TodayPage({ searchParams: search() }));
 
-    expect(nudgeMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("link", { name: "Compare the plans" })).toBeNull();
+    expect(nudgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "u1",
+      undefined,
+      "course_locked",
+    );
+    expect(screen.getByRole("heading", { name: LOCKED.headline })).toBeTruthy();
+  });
+
+  it("shows one card, never two, when both could be true", async () => {
+    /*
+     * The accumulation `src/lib/billing/nudge.ts` exists to prevent: each
+     * prompt reasonable on its own, nobody ever seeing them together. A learner
+     * whose sessions are spent is also a learner with a capped course, so both
+     * questions answer yes — and the wall they just hit wins, because it is
+     * about what they were trying to do a second ago.
+     */
+    nudgeMock.mockResolvedValue(SESSIONS);
+
+    render(await TodayPage({ searchParams: search({ error: "sessions" }) }));
+
+    expect(screen.getAllByRole("link", { name: /Compare the plans|four days/ }))
+      .toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: LOCKED.headline })).toBeNull();
+    // Asked once. The standing question is never put when a wall answered.
+    expect(nudgeMock).toHaveBeenCalledTimes(1);
   });
 
   it("says nothing when the resolver declines to sell", async () => {
-    // A plan with no session wall in front of it is never shown a way past one.
+    // A plan with no ceiling in front of it is never shown a way past one —
+    // and that now has to hold for both questions, not just the wall.
     nudgeMock.mockResolvedValue(undefined);
-    render(await TodayPage({ searchParams: search({ error: "sessions" }) }));
 
-    expect(screen.queryByRole("link", { name: "Compare the plans" })).toBeNull();
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByRole("link", { name: /Compare the plans|four days/ }))
+      .toBeNull();
   });
 });
