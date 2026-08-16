@@ -231,7 +231,15 @@ export function HeroBand({
   footer?: React.ReactNode;
 }) {
   return (
-    <Card className={cx("p-0 overflow-hidden", className)} {...props}>
+    /* `flush`, not `className="p-0"`. It was the latter from the day this
+       component was written, and it never once took effect: Tailwind emits
+       `.p-0` before `.p-6`, so `Card`'s own padding won and every hero band in
+       the product carried 24px it was not drawn with. The field panel sat 52px
+       inside the card rather than 28, and the footer's rule — the one line that
+       is supposed to say "the card ends here, the actions begin" — stopped 24px
+       short of the card at both ends, which read as a stray rule floating in a
+       gap rather than as a division of the card. */
+    <Card flush className={cx("overflow-hidden", className)} {...props}>
       <div className="flex flex-col gap-6 p-7">
         <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 rounded-[var(--radius-card)] bg-accent-weak px-6 py-5">
           {field}

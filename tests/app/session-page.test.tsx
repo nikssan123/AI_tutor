@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import type { SessionBlock } from "@/lib/engine";
 import type { BlockResponse } from "@/lib/contracts/session";
 
@@ -53,12 +53,20 @@ vi.mock("@/app/(app)/session/[id]/actions", () => ({
 vi.mock("@/lib/session/store", () => ({
   recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
 }));
-vi.mock("@/app/(app)/session/[id]/tutor-panel", () => ({
-  // Renders the one prop this page decides: whether the panel is allowed to
-  // warn. Everything else the panel does has its own suite.
-  TutorPanel: ({ quiet }: { quiet: boolean }) => (
+vi.mock("@/app/(app)/session/[id]/tutor-dock", () => ({
+  // Renders the one prop this page decides: whether the dock is allowed to
+  // warn. Everything else the dock does has its own suite.
+  TutorDock: ({ quiet }: { quiet: boolean }) => (
     <div>tutor panel{quiet ? " (quiet)" : ""}</div>
   ),
+  // The page borrows the dock's own frame for its Suspense fallback, so the
+  // composer does not move when the transcript resolves. Stubbed rather than
+  // dropped: the mock has to export everything the page imports.
+  DOCK_OUTER: "dock-outer",
+  DOCK_INNER: "dock-inner",
+  DOCK_PANEL: "dock-panel",
+  // The lesson column and the dock share one width so they cannot drift apart.
+  SESSION_COLUMN: "max-w-[52rem]",
 }));
 
 import { findPack } from "@/lib/content";
@@ -139,14 +147,21 @@ const params = Promise.resolve({ id: "sess-1" });
 const search = Promise.resolve({});
 
 /**
- * Renders the page.
+ * Renders the page, and waits for what streams into it.
  *
- * Children behind `Suspense` are invoked but not committed by the time this
- * returns — React resolves them a microtask later — so anything that streams
- * has to be asserted with `findBy*` rather than `getBy*`.
+ * `render` alone leaves the `Suspense` children hanging: they suspend *inside*
+ * RTL's own `act` scope, and because that scope is never awaited React has
+ * nowhere to flush the retry to — the boundary sits on its fallback for ever.
+ * Which of them happened to resolve anyway then depended on how many awaits the
+ * page did before rendering, so a test asserting on the tutor passed on the
+ * quota path (which awaits a nudge) and failed on the ordinary one.
+ *
+ * Awaiting the act scope drains it, and both commit deterministically.
  */
 async function show(node: React.ReactElement) {
-  render(node);
+  await act(async () => {
+    render(node);
+  });
 }
 
 beforeEach(() => {
@@ -165,9 +180,37 @@ describe("the session screen", () => {
     await expect(SessionPage({ params, searchParams: search })).rejects.toThrow("REDIRECT:/today");
   });
 
+  /**
+   * "Block 1 of 3" is gone: it sat directly above a rail that named the same
+   * blocks, and only one of the two drawings can tell you the block after this
+   * one is eleven minutes of writing code. The rail is the fact now, and the
+   * block in hand is the one carrying `aria-current="step"`.
+   */
   it("shows where the learner is in the session", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          { type: "explain", skillId: skill.id, content: "c", estMinutes: 10 },
+          {
+            type: "check",
+            skillId: skill.id,
+            prompt: "p",
+            expected: "e",
+            isRetrieval: false,
+            itemId: null,
+            estMinutes: 5,
+          },
+        ],
+        blockIndex: 1,
+      }),
+    );
+
     await show(await SessionPage({ params, searchParams: search }));
-    expect(screen.getByText(/Block 1 of 1/)).toBeDefined();
+
+    const steps = screen.getAllByRole("listitem");
+    const current = steps.filter((s) => s.getAttribute("aria-current") === "step");
+    expect(current).toHaveLength(1);
+    expect(current[0]!.textContent).toContain("Recall");
     expect(screen.getByText("Join grain")).toBeDefined();
   });
 
@@ -182,6 +225,10 @@ describe("the session screen", () => {
   it("does not repeat the can-do statement above an explain block's lesson", async () => {
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.queryByText(skill.canDoStatement)).toBeNull();
+    // And the lesson does say it, in its own words. Assertable again now that
+    // `show` drains the act queue — it had to be dropped when a suspended
+    // child could sit on its fallback for the whole test.
+    expect(screen.getByText(lesson.objective)).toBeDefined();
   });
 
   /**
@@ -434,7 +481,17 @@ describe("the session screen", () => {
     );
 
     await show(await SessionPage({ params, searchParams: search }));
-    expect(screen.getByText(/Block 2 of 3/)).toBeDefined();
+
+    // Three marks, and the one in hand is the second. The states differ in
+    // shape as well as colour (§8.5.5), so what is asserted is the structure:
+    // exactly one step is current, and it is not the first.
+    const steps = screen.getAllByRole("listitem");
+    expect(steps).toHaveLength(3);
+    expect(steps.map((s) => s.getAttribute("aria-current"))).toEqual([
+      null,
+      "step",
+      null,
+    ]);
   });
 
   it("offers to finish once the blocks run out", async () => {

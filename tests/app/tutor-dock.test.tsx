@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { appendToLast, TutorPanel } from "@/app/(app)/session/[id]/tutor-panel";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { appendToLast, exchanges, TutorDock } from "@/app/(app)/session/[id]/tutor-dock";
 
 /**
  * The one client component in the signed-in product.
@@ -43,9 +43,16 @@ afterEach(() => {
 });
 
 describe("the tutor panel", () => {
-  it("shows the transcript it was handed", () => {
+  /**
+   * The dock arrives closed, even holding a transcript.
+   *
+   * Somebody returning to a session came back to the lesson, not to what they
+   * asked about it yesterday — opening over the top of it would be the dock
+   * taking the screen for itself before being asked to.
+   */
+  it("keeps a transcript it was handed out of the way until asked for", async () => {
     render(
-      <TutorPanel
+      <TutorDock
         sessionId="s1"
         turnsTaken={0}
         turnLimit={30}
@@ -56,12 +63,80 @@ describe("the tutor panel", () => {
       />,
     );
 
-    expect(screen.getByText("why?")).toBeDefined();
+    expect(screen.queryByText("why?")).toBeNull();
+
+    // Reaching for the box *is* the intent to use the tutor. There is no
+    // second control to press: a learner who wants to ask something and a
+    // learner who wants to reread the answer both start here.
+    fireEvent.focus(screen.getByLabelText("Ask the tutor"));
+
+    await waitFor(() => expect(screen.getByText("why?")).toBeDefined());
+    expect(screen.getByText("because")).toBeDefined();
+  });
+
+  /**
+   * The two one-click asks are for somebody already stuck, and they are the
+   * whole reason the resting dock would otherwise be twice as tall.
+   */
+  it("keeps the named asks out of the resting bar", () => {
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+
+    const chips = screen.getByRole("button", { name: /don.t understand/i });
+    expect(chips.parentElement?.className).toContain("hidden");
+
+    fireEvent.focus(screen.getByLabelText("Ask the tutor"));
+    expect(chips.parentElement?.className).not.toContain("hidden");
+  });
+
+  /**
+   * The two ways back out of an open dock.
+   *
+   * It covers the lesson while it is open, so it has to be dismissible without
+   * aiming at a target — and Escape is the one that has to work when the cursor
+   * has already gone back to the paragraph underneath.
+   */
+  it.each([
+    ["the Hide button", () => screen.getByRole("button", { name: "Hide" }).click()],
+    ["Escape", () => fireEvent.keyDown(document, { key: "Escape" })],
+  ])("closes on %s", async (_name, dismiss) => {
+    render(
+      <TutorDock
+        sessionId="s1"
+        turnsTaken={0}
+        turnLimit={30}
+        initialTurns={[{ role: "assistant", content: "because" }]}
+      />,
+    );
+
+    fireEvent.focus(screen.getByLabelText("Ask the tutor"));
+    await waitFor(() => expect(screen.getByText("because")).toBeDefined());
+
+    dismiss();
+
+    await waitFor(() => expect(screen.queryByText("because")).toBeNull());
+  });
+
+  /** Every other key is somebody typing, including into the box below it. */
+  it("stays open on any other key", async () => {
+    render(
+      <TutorDock
+        sessionId="s1"
+        turnsTaken={0}
+        turnLimit={30}
+        initialTurns={[{ role: "assistant", content: "because" }]}
+      />,
+    );
+
+    fireEvent.focus(screen.getByLabelText("Ask the tutor"));
+    await waitFor(() => expect(screen.getByText("because")).toBeDefined());
+
+    fireEvent.keyDown(document, { key: "a" });
+
     expect(screen.getByText("because")).toBeDefined();
   });
 
   it("streams an answer into the page", async () => {
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
 
     const input = screen.getByLabelText("Ask the tutor") as HTMLInputElement;
     input.value = "why?";
@@ -74,7 +149,7 @@ describe("the tutor panel", () => {
   });
 
   it("sends §8 screen 7's two named asks with one click each", async () => {
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
 
     screen.getByRole("button", { name: /don.t understand/i }).click();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
@@ -86,7 +161,7 @@ describe("the tutor panel", () => {
 
     cleanup();
     fetchMock.mockClear();
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
     screen.getByRole("button", { name: /too easy/i }).click();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     expect(
@@ -100,7 +175,7 @@ describe("the tutor panel", () => {
       text: async () => "the tutor is down",
     } as unknown as Response);
 
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
     const input = screen.getByLabelText("Ask the tutor") as HTMLInputElement;
     input.value = "why?";
     screen.getByRole("button", { name: "Ask" }).click();
@@ -113,7 +188,7 @@ describe("the tutor panel", () => {
   it("reports a non-Error failure", async () => {
     fetchMock.mockRejectedValue("just a string");
 
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
     const input = screen.getByLabelText("Ask the tutor") as HTMLInputElement;
     input.value = "why?";
     screen.getByRole("button", { name: "Ask" }).click();
@@ -139,7 +214,7 @@ describe("the tutor panel", () => {
       },
     } as unknown as Response);
 
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
     const input = screen.getByLabelText("Ask the tutor") as HTMLInputElement;
     input.value = "why?";
     screen.getByRole("button", { name: "Ask" }).click();
@@ -151,9 +226,79 @@ describe("the tutor panel", () => {
   });
 
   it("ignores an empty question", () => {
-    render(<TutorPanel sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
+    render(<TutorDock sessionId="s1" initialTurns={[]} turnsTaken={0} turnLimit={30} />);
     screen.getByRole("button", { name: "Ask" }).click();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A transcript is read in exchanges, not turns.
+ *
+ * A turn-per-row list gave a question and its answer the same standing and the
+ * same gap as the gap to the next question, so a conversation of three read as
+ * six unrelated blocks. Pairing them is what lets a rule between exchanges mean
+ * anything.
+ */
+describe("exchanges", () => {
+  it("pairs each question with the answer that followed it", () => {
+    expect(
+      exchanges([
+        { role: "user", content: "why?" },
+        { role: "assistant", content: "because" },
+        { role: "user", content: "and?" },
+        { role: "assistant", content: "so" },
+      ]),
+    ).toEqual([
+      { question: "why?", answer: "because" },
+      { question: "and?", answer: "so" },
+    ]);
+  });
+
+  /** `transcriptFor` stops at `TRANSCRIPT_DEPTH`, so a long conversation can
+   *  arrive already cut — and the cut can land on an answer. */
+  it("keeps an answer whose question was cut off the top", () => {
+    expect(exchanges([{ role: "assistant", content: "because" }])).toEqual([
+      { answer: "because" },
+    ]);
+  });
+
+  /** The route writes them alternately, so this cannot happen — but a second
+   *  answer must start its own pair rather than overwrite the first. */
+  it("does not let a second answer overwrite the first", () => {
+    expect(
+      exchanges([
+        { role: "user", content: "why?" },
+        { role: "assistant", content: "because" },
+        { role: "assistant", content: "also" },
+      ]),
+    ).toEqual([
+      { question: "why?", answer: "because" },
+      { answer: "also" },
+    ]);
+  });
+
+  it("rules between exchanges and not above the first", () => {
+    render(
+      <TutorDock
+        sessionId="s1"
+        turnsTaken={0}
+        turnLimit={30}
+        initialTurns={[
+          { role: "user", content: "why?" },
+          { role: "assistant", content: "because" },
+          { role: "user", content: "and?" },
+          { role: "assistant", content: "so" },
+        ]}
+      />,
+    );
+
+    fireEvent.focus(screen.getByLabelText("Ask the tutor"));
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.className).not.toContain("border-t");
+    expect(rows[1]!.className).toContain("border-t");
   });
 });
 
@@ -171,7 +316,7 @@ describe("appendToLast", () => {
 
 describe("§14.9.7 limit 4 — the warning, then the stop", () => {
   const panel = (turnsTaken: number, turnLimit = 15) => (
-    <TutorPanel
+    <TutorDock
       sessionId="s1"
       initialTurns={[]}
       turnsTaken={turnsTaken}
@@ -239,7 +384,7 @@ describe("§14.9.7 limit 4 — the warning, then the stop", () => {
     // "You are running out" and "please pay" arriving together is what turns a
     // limit into a grievance.
     render(
-      <TutorPanel
+      <TutorDock
         sessionId="s1"
         initialTurns={[]}
         turnsTaken={12}
@@ -254,7 +399,7 @@ describe("§14.9.7 limit 4 — the warning, then the stop", () => {
   it("never holds the stop back, however crowded the screen", () => {
     // A disabled box with no explanation is worse than any amount of crowding.
     render(
-      <TutorPanel
+      <TutorDock
         sessionId="s1"
         initialTurns={[]}
         turnsTaken={15}

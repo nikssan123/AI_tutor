@@ -28,7 +28,13 @@ import {
 import { AppFrame, AppHeader } from "@/components/app-shell";
 import { SubmitButton } from "@/components/submit-button";
 import { submitWorkAction } from "@/app/(app)/submission/actions";
-import { TutorPanel } from "./tutor-panel";
+import {
+  DOCK_INNER,
+  DOCK_OUTER,
+  DOCK_PANEL,
+  SESSION_COLUMN,
+  TutorDock,
+} from "./tutor-dock";
 import { LessonBody } from "./lesson-body";
 import {
   answerAction,
@@ -80,7 +86,6 @@ export default async function SessionPage({ params, searchParams }: Props) {
   if (!view) redirect("/today");
 
   const { session, block, skill } = view;
-  const position = Math.min(session.blockIndex + 1, session.blocks.length);
 
   // `submitWorkAction` sends them back here when the month's marking is gone.
   // Loaded only on that path: a nudge costs two queries, and every other visit
@@ -104,172 +109,170 @@ export default async function SessionPage({ params, searchParams }: Props) {
 
   return (
     /*
-     * **`wide`, and the narrow exception is retired here.**
+     * **One reading column, and the tutor along the bottom of it.**
      *
-     * §8.5.9 let this screen keep `narrow` on the grounds that a session is one
-     * thing you *do*. That was written when a block was a question you answer.
-     * It is not what an explain block turned out to be: a twelve-minute written
-     * lesson is three thousand pixels of column, and for the whole of it the
-     * tutor — the one thing on the page that rescues a learner who is stuck —
-     * sat below the fold at the very bottom, reachable only by scrolling past
-     * the thing they were stuck on.
+     * The tutor was the last section in the document, so for the whole of a
+     * twelve-minute read the one thing that rescues a stuck learner was below
+     * the fold. Moving it into a 22rem sticky rail fixed the reach and bought a
+     * worse problem: a chat that answers a .NET question with three fenced
+     * commands had 352px to do it in, and the lesson lost a third of its row to
+     * pay for it — two columns competing for one 1024px row, both losing.
      *
-     * So the work keeps a reading column (`GeneratedProse` caps at `--measure`,
-     * so nothing gets wider) and the space `wide` adds goes to a rail: where
-     * you are in the session, and the tutor, both on screen the entire time.
-     * Under `lg` it stacks back to exactly the single column this screen has
-     * always been.
+     * A dock does not compete. At rest it is the box you type in, pinned where
+     * your hands are and reachable from any scroll position; it grows upward
+     * only once there is something to read, and then the answer gets the same
+     * column the lesson has rather than a gutter beside it. What it costs is
+     * that an open dock covers the lesson, which is the trade taken knowingly:
+     * you do not read a paragraph and the answer to it in the same instant.
      */
-    <AppFrame width="wide">
+    <AppFrame flush>
+      {/*
+       * The reading column, capped here rather than by the frame.
+       *
+       * `AppFrame` has one product width and a screen does not get to pick it,
+       * which is right — and it is also not the measure. This screen is a
+       * single column of prose with no cards or rails to put beside it, so
+       * left-aligning a 646px paragraph in a 1024px frame would strand 378px of
+       * nothing down the right of every line, and a `<pre>` (a block, stretched
+       * by its flex parent) would run to the full 1024 while the prose beside it
+       * stopped at 646. Capping the *content* keeps the listings and the
+       * sentences agreeing on where the page ends.
+       *
+       * A fixed width rather than `--measure`: `--measure` is in `ch` and so
+       * moves with font size, which is exactly what you want for a paragraph
+       * and exactly what you do not want for the column a header, a lesson and
+       * a dock all have to line up inside. `SESSION_COLUMN` is the dock's, so
+       * the two cannot drift apart.
+       */}
+      <div className={cx("mx-auto flex w-full flex-col gap-14", SESSION_COLUMN)}>
       {/* The same header every other product screen opens with: the surface
-          named above the title, the title, and the facts on a ruled row. It
-          used to be a `Meta`, a `DisplayTitle` and the rail stacked by hand,
-          which put the pack name and the block count in one run-on line and
-          left the rail hanging off the bottom with nothing separating it. */}
+          named above the title, the title, and the facts on a ruled row. */}
       <AppHeader
         eyebrow={view.pack.name}
         title={
           view.finished ? "That's the session" : (skill?.name ?? "Today's session")
         }
+        /* The rail *is* the facts row now. It used to sit under the words
+           "Block 1 of 3", which is the same fact drawn twice — and only one of
+           the two drawings can tell you the block after this one is eleven
+           minutes of writing code. */
         facts={
           <>
-            <Meta>
-              {view.finished
-                ? "Session complete"
-                : `Block ${position} of ${session.blocks.length}`}
-            </Meta>
+            <BlockRail blocks={session.blocks} at={session.blockIndex} />
             <Meta>About {minutes} minutes</Meta>
           </>
         }
       />
 
-      {/* `minmax(0,1fr)` on both layouts, not just the two-column one. A grid
-          track defaults to `min-width: auto`, so it refuses to shrink below its
-          widest child — and a lesson's widest child is a `dotnet sln add
-          src/…/….csproj` that runs well past a phone. The track grew to fit it
-          and took the whole page sideways with it, heading included. With the
-          floor at 0 the listing scrolls inside its own box, which is what
-          `GeneratedProse` built it to do. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-10 gap-y-12 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-8">
-          {view.finished || !block ? (
-            <Card
-              className="rise flex flex-col items-start gap-5"
-              style={stagger(1)}
-            >
-              <Lead>
-                {session.completedAt
-                  ? "This one is already finished."
-                  : "You've worked through every block. Finishing writes it to your record."}
-              </Lead>
-              {session.completedAt ? (
-                <ButtonLink href="/today">Back to today</ButtonLink>
-              ) : (
-                <form action={finishAction.bind(null, session.id)}>
-                  <Button type="submit">Finish session</Button>
-                </form>
-              )}
-            </Card>
+      {view.finished || !block ? (
+        <Card className="rise flex flex-col items-start gap-5" style={stagger(1)}>
+          <Lead>
+            {session.completedAt
+              ? "This one is already finished."
+              : "You've worked through every block. Finishing writes it to your record."}
+          </Lead>
+          {session.completedAt ? (
+            <ButtonLink href="/today">Back to today</ButtonLink>
           ) : (
-            <BlockShell block={block}>
-              <BlockBody
-                block={block}
-                skill={skill}
-                mastery={view.mastery}
-                response={view.response}
-                sessionId={session.id}
-                index={session.blockIndex}
-                packSlug={view.goal.packSlug}
-                priorDomain={view.goal.spec.priorDomain}
-                userId={user.id}
-                plan={resolvePlanId(user.plan)}
-                now={now}
-                error={error}
-                quotaNudge={quotaNudge}
-              />
-            </BlockShell>
+            <form action={finishAction.bind(null, session.id)}>
+              <Button type="submit">Finish session</Button>
+            </form>
           )}
+        </Card>
+      ) : (
+        <BlockShell block={block}>
+          <BlockBody
+            block={block}
+            skill={skill}
+            mastery={view.mastery}
+            response={view.response}
+            sessionId={session.id}
+            index={session.blockIndex}
+            packSlug={view.goal.packSlug}
+            priorDomain={view.goal.spec.priorDomain}
+            userId={user.id}
+            plan={resolvePlanId(user.plan)}
+            now={now}
+            error={error}
+            quotaNudge={quotaNudge}
+          />
+        </BlockShell>
+      )}
 
-          {offer && skill ? (
-            <Card
-              className="rise flex flex-col items-start gap-4"
-              style={stagger(2)}
-            >
-              <Title>You said you already know this</Title>
-              <Lead>
-                Then show us. {PROVE_ITEM_COUNT} questions on {skill.name}, the
-                hardest ones in the bank.
-              </Lead>
-              <Meta>
-                They&rsquo;re marked like everything else, and they count either
-                way — which is what makes getting them right mean something. Do
-                well and this comes off your path.
-              </Meta>
-              <form action={proveAction.bind(null, session.id)}>
-                <Button type="submit" variant="text">
-                  Give me the questions
-                </Button>
-              </form>
-            </Card>
-          ) : null}
-        </div>
-
-        {/* Sticky from `lg` up, which is the whole point of the rail: the block
-            you are on and the tutor stay put while the lesson scrolls past. */}
-        <aside
-          className="rise flex flex-col gap-5 lg:sticky lg:top-10"
-          style={stagger(2)}
-        >
-          {/* Both rail panels are cards, and the lesson beside them is not.
-              That inversion is the point: the rail is instruments, the column
-              is the thing you came to read. */}
-          <Card className="flex flex-col gap-4">
-            <RailLabel>This session</RailLabel>
-            <BlockRail blocks={session.blocks} at={session.blockIndex} />
-          </Card>
-
-          <Card className="flex flex-col gap-4">
-            <RailLabel>Tutor</RailLabel>
-            {hasApiKey() ? (
-              <Suspense fallback={<Skeleton className="h-24" />}>
-                <Tutor
-                  sessionId={session.id}
-                  userId={user.id}
-                  plan={resolvePlanId(user.plan)}
-                  /* One ask at a time: the quota nudge is already asking. */
-                  quiet={quotaNudge !== undefined}
-                />
-              </Suspense>
-            ) : (
-              <Meta>The tutor is unavailable right now.</Meta>
-            )}
-          </Card>
-
-          <Meta className="px-1">
-            <Link href="/today" className="hover:underline underline-offset-4">
-              Leave and come back later
-            </Link>{" "}
-            — your place is saved.
+      {offer && skill ? (
+        <Card className="rise flex flex-col items-start gap-4" style={stagger(2)}>
+          <Title>You said you already know this</Title>
+          <Lead>
+            Then show us. {PROVE_ITEM_COUNT} questions on {skill.name}, the
+            hardest ones in the bank.
+          </Lead>
+          <Meta>
+            They&rsquo;re marked like everything else, and they count either way
+            — which is what makes getting them right mean something. Do well and
+            this comes off your path.
           </Meta>
-        </aside>
-      </div>
-    </AppFrame>
-  );
-}
+          <form action={proveAction.bind(null, session.id)}>
+            <Button type="submit" variant="text">
+              Give me the questions
+            </Button>
+          </form>
+        </Card>
+      ) : null}
 
-/**
- * The heading on a rail panel.
- *
- * A plain `h2` rather than `Title` with a size override: both set
- * `text-[length:…]`, and two arbitrary values of the same property resolve by
- * the order Tailwind emitted them rather than the order they are written. In
- * the rail these label instruments, so they are set as labels.
- */
-function RailLabel({ children }: { children: string }) {
-  return (
-    <h2 className="text-[length:var(--text-meta-size)] font-[650] uppercase tracking-[0.12em] text-ink-faint">
-      {children}
-    </h2>
+      <div className="flex flex-col gap-3">
+        <Meta>
+          <Link href="/today" className="hover:underline underline-offset-4">
+            Leave and come back later
+          </Link>{" "}
+          — your place is saved.
+        </Meta>
+
+        {/* Said in the page rather than left to an empty dock. A learner who
+            expects a tutor and finds nothing at the foot of the screen has been
+            told the product is broken; a learner told it is unavailable has been
+            told the truth. */}
+        {hasApiKey() ? null : <Meta>The tutor is unavailable right now.</Meta>}
+      </div>
+
+      {/* Floor for the dock, and for the mobile bar under it.
+          A spacer rather than the frame's own `pb-*`, which is why `flush` is
+          set above: two competing padding utilities resolve by the order
+          Tailwind emitted them rather than the order they are written, so a
+          `pb-40` handed to `AppFrame` would win or lose depending on which one
+          Tailwind happened to put last. A box with a height is a box with a
+          height. */}
+      <div aria-hidden="true" className="h-32 lg:h-20" />
+      </div>
+
+      {/* Last in the document so it is last in the tab order: it is pinned to
+          the foot of the viewport, but somebody tabbing through a lesson should
+          reach the Continue button before the thing that floats over it. */}
+      {hasApiKey() ? (
+        /* The fallback sits in exactly the dock's own frame, which is what
+           `DOCK_OUTER`/`DOCK_INNER`/`DOCK_PANEL` exist for. A `null` fallback
+           made the composer pop into being once the transcript query returned;
+           a differently-shaped one made it jump. */
+        <Suspense
+          fallback={
+            <div className={DOCK_OUTER}>
+              <div className={DOCK_INNER}>
+                <div className={cx(DOCK_PANEL, "p-3")}>
+                  <Skeleton className="h-11" />
+                </div>
+              </div>
+            </div>
+          }
+        >
+          <Tutor
+            sessionId={session.id}
+            userId={user.id}
+            plan={resolvePlanId(user.plan)}
+            /* One ask at a time: the quota nudge is already asking. */
+            quiet={quotaNudge !== undefined}
+          />
+        </Suspense>
+      ) : null}
+    </AppFrame>
   );
 }
 
@@ -346,7 +349,7 @@ function BlockRail({
   at: number;
 }) {
   return (
-    <ol className="flex list-none flex-col gap-0 p-0 m-0">
+    <ol className="flex list-none flex-wrap items-center gap-x-5 gap-y-2 p-0 m-0">
       {blocks.map((block, i) => {
         const done = i < at;
         const now = i === at;
@@ -355,11 +358,7 @@ function BlockRail({
           <li
             key={`${block.type}-${i}`}
             aria-current={now ? "step" : undefined}
-            className={cx(
-              "flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5",
-              "transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
-              now && "bg-accent-weak",
-            )}
+            className="flex items-center gap-2"
           >
             {/* The state, as a mark that differs in *shape* and not only in
                 colour — §8.5.5's ban on colour-as-meaning. Filled for done,
@@ -367,7 +366,7 @@ function BlockRail({
             <span
               aria-hidden="true"
               className={cx(
-                "size-2.5 shrink-0 rounded-full",
+                "size-2 shrink-0 rounded-full",
                 done && "bg-accent",
                 now && "ring-2 ring-accent ring-offset-2 ring-offset-transparent",
                 !done && !now && "border border-hairline",
@@ -375,7 +374,7 @@ function BlockRail({
             />
             <span
               className={cx(
-                "flex-1 text-[length:var(--text-label-size)]",
+                "text-[length:var(--text-label-size)]",
                 now ? "font-[650] text-ink" : "text-ink-muted",
               )}
             >
@@ -414,7 +413,7 @@ async function Tutor({
   ]);
 
   return (
-    <TutorPanel
+    <TutorDock
       sessionId={sessionId}
       initialTurns={history}
       turnsTaken={taken}
