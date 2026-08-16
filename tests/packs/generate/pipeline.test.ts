@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   PACK_GRAPH_PROMPT,
+  PACK_GRAPH_TOOL_SCHEMA,
   buildGraphContext,
   generatePackGraph,
 } from "@/lib/packs/generate/graph";
@@ -19,6 +20,11 @@ import {
 } from "@/lib/packs/generate/rubrics";
 import { generatePack, retargetResources, withRefs } from "@/lib/packs/generate";
 import { skillRef } from "@/lib/packs/generate/derive";
+import {
+  MAX_GENERATED_AREAS,
+  MIN_GENERATED_AREAS,
+  MIN_GENERATED_SKILLS,
+} from "@/lib/contracts/pack";
 import type {
   DraftSkill,
   PackGraphDraft,
@@ -170,6 +176,46 @@ describe("buildGraphContext", () => {
     expect(buildGraphContext({ subject: "Rust", rawGoal: null })).not.toContain(
       "described what they want",
     );
+  });
+});
+
+/**
+ * The one field in this schema that decides the *shape* of a learner's course.
+ *
+ * The canonical curriculum cuts a course into modules by grouping consecutive
+ * skills that share an area, so an over-fragmented `area` field is an
+ * over-fragmented course. The first pack built while this said only "a handful
+ * of areas" came back with eight areas across fourteen skills, and nine of its
+ * eleven modules held one skill each. A constraint that quietly loses its
+ * numbers is a constraint that stops working, and nothing else in the suite
+ * would notice — hence pinning it here.
+ */
+describe("the area constraint on a generated graph", () => {
+  const area = (
+    PACK_GRAPH_TOOL_SCHEMA.properties.skills.items.properties as {
+      area: { description: string };
+    }
+  ).area;
+
+  it("asks for a number of areas rather than 'a handful'", () => {
+    expect(area.description).toContain(String(MIN_GENERATED_AREAS));
+    expect(area.description).toContain(String(MAX_GENERATED_AREAS));
+    expect(area.description).not.toContain("a handful");
+  });
+
+  it("refuses an area invented for a single skill", () => {
+    // Two per area at `MAX_GENERATED_SKILLS` is what keeps grouping meaningful:
+    // an area worth naming, and few enough that naming it says something.
+    expect(area.description).toMatch(/at least two skills/i);
+    expect(area.description).toMatch(/never invent an area for a single skill/i);
+  });
+
+  /** Three to five over eight to fourteen skills is two to four each. */
+  it("leaves room for every area to hold more than one skill", () => {
+    expect(MAX_GENERATED_AREAS).toBeLessThanOrEqual(
+      Math.floor(MIN_GENERATED_SKILLS / 2),
+    );
+    expect(MIN_GENERATED_AREAS).toBeGreaterThan(1);
   });
 });
 

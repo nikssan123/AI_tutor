@@ -1,7 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { callStructured, type CallResult } from "@/lib/ai/call";
 import {
+  MAX_GENERATED_AREAS,
   MAX_GENERATED_SKILLS,
+  MIN_GENERATED_AREAS,
   MIN_GENERATED_SKILLS,
   PackGraphDraft,
 } from "@/lib/contracts/pack";
@@ -82,8 +84,22 @@ export const PACK_GRAPH_TOOL_SCHEMA = {
           },
           area: {
             type: "string",
+            /*
+             * A number, not "a handful", and the number is why.
+             *
+             * The canonical curriculum cuts a course into modules by grouping
+             * consecutive skills that share an area, so this field decides how
+             * a learner's course is shaped. "A handful" produced a real pack
+             * with eight areas across fourteen skills — nine of its eleven
+             * modules held one skill each, which is the fragmentation grouping
+             * exists to prevent. A curated pack of the same size uses five.
+             *
+             * `MAX_GENERATED_SKILLS` is 14, so three to five areas is two to
+             * four skills each: enough for an area to be worth naming, few
+             * enough that naming it says something.
+             */
             description:
-              "Sub-area of the subject this belongs to. Skills in the same area are related; a handful of areas across the pack.",
+              `Sub-area of the subject this belongs to. Use ${MIN_GENERATED_AREAS} to ${MAX_GENERATED_AREAS} areas across the whole pack and reuse them — every area must hold at least two skills. Never invent an area for a single skill; put it in the closest existing one.`,
           },
           estimatedHours: { type: "number" },
           canDoStatement: {

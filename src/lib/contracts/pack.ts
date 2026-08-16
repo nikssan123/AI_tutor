@@ -20,6 +20,30 @@ import { z } from "zod";
 export const MIN_GENERATED_SKILLS = 8;
 export const MAX_GENERATED_SKILLS = 14;
 
+/**
+ * How many sub-areas those skills may be spread across.
+ *
+ * The canonical curriculum cuts a course into modules by grouping consecutive
+ * skills that share an area, so this is really a bound on how fragmented a
+ * generated course can be. The first pack built without it came back with eight
+ * areas over fourteen skills, and nine of its eleven modules held one skill —
+ * the exact shape grouping exists to prevent. Curated packs of that size use
+ * five.
+ *
+ * **The ceiling is set by the floor on skills, not by the ceiling.** Four,
+ * because a pack may be as small as `MIN_GENERATED_SKILLS` — and "every area
+ * holds at least two skills" has to be satisfiable at eight of them, not merely
+ * at fourteen. A bound that only holds on the largest packs is not a bound. It
+ * leaves 2–2.7 skills per area on the smallest and 3.5–4.7 on the largest,
+ * which is about where the curated packs sit.
+ *
+ * Guidance rather than a schema `refine`: a violation here is a course that
+ * reads badly, not one that is wrong, and failing a pack over it would throw
+ * away four model calls and about a pound to redo work that is otherwise sound.
+ */
+export const MIN_GENERATED_AREAS = 3;
+export const MAX_GENERATED_AREAS = 4;
+
 export const DraftSkill = z.object({
   name: z.string().min(2).max(120),
   description: z.string().min(10).max(600),
