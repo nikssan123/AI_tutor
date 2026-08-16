@@ -188,6 +188,7 @@ vi.mock("@/lib/packs/build", () => ({
 }));
 vi.mock("@/lib/packs/notify", () => ({
   notifyBuildFailed: vi.fn(async () => true),
+  notifyPackReady: vi.fn(async () => true),
 }));
 /**
  * The shared builder, mocked here for the same reason `generatePack` is: what
@@ -198,6 +199,20 @@ vi.mock("@/lib/packs/notify", () => ({
 const curriculumOutcome = vi.fn(() => ({ built: true, source: "generated" }));
 vi.mock("@/lib/curriculum/build", () => ({
   buildCurriculumFor: vi.fn(async () => curriculumOutcome()),
+}));
+
+/**
+ * Only the two writers are stubbed. `isSkip` and `outcomeDetail` are the real
+ * ones deliberately: which non-outcomes count as a failure — and which are a
+ * learner being told they have already finished — is the interesting decision
+ * this wiring makes, and a stub would let it be made wrongly in silence.
+ */
+const finishPathMock = vi.fn(async () => undefined);
+const markStageMock = vi.fn(async () => undefined);
+vi.mock("@/lib/curriculum/build-state", async (actual) => ({
+  ...(await actual<typeof import("@/lib/curriculum/build-state")>()),
+  finishPathBuild: (...a: unknown[]) => finishPathMock(...(a as [])),
+  markPathBuildStage: (...a: unknown[]) => markStageMock(...(a as [])),
 }));
 
 describe("the registered build function", () => {
@@ -357,6 +372,61 @@ describe("the registered build function", () => {
     expect(notifyBuildFailed).not.toHaveBeenCalled();
   });
 
+  it("emails the learner when their subject is finally built", async () => {
+    /*
+     * The counterpart to the failure alert, and the more valuable of the two.
+     * A build is about three minutes on a queue, so the person who commissioned
+     * it is very often not watching when it lands — and everything this product
+     * charges for sits downstream of them coming back. Up to here the pipeline
+     * mailed somebody on failure only: success produced a finished course and
+     * silence.
+     */
+    const { notifyPackReady } = await import("@/lib/packs/notify");
+    vi.mocked(notifyPackReady).mockClear();
+
+    await runFor("u1");
+
+    expect(notifyPackReady).toHaveBeenCalledWith(
+      expect.anything(),
+      // The subject read back off the row, in the learner's own words, rather
+      // than the slug the pipeline keys on.
+      { subject: "Rust", userId: "u1" },
+    );
+  });
+
+  it("tells nobody about a build nobody asked for", async () => {
+    // `requestedBy` is null for a script, a seed or a probe. There is no learner
+    // waiting, so there is no one to write to.
+    const { notifyPackReady } = await import("@/lib/packs/notify");
+    vi.mocked(notifyPackReady).mockClear();
+    buildRow.mockResolvedValueOnce({
+      slug: "rust",
+      subject: "Rust",
+      requestedBy: null,
+      status: "ready" as const,
+      stage: null,
+      detail: null,
+      startedAt: new Date(),
+    } as never);
+
+    await runFor(null);
+
+    expect(notifyPackReady).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the row vanished under a success", async () => {
+    // The success path reads the row too now, so it inherits the same hole
+    // `discardPack` opens: a build whose row is gone has no subject to name and
+    // nobody recorded as waiting on it.
+    const { notifyPackReady } = await import("@/lib/packs/notify");
+    vi.mocked(notifyPackReady).mockClear();
+    buildRow.mockResolvedValueOnce(undefined as never);
+
+    await runFor("u1");
+
+    expect(notifyPackReady).not.toHaveBeenCalled();
+  });
+
   it("says nothing when the row vanished under a failure", async () => {
     // `discardPack` takes the pack and its build row together, so a row can be
     // gone by the time the failure is recorded. Nothing to describe, so
@@ -452,11 +522,16 @@ describe("buildPackHandler", () => {
   ) => {
     const seeded: unknown[] = [];
     const finished: unknown[] = [];
+    const authored: unknown[] = [];
     return {
       seeded,
       finished,
+      authored,
       handler: buildPackHandler({
-        generate: async () => ({ pack, reasons, dropped }),
+        generate: async (input) => {
+          authored.push(input);
+          return { pack, reasons, dropped };
+        },
         seed: async (p) => {
           seeded.push(p);
         },
@@ -521,6 +596,57 @@ describe("buildPackHandler", () => {
     const result = await handler({ event: {}, step });
     expect(result.slug).toBe("");
     expect(result.status).toBe("failed");
+  });
+
+  /*
+   * How much of the subject to build, from the learner who said it.
+   *
+   * `generatePack` reads this as `rawGoal`, which is what `buildGraphContext`
+   * puts in front of the graph author — the only signal in the whole pipeline
+   * about how big a course to write. The registered function passed `null`
+   * every time until §8 screen 3 started asking, so the branch that renders it
+   * had never once been taken in production.
+   */
+  it("carries the scope the learner settled on to the author", async () => {
+    const { authored, handler } = deps({ slug: "web" });
+    const { step } = recordingStep();
+
+    await handler({
+      event: {
+        data: {
+          slug: "web",
+          subject: "web development",
+          scope: "put a portfolio site online I can update myself",
+          userId: "u1",
+        },
+      },
+      step,
+    });
+
+    expect(authored).toEqual([
+      {
+        slug: "web",
+        subject: "web development",
+        scope: "put a portfolio site online I can update myself",
+        userId: "u1",
+      },
+    ]);
+  });
+
+  it("authors from the bare subject when nothing scoped it", async () => {
+    // A script, a probe, or an event queued by an older deployment. The pack is
+    // thinner for it, and that is what every pack before this was.
+    const { authored, handler } = deps({ slug: "rust" });
+    const { step } = recordingStep();
+
+    await handler({
+      event: { data: { slug: "rust", subject: "Rust", userId: "u1" } },
+      step,
+    });
+
+    expect(authored).toEqual([
+      { slug: "rust", subject: "Rust", scope: null, userId: "u1" },
+    ]);
   });
 });
 
@@ -896,22 +1022,60 @@ describe("the path build function", () => {
       status: "built",
       detail: "generated",
     });
-    // One step, not two: there is no expensive half to protect from a resumed
-    // run, because the whole of it either stores a curriculum or does not.
-    expect(ran).toEqual(["build-curriculum"]);
+    /*
+     * Two steps. The build is one because there is no expensive half to protect
+     * from a resumed run — it either stores a curriculum or it does not — and
+     * recording the outcome is the second so a retry cannot re-run the model
+     * calls to write down an answer it already has.
+     */
+    expect(ran).toEqual(["build-curriculum", "record-outcome"]);
     expect(buildCurriculumFor).toHaveBeenCalledWith(
-      {
+      expect.objectContaining({
         db: expect.objectContaining({ db: true }),
         client: { client: true },
-      },
+      }),
       { userId: "u1", goalId: "goal-1" },
+    );
+    expect(finishPathMock).toHaveBeenCalledWith(
+      expect.objectContaining({ db: true }),
+      "goal-1",
+      { status: "ready" },
+    );
+  });
+
+  /**
+   * The wait screen reads a phase off a row, so something has to write one. A
+   * bar that fills on a timer knows nothing about the run underneath it; this
+   * is the wire that makes the steps evidence rather than decoration.
+   */
+  it("reports each phase against the goal being built", async () => {
+    const { buildCurriculumFor } = await import("@/lib/curriculum/build");
+    vi.mocked(buildCurriculumFor).mockClear();
+    markStageMock.mockClear();
+
+    await (
+      buildPath as unknown as { fn: (c: unknown) => Promise<unknown> }
+    ).fn({
+      event: { data: { userId: "u1", goalId: "goal-1" } },
+      step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
+    });
+
+    const [deps] = vi.mocked(buildCurriculumFor).mock.calls[0]!;
+    await deps.onStage!("checking");
+
+    expect(markStageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ db: true }),
+      "goal-1",
+      "checking",
     );
   });
 
   /**
    * An event can arrive after the learner has put that course aside. A
    * background job is exactly where money gets spent on a course nobody is
-   * taking, so a skip is a result rather than a failure.
+   * taking, so a skip is a result rather than a failure — and the row says so
+   * in words, because "failed" would be a lie about a decision we made on
+   * purpose.
    */
   it("reports a skip rather than failing when there was nothing to build", async () => {
     curriculumOutcome.mockReturnValue({
@@ -919,6 +1083,7 @@ describe("the path build function", () => {
       source: "",
       reason: "not-active",
     } as never);
+    finishPathMock.mockClear();
 
     const result = await (
       buildPath as unknown as {
@@ -934,6 +1099,14 @@ describe("the path build function", () => {
       status: "skipped",
       detail: "not-active",
     });
+
+    const [, , outcome] = finishPathMock.mock.calls[0] as unknown as [
+      unknown,
+      string,
+      { status: string; detail: string },
+    ];
+    expect(outcome.status).toBe("skipped");
+    expect(outcome.detail).toMatch(/put aside/i);
   });
 });
 
@@ -949,13 +1122,38 @@ describe("buildPathHandler", () => {
       built: false as const,
       reason: "not-active",
     }));
+    const finish = vi.fn(async () => undefined);
 
-    const result = await buildPathHandler({ build })({
+    const result = await buildPathHandler({ build, finish })({
       event: {},
       step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
     });
 
     expect(build).toHaveBeenCalledWith({ userId: "", goalId: "" });
     expect(result).toEqual({ goalId: "", status: "skipped", detail: "not-active" });
+  });
+
+  /**
+   * A reason that is not one of the three the builder can give is a build that
+   * broke in a way nobody has named yet. That is a failure, and the row has to
+   * say so: `skipped` would leave the learner reading a calm explanation of
+   * something we do not understand, with no way to ask again.
+   */
+  it("calls an unrecognised outcome a failure, not a decision", async () => {
+    const build = vi.fn(async () => ({
+      built: false as const,
+      reason: "the-worker-caught-fire",
+    }));
+    const finish = vi.fn(async () => undefined);
+
+    await buildPathHandler({ build, finish })({
+      event: { data: { userId: "u1", goalId: "goal-1" } },
+      step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
+    });
+
+    expect(finish).toHaveBeenCalledWith("goal-1", {
+      status: "failed",
+      detail: expect.stringContaining("do not have a reason"),
+    });
   });
 });

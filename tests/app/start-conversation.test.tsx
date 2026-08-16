@@ -706,6 +706,28 @@ describe("the screen", () => {
   });
 
   /*
+   * The size of the subject, shown back to the person who set it.
+   *
+   * It is the one captured field that changes what gets *built* rather than
+   * how it is ordered — a course written to the wrong scope cannot be re-sorted
+   * into the right one — and this is the last screen before several minutes and
+   * about a pound are spent on it.
+   */
+  it("shows what the course is being built to reach", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "a", t: "hi" }],
+      captured: captured({ scope: "port my Python CLI to Rust and ship it" }),
+    };
+    render(await StartPage({ searchParams: search() }));
+
+    expect(screen.getByText("Aiming for")).toBeDefined();
+    expect(
+      screen.getByText("port my Python CLI to Rust and ship it"),
+    ).toBeDefined();
+  });
+
+  /*
    * The panel's whole claim is that it is repeating what it heard. It was
    * doing the opposite: answering "Complete beginner" with "Dabbled a bit",
    * turning the chip "1-2 hrs" into "1.5 hrs/week", and printing "before a
@@ -1375,6 +1397,63 @@ describe("turning the conversation into a goal", () => {
     );
     expect(startBuildMock).toHaveBeenCalledOnce();
     expect(sendMock).toHaveBeenCalledOnce();
+  });
+
+  /*
+   * The scope question's whole point, at the only place it can be checked.
+   *
+   * The pack author has one signal about how much subject to take on and it
+   * arrives on this event. It was hardcoded `null` from the first commit of the
+   * Generated tier to this one, so a subject the size of a discipline and a
+   * subject somebody could finish were indistinguishable by the time they
+   * reached the model — fourteen skills either way.
+   */
+  it("tells the queue how much of the subject to build", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "l", t: "I want to learn Rust" }],
+      captured: captured({ scope: "port my Python CLI to Rust and ship it" }),
+      done: true,
+    };
+
+    await expect(buildFromConversationAction()).rejects.toThrow("REDIRECT:");
+
+    expect(sendMock).toHaveBeenCalledWith({
+      name: "pack/generate.requested",
+      data: {
+        slug: "rust-programming",
+        subject: "Rust programming",
+        scope: "port my Python CLI to Rust and ship it",
+        userId: "u1",
+      },
+    });
+  });
+
+  /*
+   * §24 E3's six turns are enforced in application code and nothing may spend a
+   * seventh — so a conversation can close before the scope question is asked.
+   * What is left is their opening message, which is worth more than the `null`
+   * the author used to get.
+   */
+  it("falls back to their own words when the cap arrived first", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      messages: [{ r: "l", t: "I want to learn Rust to write a game engine" }],
+      captured: captured(),
+      done: true,
+    };
+
+    await expect(buildFromConversationAction()).rejects.toThrow("REDIRECT:");
+
+    expect(sendMock).toHaveBeenCalledWith({
+      name: "pack/generate.requested",
+      data: {
+        slug: "rust-programming",
+        subject: "Rust programming",
+        scope: "I want to learn Rust to write a game engine",
+        userId: "u1",
+      },
+    });
   });
 
   it("releases the claim when the queue cannot be reached", async () => {

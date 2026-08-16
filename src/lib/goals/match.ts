@@ -65,6 +65,70 @@ export async function matchSubject(
 }
 
 /**
+ * The subject we would have to *author*, when nobody has said how much of it.
+ *
+ * The same question `matchSubject` asks — is this a gap? — asked a turn early
+ * and without a database, so a conversation can be held open for the one thing
+ * that has to be settled before a pack is written. `matchSubject` is still what
+ * decides; this only decides what to ask.
+ *
+ * Synchronous on purpose, because it runs on every turn of every conversation.
+ * That costs it the generated packs, which live only in the database: a subject
+ * one exists for reads as a gap here and gets the scope question anyway. That is
+ * the right way round to be wrong — the answer is worth having whatever we do
+ * with it, and the alternative is a round trip per turn to avoid asking somebody
+ * a good question.
+ *
+ * The claimed slug is checked rather than believed, exactly as in `matchSubject`
+ * and for the same reason. A model naming `python-fundamentals` does not make
+ * this Python, and a conversation that skipped the scope question on the
+ * strength of a slug we do not have would build an unscoped pack.
+ */
+export function subjectToNarrow(
+  captured: CapturedGoal | undefined,
+): string | null {
+  // The opening turn, before the analyzer has worked anything out.
+  if (!captured) return null;
+
+  const subject = captured.subject?.trim();
+  if (!subject) return null;
+
+  // Already answered. Whatever they said stands, including "all of it".
+  if (captured.scope?.trim()) return null;
+
+  const claimed = captured.matchedPack?.trim() ?? "";
+  const covered = catalogueFor().some(
+    (topic) => topic.slug === claimed || topic.slug === slugify(subject),
+  );
+
+  return covered ? null : subject;
+}
+
+/**
+ * What the pack author is told to build toward, which is never nothing.
+ *
+ * §7.1's Generated tier had a field for this from the first commit and every
+ * caller passed `null` into it, so `buildGraphContext`'s learner branch was
+ * dead in production: every pack the product has ever authored was written from
+ * a bare subject line. The scope answer is what that field was for.
+ *
+ * The fallback is their opening message, which is worth passing even when it is
+ * only the subject again — the form intake writes a real sentence there, and a
+ * conversation that lost the scope question to the turn cap still has the words
+ * the learner arrived with.
+ */
+export function scopeFrom(
+  captured: CapturedGoal | undefined,
+  messages: Message[],
+  subject: string,
+): string {
+  const scope = captured?.scope?.trim();
+  if (scope) return scope;
+
+  return rawGoalFrom(messages, `Get good at ${subject.toLowerCase()}`);
+}
+
+/**
  * The pack this goal is built on, preferring the one the learner *chose*.
  *
  * A brief and a subject page each name exactly one pack, and a learner who

@@ -5,7 +5,9 @@ import {
   matchChosen,
   matchSubject,
   rawGoalFrom,
+  scopeFrom,
   specFrom,
+  subjectToNarrow,
 } from "@/lib/goals/match";
 import type { CapturedGoal, Message } from "@/lib/goals/analyzer";
 
@@ -274,5 +276,102 @@ describe("specFrom and the learner's background", () => {
       0.4,
     );
     expect(spec?.priorDomain).toBe("spreadsheets");
+  });
+});
+
+/**
+ * §8 screen 3's scope question, and the two halves of it that are decisions
+ * rather than prose: when to ask, and what the answer is worth if it never came.
+ */
+describe("subjectToNarrow", () => {
+  it("names a subject nobody has written for us", () => {
+    expect(subjectToNarrow(captured({ subject: "web development" }))).toBe(
+      "web development",
+    );
+  });
+
+  it("asks nothing before there is a subject to ask about", () => {
+    expect(subjectToNarrow(undefined)).toBeNull();
+    expect(subjectToNarrow(captured({ subject: null }))).toBeNull();
+    expect(subjectToNarrow(captured({ subject: "   " }))).toBeNull();
+  });
+
+  /*
+   * The curated packs are scoped already, by whoever curated them. Asking a
+   * learner how much of Photography they want spends a turn on a question that
+   * cannot change anything — the pack is written and the depth dial is what
+   * moves.
+   */
+  it("asks nothing about a subject the catalogue covers", () => {
+    expect(
+      subjectToNarrow(
+        captured({ subject: "Photography", matchedPack: "photography" }),
+      ),
+    ).toBeNull();
+  });
+
+  it("recognises a covered subject the model failed to name", () => {
+    // `matchSubject`'s second branch, made a turn early: the same subject under
+    // a tidier name is the same subject.
+    expect(subjectToNarrow(captured({ subject: "Photography" }))).toBeNull();
+  });
+
+  /*
+   * The same check `matchSubject` makes, and for the same reason. A model
+   * naming a pack does not make it exist, and a conversation that skipped the
+   * scope question on the strength of a slug we do not have would commission an
+   * unscoped build.
+   */
+  it("still asks when the claimed pack does not exist", () => {
+    expect(
+      subjectToNarrow(
+        captured({ subject: "web development", matchedPack: "web-dev-101" }),
+      ),
+    ).toBe("web development");
+  });
+
+  it("stops asking once they have answered", () => {
+    expect(
+      subjectToNarrow(
+        captured({ subject: "web development", scope: "put my CV online" }),
+      ),
+    ).toBeNull();
+  });
+
+  it("treats a blank answer as no answer", () => {
+    expect(
+      subjectToNarrow(captured({ subject: "web development", scope: "  " })),
+    ).toBe("web development");
+  });
+});
+
+describe("scopeFrom", () => {
+  const opening: Message[] = [{ r: "l", t: "I want to learn to make websites" }];
+
+  it("hands the pack author what the learner settled on", () => {
+    const scope = scopeFrom(
+      captured({ subject: "web development", scope: "put a portfolio site online" }),
+      opening,
+      "web development",
+    );
+    expect(scope).toBe("put a portfolio site online");
+  });
+
+  /*
+   * The turn cap can arrive before the question does — §24 E3's six turns are
+   * enforced in application code and no later rule may spend a seventh. What is
+   * left is their opening message, which is worth more than the `null` every
+   * build before this one was authored from.
+   */
+  it("falls back to their own opening words", () => {
+    expect(scopeFrom(captured(), opening, "web development")).toBe(
+      "I want to learn to make websites",
+    );
+  });
+
+  it("falls back again to the subject when there is nothing at all", () => {
+    expect(scopeFrom(undefined, [], "Web Development")).toBe(
+      "Get good at web development",
+    );
   });
 });

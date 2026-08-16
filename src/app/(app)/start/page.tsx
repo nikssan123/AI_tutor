@@ -857,6 +857,14 @@ export default async function StartPage({ searchParams }: Props) {
               What we have so far
             </Title>
             <Captured label="Subject" value={captured?.subject ?? null} />
+            {/* Directly under the subject, because it is the *size* of the
+                subject and reads as nonsense anywhere else. It is also the one
+                captured field that changes what gets built rather than how it
+                is ordered — a course written to the wrong scope cannot be
+                re-sorted into the right one — so the last screen before the
+                build shows it back to the person who said it. Blank for a
+                subject we already cover, which is never asked for one. */}
+            <Captured label="Aiming for" value={captured?.scope ?? null} />
             {/* Their words first, ours only when they never said it — see
                 captured-display.ts for what this card got wrong before. */}
             <Captured label="Level" value={displayLevel(captured)} />

@@ -6,9 +6,15 @@ import { getAnthropic } from "@/lib/ai/client";
 import { generatePack } from "@/lib/packs/generate";
 import { seedPack } from "@/lib/packs/seed";
 import { findBuild, finishBuild, markBuildStage } from "@/lib/packs/build";
-import { notifyBuildFailed } from "@/lib/packs/notify";
+import { notifyBuildFailed, notifyPackReady } from "@/lib/packs/notify";
 import { evaluateSubmission } from "@/lib/evaluation";
 import { buildCurriculumFor } from "@/lib/curriculum/build";
+import {
+  finishPathBuild,
+  isSkip,
+  markPathBuildStage,
+  outcomeDetail,
+} from "@/lib/curriculum/build-state";
 import { entitlementsForUser } from "@/lib/billing/store";
 import { subsidisesPackBuilds } from "@/lib/billing/catalog";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
@@ -109,7 +115,7 @@ export const buildPack = inngest.createFunction(
     retries: 1,
   },
   buildPackHandler({
-    generate: async ({ slug, subject, userId }) => {
+    generate: async ({ slug, subject, scope, userId }) => {
       const db = getDb();
 
       /*
@@ -164,7 +170,18 @@ export const buildPack = inngest.createFunction(
         subsidised
           ? { client: getAnthropic(), db, userId: null, onStage }
           : { client: getAnthropic(), db, userId, plan, onStage },
-        { slug, subject, rawGoal: null },
+        /*
+         * `rawGoal` was `null` here from the first commit to this one, and it
+         * is the field the pack author reads to find out how big a course to
+         * write. `buildGraphContext` has always had a branch for it; nothing in
+         * production ever took that branch, so every generated pack was written
+         * from a bare subject line — "web development", fourteen skills, no
+         * indication of what the person asking wanted to end up able to do.
+         *
+         * §8 screen 3 now settles that with the learner before the build is
+         * commissioned, and this is where their answer arrives.
+         */
+        { slug, subject, rawGoal: scope },
       );
       return {
         pack: outcome.pack,
@@ -183,20 +200,43 @@ export const buildPack = inngest.createFunction(
     finish: async (slug, outcome) => {
       const db = getDb();
       await finishBuild(db, slug, outcome);
-      if (outcome.status !== "failed") return;
 
       /*
-       * The learner has no retry button any more, so somebody has to be told
-       * or the subject they asked for simply never gets built. Read back off
-       * the row rather than threaded through the handler: the row is what
-       * knows who asked, and it is the same record `/admin/packs` lists.
+       * Who asked, and for what — read back off the row rather than threaded
+       * through the handler: the row is what knows, and it is the same record
+       * `/admin/packs` lists.
        *
-       * After `finishBuild`, so the mail cannot describe a state the database
-       * does not yet have.
+       * After `finishBuild`, so neither mail below can describe a state the
+       * database does not yet have. Both outcomes need it now, which is why it
+       * is above the branch rather than inside the failure arm.
        */
       const build = await findBuild(db, slug);
       if (!build) return;
 
+      if (outcome.status !== "failed") {
+        /*
+         * The one mail this pipeline sends on success, and the reason it now
+         * sends one at all: a build takes about three minutes on a queue, so
+         * the learner who commissioned it is very often not watching when it
+         * lands. Everything the product charges for is downstream of them
+         * coming back, and nothing brought them back.
+         *
+         * `requestedBy` is null for a build nobody asked for — a script, a
+         * seed, a probe — and there is nobody to tell.
+         */
+        if (build.requestedBy) {
+          await notifyPackReady(db, {
+            subject: build.subject,
+            userId: build.requestedBy,
+          });
+        }
+        return;
+      }
+
+      /*
+       * The learner has no retry button any more, so somebody has to be told
+       * or the subject they asked for simply never gets built.
+       */
       await notifyBuildFailed(db, {
         slug,
         subject: build.subject,
@@ -424,6 +464,19 @@ export function buildPathHandler(deps: {
     userId: string;
     goalId: string;
   }) => Promise<{ built: true; source: string } | { built: false; reason: string }>;
+  /**
+   * Writes the outcome where the learner can read it.
+   *
+   * Injected rather than imported for the same reason `build` is, and it is the
+   * half that makes the wait screen possible: without it the row the action
+   * claimed would say `building` until it aged out, whatever actually happened.
+   */
+  finish: (
+    goalId: string,
+    outcome:
+      | { status: "ready" }
+      | { status: "failed" | "skipped"; detail: string },
+  ) => Promise<void>;
 }) {
   return async ({ event, step }: BuildPathContext): Promise<BuildPathResult> => {
     const userId = event.data?.userId ?? "";
@@ -431,6 +484,27 @@ export function buildPathHandler(deps: {
 
     const outcome = await step.run("build-curriculum", () =>
       deps.build({ userId, goalId }),
+    );
+
+    /*
+     * A separate step from the build, so a retry cannot re-run the expensive
+     * half to record an answer it already has.
+     *
+     * The three non-outcomes are not all failures — see `outcomeDetail`. A
+     * learner who has already proved everything their course covers is *done*,
+     * and "we couldn't build your path" would be the worst available reading of
+     * the best available news, so it is `skipped` and it says why.
+     */
+    await step.run("record-outcome", () =>
+      deps.finish(
+        goalId,
+        outcome.built
+          ? { status: "ready" }
+          : {
+              status: isSkip(outcome.reason) ? "skipped" : "failed",
+              detail: outcomeDetail(outcome.reason),
+            },
+      ),
     );
 
     return outcome.built
@@ -456,12 +530,30 @@ export const buildPath = inngest.createFunction(
      * canonical path rather than throwing. So a throw out here is a dropped
      * connection or a worker dying mid-step, and one more go covers those
      * without buying a third and fourth full generation.
+     *
+     * A run that exhausts them writes nothing: the row stays `building`, and it
+     * is `PATH_BUILD_TIMEOUT_MINUTES` that eventually calls it stopped rather
+     * than anything here. That is the honest division — this layer knows a step
+     * threw, and only the clock knows nobody is coming back — but it does mean
+     * the retries have to fit inside that window, as `buildPack`'s do inside
+     * theirs.
      */
     retries: 1,
   },
   buildPathHandler({
     build: (input) =>
-      buildCurriculumFor({ db: getDb(), client: getAnthropic() }, input),
+      buildCurriculumFor(
+        {
+          db: getDb(),
+          client: getAnthropic(),
+          // Straight through to the row `/path` polls. A stage write that fails
+          // must not take the build with it, which is `markPathBuildStage`'s
+          // own rule rather than something asserted here.
+          onStage: (stage) => markPathBuildStage(getDb(), input.goalId, stage),
+        },
+        input,
+      ),
+    finish: (goalId, outcome) => finishPathBuild(getDb(), goalId, outcome),
   }),
 );
 
@@ -470,7 +562,18 @@ export const functions = [ping, buildPack, evaluate, buildPath];
 /* ── §7.1's Generated tier ────────────────────────────────────────────────── */
 
 export interface BuildPackEvent {
-  data?: { slug?: string; subject?: string; userId?: string | null };
+  data?: {
+    slug?: string;
+    subject?: string;
+    /**
+     * How much of the subject to build, in the learner's own words (§8 screen
+     * 3 captures it as `scope`). Optional because an event queued by an older
+     * deployment, a script or a probe has none, and a pack authored from a bare
+     * subject line is what every pack before this was authored from.
+     */
+    scope?: string | null;
+    userId?: string | null;
+  };
 }
 
 export interface BuildPackContext {
@@ -499,6 +602,7 @@ export function buildPackHandler(deps: {
   generate: (input: {
     slug: string;
     subject: string;
+    scope: string | null;
     userId: string | null;
   }) => Promise<{ pack: unknown | null; reasons: string[]; dropped: string[] }>;
   seed: (pack: unknown) => Promise<void>;
@@ -512,10 +616,11 @@ export function buildPackHandler(deps: {
   return async ({ event, step }: BuildPackContext): Promise<BuildPackResult> => {
     const slug = event.data?.slug ?? "";
     const subject = event.data?.subject ?? "";
+    const scope = event.data?.scope ?? null;
     const userId = event.data?.userId ?? null;
 
     const generated = await step.run("author-pack", () =>
-      deps.generate({ slug, subject, userId }),
+      deps.generate({ slug, subject, scope, userId }),
     );
 
     if (generated.pack === null) {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   ANALYZER_PROMPT,
+  ANALYZER_TOOL_SCHEMA,
   CLARITY_THRESHOLD,
   CapturedGoal,
   MAX_TURNS,
@@ -85,6 +86,45 @@ describe("the prompt", () => {
     // hours builds a plan they abandon in week two.
     expect(ANALYZER_PROMPT.text).toContain("Believe what they tell you");
   });
+
+  /*
+   * The question that decides how much subject a generated pack takes on.
+   *
+   * §7.1's Generated tier writes between 8 and 14 skills whatever it is handed,
+   * so an unscoped subject does not fail — it produces a course at the wrong
+   * resolution, and the learner finds out after several minutes and about a
+   * pound. The learner is the only party who can settle it, and this is the one
+   * screen that has them.
+   */
+  it("asks how much of an uncovered subject the course is for", () => {
+    expect(ANALYZER_PROMPT.text).toContain("how much of the subject");
+    expect(ANALYZER_PROMPT.text).toContain("Make websites");
+  });
+
+  it("refuses to narrow somebody's goal on their behalf", () => {
+    // A scope we chose is not a scope they agreed to, and the pack is built to
+    // it either way.
+    expect(ANALYZER_PROMPT.text).toContain("Never narrow it for them");
+  });
+
+  it("does not ask it of a subject we already cover", () => {
+    // Those are scoped already, by whoever curated them.
+    expect(ANALYZER_PROMPT.text).toContain(
+      "Do not ask it for a subject we already cover",
+    );
+  });
+});
+
+describe("the tool schema", () => {
+  /*
+   * A field the model may omit is a field it will omit, and this one is the
+   * difference between a course someone can finish and a tour of a discipline.
+   */
+  it("requires the scope field, so a turn cannot silently skip it", () => {
+    const captured = ANALYZER_TOOL_SCHEMA.properties.captured;
+    expect(captured.required).toContain("scope");
+    expect(captured.properties.scope.description).toContain("own words");
+  });
 });
 
 describe("CapturedGoal", () => {
@@ -123,6 +163,29 @@ describe("CapturedGoal", () => {
   it("still rejects a row that is wrong rather than merely old", () => {
     expect(
       CapturedGoal.safeParse({ ...beforePriorDomain, priorDomain: "juggling" })
+        .success,
+    ).toBe(false);
+  });
+
+  /*
+   * `scope` arrived after conversations were already being saved, so it is
+   * `nullish` for the reason `priorDomain` is: required-nullable, one missing
+   * key fails the parse, `loadIntake` keeps nothing, and the sidebar goes blank
+   * over a row that has the subject, the level and the hours in it.
+   */
+  it("loads a conversation saved before scope existed", () => {
+    const parsed = CapturedGoal.safeParse(beforePriorDomain);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.scope).toBeUndefined();
+  });
+
+  it("keeps the scope as it was said, up to a sentence or two", () => {
+    const said = "put a portfolio site online that I can update myself";
+    expect(CapturedGoal.safeParse({ ...beforePriorDomain, scope: said }).data?.scope)
+      .toBe(said);
+    expect(
+      CapturedGoal.safeParse({ ...beforePriorDomain, scope: "x".repeat(301) })
         .success,
     ).toBe(false);
   });
@@ -285,6 +348,30 @@ describe("buildAnalyzerContext", () => {
     expect(
       buildAnalyzerContext({ ...base, committed: null }),
     ).not.toContain("already chosen a course");
+  });
+
+  /*
+   * The subject we would have to *write*, and how much of it to write.
+   *
+   * The prompt carries the rule; this carries the fact the prompt cannot know,
+   * which is that the field is still empty on *this* conversation. Without it a
+   * model six exchanges deep in level and hours has no signal that the one
+   * thing holding the build up is the thing it never asked about — and the turn
+   * where that matters is the turn about to be spent.
+   */
+  it("names the subject that still has to be scoped", () => {
+    const context = buildAnalyzerContext({ ...base, toNarrow: "web development" });
+
+    expect(context).toContain("Nobody has written web development for us");
+    expect(context).toContain("what they want to be able to do at the end");
+  });
+
+  it("says nothing about scope once there is nothing left to narrow", () => {
+    for (const toNarrow of [null, undefined]) {
+      expect(buildAnalyzerContext({ ...base, toNarrow })).not.toContain(
+        "Nobody has written",
+      );
+    }
   });
 });
 

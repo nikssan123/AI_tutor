@@ -2,12 +2,14 @@ import type { Db } from "@/db";
 import type { CallResult } from "@/lib/ai/call";
 import {
   isComplete,
+  MAX_TURNS,
   shouldFinishNext,
+  turnsTaken,
   type AnalyzerInput,
   type AnalyzerTurn,
   type Message,
 } from "./analyzer";
-import { catalogueFor } from "./match";
+import { catalogueFor, subjectToNarrow } from "./match";
 import { saveIntake, type Intake } from "./intake-store";
 
 /**
@@ -54,6 +56,33 @@ export function contextFor(
   messages: Message[],
   today: Date = new Date(),
 ): AnalyzerInput {
+  /*
+   * A subject we would have to write, that nobody has scoped yet.
+   *
+   * Null the moment a course is chosen: `committed` settles the subject a few
+   * lines down, and a learner who pressed a button on a page naming one pack
+   * has nothing left to narrow.
+   */
+  const unscoped =
+    intake.packSlug === null ? subjectToNarrow(intake.captured) : null;
+
+  /*
+   * The one question allowed to overrule "you have enough, close now".
+   *
+   * Clarity is the analyzer's read on whether it could plan — and it can plan
+   * without this, which is exactly the problem: an unscoped subject produces a
+   * confident spec and a course built to the wrong size. So the conversation is
+   * held open for it, at the cost of a turn.
+   *
+   * **Never the last turn.** §24 E3's cap is "≤6 turns, always" and it is
+   * enforced in application code precisely so no later rule can spend a seventh.
+   * On the final turn `finalTurn` goes back to whatever `shouldFinishNext` says
+   * and the conversation closes unscoped — `scopeFrom` is what covers that, by
+   * handing the pack author their own words instead of nothing.
+   */
+  const lastTurn = turnsTaken(messages) >= MAX_TURNS - 1;
+  const holdOpen = unscoped !== null && !lastTurn;
+
   return {
     messages,
     catalogue: catalogueFor(),
@@ -61,8 +90,11 @@ export function contextFor(
     // Told to close either because the last turn showed it has enough, or
     // because this is the last turn it gets. Without this the conversation
     // ends on an unanswered question.
-    finalTurn: shouldFinishNext(intake.clarity, messages),
+    finalTurn: shouldFinishNext(intake.clarity, messages) && !holdOpen,
     committed: committedPack(intake.packSlug),
+    // Only while the conversation is actually being held open for it. Asking a
+    // model to close *and* to ask one more thing is asking it to pick one.
+    toNarrow: holdOpen ? unscoped : null,
   };
 }
 

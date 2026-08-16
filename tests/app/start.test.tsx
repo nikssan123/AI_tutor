@@ -350,6 +350,42 @@ describe("a subject we do not have", () => {
     expect(createGoalMock).not.toHaveBeenCalled();
   });
 
+  /*
+   * The form's answer to the scope question, which it has no analyzer to ask.
+   *
+   * It does have the "what do you want to be able to do" box, and
+   * `parseCustomGoalForm` already stores that as the opening message — so the
+   * one signal the pack author gets about how big a course to write is a real
+   * sentence here rather than the subject echoed back at it.
+   */
+  it("tells the queue how much of the subject to build", async () => {
+    await expect(
+      createGoalAction(
+        custom({ rawGoal: "port my Python CLI to Rust and ship it" }),
+      ),
+    ).rejects.toThrow("REDIRECT:");
+
+    expect(sendMock).toHaveBeenCalledWith({
+      name: "pack/generate.requested",
+      data: {
+        slug: "rust",
+        subject: "Rust",
+        scope: "port my Python CLI to Rust and ship it",
+        userId: "u1",
+      },
+    });
+  });
+
+  it("falls back to the subject when the box was left empty", async () => {
+    // `rawGoalFor`'s own fallback. Thinner than a real answer, and still the
+    // difference between a subject line and nothing at all.
+    await expect(createGoalAction(custom())).rejects.toThrow("REDIRECT:");
+
+    expect(sendMock.mock.calls[0]![0]).toMatchObject({
+      data: { scope: "Get good at rust" },
+    });
+  });
+
   it("writes the answers down before anything is claimed or queued", async () => {
     // The wait screen adopts from this intake when the pack arrives, and
     // `/start` renders it if the build is refused or stops. Without it the form

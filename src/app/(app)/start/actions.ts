@@ -11,7 +11,12 @@ import { resolvePack } from "@/lib/content/resolve";
 import { cookieName } from "@/lib/check/session";
 import { runAnalyzer } from "@/lib/goals/analyzer";
 import { INTAKE_AT_LATEST, INTAKE_AT_READY } from "@/lib/goals/anchors";
-import { catalogueFor, matchChosen, specFrom } from "@/lib/goals/match";
+import {
+  catalogueFor,
+  matchChosen,
+  scopeFrom,
+  specFrom,
+} from "@/lib/goals/match";
 import { clearIntake, loadIntake, saveIntake } from "@/lib/goals/intake-store";
 import {
   askedWith,
@@ -107,12 +112,28 @@ async function chosenPack(
  */
 async function dispatchBuild(
   db: Db,
-  input: { slug: string; subject: string; userId: string },
+  input: { slug: string; subject: string; scope: string; userId: string },
 ): Promise<boolean> {
   try {
     await inngest.send({
       name: EVENTS.buildPack,
-      data: { slug: input.slug, subject: input.subject, userId: input.userId },
+      data: {
+        slug: input.slug,
+        subject: input.subject,
+        /*
+         * Carried on the event rather than on the build row, because the row is
+         * shared and this is not a fact about the row.
+         *
+         * A build is keyed by slug so ten people asking for Rust get one pack
+         * (see `packs/build.ts`), and only the request that *starts* one
+         * dispatches — so the scope that reaches the author is the first
+         * asker's, and everyone who joins reads the pack it produced. That is
+         * the same bargain the shared build already makes, and the event is
+         * where a fact belonging to one dispatch belongs.
+         */
+        scope: input.scope,
+        userId: input.userId,
+      },
     });
     return true;
   } catch (error) {
@@ -271,14 +292,17 @@ async function requireDiscardable(db: Db, userId: string): Promise<void> {
 async function beginBuild(
   db: Db,
   userId: string,
-  input: { slug: string; subject: string },
+  input: { slug: string; subject: string; scope: string },
 ): Promise<never> {
   await requireBuildAllowance(db, userId);
 
-  const started = await startBuild(db, { ...input, userId });
+  const { slug, subject, scope } = input;
+  const started = await startBuild(db, { slug, subject, userId });
 
   if (started.kind === "rate-limited") redirect("/start?error=busy");
-  if (started.kind === "started") await dispatchBuild(db, { ...input, userId });
+  if (started.kind === "started") {
+    await dispatchBuild(db, { slug, subject, scope, userId });
+  }
 
   // The wait screen either way: a dispatch that failed has marked the row, and
   // that screen is where a stopped build is explained.
@@ -556,7 +580,13 @@ export async function buildFromConversationAction(): Promise<void> {
   if (match.kind === "gap") {
     if (match.slug.length === 0) redirect("/start?error=subject");
 
-    return beginBuild(db, userId, { slug: match.slug, subject: match.subject });
+    return beginBuild(db, userId, {
+      slug: match.slug,
+      subject: match.subject,
+      // What the conversation settled the size of the course at, or their own
+      // opening words when the turn cap arrived before the question did.
+      scope: scopeFrom(intake.captured, intake.messages, match.subject),
+    });
   }
 
   const spec = specFrom(
@@ -618,7 +648,19 @@ async function buildCustomSubject(
    */
   await saveIntake(db, userId, parsed.intake);
 
-  return beginBuild(db, userId, { slug: slugify(subject), subject });
+  return beginBuild(db, userId, {
+    slug: slugify(subject),
+    subject,
+    /*
+     * The form's own answer to the scope question.
+     *
+     * It has no analyzer to ask one, but it does have the "what do you want to
+     * be able to do" box, which `parseCustomGoalForm` stores as the opening
+     * message for exactly this kind of reason — so `scopeFrom` finds a real
+     * sentence here rather than falling back to the subject.
+     */
+    scope: scopeFrom(parsed.intake.captured, parsed.intake.messages, subject),
+  });
 }
 
 /**

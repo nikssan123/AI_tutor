@@ -60,6 +60,31 @@ export const CapturedGoal = z.object({
   constraints: z.array(z.string().max(200)).max(20),
   existingAssets: z.array(z.string().max(200)).max(20),
   /**
+   * How much of the subject the course is for, in the learner's own words.
+   *
+   * Only asked for a subject nobody has written for us, and it is the one field
+   * that changes what gets *built* rather than how it is ordered. §7.1's
+   * Generated tier authors between `MIN_GENERATED_SKILLS` and
+   * `MAX_GENERATED_SKILLS` skills whatever it is handed, so the size of the
+   * request decides the resolution of the answer: "make websites" spread over
+   * fourteen skills is a tour of a discipline, and the same fourteen spent on
+   * "put a portfolio site online I can update myself" is a course somebody can
+   * finish. Nothing downstream could recover that difference — the pack author
+   * cannot ask, and the learner sees the result only after several minutes and
+   * about a pound — so it is settled here, by the one party entitled to settle
+   * it.
+   *
+   * A quote rather than our paraphrase, for the same reason as the `*Said`
+   * fields: this is the sentence the pack gets built to reach, and narrowing
+   * somebody's goal on their behalf is the failure this field exists to
+   * prevent.
+   *
+   * `nullish` because conversations saved before it existed must still load —
+   * see the `priorDomain` note above, which is the same story.
+   */
+  scope: z.string().max(300).nullish(),
+
+  /**
    * The closed reading of `existingAssets`, asked for here because the analyzer
    * is already having this conversation — classifying it later would be a
    * second call to learn something this one was told.
@@ -112,7 +137,7 @@ export type AnalyzerTurn = z.infer<typeof AnalyzerTurn>;
 
 export const ANALYZER_PROMPT = {
   name: "goal_analyzer",
-  version: 1,
+  version: 2,
   text: `You work out what someone wants to learn, so we can build them a plan.
 
 This is a conversation, not a form. Ask one thing at a time, in plain language, and never ask for something you can reasonably infer from what they already said. Someone who says "I want to get into data analysis for a job change by March" has told you the subject, why, and the deadline — do not ask again.
@@ -134,6 +159,12 @@ Rules that matter:
 - The \`*Said\` fields are quotes, not summaries. Copy their level, their time and their deadline back word for word. The screen shows those words next to what they typed, so anything you smooth over there reads as us mishearing them.
 
 You are also told which subjects we already support in depth. If what they want is one of those, put its slug in \`matchedPack\`. If it is not, leave \`matchedPack\` null and put the subject in \`subject\` — we can build it, and it is not your job to talk them into something else.
+
+When it is one we have to build, there is one more thing to settle before you finish: **how much of the subject the course is for.** Ask what they want to be able to do at the end — the specific thing, not the field. "Make websites" is three courses; "put a portfolio site online that I can update myself" is one, and we can only build the second. Put their answer in \`scope\` in their own words.
+
+Two rules about that question. Do not ask it for a subject we already cover — those are already scoped. And do not ask it of someone who has already answered it: "I want to build a Shopify theme for my shop" is a scope, so record it and move on to what you still do not know.
+
+Never narrow it for them. If they want the whole field, that is theirs to say, and \`scope\` records that they said it.
 
 Set \`done\` when you could hand this to someone and they could start planning. When you set it, your \`reply\` is the last thing they read before their plan appears, so make it a sentence about what they are about to get, not a summary of the form you just filled in.
 
@@ -188,6 +219,11 @@ export const ANALYZER_TOOL_SCHEMA = {
           description:
             "Their own words for when they need it by, verbatim — e.g. 'before a trip next summer'. Never the date you resolved it to. Null if they have not said.",
         },
+        scope: {
+          type: ["string", "null"],
+          description:
+            "Only for a subject we do not already cover: the specific thing they want to be able to do at the end, in their own words — e.g. 'put a portfolio site online I can update myself'. This is what the course gets built to reach, so it is a quote, never your summary and never a narrowing you chose. Null until they have said.",
+        },
         motivation: { type: ["string", "null"] },
         constraints: { type: "array", items: { type: "string" } },
         existingAssets: { type: "array", items: { type: "string" } },
@@ -209,6 +245,7 @@ export const ANALYZER_TOOL_SCHEMA = {
         "constraints",
         "existingAssets",
         "priorDomain",
+        "scope",
         "levelSaid",
         "weeklyHoursSaid",
         "deadlineSaid",
@@ -304,6 +341,17 @@ export interface AnalyzerInput {
    * genuinely still open.
    */
   committed?: { slug: string; name: string } | null;
+  /**
+   * The subject we would have to author, when nobody has said yet how much of
+   * it to author. Null once `scope` is captured, and null for every subject the
+   * catalogue already covers.
+   *
+   * Set by `contextFor`, which also holds the conversation open for it — the
+   * question is worth a turn, and a model told to close in the same breath
+   * would not ask it. Only ever set while there is a turn left to spend, so
+   * §24 E3's "≤6 turns, always" still wins.
+   */
+  toNarrow?: string | null;
 }
 
 export function buildAnalyzerContext(input: AnalyzerInput): string {
@@ -320,6 +368,19 @@ export function buildAnalyzerContext(input: AnalyzerInput): string {
     "",
     "Subjects we support in depth:",
     catalogue.length > 0 ? catalogue : "- none yet",
+    "",
+    /*
+     * The scope question, named as the one thing still outstanding.
+     *
+     * The prompt already carries the rule; this says it has not been satisfied
+     * *yet in this conversation*, which the prompt cannot know. Without it a
+     * model that has read six exchanges about time and level has no signal that
+     * the field it never filled in is the one holding everything up — and the
+     * turn where that matters is the turn we are about to spend.
+     */
+    input.toNarrow
+      ? `Nobody has written ${input.toNarrow} for us, so we will author it from nothing, and what you record in \`scope\` is what it gets authored to reach. You have not settled that yet. Ask what they want to be able to do at the end, before you finish.`
+      : "",
     "",
     /*
      * The one instruction that overrides the matching job above.

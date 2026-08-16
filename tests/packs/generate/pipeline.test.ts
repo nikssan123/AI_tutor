@@ -22,6 +22,7 @@ import { generatePack, retargetResources, withRefs } from "@/lib/packs/generate"
 import { skillRef } from "@/lib/packs/generate/derive";
 import {
   MAX_GENERATED_AREAS,
+  MAX_GENERATED_SKILLS,
   MIN_GENERATED_AREAS,
   MIN_GENERATED_SKILLS,
 } from "@/lib/contracts/pack";
@@ -170,11 +171,39 @@ describe("buildGraphContext", () => {
       rawGoal: "I want to stop fighting the borrow checker",
     });
     expect(context).toContain("borrow checker");
+    expect(context).toContain("What they want to be able to do at the end");
   });
 
   it("omits the line entirely when there are none", () => {
     expect(buildGraphContext({ subject: "Rust", rawGoal: null })).not.toContain(
-      "described what they want",
+      "in their own words",
+    );
+  });
+});
+
+/**
+ * The line that turns those words into a *bound* rather than decoration.
+ *
+ * The field has existed since the first commit of this tier and every caller
+ * passed `null` into it, so the branch above was dead in production: every pack
+ * the product has authored was written from a bare subject line. Now that §8
+ * screen 3 fills it, the prompt has to say what to do with it — a model handed
+ * "put a portfolio site online" and told to cover the subject "as someone
+ * competent in it would recognise it" would still write a survey of web
+ * development, correctly, per its instructions.
+ */
+describe("the graph author's scope rule", () => {
+  it("treats the learner's words as the scope, not colour on it", () => {
+    expect(PACK_GRAPH_PROMPT.text).toContain("the scope, not colour on it");
+  });
+
+  it("says how many skills there are to spend, so size is a decision", () => {
+    expect(PACK_GRAPH_PROMPT.text).toContain(`${MIN_GENERATED_SKILLS} and ${MAX_GENERATED_SKILLS} skills to spend`);
+  });
+
+  it("asks it to name the pack for what was asked for, not the field", () => {
+    expect(PACK_GRAPH_PROMPT.text).toContain(
+      "name the pack for that rather than for the field",
     );
   });
 });

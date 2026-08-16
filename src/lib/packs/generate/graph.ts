@@ -24,15 +24,19 @@ import {
 
 export const PACK_GRAPH_PROMPT = {
   name: "pack_graph_author",
-  version: 1,
+  version: 2,
   text: `You design the skill graph for a subject someone wants to learn.
 
 You are given a subject and, when we have it, the learner's own words about what they want out of it. You return a set of skills and the order they have to be learned in.
 
+**Those words are the scope, not colour on it.** You have between ${MIN_GENERATED_SKILLS} and ${MAX_GENERATED_SKILLS} skills to spend, so the size of what you take on decides the resolution of what you deliver: someone who asked to put a portfolio site online gets a course that gets them there, not fourteen skills that survey web development and finish none of it. Cover what they asked for, well enough to be done with it, and name the pack for that rather than for the field it sits in.
+
+Where they have asked for the whole field anyway, say what you left out in \`rationale\` — that is what it is for.
+
 What makes a skill graph good here:
 
 - Every skill is something a person can *do*, not something they can know about. "Understands normalisation" is not a skill; "normalise a table to third normal form and say what it cost you" is.
-- The set covers the subject as someone competent in it would recognise it. Not a beginner's tour, and not a syllabus with everything in it.
+- The set covers what was asked for as someone competent in it would recognise it. Not a beginner's tour, and not a syllabus with everything in it.
 - Prerequisites are real dependencies, not a preferred order. A skill lists a prerequisite only when someone genuinely cannot do it without that other skill first. Most skills have one or two; many have none.
 - **List skills in an order where every prerequisite has already appeared.** Name prerequisites by the exact skill name you used earlier in the list.
 - Levels mean what they say: foundational is where a total beginner starts, specialist is what a practitioner learns last and many never do.
@@ -150,7 +154,15 @@ export const PACK_GRAPH_TOOL_SCHEMA = {
 export interface GraphInput {
   /** The subject as the analyzer resolved it, e.g. "Rust programming". */
   subject: string;
-  /** The learner's own words, when there are any. Never rewritten. */
+  /**
+   * The learner's own words, when there are any. Never rewritten.
+   *
+   * §8 screen 3 asks for these directly now — "what do you want to be able to
+   * do at the end" — because this field decides how much subject the pack takes
+   * on and there was nothing else in the pipeline that could. Every caller
+   * passed `null` until then, which is why the line below had never once been
+   * written into a real prompt.
+   */
   rawGoal: string | null;
 }
 
@@ -159,7 +171,7 @@ export function buildGraphContext(input: GraphInput): string {
     `Subject: ${input.subject}`,
     input.rawGoal === null
       ? ""
-      : `The learner described what they want like this: ${input.rawGoal}`,
+      : `What they want to be able to do at the end, in their own words: ${input.rawGoal}`,
   ]
     .filter((line) => line.length > 0)
     .join("\n\n");
