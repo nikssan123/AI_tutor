@@ -114,7 +114,9 @@ export async function POST(request: Request): Promise<Response> {
       ...history.map((turn) => ({ role: turn.role, content: turn.content })),
       { role: "user" as const, content: parsed.message },
     ],
-    tools: buildTools(),
+    // The context the data tools close over. `userId` comes from the session
+    // and never from the model — see §9.1 and `buildTools`.
+    tools: buildTools({ db, userId: auth.user.id, now }),
     budgetMs: ASSISTANT_BUDGET_MS,
   });
 

@@ -1,5 +1,13 @@
-import type { AgentTool } from "@/lib/ai/agent";
+import type { Db } from "@/db";
+import type { AgentTool, ToolOutcome } from "@/lib/ai/agent";
+import { calendarFor } from "@/lib/calendar/view";
 import { findPages } from "./pages";
+import {
+  aheadListPayload,
+  calendarMonthPayload,
+  summarise,
+  type WidgetView,
+} from "./widgets";
 
 /**
  * What the Assistant may do — `ASSISTANT-PLAN.md` §5.
@@ -11,13 +19,31 @@ import { findPages } from "./pages";
  * subscription would turn the same nuisance into an action, so anything that
  * spends, cancels or submits ends at a link instead.
  *
- * When the first tool that reads a learner's own data lands, this takes a
- * context argument and every tool becomes a closure over the authenticated user
- * id (§4.3). The model picks *which* tool; it never supplies *whose* — no tool
- * signature accepts an identity, so there is nothing for a prompt to talk it
- * into. `find_page` is the one tool that will never need it: every page it
- * knows about is one any signed-in learner may open.
+ * **Every tool that reads a learner's data is a closure over the authenticated
+ * context** (§4.3). The model picks *which* tool; it never supplies *whose* —
+ * no tool signature accepts a user id, so there is nothing for a prompt to talk
+ * it into. `find_page` is the one tool that needs no context at all: every page
+ * it knows about is one any signed-in learner may open.
  */
+
+export interface AssistantContext {
+  db: Db;
+  /** From the session, never from the model. */
+  userId: string;
+  now: Date;
+}
+
+/** The `topic`-shaped argument every lookup takes, read defensively. */
+export function stringArg(input: unknown, name: string): string {
+  if (typeof input !== "object" || input === null) return "";
+  const value = (input as Record<string, unknown>)[name];
+  return typeof value === "string" ? value : "";
+}
+
+/** A view plus the thin sentence the model is given about it (§2.1). */
+export function showing(view: WidgetView): ToolOutcome {
+  return { forModel: summarise(view), forView: view };
+}
 
 export function findPageTool(): AgentTool {
   return {
@@ -38,11 +64,7 @@ export function findPageTool(): AgentTool {
       additionalProperties: false,
     },
     run: async (input) => {
-      const topic =
-        typeof input === "object" && input !== null && "topic" in input
-          ? String((input as { topic: unknown }).topic)
-          : "";
-
+      const topic = stringArg(input, "topic");
       const matches = findPages(topic);
 
       if (matches.length === 0) {
@@ -65,12 +87,87 @@ export function findPageTool(): AgentTool {
 }
 
 /**
+ * The learner's own month, drawn by the same component `/progress` draws.
+ *
+ * `month` is the one argument, and it is not an identity: the worst a wrong one
+ * does is show a month the learner did not ask for, and `calendarFor` already
+ * falls back to the current month for anything it cannot read.
+ */
+export function calendarTool(context: AssistantContext): AgentTool {
+  return {
+    name: "my_calendar",
+    description:
+      "Show the learner their own calendar for a month: what they worked, what is due, and what is projected. Use it for any question about dates, this month, a named month, deadlines or what is coming up.",
+    label: "Checking your calendar…",
+    inputSchema: {
+      type: "object",
+      properties: {
+        month: {
+          type: "string",
+          description:
+            "The month to show, as YYYY-MM. Leave it out for the month they are in.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    run: async (input) => {
+      const month = stringArg(input, "month");
+      const view = await calendarFor(context.db, context.userId, context.now, {
+        month: month === "" ? undefined : month,
+      });
+
+      if (!view) {
+        return {
+          forModel:
+            "They have no course running, so there is no calendar to show. Say that, and offer to point them at the subjects page.",
+          forView: null,
+        };
+      }
+
+      return showing({
+        widget: "calendar_month",
+        payload: calendarMonthPayload(view),
+      });
+    },
+  };
+}
+
+export function aheadTool(context: AssistantContext): AgentTool {
+  return {
+    name: "whats_next",
+    description:
+      "Show what the learner has coming: overdue work first, then soonest. Use it for 'what should I do next', 'what am I behind on', 'anything due'.",
+    label: "Checking what's ahead…",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    run: async () => {
+      const view = await calendarFor(context.db, context.userId, context.now);
+
+      if (!view) {
+        return {
+          forModel:
+            "They have no course running, so nothing is ahead of them. Say that, and offer to point them at the subjects page.",
+          forView: null,
+        };
+      }
+
+      return showing({
+        widget: "ahead_list",
+        payload: aheadListPayload(view),
+      });
+    },
+  };
+}
+
+/**
  * The registry, in the order the model reads it.
  *
- * A module-level list rather than one assembled per request: it renders ahead
- * of the cached system prompt, so a tool list that varied by learner would
- * invalidate §14.9.4's breakpoint on every call.
+ * Built per request because the data tools close over *this* learner — but its
+ * shape never varies, so what renders ahead of the cached system prompt is the
+ * same list every time and §14.9.4's breakpoint survives. The only thing that
+ * differs between two learners' requests is what the closures can see, which is
+ * exactly the property §9.1 wants.
  */
-export function buildTools(): AgentTool[] {
-  return [findPageTool()];
+export function buildTools(context: AssistantContext): AgentTool[] {
+  return [findPageTool(), calendarTool(context), aheadTool(context)];
 }

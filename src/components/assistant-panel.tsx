@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AheadList } from "@/components/ahead-list";
+import { CalendarMonth } from "@/components/calendar-month";
+import type {
+  AheadListPayload,
+  CalendarMonthPayload,
+  WidgetView,
+} from "@/lib/assistant/widgets";
 
 /**
  * The Assistant — `ASSISTANT-PLAN.md` §8.
@@ -21,10 +28,23 @@ import { useEffect, useRef, useState } from "react";
  * returns to the launcher.
  */
 
+/**
+ * One turn is a sequence of prose and views, in the order they arrived.
+ *
+ * Not prose-with-views-appended, which was the tempting shape. A tool runs
+ * *before* the sentence that introduces its result — the model asks, the view
+ * lands, then it writes around it — so appending would put every calendar
+ * underneath the words explaining it. §6.1 asks for arrival order, and arrival
+ * order is the only order that reads correctly.
+ */
+export type Segment =
+  | { kind: "text"; text: string }
+  | { kind: "view"; view: WidgetView };
+
 interface Turn {
   role: "user" | "assistant";
-  content: string;
-  /** What a tool is doing right now. Cleared as soon as prose resumes. */
+  segments: Segment[];
+  /** What a tool is doing right now. Cleared as soon as anything else lands. */
   note?: string;
 }
 
@@ -32,8 +52,74 @@ interface Turn {
 export type PanelFrame =
   | { t: "text"; v: string }
   | { t: "tool"; label: string }
+  | { t: "widget"; view: WidgetView }
   | { t: "done" }
   | { t: "error"; message: string };
+
+/**
+ * A widget frame's payload, checked before it is rendered.
+ *
+ * The panel gets `unknown` out of `JSON.parse`, and a route a deploy ahead can
+ * send a widget this build has no component for — or the same widget with a
+ * field this build's component reads and that one never sent. Both have to be a
+ * missing view rather than a crashed thread (§6.1), so each widget is checked
+ * for the shape its component actually indexes into.
+ *
+ * A few lines of structural check rather than a schema library: this is the one
+ * bundle a signed-in learner receives, and `widgets.ts` explains why the
+ * server-side types are not duplicated here as runtime schemas.
+ */
+export function readWidget(name: unknown, payload: unknown): WidgetView | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const value = payload as Record<string, unknown>;
+
+  if (name === "calendar_month") {
+    if (typeof value.label !== "string") return null;
+    if (!Array.isArray(value.weeks)) return null;
+    if (typeof value.hasMarks !== "boolean") return null;
+    return {
+      widget: "calendar_month",
+      payload: value as unknown as CalendarMonthPayload,
+    };
+  }
+
+  if (name === "ahead_list") {
+    if (typeof value.today !== "string") return null;
+    if (!Array.isArray(value.entries)) return null;
+    if (typeof value.hasCheckpoints !== "boolean") return null;
+    return {
+      widget: "ahead_list",
+      payload: value as unknown as AheadListPayload,
+    };
+  }
+
+  return null;
+}
+
+/** One view, rendered by the same component the page it came from renders. */
+export function Widget({ view }: { view: WidgetView }) {
+  switch (view.widget) {
+    case "calendar_month":
+      return (
+        <CalendarMonth
+          label={view.payload.label}
+          weeks={view.payload.weeks}
+          hasMarks={view.payload.hasMarks}
+          // Back to `undefined`, which is what the component takes — see the
+          // note on the payload for why the wire carries null.
+          next={view.payload.next ?? undefined}
+        />
+      );
+    case "ahead_list":
+      return (
+        <AheadList
+          entries={view.payload.entries}
+          today={view.payload.today}
+          hasCheckpoints={view.payload.hasCheckpoints}
+        />
+      );
+  }
+}
 
 /**
  * One NDJSON line, or nothing.
@@ -63,6 +149,10 @@ export function parseFrame(raw: string): PanelFrame | null {
   if (frame.t === "tool" && typeof frame.label === "string") {
     return { t: "tool", label: frame.label };
   }
+  if (frame.t === "widget") {
+    const view = readWidget(frame.name, frame.payload);
+    return view ? { t: "widget", view } : null;
+  }
   if (frame.t === "done") return { t: "done" };
   if (frame.t === "error" && typeof frame.message === "string") {
     return { t: "error", message: frame.message };
@@ -86,6 +176,18 @@ export function takeLines(buffer: string): { lines: string[]; rest: string } {
   return { lines: parts, rest };
 }
 
+/**
+ * Prose onto the end of a turn: extending the last passage if that is what it
+ * is, opening a new one if a view came between.
+ */
+export function appendText(segments: Segment[], text: string): Segment[] {
+  const last = segments[segments.length - 1];
+
+  return last?.kind === "text"
+    ? [...segments.slice(0, -1), { kind: "text", text: last.text + text }]
+    : [...segments, { kind: "text", text }];
+}
+
 /** Applies one frame to the assistant turn in flight. */
 export function applyFrame(turns: Turn[], frame: PanelFrame): Turn[] {
   const last = turns[turns.length - 1];
@@ -98,14 +200,25 @@ export function applyFrame(turns: Turn[], frame: PanelFrame): Turn[] {
 
   switch (frame.t) {
     case "text":
-      // Prose arriving means the lookup that preceded it is finished, so the
-      // label goes. Leaving it up would report work that has already happened.
-      return replace({ content: last.content + frame.v, note: undefined });
+      // Anything arriving means the lookup that preceded it is finished, so
+      // the label goes. Leaving it up would report work already done.
+      return replace({
+        segments: appendText(last.segments, frame.v),
+        note: undefined,
+      });
     case "tool":
       return replace({ note: frame.label });
+    case "widget":
+      return replace({
+        segments: [...last.segments, { kind: "view", view: frame.view }],
+        note: undefined,
+      });
     case "error":
       return replace({
-        content: `${last.content}${last.content === "" ? "" : "\n\n"}${frame.message}`,
+        segments: appendText(
+          last.segments,
+          last.segments.length === 0 ? frame.message : `\n\n${frame.message}`,
+        ),
         note: undefined,
       });
     case "done":
@@ -150,8 +263,8 @@ export function AssistantPanel() {
     setPending(true);
     setTurns((prior) => [
       ...prior,
-      { role: "user", content: message },
-      { role: "assistant", content: "" },
+      { role: "user", segments: [{ kind: "text", text: message }] },
+      { role: "assistant", segments: [] },
     ]);
 
     try {
@@ -239,23 +352,35 @@ export function AssistantPanel() {
                     className={
                       turn.role === "user"
                         ? "rounded-[var(--radius-control)] bg-ground px-3.5 py-2.5"
-                        : "px-0.5 whitespace-pre-wrap"
+                        : "flex flex-col gap-3 px-0.5"
                     }
                   >
-                    {turn.content === "" ? (
+                    {turn.segments.length === 0 ? (
                       <span className="text-ink-muted">
                         {turn.note ?? "Thinking…"}
                       </span>
                     ) : (
-                      <>
-                        {turn.content}
-                        {turn.note ? (
-                          <span className="block pt-1.5 text-ink-muted">
-                            {turn.note}
+                      turn.segments.map((segment, s) =>
+                        segment.kind === "text" ? (
+                          <span key={s} className="whitespace-pre-wrap">
+                            {segment.text}
                           </span>
-                        ) : null}
-                      </>
+                        ) : (
+                          /* Capped and scrolling inside itself, so a month grid
+                             cannot push the composer off the bottom of the
+                             panel — §6.1. */
+                          <div
+                            key={s}
+                            className="max-h-96 overflow-y-auto overflow-x-auto"
+                          >
+                            <Widget view={segment.view} />
+                          </div>
+                        ),
+                      )
                     )}
+                    {turn.note && turn.segments.length > 0 ? (
+                      <span className="text-ink-muted">{turn.note}</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

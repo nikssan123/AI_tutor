@@ -2,11 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
+  appendText,
   applyFrame,
   AssistantPanel,
   parseFrame,
+  readWidget,
   takeLines,
+  type Segment,
 } from "@/components/assistant-panel";
+import type { WidgetView } from "@/lib/assistant/widgets";
 
 /**
  * The panel.
@@ -68,10 +72,71 @@ describe("parseFrame", () => {
   });
 });
 
+const CALENDAR: WidgetView = {
+  widget: "calendar_month",
+  payload: {
+    label: "September 2026",
+    weeks: [
+      Array.from({ length: 7 }, (_, i) => ({
+        day: `2026-09-0${i + 1}`,
+        inMonth: true,
+        isToday: false,
+        certainties: i === 2 ? (["recorded"] as const).slice() : [],
+        items: [],
+        description: i === 2 ? "3 September: you worked" : null,
+      })),
+    ],
+    hasMarks: true,
+    next: null,
+  },
+};
+
+const AHEAD: WidgetView = {
+  widget: "ahead_list",
+  payload: {
+    today: "2026-09-03",
+    entries: [
+      {
+        day: "2026-09-05",
+        kind: "retrieval",
+        certainty: "due",
+        title: "Window functions",
+        detail: "Coming back round",
+      },
+    ],
+    hasCheckpoints: false,
+  },
+};
+
+/** The prose/view text of one turn, in order, for readable assertions. */
+function shape(turn: { segments: Segment[] }): string[] {
+  return turn.segments.map((segment) =>
+    segment.kind === "text" ? segment.text : `[${segment.view.widget}]`,
+  );
+}
+
+describe("appendText", () => {
+  it("extends the passage in flight", () => {
+    expect(appendText([{ kind: "text", text: "Bil" }], "ling.")).toEqual([
+      { kind: "text", text: "Billing." },
+    ]);
+  });
+
+  it("opens a new passage after a view", () => {
+    expect(appendText([{ kind: "view", view: CALENDAR }], "There it is.")).toEqual(
+      [{ kind: "view", view: CALENDAR }, { kind: "text", text: "There it is." }],
+    );
+  });
+
+  it("opens the first passage of a turn", () => {
+    expect(appendText([], "hi")).toEqual([{ kind: "text", text: "hi" }]);
+  });
+});
+
 describe("applyFrame", () => {
   const thread = [
-    { role: "user" as const, content: "where?" },
-    { role: "assistant" as const, content: "" },
+    { role: "user" as const, segments: [{ kind: "text" as const, text: "where?" }] },
+    { role: "assistant" as const, segments: [] },
   ];
 
   it("appends prose to the turn in flight", () => {
@@ -79,7 +144,7 @@ describe("applyFrame", () => {
       t: "text",
       v: "ling.",
     });
-    expect(after[1]!.content).toBe("Billing.");
+    expect(shape(after[1]!)).toEqual(["Billing."]);
   });
 
   it("shows what a tool is doing, then clears it when prose resumes", () => {
@@ -96,19 +161,67 @@ describe("applyFrame", () => {
     expect(applyFrame(running, { t: "done" })[1]!.note).toBeUndefined();
   });
 
+  /**
+   * Arrival order, which is the whole reason a turn is segments. The tool runs
+   * *before* the sentence that introduces its result, so appending views would
+   * put every calendar underneath the words explaining it.
+   */
+  it("keeps prose and views in the order they arrived", () => {
+    let turns = applyFrame(thread, { t: "text", v: "Let me look." });
+    turns = applyFrame(turns, { t: "tool", label: "Checking…" });
+    turns = applyFrame(turns, { t: "widget", view: CALENDAR });
+    turns = applyFrame(turns, { t: "text", v: "The 3rd is done." });
+
+    expect(shape(turns[1]!)).toEqual([
+      "Let me look.",
+      "[calendar_month]",
+      "The 3rd is done.",
+    ]);
+    expect(turns[1]!.note).toBeUndefined();
+  });
+
   it("puts an error where the answer would have been", () => {
     const broken = applyFrame(thread, { t: "error", message: "It broke." });
-    expect(broken[1]!.content).toBe("It broke.");
+    expect(shape(broken[1]!)).toEqual(["It broke."]);
   });
 
   it("keeps the half-answer it already gave, and separates it", () => {
     const partial = applyFrame(thread, { t: "text", v: "Half a sen" });
     const broken = applyFrame(partial, { t: "error", message: "It broke." });
-    expect(broken[1]!.content).toBe("Half a sen\n\nIt broke.");
+    expect(shape(broken[1]!)).toEqual(["Half a sen\n\nIt broke."]);
   });
 
   it("has nothing to append to before a turn is opened", () => {
     expect(applyFrame([], { t: "text", v: "hi" })).toEqual([]);
+  });
+});
+
+describe("readWidget", () => {
+  it("accepts the payloads its components can render", () => {
+    expect(readWidget("calendar_month", CALENDAR.payload)).toEqual(CALENDAR);
+    expect(readWidget("ahead_list", AHEAD.payload)).toEqual(AHEAD);
+  });
+
+  /**
+   * A route a deploy ahead can send a widget this build has no component for,
+   * or the same widget missing a field this build's component indexes into.
+   * Both must be a missing view rather than a crashed thread.
+   */
+  it("drops a widget this build cannot render", () => {
+    expect(readWidget("plan_card", { plan: "pro" })).toBeNull();
+    expect(readWidget("calendar_month", null)).toBeNull();
+    expect(readWidget("calendar_month", "september")).toBeNull();
+  });
+
+  it("drops a payload missing what its component reads", () => {
+    expect(readWidget("calendar_month", { weeks: [], hasMarks: true })).toBeNull();
+    expect(
+      readWidget("calendar_month", { label: "Sep", hasMarks: true }),
+    ).toBeNull();
+    expect(readWidget("calendar_month", { label: "Sep", weeks: [] })).toBeNull();
+    expect(readWidget("ahead_list", { entries: [], hasCheckpoints: false })).toBeNull();
+    expect(readWidget("ahead_list", { today: "2026-09-03", hasCheckpoints: false })).toBeNull();
+    expect(readWidget("ahead_list", { today: "2026-09-03", entries: [] })).toBeNull();
   });
 });
 
@@ -219,6 +332,69 @@ describe("AssistantPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
 
     await waitFor(() => expect(screen.getByText("Billing.")).toBeDefined());
+  });
+
+  /**
+   * The point of the whole feature: a learner asks for their calendar and gets
+   * the calendar, drawn by the same component `/progress` draws, with the
+   * model's sentence around it rather than instead of it.
+   */
+  it("renders a calendar in the thread, between the prose around it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `{"t":"tool","label":"Checking your calendar…"}\n${JSON.stringify({
+          t: "widget",
+          name: CALENDAR.widget,
+          payload: CALENDAR.payload,
+        })}\n{"t":"text","v":"The 3rd is the one you worked."}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show me my calendar" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("The 3rd is the one you worked.")).toBeDefined(),
+    );
+
+    // The grid itself — the legend is CalendarMonth's, not the panel's.
+    expect(screen.getByText("You worked")).toBeDefined();
+    expect(screen.getByText("3 September: you worked")).toBeDefined();
+    // And the label it replaced is gone.
+    expect(screen.queryByText("Checking your calendar…")).toBeNull();
+  });
+
+  it("renders what is ahead when that is what was asked for", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `${JSON.stringify({
+          t: "widget",
+          name: AHEAD.widget,
+          payload: AHEAD.payload,
+        })}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
+
+    await waitFor(() => expect(screen.getByText("Window functions")).toBeDefined());
+  });
+
+  it("drops a widget it cannot render and keeps the answer", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        '{"t":"widget","name":"plan_card","payload":{"plan":"pro"}}\n{"t":"text","v":"You are on Pro."}\n{"t":"done"}\n',
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
+
+    await waitFor(() => expect(screen.getByText("You are on Pro.")).toBeDefined());
   });
 
   it("asks what was typed, and clears the box", async () => {

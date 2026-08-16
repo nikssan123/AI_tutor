@@ -9,8 +9,9 @@ import { calendarFor } from "@/lib/calendar/view";
 import { coursesFor } from "@/lib/goals/courses";
 import { standingFor } from "@/lib/goals/standing";
 import { deadlineVerdict } from "@/lib/calendar/checkpoints";
-import { relativeDay, shortDate } from "@/lib/calendar/dates";
+import { shortDate } from "@/lib/calendar/dates";
 import { formatDeadline } from "@/lib/goals/captured-display";
+import { AheadList } from "@/components/ahead-list";
 import { CalendarMonth } from "@/components/calendar-month";
 import { CourseList } from "@/components/course-list";
 import { NothingRunning } from "@/components/nothing-running";
@@ -21,8 +22,6 @@ import {
   HeroBand,
   Lead,
   Meta,
-  Row,
-  RowList,
   Signal,
   stagger,
   Status,
@@ -264,55 +263,15 @@ export default async function ProgressPage({ searchParams }: Props) {
       <section className="rise flex flex-col gap-6" style={stagger(4)}>
         <SectionHead label="Ahead" title="What's coming" />
 
-        {calendar.ahead.length > 0 ? (
-          <RowList>
-            {calendar.ahead.map((entry) => {
-              // Overdue is a fact about a date that has passed, so it is only
-              // ever said about something that was actually owed.
-              const waiting = entry.certainty === "due" && entry.day < today;
-              return (
-                <Row key={`${entry.day}-${entry.kind}-${entry.title}`}>
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="font-[550] text-ink">{entry.title}</span>
-                    <Meta>{entry.detail}</Meta>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1">
-                    {waiting ? (
-                      <Status tone="attention">Waiting</Status>
-                    ) : (
-                      // The date is the reason the row is in this list, so it
-                      // is set in the row's own ink rather than in the faint
-                      // grey the qualifier under it uses.
-                      <span className="text-[length:var(--text-label-size)] font-[650] text-ink tabular-nums">
-                        {shortDate(entry.day)}
-                      </span>
-                    )}
-                    <Meta>{relativeDay(today, entry.day)}</Meta>
-                  </span>
-                </Row>
-              );
-            })}
-          </RowList>
-        ) : (
-          <Card>
-            {/*
-              Two empty states, because there are two different reasons to be
-              empty and only one of them means "there is nothing".
-
-              A learner whose path has just been built has five dated hand-ins
-              and an empty list here, because this band deliberately excludes
-              checkpoints — they are priced in their own band below. Told
-              "nothing is waiting on you", they reasonably conclude the build
-              produced nothing. So when there *is* dated work, this says where
-              it went.
-            */}
-            <Meta>
-              {checkpoints.length > 0
-                ? "Nothing is due yet: no questions are coming back to you and nothing has stopped counting. What you are working towards is dated below."
-                : "Nothing is waiting on you and nothing is due. Today’s session is the whole of it."}
-            </Meta>
-          </Card>
-        )}
+        {/* On this screen the checkpoints are further down the same page, so
+            the default's "go to your progress page" would point the learner at
+            where they already are. */}
+        <AheadList
+          entries={calendar.ahead}
+          today={today}
+          hasCheckpoints={checkpoints.length > 0}
+          pendingNote="Nothing is due yet: no questions are coming back to you and nothing has stopped counting. What you are working towards is dated below."
+        />
       </section>
 
       {/* ── What's ahead: the whole course, then each hand-in ─────────────── */}

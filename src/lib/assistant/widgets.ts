@@ -1,0 +1,106 @@
+import type { DayKey } from "@/lib/calendar/dates";
+import type { DayCell } from "@/lib/calendar/month";
+import type { CalendarEntry } from "@/lib/calendar/schedule";
+import type { CalendarView } from "@/lib/calendar/view";
+
+/**
+ * What a tool may put on screen — `ASSISTANT-PLAN.md` §2.
+ *
+ * The contract between a tool and a component, and the reason the model is not
+ * in the middle of it. A tool projects the learner's own data into one of these
+ * shapes; the frame carries it verbatim; a real component renders it. The model
+ * chose *which* widget by choosing which tool, and never saw what is in it.
+ *
+ * **Types, not Zod schemas.** The plan asked for Zod, and the plan was thinking
+ * about a model boundary — which this is not. Every payload here is projected
+ * from a value `calendarFor` already typed, so a runtime parse would re-check
+ * what `tsc` has already proved and buy nothing. What *is* worth guarding is
+ * the wire: the panel gets `unknown` out of `JSON.parse`, and a version skew
+ * could hand it a payload this build's component cannot render. That guard
+ * lives in the panel as a few lines of structural check per widget, which keeps
+ * Zod out of the one bundle a signed-in learner receives.
+ *
+ * These types are the single source of truth for both sides, so drift between a
+ * tool and its component is a compile error rather than a runtime one.
+ */
+
+export interface CalendarMonthPayload {
+  label: string;
+  weeks: DayCell[][];
+  hasMarks: boolean;
+  /**
+   * Null rather than absent.
+   *
+   * `CalendarMonth` takes `CalendarEntry | undefined`, but `undefined` does not
+   * survive `JSON.stringify` — the key simply vanishes, and "no next date" and
+   * "this build forgot to send one" become the same thing on the wire. The
+   * panel converts it back on arrival.
+   */
+  next: CalendarEntry | null;
+}
+
+export interface AheadListPayload {
+  today: DayKey;
+  entries: CalendarEntry[];
+  hasCheckpoints: boolean;
+}
+
+/** Every widget, by the name that travels on the wire. */
+export type WidgetView =
+  | { widget: "calendar_month"; payload: CalendarMonthPayload }
+  | { widget: "ahead_list"; payload: AheadListPayload };
+
+export type WidgetName = WidgetView["widget"];
+
+/**
+ * The month, as the grid needs it.
+ *
+ * Four fields out of a `CalendarView` that also carries the whole pack and the
+ * learner's goal. Projecting rather than passing it along is not only about
+ * size: everything not sent is something the panel cannot accidentally start
+ * depending on, and the payload is the contract.
+ */
+export function calendarMonthPayload(view: CalendarView): CalendarMonthPayload {
+  return {
+    label: view.label,
+    weeks: view.weeks,
+    hasMarks: view.hasMarks,
+    next: view.next ?? null,
+  };
+}
+
+export function aheadListPayload(view: CalendarView): AheadListPayload {
+  return {
+    today: view.today,
+    entries: view.ahead,
+    hasCheckpoints: view.checkpoints.length > 0,
+  };
+}
+
+/**
+ * The one-line summary the model is given instead of the payload (§2.1).
+ *
+ * Deliberately thin. It says what is now on screen and how much of it, so the
+ * model can write a sentence *around* the view — and it withholds the figures,
+ * so the model cannot read the calendar back to somebody already looking at it.
+ * That is the rule §7 states and this is what makes it structural.
+ */
+export function summarise(view: WidgetView): string {
+  switch (view.widget) {
+    case "calendar_month": {
+      const marked = view.payload.weeks
+        .flat()
+        .filter((cell) => cell.certainties.length > 0).length;
+      return `Their calendar for ${view.payload.label} is now on screen: ${marked} ${marked === 1 ? "day has" : "days have"} something on them. Do not list the dates.`;
+    }
+    case "ahead_list": {
+      const { entries } = view.payload;
+      const overdue = entries.filter(
+        (entry) => entry.certainty === "due" && entry.day < view.payload.today,
+      ).length;
+      return entries.length === 0
+        ? "Nothing is due. The list on screen says so and says why."
+        : `${entries.length} ${entries.length === 1 ? "thing is" : "things are"} ahead of them${overdue > 0 ? `, ${overdue} overdue` : ""}, now on screen. Do not list them.`;
+    }
+  }
+}

@@ -190,7 +190,7 @@ All read-only. All already backed by functions that exist.
 | Tool | Backed by | Widget |
 |---|---|---|
 | `my_calendar` | `calendarFor` (`src/lib/calendar/view.ts:147`) | `calendar_month` |
-| `next_up` | `nextAfter` (`view.ts:252`) | `next_card` |
+| `whats_next` | `calendarFor().ahead` | `ahead_list` |
 | `my_courses` | `coursesFor` (`src/lib/goals/courses.ts`) | `course_list` |
 | `my_standing` | `standingFor` (`src/lib/goals/standing.ts`) | `standing` |
 | `my_path` | `src/lib/curriculum/store.ts` | `path_outline` |
@@ -214,13 +214,18 @@ lives inside `src/app/(app)/progress/page.tsx` and is not a component.
 | Widget | Component | Status |
 |---|---|---|
 | `calendar_month` | `src/components/calendar-month.tsx` | **done** — extracted from `progress/page.tsx` |
+| `ahead_list` | `src/components/ahead-list.tsx` | **done** — extracted from `progress/page.tsx` |
 | `week_digest` | `src/components/week-digest.tsx` | **done** — extracted from `progress/page.tsx` |
 | `course_list` | `src/components/course-list.tsx` | exists |
 | `path_outline` | `src/components/course-outline.tsx`, `step-list.tsx` | exists |
 | `standing` | `src/components/nothing-running.tsx` | exists — `standingFor` was already a component |
-| `next_card` | `src/components/next-card.tsx` | new, small |
 | `plan_card` | `src/components/plan-card.tsx` | new; reuse `upgrade-nudge.tsx` styling |
 | `charges` | `RowList` / `Row` from `components/ui` | compose |
+
+`ahead_list` replaced the planned `next_card`. There was no reason to invent a
+card for "what's next" when the progress page already had the list, and the
+extraction is worth more than a bespoke component: one definition of what counts
+as overdue, in both places.
 
 *Correction from the first draft:* this table originally listed a
 `standing-summary` to be extracted from `progress/page.tsx`. There is none —
@@ -446,8 +451,27 @@ do I cancel my subscription" returned the mastery page**, with "do" outscoring
 ends up confidently wrong, which is worse than returning nothing. Fixed with a
 stop list and a one-rule stemmer, both applied to titles and queries alike.
 
-**Phase 2 — the first widgets.** `my_calendar` and `next_up`, the widget frame,
-the client renderer. This is the phase that demonstrates the idea.
+**Phase 2 — the first widgets. Done.** `src/lib/assistant/widgets.ts` (payload
+types, projections, and `summarise` — the thin line the model gets instead of
+the payload), `my_calendar` and `whats_next` as closures over the authenticated
+context, the widget frame, `readWidget`'s structural guard, and the panel's
+segment model.
+
+Two decisions worth recording:
+
+- **A turn is a sequence of segments, not prose with views appended.** A tool
+  runs *before* the sentence introducing its result — the model asks, the view
+  lands, then it writes around it — so appending would put every calendar
+  underneath the words explaining it. §6.1 asks for arrival order; arrival order
+  is the only order that reads correctly.
+- **Payload types, not Zod schemas.** §2 asked for Zod because it was thinking
+  about a model boundary, and this is not one: every payload is projected from a
+  value `calendarFor` already typed, so a parse would re-check what `tsc` has
+  proved. The real risk is the wire — the panel gets `unknown` from
+  `JSON.parse`, and a version skew could hand it a payload this build cannot
+  render. That is guarded by a few lines of structural check per widget in
+  `readWidget`, which keeps Zod out of the one bundle a signed-in learner
+  receives.
 
 **Phase 3 — the rest of the catalog.** Remaining tools and widgets, thread
 persistence and re-render.
