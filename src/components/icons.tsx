@@ -107,9 +107,13 @@ export function QuestionIcon({ className }: IconProps) {
 /* ── Navigation icons ───────────────────────────────────────────────────── */
 
 /**
- * The four authenticated destinations. Each is paired with its word in the
+ * The five authenticated destinations. Each is paired with its word in the
  * rail and the bottom bar — §8.5.5 bans "tooltips that explain an icon", which
  * in practice means an icon may never be the only label.
+ *
+ * There was a sixth. `CalendarIcon` was deleted with the route it stood for:
+ * `/calendar` merged into `/progress`, and an icon kept "in case" is how a set
+ * stops being a set. It is in the history if a dated surface ever wants it.
  */
 
 /** A calendar with the day marked: the one thing to do now. */
@@ -119,25 +123,6 @@ export function TodayIcon({ className }: IconProps) {
       <rect x="4" y="5.5" width="16" height="14" rx="2" />
       <path d="M4 10h16M8.5 3.5v3M15.5 3.5v3" />
       <circle cx="12" cy="14.5" r="1.5" fill="currentColor" stroke="none" />
-    </Svg>
-  );
-}
-
-/**
- * A month of squares, some of them marked: the shape of a plan over time.
- *
- * Deliberately not `TodayIcon` with a different name — that one marks a single
- * day because it stands for the one thing to do now, and two destinations
- * drawn the same way would make the rail say less than it did before.
- */
-export function CalendarIcon({ className }: IconProps) {
-  return (
-    <Svg className={className}>
-      <rect x="4" y="5.5" width="16" height="14" rx="2" />
-      <path d="M4 10h16M8.5 3.5v3M15.5 3.5v3" />
-      <circle cx="8.5" cy="13.5" r="1" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none" />
-      <circle cx="15.5" cy="16.5" r="1" fill="currentColor" stroke="none" />
     </Svg>
   );
 }

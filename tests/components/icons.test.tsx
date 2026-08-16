@@ -4,7 +4,6 @@ import { cleanup, render } from "@testing-library/react";
 import {
   AccountIcon,
   ArrowIcon,
-  CalendarIcon,
   CameraIcon,
   ChecklistIcon,
   ChevronIcon,
@@ -14,6 +13,7 @@ import {
   GridIcon,
   LockIcon,
   MasteryIcon,
+  PathIcon,
   PenIcon,
   PlusIcon,
   PriceIcon,
@@ -43,7 +43,7 @@ const ALL = [
   ["CameraIcon", CameraIcon],
   ["DatabaseIcon", DatabaseIcon],
   ["TodayIcon", TodayIcon],
-  ["CalendarIcon", CalendarIcon],
+  ["PathIcon", PathIcon],
   ["MasteryIcon", MasteryIcon],
   ["ProgressIcon", ProgressIcon],
   ["AccountIcon", AccountIcon],
@@ -136,13 +136,21 @@ describe("GoogleIcon — the sanctioned exception to the icon rules", () => {
 describe("the navigation marks", () => {
   /**
    * Two destinations drawn the same way make the rail say less than it did
-   * before. Today marks one day because it stands for the one thing to do now;
-   * the calendar marks a month.
+   * before. Today marks a single day because it stands for the one thing to do
+   * now; Path is a route between points because the order is derived.
+   *
+   * The list is the rail, so it has to move with it — `PathIcon` was added to
+   * the product without reaching this file, which meant the newest destination
+   * was the one mark nobody was checking for a collision.
    */
   it("gives every destination a mark of its own", () => {
-    const drawn = [TodayIcon, CalendarIcon, MasteryIcon, ProgressIcon, AccountIcon].map(
-      (Icon) => render(<Icon />).container.innerHTML,
-    );
+    const drawn = [
+      TodayIcon,
+      PathIcon,
+      MasteryIcon,
+      ProgressIcon,
+      AccountIcon,
+    ].map((Icon) => render(<Icon />).container.innerHTML);
     expect(new Set(drawn).size).toBe(drawn.length);
   });
 });
