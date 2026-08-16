@@ -79,6 +79,14 @@ const NODE: Record<
   },
 };
 
+/**
+ * Under this width a graph fits a phone column outright, and the hint below
+ * would be telling a learner to drag something that does not move. Only a two-
+ * or three-skill subject gets there; every real one is wider than a phone and
+ * always will be, which is why the hint is worth writing at all.
+ */
+const PHONE_COLUMN = 320;
+
 const EDGE_KEY = [
   { dashed: false, label: "Needed before it" },
   { dashed: true, label: "Helps, but not required" },
@@ -123,8 +131,18 @@ export function SkillMap({
           and is not: it takes the 12px label with it, so a wide subject on a
           desktop set its names at 10px and the same subject on a phone set
           them at 5. A picture you can read a third of is worth more than one
-          you can see all of and read none of. */}
-      <div className="-mx-6 overflow-x-auto px-6">
+          you can see all of and read none of.
+
+          `.scroll-x` rather than `overflow-x-auto` for the other half of that
+          trade: every platform this ships to hides the scrollbar until
+          something is already scrolling, so the pane needs to say for itself
+          that there is more of it. See its note in `globals.css`.
+
+          No padding on the pane — the canvas carries its own margin, because
+          padding here is part of the scrollable width and made a picture that
+          fits its card scroll anyway, shading an edge that had nothing behind
+          it. */}
+      <div className="scroll-x -mx-6">
         <svg
           width={layout.width}
           height={layout.height}
@@ -181,6 +199,15 @@ export function SkillMap({
       </div>
 
       <div className="flex flex-col gap-3 border-t border-hairline pt-4">
+        {/* Belt and braces with the shading above it, and only where the
+            shading is easiest to miss: a phone hides its scrollbar entirely,
+            and it is the one screen where the picture is mostly off-frame. */}
+        {layout.width > PHONE_COLUMN ? (
+          <Meta className="sm:hidden">
+            Wider than the screen &mdash; drag it sideways to see the rest.
+          </Meta>
+        ) : null}
+
         <KeyList>
           {SKILL_STATES.map((state) => {
             const style = NODE[state];

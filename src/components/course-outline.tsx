@@ -179,7 +179,10 @@ function SkillRow({ skill }: { skill: OutlineSkill }) {
         <div className={ROW_HEAD}>
           <span
             className={cx(
-              "min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550]",
+              // `break-words` for the same reason the section title carries it:
+              // a name with no space in it cannot wrap, and a flex item that
+              // cannot wrap and cannot shrink paints over its neighbour.
+              "min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550] break-words",
               reachable ? "text-ink" : "text-ink-muted",
             )}
           >
@@ -235,7 +238,22 @@ function Section({ section, index }: { section: OutlineSection; index: number })
           >
             {index + 1}
           </span>
-          <span className="min-w-0 flex-1 text-[length:var(--text-lead-size)] font-[550] text-ink">
+          {/*
+            `basis-40` is load-bearing, and the bug it fixes is worth naming.
+
+            With `flex-1` alone the title's hypothetical size is zero, so the
+            row never wrapped on its account — it simply handed the title
+            whatever was left after the facts and the status had taken theirs.
+            At a 390px viewport that was ten pixels, and "Exposure" painted
+            straight over "3 skills · 4h to go". (At 360 the status wrapped for
+            its own reasons and it looked fine, which is how it survived.)
+
+            A real basis puts the title into the line-breaking sum, so a narrow
+            screen drops the facts to a second line instead of crushing the one
+            word the row is actually about. `min-w-0` stays for after the wrap;
+            `break-words` is the backstop for a single word longer than the card.
+          */}
+          <span className="min-w-0 flex-1 basis-40 text-[length:var(--text-lead-size)] font-[550] break-words text-ink">
             {section.title}
           </span>
           <Meta>{factsOf(section)}</Meta>

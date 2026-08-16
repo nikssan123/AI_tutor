@@ -559,3 +559,51 @@ body {
     scroll-behavior: smooth;
   }
 }
+
+/*
+ * A pane that scrolls sideways, and says so.
+ *
+ * The skill graph is the one thing in the product genuinely too wide for a
+ * phone, and "too wide" is not a decision we get to make differently: a
+ * fifteen-skill dependency graph needs about 950px, a phone column gives 340,
+ * and scaling it down to fit takes the 12px label with it — a desktop would set
+ * its names at 10px and a phone at 5. So it scrolls.
+ *
+ * What it cannot do is scroll *silently*. macOS and every touch platform hide
+ * the scrollbar until something is scrolling, so a pane wider than its box
+ * looks exactly like a picture that has been cropped, and a learner has no
+ * reason to try dragging it.
+ *
+ * The shading is the four-gradient trick, and the reason it is CSS rather than
+ * a scroll listener is not only the JS budget — it is that it is
+ * *self-correcting*. The two covers are `local`, so they sit at the ends of the
+ * content and travel with it; the two shades are `scroll`, so they stay pinned
+ * to the box. Each end's shade is therefore covered exactly while that end is
+ * in view and uncovered the moment it is not. A pane whose content fits shows
+ * nothing at all, which is what makes it safe to put on the container rather
+ * than on the ones we have predicted will overflow.
+ *
+ * `color-mix` against `--ink` rather than a literal, so the shade is dark on
+ * light and light on dark from one declaration (§8.5.4) — a black shadow on
+ * `#0E1013` is not a subtle shadow, it is no shadow.
+ */
+.scroll-x {
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.5rem 100%
+      no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.5rem
+      100% no-repeat local,
+    radial-gradient(
+        farthest-side at 0 50%,
+        color-mix(in oklab, var(--ink) 16%, transparent),
+        transparent
+      )
+      0 0 / 0.875rem 100% no-repeat scroll,
+    radial-gradient(
+        farthest-side at 100% 50%,
+        color-mix(in oklab, var(--ink) 16%, transparent),
+        transparent
+      )
+      100% 0 / 0.875rem 100% no-repeat scroll;
+}

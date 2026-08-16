@@ -119,6 +119,35 @@ describe("SkillMap", () => {
     expect(svg.getAttribute("width")).toBe("400");
   });
 
+  /**
+   * The picture is wider than a phone and always will be, so it is panned —
+   * and every platform it ships to hides the scrollbar until something is
+   * already scrolling. A pane that scrolls silently reads as a picture that has
+   * been cropped, so the container carries its own shading (see `.scroll-x` in
+   * `globals.css`) and, on the screen where that is easiest to miss, a line
+   * saying so in words.
+   */
+  it("makes the pane visibly scrollable rather than silently clipped", () => {
+    const { container } = render(<SkillMap layout={layout} label="How it fits" />);
+    const pane = container.querySelector("svg[role='img']")!.parentElement!;
+
+    expect(pane.className).toContain("scroll-x");
+    expect(pane.className).not.toContain("overflow-x-auto");
+    expect(screen.getByText(/drag it sideways/i)).toBeTruthy();
+  });
+
+  /** And it does not tell a phone to drag something that already fits. */
+  it("says nothing about dragging a picture narrow enough to fit", () => {
+    render(
+      <SkillMap
+        layout={{ ...layout, width: 200, nodes: [layout.nodes[0]!], edges: [] }}
+        label="A very small subject"
+      />,
+    );
+
+    expect(screen.queryByText(/drag it sideways/i)).toBeNull();
+  });
+
   it("draws every box at the geometry the layout was computed for", () => {
     const { container } = render(<SkillMap layout={layout} label="How it fits" />);
     const rect = container.querySelector("svg > g > rect")!;

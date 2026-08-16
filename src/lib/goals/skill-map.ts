@@ -16,14 +16,14 @@ import type { Outline, SkillState } from "./outline";
  *    as "White balance and co". Every label in the graph looked misspelt,
  *    because every label *was* — a hard cut mid-word is indistinguishable from
  *    a typo, and there were fifteen of them on one screen.
- * 2. **Every layer started at the left edge.** A layer of two sat above a layer
- *    of five, hard against the same margin, so the edges between them raked
- *    diagonally across the whole picture and the shape said nothing about the
- *    subject.
- * 3. **Straight lines, bottom-centre to top-centre.** Two long diagonals
+ * 2. **Straight lines, bottom-centre to top-centre.** Two long diagonals
  *    crossing at a shallow angle are two lines nobody can follow to their ends.
+ * 3. **A canvas sized for a desktop and nothing else.** A fifteen-skill graph
+ *    is about 950px wide and a phone column is 340, so the picture has to be
+ *    panned — and every decision about where a node goes is really a decision
+ *    about what a learner sees before they have panned anything.
  *
- * So the wrapping, the centring and the curves are here, as arithmetic, where
+ * So the wrapping, the placement and the curves are here, as arithmetic, where
  * they can be tested — the component that draws it decides colour and nothing
  * else. `now` never enters: the same graph and the same states must produce the
  * same picture twice.
@@ -43,7 +43,15 @@ export const SKILL_MAP = {
   nodeHeight: 52,
   gapX: 20,
   gapY: 52,
-  padding: 16,
+  /**
+   * The canvas's own margin, and it matches `Card`'s 24px on purpose: the pane
+   * it sits in bleeds to the card's edge rather than carrying padding of its
+   * own, so this is what stands in for it. Padding on the pane instead is what
+   * made a graph that fits scroll anyway — 952px of picture fits a 976px card,
+   * but 952 plus two 24px pads does not, so the desktop got a scrollbar and a
+   * shaded edge promising 24 pixels of nothing.
+   */
+  padding: 24,
   fontSize: 12,
   lineHeight: 15,
   maxChars: 21,
@@ -153,24 +161,29 @@ export function buildSkillMap(
 
   const layout = layoutGraph(graph);
 
-  const perLayer = new Map<number, number>();
-  for (const node of layout.nodes) {
-    perLayer.set(node.depth, (perLayer.get(node.depth) ?? 0) + 1);
-  }
-
-  const content = layout.width * STEP_X - SKILL_MAP.gapX;
-  const width = content + SKILL_MAP.padding * 2;
+  const width = layout.width * STEP_X - SKILL_MAP.gapX + SKILL_MAP.padding * 2;
   const height =
     layout.depth * STEP_Y - SKILL_MAP.gapY + SKILL_MAP.padding * 2;
 
   const nodes: SkillMapNode[] = layout.nodes.map((node) => {
-    // Each layer is centred on the widest one, so the picture reads as a river
-    // rather than as a left-aligned staircase, and an edge between neighbouring
-    // layers is short enough to follow with your eye.
-    const layerWidth = perLayer.get(node.depth)! * STEP_X - SKILL_MAP.gapX;
-    const x = Math.round(
-      SKILL_MAP.padding + (content - layerWidth) / 2 + node.index * STEP_X,
-    );
+    /*
+     * Layers share a left margin and a column grid.
+     *
+     * They were centred first, and centring is prettier on a desktop — a
+     * two-node layer over a five-node one draws a symmetric diamond, and the
+     * subject looks like it opens out and converges again. It is also wrong,
+     * and a phone is where you find out: the picture is 950px, a phone column
+     * is 340, so it has to be panned, and panning starts at the left. With the
+     * layers centred, the left of the canvas is where the *narrow* layers
+     * aren't — so the screen a learner actually opens on is blank at the top,
+     * with the roots of their own subject off-frame to the right.
+     *
+     * A shared left margin means scroll position zero shows the first column
+     * of every layer, top to bottom, on any width. What it costs is a symmetry
+     * that carried no information: which column a skill sits in has never meant
+     * anything, so nothing true was being said by centring it.
+     */
+    const x = Math.round(SKILL_MAP.padding + node.index * STEP_X);
     const y = SKILL_MAP.padding + node.depth * STEP_Y;
     const lines = wrapLabel(node.name, SKILL_MAP.maxChars, SKILL_MAP.maxLines);
 

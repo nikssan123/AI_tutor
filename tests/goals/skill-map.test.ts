@@ -166,24 +166,39 @@ describe("buildSkillMap", () => {
   });
 
   /**
-   * Layers used to start at the left margin, so a layer of one sat in the
-   * corner above a layer of five and every edge between them raked across the
-   * whole picture. Each layer is centred on the canvas now.
+   * The property a phone depends on. The picture is wider than a phone column
+   * and always will be, so it is panned — and panning starts at the left. With
+   * the layers centred (which they were, because it draws a prettier diamond)
+   * the left of the canvas is exactly where the narrow layers are *not*, so a
+   * learner opened on a blank corner with the roots of their own subject
+   * off-frame. A shared left margin means scroll position zero shows the first
+   * column of every layer.
    */
-  it("centres each layer on the canvas", () => {
+  it("starts every layer at the same left margin", () => {
     const map = mapFor();
-    const middle = map.width / 2;
 
     const byRow = new Map<number, number[]>();
     for (const node of map.nodes) {
       byRow.set(node.y, [...(byRow.get(node.y) ?? []), node.x]);
     }
 
+    expect(byRow.size).toBeGreaterThan(1);
     for (const xs of byRow.values()) {
-      const left = Math.min(...xs);
-      const right = Math.max(...xs) + SKILL_MAP.nodeWidth;
-      expect((left + right) / 2).toBeCloseTo(middle, 0);
+      expect(Math.min(...xs)).toBe(SKILL_MAP.padding);
     }
+  });
+
+  /** And the columns line up, so the grid reads as deliberate. */
+  it("puts every layer on the same column grid", () => {
+    const columns = new Set(
+      mapFor().nodes.map((n) => (n.x - SKILL_MAP.padding) % 1),
+    );
+    const xs = [...new Set(mapFor().nodes.map((n) => n.x))].sort(
+      (a, b) => a - b,
+    );
+
+    expect(columns).toEqual(new Set([0]));
+    expect(xs[1]! - xs[0]!).toBe(SKILL_MAP.nodeWidth + SKILL_MAP.gapX);
   });
 
   it("leaves the padding it claims on every side", () => {

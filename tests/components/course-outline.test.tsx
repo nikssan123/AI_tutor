@@ -266,6 +266,20 @@ describe("the state marks", () => {
     expect(row.textContent).toContain("You'll be able to");
   });
 
+  /**
+   * A section title had `flex-1` with no basis, so its hypothetical size was
+   * zero and the row never wrapped on its account — it handed the title
+   * whatever the facts and the status left over. At a 390px viewport that was
+   * ten pixels, and "Exposure" painted straight over "3 skills · 4h to go".
+   */
+  it("gives the section title a basis so a narrow row wraps instead of crushing it", () => {
+    render(<CourseOutline outline={outline()} />);
+    const title = screen.getByText("Joining tables");
+
+    expect(title.className).toContain("basis-40");
+    expect(title.className).toContain("break-words");
+  });
+
   /** The legend draws the same tiles, or it is a second thing to learn. */
   it("keys the list with the marks the rows use", () => {
     const { container } = render(
