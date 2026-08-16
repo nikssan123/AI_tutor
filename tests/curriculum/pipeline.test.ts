@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   canonicalCurriculum,
-  MIN_MODULES,
   topologicalOrder,
 } from "@/lib/curriculum/canonical";
 import { applyRepairs, isRepairable } from "@/lib/curriculum/repair";
@@ -30,7 +29,17 @@ import type {
 const NOW = "2026-08-13T09:00:00.000Z";
 const priors = { pInit: 0.2, pLearn: 0.15, pSlip: 0.1, pGuess: 0.25 };
 
-function skill(id: string, level: EngineSkill["level"] = "core"): EngineSkill {
+/**
+ * `area` defaults to the id, so a fixture skill is its own area unless a test
+ * says otherwise — which keeps every assertion about ordering and projects
+ * reading one module per skill, as they did before modules were grouped.
+ * Grouping has its own tests, which share an area deliberately.
+ */
+function skill(
+  id: string,
+  level: EngineSkill["level"] = "core",
+  area = id,
+): EngineSkill {
   return {
     id,
     slug: id,
@@ -40,7 +49,7 @@ function skill(id: string, level: EngineSkill["level"] = "core"): EngineSkill {
     estimatedHours: 4,
     bktPriors: priors,
     canDoStatement: `Do ${id}`,
-    area: "core",
+    area,
   };
 }
 
@@ -232,19 +241,140 @@ describe("the canonical fallback", () => {
     expect(draft.modules.some((m) => m.outputArtifact === "project")).toBe(false);
   });
 
-  it("returns null rather than padding when there is too little to teach", () => {
-    // Inventing work to reach the three-module floor would be worse than
-    // saying there is no path.
+  /**
+   * There is no module floor any more, and its removal is the point.
+   *
+   * Three was the wrong shape of rule: it counted modules when what it was
+   * really asking was whether there is a course here at all, and grouping by
+   * area changes the count without changing the answer. A subject that is
+   * genuinely one module long is one module long — refusing to draw it does
+   * not make it bigger.
+   */
+  it("draws a short course rather than refusing to draw one", () => {
+    const draft = canonicalCurriculum({
+      graph: GRAPH,
+      requiredSkillIds: ["alpha"],
+      mastery: [],
+      now: NOW,
+      rubricCriteria: new Map(),
+    });
+
+    expect(draft!.modules).toHaveLength(1);
+    expect(draft!.modules[0]!.targetSkillIds).toEqual(["alpha"]);
+  });
+
+  it("returns null only when there is nothing left to teach", () => {
     expect(
       canonicalCurriculum({
         graph: GRAPH,
-        requiredSkillIds: ["alpha"],
+        requiredSkillIds: [],
         mastery: [],
         now: NOW,
         rubricCriteria: new Map(),
       }),
     ).toBeNull();
-    expect(MIN_MODULES).toBe(3);
+  });
+
+  /**
+   * The fault nobody saw until goals started building their paths on their own:
+   * a fifteen-skill course arrived as fifteen modules of one item each. The
+   * outline had been hiding it, because with no curriculum stored it groups by
+   * the pack's own areas — which is what this now does too.
+   */
+  it("groups a run of same-area skills into one module", () => {
+    const graph: EngineSkillGraph = {
+      skills: [
+        skill("alpha", "foundational", "basics"),
+        skill("beta", "core", "basics"),
+        skill("gamma", "core", "finishing"),
+      ],
+      dependencies: [{ fromSkillId: "alpha", toSkillId: "beta", type: "hard", strength: 1 }],
+    };
+
+    const draft = canonicalCurriculum({
+      graph,
+      requiredSkillIds: ["alpha", "beta", "gamma"],
+      mastery: [],
+      now: NOW,
+      rubricCriteria: new Map(),
+    })!;
+
+    expect(draft.modules).toHaveLength(2);
+    expect(draft.modules[0]!.targetSkillIds).toEqual(["alpha", "beta"]);
+    // The area's name, not a skill's — the same transform the outline uses, so
+    // a module and the section it replaces cannot be called different things.
+    expect(draft.modules[0]!.title).toBe("Basics");
+    // And the hours are the run's, not one skill's.
+    expect(draft.modules[0]!.estimatedHours).toBe(8);
+    expect(draft.modules[0]!.acceptanceCriteria).toEqual([
+      "Do alpha",
+      "Do beta",
+    ]);
+  });
+
+  /**
+   * A module is a *slice* of a valid topological order, which is what makes it
+   * safe: everything it needs was taught in an earlier one, by construction.
+   * The area tiebreak is what stops that slicing into confetti — without it an
+   * order that hops between areas on every tie produces a module per hop.
+   */
+  it("finishes an area before starting another, where it is free to", () => {
+    const graph: EngineSkillGraph = {
+      skills: [
+        skill("a1", "core", "one"),
+        skill("a2", "core", "one"),
+        skill("b1", "core", "two"),
+        skill("b2", "core", "two"),
+      ],
+      dependencies: [],
+    };
+
+    const draft = canonicalCurriculum({
+      graph,
+      requiredSkillIds: ["a1", "a2", "b1", "b2"],
+      mastery: [],
+      now: NOW,
+      rubricCriteria: new Map(),
+    })!;
+
+    // Alphabetically the ready set interleaves a1, a2, b1, b2 only because the
+    // ids happen to sort that way; the assertion that matters is two modules.
+    expect(draft.modules).toHaveLength(2);
+    expect(draft.modules.map((m) => m.title)).toEqual(["One", "Two"]);
+  });
+
+  it("never lets a module need something a later one teaches", () => {
+    const graph: EngineSkillGraph = {
+      skills: [
+        skill("x1", "core", "one"),
+        skill("y1", "core", "two"),
+        skill("x2", "core", "one"),
+      ],
+      // The middle of area two is needed by the tail of area one, so the two
+      // cannot simply be gathered up by name.
+      dependencies: [
+        { fromSkillId: "x1", toSkillId: "y1", type: "hard", strength: 1 },
+        { fromSkillId: "y1", toSkillId: "x2", type: "hard", strength: 1 },
+      ],
+    };
+
+    const draft = canonicalCurriculum({
+      graph,
+      requiredSkillIds: ["x1", "y1", "x2"],
+      mastery: [],
+      now: NOW,
+      rubricCriteria: new Map(),
+    })!;
+
+    const taught = new Set<string>();
+    for (const mod of draft.modules) {
+      for (const id of mod.targetSkillIds) {
+        for (const dep of graph.dependencies.filter((d) => d.toSkillId === id)) {
+          expect(taught.has(dep.fromSkillId) || mod.targetSkillIds.includes(dep.fromSkillId)).toBe(true);
+        }
+      }
+      for (const id of mod.targetSkillIds) taught.add(id);
+    }
   });
 
   it("ignores a required skill the graph has never heard of", () => {
@@ -558,7 +688,7 @@ describe("generateValidatedCurriculum", () => {
     expect(outcome.attempts).toBe(MAX_GENERATION_ATTEMPTS);
     expect(create).toHaveBeenCalledTimes(MAX_GENERATION_ATTEMPTS);
     expect(outcome.report!.passed).toBe(true);
-    expect(outcome.draft!.modules.length).toBeGreaterThanOrEqual(MIN_MODULES);
+    expect(outcome.draft!.modules.length).toBeGreaterThan(0);
   });
 
   it("falls back when the model refuses outright", async () => {
@@ -783,13 +913,33 @@ describe("generateValidatedCurriculum", () => {
 
     const outcome = await generateValidatedCurriculum(
       { client, db, userId: null, spotCheck: clean },
-      // One skill left to teach: below the floor for a curriculum.
-      { ...architectInput, goalSkillIds: ["alpha"] },
+      // Nothing left to teach, which is now the only thing that empties the
+      // fallback. It used to be "fewer than three skills", and a learner with
+      // two left to learn was told there was no path rather than shown the two.
+      { ...architectInput, goalSkillIds: [] },
     );
 
     expect(outcome.source).toBe("none");
     expect(outcome.draft).toBeNull();
     expect(outcome.report).toBeNull();
+  });
+
+  /**
+   * And the case that used to land there by mistake: a model that failed twice
+   * on a subject with a single skill left now falls back to that one skill,
+   * rather than to nothing.
+   */
+  it("falls back to a short path rather than to none", async () => {
+    const broken = draftOf([mod(0, ["ghost"]), mod(1, ["ghoul"]), mod(2, ["wraith"])]);
+    const { client } = modelReturning([broken, broken]);
+
+    const outcome = await generateValidatedCurriculum(
+      { client, db, userId: null, spotCheck: clean },
+      { ...architectInput, goalSkillIds: ["alpha"] },
+    );
+
+    expect(outcome.source).toBe("canonical");
+    expect(outcome.draft!.modules).toHaveLength(1);
   });
 });
 

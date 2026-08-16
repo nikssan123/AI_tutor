@@ -151,11 +151,24 @@ export interface RoadmapInput {
 }
 
 /**
- * Returns `null` when there is no plan left to draw — fewer than three modules,
- * which means either a subject too small to lay out or a learner who has proved
- * nearly all of it. Both are real answers and the page gives them; padding back
- * up to a respectable length would mean inventing work, which is the call
- * `canonicalCurriculum` already makes and for the same reason.
+ * Three, or this page has nothing to draw.
+ *
+ * The floor used to live in `canonicalCurriculum` and applied to every caller,
+ * which is why it came out: a *course* two modules long is two modules long,
+ * and refusing to draw it does not make it bigger. Here it is about something
+ * real. This is a public page whose whole offer is "here is your roadmap", and
+ * a roadmap with two rows on it is a screenshot nobody shares and a promise the
+ * page did not keep. Saying there is nothing to lay out is the better answer,
+ * and the page already has the words for it.
+ */
+export const MIN_ROADMAP_ENTRIES = 3;
+
+/**
+ * Returns `null` when there is no plan left to draw — fewer than
+ * `MIN_ROADMAP_ENTRIES` entries, which means either a subject too small to lay
+ * out or a learner who has proved nearly all of it. Both are real answers and
+ * the page gives them; padding back up to a respectable length would mean
+ * inventing work.
  */
 export function buildRoadmap(input: RoadmapInput): Roadmap | null {
   const graph = toEngineGraph(input.pack);
@@ -166,6 +179,16 @@ export function buildRoadmap(input: RoadmapInput): Roadmap | null {
   });
 
   const draft = canonicalCurriculum({
+    /*
+     * One entry per skill, unlike a course.
+     *
+     * A course groups its modules by area, because a module is a piece of the
+     * subject with a name. A roadmap entry is a week and a single thing you
+     * will be able to do at the end of it — grouping would blur precisely what
+     * this page exists to show, and would leave `canDo` below quoting the first
+     * of several statements as though it were the whole module.
+     */
+    grouping: "skill",
     graph,
     requiredSkillIds: projection.requiredSkillIds,
     mastery: input.mastery,
@@ -181,7 +204,7 @@ export function buildRoadmap(input: RoadmapInput): Roadmap | null {
     })),
   });
 
-  if (!draft) return null;
+  if (!draft || draft.modules.length < MIN_ROADMAP_ENTRIES) return null;
 
   const byId = new Map(graph.skills.map((s) => [s.id, s]));
 

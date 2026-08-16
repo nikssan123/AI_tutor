@@ -1,7 +1,7 @@
 import { effectiveMastery } from "@/lib/engine/bkt";
 import { buildIndex, prerequisitesOf } from "@/lib/engine/graph";
 import { HARD_PREREQ_THRESHOLD, remainingHoursFor } from "@/lib/engine/scoring";
-import { topologicalOrder } from "@/lib/curriculum/canonical";
+import { areaTitle, topologicalOrder } from "@/lib/curriculum/canonical";
 import type { CurriculumModule } from "@/lib/contracts/curriculum";
 import type { SkillProjection } from "@/lib/contracts/goal";
 import type { EngineSkill, EngineSkillGraph, MasteryState } from "@/lib/engine";
@@ -120,12 +120,6 @@ function round1(hours: number): number {
 function andList(names: string[]): string {
   if (names.length === 1) return names[0]!;
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)!}`;
-}
-
-/** "money-over-time" → "Money over time". A pack authors areas in slug case. */
-function areaTitle(area: string): string {
-  const words = area.replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /**
