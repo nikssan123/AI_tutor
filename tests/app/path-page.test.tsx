@@ -478,8 +478,10 @@ describe("the modules", () => {
     expect(screen.queryByText("Build my path")).toBeNull();
     expect(screen.getByRole("link", { name: /Start today/ })).toBeDefined();
 
-    // §14.6 — the learner can see what was checked before they were shown this.
-    expect(screen.getByText("Prerequisites are in order.")).toBeDefined();
+    // §14.6 — the learner can see what was checked before they were shown
+    // this: the name of every check, and what the one that did not pass found.
+    expect(screen.getByText("1 of 2 flagged")).toBeDefined();
+    expect(screen.getByText("Nothing before its prerequisites")).toBeDefined();
     expect(screen.getByText("30h against 45h available.")).toBeDefined();
     expect(screen.getByText("Flagged")).toBeDefined();
   });
@@ -496,7 +498,7 @@ describe("the modules", () => {
     });
     render(await PathPage());
     expect(
-      screen.queryByText("What we checked before showing you this"),
+      screen.queryByText("Every check this plan had to clear"),
     ).toBeNull();
   });
 });

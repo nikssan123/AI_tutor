@@ -25,6 +25,7 @@ import {
 import { ChevronIcon } from "@/components/icons";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { CourseOutline, OutlineLegend } from "@/components/course-outline";
+import { CurriculumChecks } from "@/components/curriculum-checks";
 import { SkillMap } from "@/components/skill-map";
 import { findPathBuild } from "@/lib/curriculum/build-state";
 import { nudgeAt } from "@/lib/billing/gate";
@@ -381,21 +382,15 @@ export default async function PathPage() {
         <section className="rise flex flex-col gap-6" style={stagger(4)}>
           <SectionHead
             label="Before you saw it"
-            title="What we checked before showing you this"
+            title="Every check this plan had to clear"
           />
-          <ul className="m-0 flex list-none flex-col gap-0 overflow-hidden rounded-[var(--radius-card)] bg-surface p-0 shadow-[var(--shadow-raised)]">
-            {stored.report.checks.map((c) => (
-              <li
-                key={c.name}
-                className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-hairline px-5 py-4 last:border-b-0"
-              >
-                <Status tone={c.passed ? "verified" : "attention"}>
-                  {c.passed ? "Pass" : "Flagged"}
-                </Status>
-                <Meta>{c.detail}</Meta>
-              </li>
-            ))}
-          </ul>
+          <Lead>
+            A plan is checked against the subject&rsquo;s own graph, and against
+            what you have already proved, before it becomes your course. One
+            that fails a hard check goes back to be rewritten rather than out to
+            you.
+          </Lead>
+          <CurriculumChecks report={stored.report} />
         </section>
       ) : null}
     </AppFrame>
