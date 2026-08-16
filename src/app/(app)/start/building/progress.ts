@@ -1,4 +1,7 @@
 import { BUILD_STAGES, type BuildStage } from "@/lib/packs/build";
+import { stepStatesFor, type StepState } from "@/components/step-list";
+
+export type { StepState };
 
 /**
  * What the wait screen says, kept out of the screen itself so it can be tested
@@ -95,23 +98,17 @@ export const BUILD_STEPS: readonly BuildStep[] = BUILD_STAGES.map((stage) => ({
   ...COPY[stage],
 }));
 
-export type StepState = "done" | "running" | "waiting";
-
 /**
  * Where each step stands, given the phase the row says the build is in.
  *
- * A null stage — the row is written before the worker picks it up — leaves
- * every step waiting rather than lighting the first one. The difference is
- * small on screen and is the whole point: a queued build has not started
- * working out the skills, and saying it has is the sort of small lie that makes
- * the rest of the screen worth nothing.
+ * The rule — a queued build has not started working out the skills, and a
+ * screen that lights the first step anyway is telling a small lie that makes
+ * the rest of it worth nothing — is `stepStatesFor`'s, shared with the path
+ * screen's wait. This is the pack pipeline's stages bound to it, kept so the
+ * page and its tests call one function with one argument.
  */
 export function stepStates(stage: BuildStage | null): StepState[] {
-  const at = stage === null ? -1 : BUILD_STAGES.indexOf(stage);
-
-  return BUILD_STAGES.map((_, i) =>
-    i < at ? "done" : i === at ? "running" : "waiting",
-  );
+  return stepStatesFor(BUILD_STAGES, stage);
 }
 
 /**

@@ -5,11 +5,10 @@ import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
 import { BUILD_TIMEOUT_MINUTES, findBuild } from "@/lib/packs/build";
-import { TickIcon } from "@/components/icons";
+import { StepList } from "@/components/step-list";
 import {
   Button,
   ButtonLink,
-  cx,
   HeroBand,
   Meta,
   Row,
@@ -26,7 +25,6 @@ import {
   elapsedWords,
   SLOW_AFTER_MINUTES,
   stepStates,
-  type StepState,
   TYPICAL_MAX_MINUTES,
   TYPICAL_MINUTES,
 } from "./progress";
@@ -60,32 +58,6 @@ export const metadata: Metadata = {
 const REFRESH_SECONDS = 6;
 
 type Props = { searchParams: Promise<{ subject?: string }> };
-
-/** The disc at the head of a step: filled, ringed, or empty. */
-const MARKER: Record<StepState, string> = {
-  done: "bg-accent text-on-accent",
-  running: "border-2 border-accent bg-accent-weak",
-  waiting: "border border-hairline",
-};
-
-/**
- * What the marker means, for a reader who cannot see it.
- *
- * §8.5.5 bans colour as the sole carrier of meaning, and a tick against a
- * teal disc is exactly that. This is the same rule the `Status` dot follows by
- * always carrying its word.
- */
-const SAID: Record<StepState, string> = {
-  done: "Done: ",
-  running: "Happening now: ",
-  waiting: "Still to come: ",
-};
-
-const LABEL: Record<StepState, string> = {
-  done: "text-ink font-[550]",
-  running: "text-ink font-[650]",
-  waiting: "text-ink-faint font-[550]",
-};
 
 export default async function BuildingPage({ searchParams }: Props) {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -344,56 +316,7 @@ export default async function BuildingPage({ searchParams }: Props) {
           </>
         }
       >
-        <ol className="m-0 flex list-none flex-col p-0">
-          {BUILD_STEPS.map((step, i) => {
-            const state = states[i]!;
-
-            return (
-              <li key={step.stage} className="relative flex gap-4 pb-5 last:pb-0">
-                {/* The thread between the markers, drawn behind them and
-                    stopped short of the last one so the list ends rather than
-                    trailing off. */}
-                {i < BUILD_STEPS.length - 1 ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-7 bottom-0 left-3 w-px -translate-x-1/2 bg-hairline"
-                  />
-                ) : null}
-
-                <span
-                  className={cx(
-                    "relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full",
-                    MARKER[state],
-                  )}
-                >
-                  {state === "done" ? <TickIcon className="size-3.5" /> : null}
-                  {/* The only moving thing on the screen, and it moves for as
-                      long as the step does. Reduced motion stops it at one
-                      cycle — see the global clamp in tokens.css. */}
-                  {state === "running" ? (
-                    <span
-                      aria-hidden="true"
-                      className="size-2 animate-pulse rounded-full bg-accent"
-                    />
-                  ) : null}
-                </span>
-
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span
-                    className={cx(
-                      "text-[length:var(--text-label-size)]",
-                      LABEL[state],
-                    )}
-                  >
-                    <span className="sr-only">{SAID[state]}</span>
-                    {step.title}
-                  </span>
-                  <Meta>{step.note}</Meta>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+        <StepList steps={BUILD_STEPS} states={states} />
 
         {/*
          * Only once it is genuinely slow, and it explains rather than soothes.
