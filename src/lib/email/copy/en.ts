@@ -169,6 +169,36 @@ export const en = {
     },
   },
 
+  /**
+   * Mail the product sends about a learner's own work, rather than about their
+   * money or their credentials.
+   *
+   * `packReady` exists because a generated pack is the one thing this product
+   * does that takes minutes and happens off the request path. Somebody asks for
+   * a subject, watches a progress screen for a while, and closes the tab —
+   * and until this message there was nothing at all to bring them back. The
+   * build finished, the course sat there, and the only mail the pipeline ever
+   * sent went to *us*, on failure.
+   *
+   * **It sells nothing**, and that is deliberate. There is a paid plan behind
+   * this course and the app says so the moment they arrive (`pack_built` in
+   * `src/lib/billing/nudge.ts`); an email that opened with the price would be
+   * charging admission to a thing they already commissioned. This says the work
+   * is done and where to find it.
+   */
+  lifecycle: {
+    packReady: {
+      subject: "{topic} is ready · {brand}",
+      heading: "Your course is written",
+      body: [
+        "You asked us to build {topic}, and it now exists — the whole skill map, in the order the skills actually build on each other, with graded work at the end of it.",
+        "It opens with a short diagnostic rather than with lesson one, so whatever you can already do, you skip past.",
+      ],
+      action: "See your plan",
+      footer: "You're getting this because you asked us to build this subject.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Welcome to {brand}, {name}",

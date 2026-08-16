@@ -141,6 +141,19 @@ export const es: EmailStrings = {
     },
   },
 
+  lifecycle: {
+    packReady: {
+      subject: "{topic} ya está listo · {brand}",
+      heading: "Tu curso ya está escrito",
+      body: [
+        "Nos pediste que construyéramos {topic} y ya existe: el mapa completo de habilidades, en el orden en que unas se apoyan realmente en otras, con trabajo corregido al final.",
+        "Empieza con un diagnóstico corto en lugar de con la lección uno, así que todo lo que ya sepas hacer te lo saltas.",
+      ],
+      action: "Ver tu plan",
+      footer: "Recibes este correo porque nos pediste que construyéramos este tema.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Te damos la bienvenida a {brand}, {name}",

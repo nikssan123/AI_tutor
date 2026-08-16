@@ -1,5 +1,7 @@
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 import type { ThemeChoice } from "@/lib/theme-script";
+import type { EnvLike } from "@/lib/env-types";
+import { canonical } from "@/lib/site";
 import { copyFor } from "./copy";
 import { fill, humanDuration, renderMessage, type EmailMessage } from "./render";
 
@@ -167,6 +169,58 @@ export function changeEmailMessage(input: {
       body: copy.system.changeEmail.body.map((line) => fill(line, values)),
       action: { label: copy.system.changeEmail.action, url: input.url },
       footer: fill(copy.system.changeEmail.footer, values),
+    },
+  });
+}
+
+/**
+ * "The subject you asked for exists now" — the one message this product sends
+ * about a build rather than about an account.
+ *
+ * It is here rather than in `catalog.ts` because nobody presses a button to
+ * send it. A generated pack takes about three minutes on a queue, which means
+ * the learner who commissioned it is very often not looking at the screen when
+ * it lands; the operator template of the same name is for the case where a
+ * person decides to write, and this is for the case where the pipeline finishes
+ * at 2am.
+ *
+ * No signature, for that reason. `operator.packReady` is signed because a human
+ * chose to send it and will read the reply; signing an automated message with a
+ * person's name is a small lie that gets found out the moment somebody answers
+ * it.
+ *
+ * The link is absolute and built here, not passed in: every caller is a queue
+ * worker with no request to resolve a relative URL against.
+ */
+export function packReadyMessage(input: {
+  to: string;
+  /** The subject in the learner's own words, as they asked for it. */
+  topic: string;
+  locale?: Locale;
+  theme?: ThemeChoice;
+  env?: EnvLike;
+}): EmailMessage {
+  const locale = input.locale ?? DEFAULT_LOCALE;
+  const copy = copyFor(locale);
+  const values = { brand: copy.brand, topic: input.topic };
+
+  return renderMessage({
+    to: input.to,
+    theme: input.theme,
+    env: input.env,
+    subject: fill(copy.lifecycle.packReady.subject, values),
+    locale,
+    content: {
+      heading: fill(copy.lifecycle.packReady.heading, values),
+      body: copy.lifecycle.packReady.body.map((line) => fill(line, values)),
+      action: {
+        label: fill(copy.lifecycle.packReady.action, values),
+        // `/path`, not `/today`: what was just built is a *plan*, and the screen
+        // that shows the whole of it is the one that makes three minutes of
+        // waiting look like it bought something. `/today` shows one session.
+        url: canonical("/path", input.env),
+      },
+      footer: fill(copy.lifecycle.packReady.footer, values),
     },
   });
 }

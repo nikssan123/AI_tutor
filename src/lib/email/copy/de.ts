@@ -141,6 +141,20 @@ export const de: EmailStrings = {
     },
   },
 
+  lifecycle: {
+    packReady: {
+      subject: "{topic} ist fertig · {brand}",
+      heading: "Ihr Kurs ist geschrieben",
+      body: [
+        "Sie haben uns gebeten, {topic} aufzubauen — und jetzt gibt es ihn: die vollständige Kompetenzkarte, in der Reihenfolge, in der die Kompetenzen tatsächlich aufeinander aufbauen, mit bewerteter Arbeit am Ende.",
+        "Er beginnt mit einer kurzen Standortbestimmung statt mit Lektion eins: Was Sie bereits können, überspringen Sie.",
+      ],
+      action: "Ihren Plan ansehen",
+      footer:
+        "Sie erhalten diese E-Mail, weil Sie uns um dieses Thema gebeten haben.",
+    },
+  },
+
   operator: {
     welcome: {
       subject: "Willkommen bei {brand}, {name}",

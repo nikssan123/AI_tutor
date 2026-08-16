@@ -3,6 +3,7 @@ import {
   changeEmailMessage,
   escapeHtml,
   humanDuration,
+  packReadyMessage,
   resetPasswordMessage,
   verifyCodeMessage,
   verifyEmailMessage,
@@ -320,4 +321,89 @@ describe("the reader's theme", () => {
       );
     },
   );
+});
+
+/**
+ * The one message the product sends about a build rather than about an account.
+ *
+ * Its value is entirely in arriving: a generated pack takes about three minutes
+ * on a queue, and everything this product charges for is downstream of the
+ * learner coming back to a course they may not know exists yet.
+ */
+describe("packReadyMessage", () => {
+  const message = (over: { locale?: Locale; theme?: ThemeChoice } = {}) =>
+    packReadyMessage({
+      to: "ana@example.com",
+      topic: ".NET development",
+      ...over,
+    });
+
+  it("names the subject in the learner's own words, in the subject line", () => {
+    // An inbox is scanned, not read. The subject they typed is the only thing
+    // in this message that identifies it as theirs.
+    expect(message().subject).toContain(".NET development");
+  });
+
+  it("points at the plan rather than at today's session", () => {
+    // `/path` is the whole course; `/today` is one session off it. Only the
+    // first makes three minutes of waiting look like it bought something.
+    const sent = message();
+    expect(sent.text).toContain("/path");
+    expect(sent.html).toContain("/path");
+  });
+
+  it("carries an absolute link, because no request will resolve a relative one", () => {
+    // Every caller is a queue worker. A root-relative href in an email client
+    // resolves against the mail host, which is nobody's.
+    expect(message().html).toMatch(/href="https?:\/\/[^"]+\/path"/);
+  });
+
+  it("does not sign itself with a person's name", () => {
+    /*
+     * `operator.packReady` is signed because a human chose to send it and will
+     * read the reply. This one fires off a queue at 2am; a name on it is a
+     * small lie that gets found out the moment somebody answers.
+     */
+    // A sign-off is its own block opening with an em dash — `operator.reply`
+    // and friends all end "— {sender}". An em dash mid-sentence is prose.
+    expect(message().text).not.toMatch(/^—/m);
+  });
+
+  it("sells nothing, because they already commissioned this", () => {
+    /*
+     * The ask belongs in the app, at the moment they see the plan (`pack_built`
+     * in `src/lib/billing/nudge.ts`). An email that opened with the price would
+     * be charging admission to a thing they asked us to build.
+     */
+    const sent = message();
+    expect(sent.text).not.toMatch(/pricing|upgrade|Pro\b|€|\$/);
+  });
+
+  it.each(LOCALES)("writes to a %s reader in their own language", (locale) => {
+    const sent = message({ locale });
+    expect(sent.html).toContain(`lang="${locale}"`);
+    expect(sent.subject).toContain(".NET development");
+  });
+
+  it("honours the reader's theme, and defaults to asking their client", () => {
+    expect(message({ theme: "dark" }).html).toContain(
+      `background:${dark.ground}`,
+    );
+    expect(message({ theme: "light" }).html).toContain(
+      `background:${light.ground}`,
+    );
+    expect(message().html).toContain("@media (prefers-color-scheme:dark)");
+  });
+
+  it("neutralises a subject the learner typed", () => {
+    // `topic` is free text from the goal conversation, and it lands in an HTML
+    // body somebody else's client renders.
+    const sent = packReadyMessage({
+      to: "ana@example.com",
+      topic: '<img src=x onerror="alert(1)">',
+    });
+
+    expect(sent.html).not.toContain("<img");
+    expect(sent.html).toContain("&lt;img");
+  });
 });

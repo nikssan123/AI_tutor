@@ -24,6 +24,13 @@ function entriesOf(locale: Locale) {
     ...Object.entries(copy.system).map(
       ([name, entry]) => [`system.${name}`, entry] as const,
     ),
+    // The automated learner-facing mail. Held to the same three rules as the
+    // rest: no dropped placeholder, no empty string, no paragraph left in
+    // English. `packReady` interpolates the subject somebody typed, so a
+    // translation that lost `{topic}` would send them a course with no name.
+    ...Object.entries(copy.lifecycle).map(
+      ([name, entry]) => [`lifecycle.${name}`, entry] as const,
+    ),
     ...Object.entries(copy.operator).map(
       ([name, entry]) => [`operator.${name}`, entry] as const,
     ),

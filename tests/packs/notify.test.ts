@@ -4,6 +4,7 @@ import {
   failureBody,
   failureSubject,
   notifyBuildFailed,
+  notifyPackReady,
   type BuildFailure,
 } from "@/lib/packs/notify";
 
@@ -110,5 +111,113 @@ describe("notifyBuildFailed", () => {
     expect(sent).toBe(false);
     expect(marked).toEqual([]);
     logged.mockRestore();
+  });
+});
+
+/**
+ * Telling the learner their subject exists now.
+ *
+ * The mirror of everything above, and the send that was simply missing: a build
+ * takes about three minutes on a queue, so the person who commissioned it is
+ * very often gone by the time it lands. Until this, a pack that *worked*
+ * produced a finished course, a wait screen nobody was looking at, and no mail
+ * at all — while a pack that failed at least told somebody.
+ */
+describe("notifyPackReady", () => {
+  /** A `db` whose one query answers with these rows. */
+  const dbWith = (rows: unknown[]) =>
+    ({
+      select: () => ({
+        from: () => ({
+          where: () => ({ limit: async () => rows }),
+        }),
+      }),
+    }) as never;
+
+  const READER = {
+    email: "ana@example.com",
+    locale: "en",
+    theme: "system",
+  };
+
+  it("writes to the learner who asked, about the subject they asked for", async () => {
+    const sent = await notifyPackReady(dbWith([READER]), {
+      subject: ".NET development",
+      userId: "u1",
+    });
+
+    expect(sent).toBe(true);
+    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent[0]!.to).toBe("ana@example.com");
+    expect(transport.sent[0]!.subject).toContain(".NET development");
+  });
+
+  it("sends them to the plan, which is what three minutes bought", () => {
+    // `/today` shows one session; `/path` shows the whole course. The wait is
+    // only justified by the second.
+    return notifyPackReady(dbWith([READER]), {
+      subject: "Rust",
+      userId: "u1",
+    }).then(() => {
+      expect(transport.sent[0]!.text).toContain("/path");
+    });
+  });
+
+  it("says nothing when there is nobody left to tell", async () => {
+    /*
+     * `requestedBy` is nullable and its docstring says the pack outlives the
+     * person who asked for it, so a build finishing after its commissioner
+     * deleted their account is a case that happens rather than one that is
+     * broken.
+     */
+    const sent = await notifyPackReady(dbWith([]), {
+      subject: "Rust",
+      userId: "gone",
+    });
+
+    expect(sent).toBe(false);
+    expect(transport.sent).toEqual([]);
+  });
+
+  it("writes in the reader's own language", async () => {
+    // The locale is read off the row at send time, the same way every other
+    // message in the product resolves one.
+    await notifyPackReady(dbWith([{ ...READER, locale: "bg" }]), {
+      subject: "Rust",
+      userId: "u1",
+    });
+
+    expect(transport.sent[0]!.html).toContain('lang="bg"');
+  });
+
+  it("does not take the build down with it when the mail fails", async () => {
+    /*
+     * `deliver`, not `sendMessage` — the same argument the failure path makes.
+     * The pack is built and seeded by this point; a transport having an
+     * afternoon must not undo that. The honest consequence is that they find
+     * the course on their next visit instead.
+     */
+    setTransport({
+      name: "broken",
+      send: () => Promise.reject(new Error("Resend is having an afternoon")),
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      notifyPackReady(dbWith([READER]), { subject: "Rust", userId: "u1" }),
+    ).resolves.toBe(false);
+
+    logged.mockRestore();
+  });
+
+  it("leaves the build row's own notification record alone", async () => {
+    /*
+     * `pack_build.notified_at` means "the team was told this stopped" and is
+     * read by `/admin/packs`, which lists stopped builds only. Widening it to
+     * mean two things would make the one screen that depends on it ambiguous.
+     */
+    await notifyPackReady(dbWith([READER]), { subject: "Rust", userId: "u1" });
+
+    expect(marked).toEqual([]);
   });
 });
