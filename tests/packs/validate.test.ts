@@ -6,6 +6,7 @@ import {
   MIN_PRODUCTION_TO_MCQ_RATIO,
   PackValidationError,
   toEngineGraph,
+  toEngineItems,
   validatePack,
 } from "@/lib/packs/validate";
 import { PRODUCTION_ITEM_TYPES } from "@/lib/packs/types";
@@ -425,6 +426,46 @@ describe("toEngineGraph", () => {
       level: "foundational",
     });
     expect(alpha!.bktPriors.pInit).toBe(0.2);
+  });
+});
+
+describe("toEngineItems", () => {
+  it("hands the planner every authored question, with what marks it", () => {
+    const items = toEngineItems(fixture("valid-minimal"));
+
+    expect(items.map((i) => i.itemId)).toEqual([
+      "alpha-write",
+      "alpha-explain",
+      "beta-write",
+      "beta-pick",
+    ]);
+    // The types come through untouched — the composer decides which of them a
+    // textarea can ask, and it is the only thing that should decide.
+    expect(items[0]).toMatchObject({
+      skillId: "alpha",
+      type: "short_text",
+      difficulty: 0.2,
+      prompt: "Write out how you would do the alpha thing.",
+    });
+    // No answer key on this one, so `expected` falls back to the can-do
+    // statement rather than leaving a grader with nothing to mark against.
+    expect(items[0]!.expected).toBe(
+      fixture("valid-minimal").skills[0]!.canDoStatement,
+    );
+  });
+
+  it("drops an item whose skill is not in the pack", () => {
+    // The validator rejects such a pack, so this is the hand-edited case: the
+    // alternative is serving a question against a skill that does not exist,
+    // and marking the answer into nothing.
+    const pack = fixture("valid-minimal");
+    const items = toEngineItems({
+      ...pack,
+      items: [...pack.items, { ...pack.items[0]!, slug: "ghost", skill: "gone" }],
+    });
+
+    expect(items.map((i) => i.itemId)).not.toContain("ghost");
+    expect(items).toHaveLength(pack.items.length);
   });
 });
 

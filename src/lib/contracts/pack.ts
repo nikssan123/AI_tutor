@@ -113,6 +113,12 @@ export const DraftItem = z.object({
   /** 0..1, on the same scale as mastery so the diagnostic can match them up. */
   difficulty: z.number().min(0).max(1),
   prompt: z.string().min(10).max(2000),
+  /**
+   * How the answer is typed. Asked of the author rather than inferred from
+   * `type`, because `type` is about the question: "list the exact dotnet CLI
+   * commands" is `short_text` and its answer is entirely code.
+   */
+  answerFormat: z.enum(["prose", "code"]).default("prose"),
   /** MCQ only; 2–5 options with exactly one correct. */
   options: z.array(z.string().min(1).max(400)).min(2).max(5).optional(),
   /** MCQ only: 0-based index into `options`. */

@@ -31,6 +31,7 @@ export function plan(input: PlannerInput): PlannedSession {
     ranked,
     skillsById,
     retrievalQueue: input.retrievalQueue,
+    items: input.items,
     now: input.now,
     depth,
   });

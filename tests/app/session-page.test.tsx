@@ -59,15 +59,19 @@ vi.mock("@/app/(app)/session/[id]/tutor-dock", () => ({
   TutorDock: ({ quiet }: { quiet: boolean }) => (
     <div>tutor panel{quiet ? " (quiet)" : ""}</div>
   ),
-  // The page borrows the dock's own frame for its Suspense fallback, so the
-  // composer does not move when the transcript resolves. Stubbed rather than
-  // dropped: the mock has to export everything the page imports.
-  DOCK_OUTER: "dock-outer",
-  DOCK_INNER: "dock-inner",
-  DOCK_PANEL: "dock-panel",
-  // The lesson column and the dock share one width so they cannot drift apart.
-  SESSION_COLUMN: "max-w-[52rem]",
 }));
+/*
+ * `DOCK_OUTER`, `DOCK_INNER`, `DOCK_PANEL` and `SESSION_COLUMN` are deliberately
+ * *not* stubbed here, and this mock is the reason to say so out loud.
+ *
+ * They used to be exported from `tutor-dock` — a `"use client"` module — and
+ * stubbed above as plain strings. On a server render they are not strings but
+ * client-reference proxies, and `cx()` stringifies a proxy into the class
+ * attribute, so the live page shipped `class="… function() { throw new
+ * Error("Attempted to call SESSION_COLUMN() from the server…") }"` and the
+ * width cap never applied. The stub was the exact shape that hid it. They live
+ * in `./dock-frame` now, a plain module, and this suite renders the real ones.
+ */
 
 import { findPack } from "@/lib/content";
 
@@ -105,6 +109,8 @@ const lesson = {
 function view(over: {
   blocks?: SessionBlock[];
   blockIndex?: number;
+  /** An earlier block being looked back at — `sessionView`'s `?block=`. */
+  viewing?: number;
   response?: BlockResponse;
   completedAt?: Date | null;
 } = {}) {
@@ -112,6 +118,7 @@ function view(over: {
     { type: "explain", skillId: skill.id, content: "c", estMinutes: 10 },
   ];
   const blockIndex = over.blockIndex ?? 0;
+  const viewing = over.viewing ?? blockIndex;
 
   return {
     session: {
@@ -133,7 +140,9 @@ function view(over: {
     // The real pack: the prove-it offer reads its item bank, and a stub with no
     // items would let a page that crashed on a real one pass here.
     pack: { ...findPack("sql-data-analysis")!, name: "SQL for data analysis" },
-    block: blocks[blockIndex],
+    block: blocks[viewing],
+    viewing,
+    lookingBack: viewing < blockIndex,
     skill,
     mastery,
     skillNames: new Map([[skill.id, skill.name]]),
@@ -271,6 +280,68 @@ describe("the session screen", () => {
       .getByRole("button", { name: "Submit answer" })
       .closest("form")!;
     expect(within(form).getByRole("status")).toBeDefined();
+  });
+
+  /**
+   * The box a command gets typed into.
+   *
+   * A learner answered a CLI question with `dotnet new` in a proof-reading
+   * textarea. Nothing here is prose: the grader marks what the answer says and
+   * its own prompt calls spelling irrelevant, so autocorrect and friends have
+   * nothing to be right about and plenty to break.
+   */
+  it("turns the browser's prose habits off in an answer box", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "check",
+            skillId: skill.id,
+            prompt: "State the command",
+            expected: "the command",
+            isRetrieval: false,
+            itemId: "cli-1",
+            answerFormat: "code",
+            estMinutes: 5,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+    const box = screen.getByLabelText("Your answer");
+
+    expect(box.getAttribute("spellcheck")).toBe("false");
+    expect(box.getAttribute("autocapitalize")).toBe("off");
+    expect(box.getAttribute("autocorrect")).toBe("off");
+    // And a code answer gets a box that lines up.
+    expect(box.className).toContain("font-mono");
+    expect(box.getAttribute("placeholder")).toContain("or run it");
+  });
+
+  it("keeps the reading font for an answer that is prose", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "check",
+            skillId: skill.id,
+            prompt: "Why does it behave that way?",
+            expected: "the reason",
+            isRetrieval: false,
+            itemId: "why-1",
+            answerFormat: "prose",
+            estMinutes: 5,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+    const box = screen.getByLabelText("Your answer");
+
+    expect(box.className).not.toContain("font-mono");
+    expect(box.getAttribute("spellcheck")).toBe("false");
   });
 
   const answered = (correct: boolean | null, gradedBy: BlockResponse["gradedBy"]) =>
@@ -513,6 +584,237 @@ describe("the session screen", () => {
     hasApiKeyMock.mockReturnValue(false);
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText(/tutor is unavailable/)).toBeDefined();
+  });
+});
+
+/**
+ * Going back — §8 screen 7's one-block-at-a-time, made survivable.
+ *
+ * The rail already named the blocks behind you ("Read", "Recall") while being
+ * the one thing on the screen you could not press, so a learner who wanted the
+ * lesson again had nowhere to go but out of the session. It is links now, and
+ * what they lead to is a *record*: the session's cursor does not move, and
+ * nothing on a past block can be answered, handed in or marked a second time.
+ */
+describe("looking back at a block already done", () => {
+  const blocks: SessionBlock[] = [
+    { type: "explain", skillId: skill.id, content: "c", estMinutes: 10 },
+    {
+      type: "check",
+      skillId: skill.id,
+      prompt: "What decides the row count?",
+      expected: "the grain",
+      isRetrieval: false,
+      itemId: null,
+      estMinutes: 5,
+    },
+    {
+      type: "apply",
+      skillId: skill.id,
+      brief: "Write the query",
+      rubricId: null,
+      evidenceType: "sql",
+      estMinutes: 15,
+    },
+  ];
+
+  const marked: BlockResponse = {
+    blockIndex: 1,
+    answer: "the grain",
+    correct: true,
+    gradedBy: "model",
+    feedback: "You named the grain.",
+    evidenceTier: 2,
+    at: "2026-08-13T09:00:00.000Z",
+  };
+
+  const railHrefs = () =>
+    screen
+      .getAllByRole("link", { name: /^Go back to/ })
+      .map((link) => link.getAttribute("href"));
+
+  /**
+   * The rail was found and a button was asked for anyway, so both exist: the
+   * rail jumps to any block already done, this steps back one at a time and is
+   * a named control sitting beside the one that goes forward.
+   */
+  const backHref = () =>
+    screen
+      .getByRole("link", { name: "Back to the previous block" })
+      .getAttribute("href");
+
+  it("puts a Back button beside the button that goes on", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 1 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    // The block a learner most wants to leave and come back to: answering from
+    // memory, with the lesson it is about one press behind.
+    expect(screen.getByLabelText("Your answer")).toBeDefined();
+    expect(backHref()).toBe("/session/sess-1?block=0");
+  });
+
+  it("has nothing to go back to on the first block", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 0 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(
+      screen.queryByRole("link", { name: "Back to the previous block" }),
+    ).toBeNull();
+  });
+
+  it("keeps the last block re-readable from the finish screen", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 3 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByRole("button", { name: "Finish session" })).toBeDefined();
+    expect(backHref()).toBe("/session/sess-1?block=2");
+  });
+
+  it("goes both ways from a block already done", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 2, viewing: 1 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    // Further back, and out to where the session actually is.
+    expect(backHref()).toBe("/session/sess-1?block=0");
+    expect(
+      screen
+        .getByRole("link", { name: "Back to where you were" })
+        .getAttribute("href"),
+    ).toBe("/session/sess-1");
+  });
+
+  it("links back to the blocks behind the cursor, and to nothing ahead of it", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 2 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    // Two behind, so two links. The block in hand and the ones ahead stay
+    // plain text: a rail you could jump forward in would be a way to skip the
+    // work and land on the questions.
+    expect(railHrefs()).toEqual([
+      "/session/sess-1?block=0",
+      "/session/sess-1?block=1",
+    ]);
+  });
+
+  it("lets a finished session be read back through", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 3 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(railHrefs()).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Finish session" })).toBeDefined();
+  });
+
+  it("shows the lesson again, without the button that would move the cursor", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 2, viewing: 0 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText(lesson.objective)).toBeDefined();
+    expect(screen.getByText(/Looking back/)).toBeDefined();
+    // Continue would advance a cursor that is already two blocks further on.
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Back to where you were" })
+        .getAttribute("href"),
+    ).toBe("/session/sess-1");
+  });
+
+  it("shows the marking again rather than a second box to answer it", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({ blocks, blockIndex: 2, viewing: 1, response: marked }),
+    );
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText("What decides the row count?")).toBeDefined();
+    expect(screen.getByText("Marked correct")).toBeDefined();
+    expect(screen.getByText("You named the grain.")).toBeDefined();
+    // The server would refuse the post anyway — a box that cannot submit is a
+    // promise the screen has no business making.
+    expect(screen.queryByLabelText("Your answer")).toBeNull();
+  });
+
+  it("says a question was passed rather than offering to answer it late", async () => {
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 2, viewing: 1 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText(/moved on without answering/)).toBeDefined();
+    expect(screen.queryByLabelText("Your answer")).toBeNull();
+  });
+
+  it("keeps the hand-in box off a Do block the session has moved past", async () => {
+    // The one that would cost real money twice: a second hand-in spends a
+    // second evaluation from the month's allowance on work already marked.
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 3, viewing: 2 }));
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText("Write the query")).toBeDefined();
+    expect(screen.queryByPlaceholderText("Paste your work here…")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hand it in" })).toBeNull();
+    // Finished, but what is on screen is a block — so the header names it.
+    expect(screen.queryByText("That's the session")).toBeNull();
+    expect(screen.getByText("Join grain")).toBeDefined();
+  });
+
+  it("shows a reflection that was written, and says so when there wasn't one", async () => {
+    const written = [
+      { type: "reflect" as const, prompt: "How did that go?", estMinutes: 5 },
+      { type: "reflect" as const, prompt: "And now?", estMinutes: 5 },
+    ];
+
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: written,
+        blockIndex: 1,
+        viewing: 0,
+        response: {
+          blockIndex: 0,
+          answer: "harder than it looked",
+          correct: null,
+          gradedBy: "self",
+          feedback: "",
+          evidenceTier: null,
+          at: "2026-08-13T09:00:00.000Z",
+        },
+      }),
+    );
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText("harder than it looked")).toBeDefined();
+    expect(screen.queryByLabelText("Your reflection")).toBeNull();
+    cleanup();
+
+    sessionViewMock.mockResolvedValue(
+      view({ blocks: written, blockIndex: 1, viewing: 0 }),
+    );
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText(/skipped this one/)).toBeDefined();
+  });
+
+  it("shows what a review block was about", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          { type: "review", submissionId: "sub-1", focus: "your last query", estMinutes: 5 },
+          { type: "reflect", prompt: "p", estMinutes: 5 },
+        ],
+        blockIndex: 1,
+        viewing: 0,
+      }),
+    );
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText("your last query")).toBeDefined();
+  });
+
+  it("holds the prove-it offer back, and the query behind it", async () => {
+    // The offer is about the skill in hand. Made from a page showing something
+    // already finished, it would be an offer about the wrong moment.
+    recentSignalsMock.mockResolvedValue([
+      { skillSlug: "join-grain", signal: "already_knows" },
+    ]);
+    sessionViewMock.mockResolvedValue(view({ blocks, blockIndex: 2, viewing: 1 }));
+
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.queryByText(/You said you already know this/)).toBeNull();
+    expect(recentSignalsMock).not.toHaveBeenCalled();
   });
 });
 

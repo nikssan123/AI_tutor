@@ -121,6 +121,20 @@ export const PackItem = z.object({
   prompt: z.string().min(10),
   options: z.array(z.string().min(1)).min(2).optional(),
   answerKey: z.unknown().optional(),
+  /**
+   * How the answer is typed — **not what the question is about.**
+   *
+   * `type` describes the question and cannot stand in for this: the item that
+   * started this asks "list the exact sequence of dotnet CLI commands you would
+   * run", which is a `short_text` question whose answer is nothing but code.
+   * Typed into a proof-reading box, `dotnet new` comes back capitalised and
+   * underlined. So the author says which it is, and the session gives the
+   * learner a box that suits it.
+   *
+   * Defaults to prose, which is what a pack written before this field says by
+   * saying nothing.
+   */
+  answerFormat: z.enum(["prose", "code"]).default("prose"),
 });
 export type PackItem = z.infer<typeof PackItem>;
 

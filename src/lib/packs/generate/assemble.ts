@@ -190,6 +190,11 @@ function itemsFrom(
       difficulty: item.difficulty,
       discrimination: 1,
       prompt: item.prompt,
+      // What the author said the answer is typed as. A model that omitted it
+      // has already been defaulted to prose by the draft schema, which is the
+      // safe direction: a prose box for code is the old behaviour, a code box
+      // for a paragraph is a new annoyance.
+      answerFormat: item.answerFormat,
       // The validator warns when a non-MCQ carries options, so they are only
       // ever attached to the type that uses them.
       ...(item.type === "mcq" ? { options: item.options } : {}),

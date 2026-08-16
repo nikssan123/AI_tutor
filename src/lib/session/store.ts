@@ -235,10 +235,23 @@ function hydrate(row: SessionRow): StoredSession {
 }
 
 /**
- * Records an answer and moves to the next block, in one write.
+ * Records an answer against the block it answers. **The cursor does not move.**
  *
- * Two statements would let a crash between them lose the answer while advancing
- * the cursor, which is the one failure a learner would actually notice.
+ * It used to, and that one line hid the marking from the learner. `sessionView`
+ * reads the response at the *current* index, so advancing here meant the answer
+ * screen — what you wrote, marked correct or not right yet, and the grader's
+ * feedback — was looked for against the next block, found nothing, and rendered
+ * the next question instead. A learner typed an answer, saw "Marking your
+ * answer", and landed on the next block never knowing how it went. The verdict
+ * was written to the database and shown to nobody.
+ *
+ * So answering and moving on are two presses now, because they are two things:
+ * this writes the answer, and `advance` — the Continue button under the
+ * feedback — moves on. The block a learner is on is the block they are still
+ * looking at.
+ *
+ * A caller must therefore refuse a second answer to a block that already has
+ * one: the cursor used to make re-answering impossible, and no longer does.
  */
 export async function recordResponse(
   db: Db,
@@ -250,14 +263,17 @@ export async function recordResponse(
     response,
   ].sort((a, b) => a.blockIndex - b.blockIndex);
 
-  const blockIndex = Math.min(response.blockIndex + 1, session.blocks.length);
-
   await db
     .update(learningSession)
-    .set({ responses, blockIndex })
+    .set({ responses })
     .where(eq(learningSession.id, session.id));
 
-  return { ...session, responses, blockIndex };
+  return { ...session, responses };
+}
+
+/** Whether this block has already been answered — see `recordResponse`. */
+export function isAnswered(session: StoredSession, blockIndex: number): boolean {
+  return session.responses.some((r) => r.blockIndex === blockIndex);
 }
 
 /**

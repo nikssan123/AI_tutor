@@ -66,6 +66,7 @@ const itemsFor = (skills: DraftSkill[]): DraftItem[] =>
       type,
       difficulty: 0.2 + n * 0.2,
       prompt: `Prompt ${n} for skill ${i}, comfortably past the minimum.`,
+      answerFormat: "prose" as const,
       concepts: ["a checkable claim"],
     })),
   );
@@ -303,6 +304,7 @@ describe("assemblePack", () => {
           type: "mcq",
           difficulty: 0.5,
           prompt: "A multiple choice question, long enough to be valid.",
+          answerFormat: "prose",
           options: ["a", "b", "c"],
           correct: 2,
         },
@@ -330,6 +332,7 @@ describe("assemblePack", () => {
           type: "mcq",
           difficulty: 0.5,
           prompt: "A broken multiple choice question with one option only.",
+          answerFormat: "prose",
           options: ["a"],
         },
       ];
@@ -346,6 +349,7 @@ describe("assemblePack", () => {
           type: "mcq",
           difficulty: 0.5,
           prompt: "A multiple choice question the model gave no options for.",
+          answerFormat: "prose",
         },
       ];
       const { pack, dropped } = assemble(EIGHT, { items });
@@ -367,6 +371,7 @@ describe("assemblePack", () => {
           type: "short_text",
           difficulty: 0.5,
           prompt: "A written question the model gave no marking concepts for.",
+          answerFormat: "prose",
         },
       ];
       const { pack } = assemble(EIGHT, { items });
@@ -382,6 +387,7 @@ describe("assemblePack", () => {
           type: "mcq",
           difficulty: 0.5,
           prompt: "A multiple choice question whose key the model omitted.",
+          answerFormat: "prose",
           options: ["a", "b"],
         },
       ];
@@ -474,6 +480,7 @@ describe("balanceAnswerPositions", () => {
     difficulty: 0.5,
     discrimination: 1,
     prompt: "a prompt long enough",
+    answerFormat: "prose" as const,
     options: Array.from({ length: options }, (_, i) => `option ${i}`),
     answerKey: { correct },
   });
@@ -540,6 +547,7 @@ describe("balanceAnswerPositions", () => {
       difficulty: 0.5,
       discrimination: 1,
       prompt: "a prompt long enough",
+      answerFormat: "prose" as const,
       answerKey: { concepts: ["a"] },
     };
     expect(balanceAnswerPositions([free])).toEqual([free]);
@@ -587,6 +595,7 @@ describe("enforceRatio", () => {
     difficulty: 0.5,
     discrimination: 1,
     prompt: "a prompt long enough",
+    answerFormat: "prose" as const,
     answerKey: {},
   });
 
@@ -802,6 +811,7 @@ describe("meetsQualityFloor", () => {
       type: "short_text" as const,
       difficulty: 0.5,
       prompt: `Filler prompt number ${n}, long enough to be accepted.`,
+      answerFormat: "prose" as const,
       concepts: ["a claim"],
     }))];
 
@@ -866,6 +876,7 @@ describe("meetsQualityFloor", () => {
           type: "short_text" as const,
           difficulty: 0.5,
           prompt: `Filler prompt ${n}, long enough to be accepted here.`,
+          answerFormat: "prose" as const,
           concepts: ["a claim"],
         })),
       ),

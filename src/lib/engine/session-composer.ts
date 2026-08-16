@@ -1,6 +1,7 @@
 import { DEFAULT_COURSE_DEPTH } from "./types";
 import type {
   CourseDepth,
+  EngineItem,
   EngineSkill,
   RetrievalCandidate,
   ScoredSkill,
@@ -55,9 +56,52 @@ export interface ComposeInput {
   ranked: ScoredSkill[];
   skillsById: Map<string, EngineSkill>;
   retrievalQueue: RetrievalCandidate[];
+  /** The pack's authored questions. Omitted means none are available. */
+  items?: EngineItem[] | undefined;
   now: string;
   /** Sets the artefact cadence. Omitted means `standard`. */
   depth?: CourseDepth | undefined;
+}
+
+/** Types a check can serve. A session block is a textarea and nothing else, so
+ * an `mcq` would show its stem with no options; a `micro_artifact` is a small
+ * piece of work, which is what the `apply` block is for. */
+const CHECKABLE_ITEM_TYPES = new Set(["short_text", "explain", "code_read"]);
+
+
+/**
+ * The question to ask about a skill, given what is authored and what has
+ * already been served.
+ *
+ * **Nearest the learner's current estimate**, which is the diagnostic's rule
+ * (`selectNextItem`) for the same reason: an item far below tells you nothing
+ * you did not know, and one far above measures whether they can guess.
+ *
+ * Anything already in the retrieval queue is excluded, because it is coming
+ * back on its own schedule — serving it again here would ask the same question
+ * twice in one session and reset a spacing interval that was doing its job.
+ * Ties break on item id, so the same state always yields the same question.
+ */
+export function selectCheckItem(
+  items: EngineItem[],
+  skillId: string,
+  estimate: number,
+  queue: RetrievalCandidate[],
+): EngineItem | undefined {
+  const queued = new Set(queue.map((c) => c.itemId));
+
+  return items
+    .filter(
+      (item) =>
+        item.skillId === skillId &&
+        CHECKABLE_ITEM_TYPES.has(item.type) &&
+        !queued.has(item.itemId),
+    )
+    .sort((a, b) => {
+      const byFit =
+        Math.abs(a.difficulty - estimate) - Math.abs(b.difficulty - estimate);
+      return byFit !== 0 ? byFit : a.itemId.localeCompare(b.itemId);
+    })[0];
 }
 
 export interface ComposeResult {
@@ -257,35 +301,55 @@ export function composeSession(input: ComposeInput): ComposeResult {
     used += explainMinutes;
   }
 
-  // Explain takes at most 40% of what remains, so a check always fits.
-  const afterExplain = available - used;
-  const checkMinutes = Math.min(
-    Math.max(1, Math.round(afterExplain * 0.4)),
-    afterExplain,
-  );
   /*
-   * The three blocks of a learn session used to be the same sentence three
-   * times, each behind a different colon: "Teach: X", "In your own words: X",
-   * "Practise: X". A learner read the skill statement in the header, then again
-   * as the lesson's objective, then again as the question — and the question,
-   * being a can-do statement rather than a question, did not read as something
-   * you could answer at all.
+   * The check, **only when there is a real question to ask.**
    *
-   * There is still no item bank behind this block (`itemId` is null), so what
-   * changes is only the framing: an instruction that says what to do with the
-   * statement, rather than a label stuck in front of it. A real question here
-   * needs a generated or authored item, which is a different piece of work.
+   * This block used to be the skill's can-do statement with an instruction in
+   * front of it — "From memory, describe how you would do this: X" — sitting
+   * directly above an apply block reading "Produce work that demonstrates: X".
+   * Two blocks, one task, done twice: write out how you would do the thing,
+   * then go and do the thing. The first is not practice for the second, it is
+   * the second with the doing taken out, and a learner asked for both rightly
+   * called it busywork.
+   *
+   * So the check earns its place by being a *different* question — one from
+   * the item bank, aimed at what they specifically might not know — or it does
+   * not appear and its minutes go to the work. Never a rehearsal of the apply.
+   *
+   * The bank was reachable all along; nothing had ever passed it in.
    */
-  blocks.push({
-    type: "check",
-    skillId: top.skillId,
-    prompt: `From memory, describe how you would do this: ${topSkill.canDoStatement}`,
-    expected: topSkill.canDoStatement,
-    isRetrieval: false,
-    itemId: null,
-    estMinutes: checkMinutes,
-  });
-  used += checkMinutes;
+  const afterExplain = available - used;
+  const item = input.items
+    ? selectCheckItem(
+        input.items,
+        top.skillId,
+        top.effectiveMastery,
+        input.retrievalQueue,
+      )
+    : undefined;
+
+  if (item) {
+    // Explain takes at most 40% of what remains, so a check always fits.
+    const checkMinutes = Math.min(
+      Math.max(1, Math.round(afterExplain * 0.4)),
+      afterExplain,
+    );
+
+    blocks.push({
+      type: "check",
+      skillId: top.skillId,
+      prompt: item.prompt,
+      expected: item.expected,
+      isRetrieval: false,
+      itemId: item.itemId,
+      // The author's word, carried through untouched. Inferring it from `type`
+      // was the first attempt and it is not inferable: the .NET item that
+      // asked for "the exact sequence of dotnet CLI commands" is `short_text`.
+      answerFormat: item.answerFormat,
+      estMinutes: checkMinutes,
+    });
+    used += checkMinutes;
+  }
 
   const afterCheck = available - used;
   if (afterCheck > 0) {

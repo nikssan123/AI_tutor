@@ -1,4 +1,5 @@
 import type {
+  EngineItem,
   EngineSkillGraph,
   MasteryState,
   PlannerInput,
@@ -86,6 +87,48 @@ export const SQL_GRAPH: EngineSkillGraph = graph(
 
 const GOAL_SKILLS = ["window-functions", "query-tuning"];
 
+/**
+ * An item bank for that graph — three questions per skill, at spread
+ * difficulties, the way an authored pack has them.
+ *
+ * Every scenario gets these because production always has them: `todayFor`
+ * passes `toEngineItems(pack)` on every plan. Without them the fixtures were
+ * exercising a branch no learner is on, and snapshotting the result as if it
+ * were the product — which is how a session came to ask somebody to describe
+ * a task and then perform the same task, for six months, unnoticed.
+ */
+export const SQL_ITEMS: EngineItem[] = SQL_GRAPH.skills.flatMap((s) => [
+  {
+    itemId: `${s.id}-recall`,
+    skillId: s.id,
+    type: "short_text",
+    prompt: `What decides the answer when you ${s.canDoStatement}?`,
+    expected: `names what decides it for ${s.id}`,
+    answerFormat: "prose",
+    difficulty: 0.3,
+  },
+  {
+    itemId: `${s.id}-read`,
+    skillId: s.id,
+    type: "code_read",
+    prompt: `Read this and say what it returns — ${s.name}.`,
+    expected: `reads the ${s.id} example correctly`,
+    // A code_read question whose *answer* is a sentence — the case that shows
+    // why the format is authored rather than inferred from the type.
+    answerFormat: "prose",
+    difficulty: 0.55,
+  },
+  {
+    itemId: `${s.id}-explain`,
+    skillId: s.id,
+    type: "explain",
+    prompt: `Why does ${s.name} behave that way at the edges?`,
+    expected: `explains the ${s.id} edge case`,
+    answerFormat: "prose",
+    difficulty: 0.8,
+  },
+]);
+
 /** Every foundational skill demonstrated recently and solidly. */
 function foundationsSolid(at = "2026-08-11T09:00:00.000Z"): MasteryState[] {
   return [
@@ -126,6 +169,7 @@ function base(overrides: Partial<PlannerInput> = {}): PlannerInput {
     history: [],
     attempts: [],
     retrievalQueue: [],
+    items: SQL_ITEMS,
     constraints: constraints({ availableMinutes: 30, weeklyHours: 4 }),
     sessionIndex: 1,
     ...overrides,

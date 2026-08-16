@@ -107,6 +107,7 @@ export async function seedPack(
             slug: row.slug,
             type: row.type,
             prompt: row.prompt,
+            answerFormat: row.answerFormat,
             options: row.options,
             answerKey: row.answerKey,
             difficulty: row.difficulty,

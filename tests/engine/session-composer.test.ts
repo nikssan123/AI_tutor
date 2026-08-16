@@ -9,13 +9,31 @@ import {
   MAX_RETRIEVAL_ITEMS,
   MAX_RETRIEVAL_MINUTES,
   MIN_RETRIEVAL_ITEMS,
+  selectCheckItem,
   selectRetrievalItems,
   shouldBackOff,
 } from "@/lib/engine/session-composer";
-import type { EngineSkill, ScoredSkill } from "@/lib/engine/types";
+import type { EngineItem, EngineSkill, ScoredSkill } from "@/lib/engine/types";
 import { retrieval, skill } from "./support";
 
 const NOW = "2026-08-12T09:00:00.000Z";
+
+function item(
+  skillId: string,
+  itemId: string,
+  over: Partial<EngineItem> = {},
+): EngineItem {
+  return {
+    itemId,
+    skillId,
+    type: "short_text",
+    prompt: `A real question about ${skillId}`,
+    expected: `what ${itemId} is looking for`,
+    answerFormat: "prose",
+    difficulty: 0.5,
+    ...over,
+  };
+}
 
 function scored(skillId: string, score = 1): ScoredSkill {
   return {
@@ -355,10 +373,131 @@ describe("composeSession", () => {
       ranked: [scored("joins")],
       skillsById: skillMap(sql),
       retrievalQueue: [],
+      items: [item("joins", "q1")],
       now: NOW,
     });
     expect(result.blocks.some((b) => b.type === "explain")).toBe(false);
     expect(result.blocks.some((b) => b.type === "check")).toBe(true);
+  });
+
+  /**
+   * The double-ask, and why the check now has to earn its place.
+   *
+   * A learn session used to be: read about X, write from memory how you would
+   * do X, then go and do X. The middle block was the third one with the doing
+   * taken out — one task, asked twice — and a learner who met it called it
+   * exactly that. So a check appears when there is a *different* question to
+   * ask, and otherwise the minutes go to the work.
+   */
+  it("asks an authored question rather than a rehearsal of the apply", () => {
+    const result = composeSession({
+      sessionIndex: 1,
+      availableMinutes: 30,
+      ranked: [scored("joins")],
+      skillsById: skillMap(sql),
+      retrievalQueue: [],
+      items: [item("joins", "q1", { prompt: "What sets the row count?" })],
+      now: NOW,
+    });
+
+    const check = result.blocks.find((b) => b.type === "check");
+    expect(check).toMatchObject({
+      prompt: "What sets the row count?",
+      itemId: "q1",
+      isRetrieval: false,
+    });
+    // Never the apply block's brief in question form.
+    expect(check).not.toMatchObject({ prompt: expect.stringContaining(sql.canDoStatement) });
+  });
+
+  it("drops the check entirely when the bank has nothing to ask", () => {
+    const result = composeSession({
+      sessionIndex: 1,
+      availableMinutes: 30,
+      ranked: [scored("joins")],
+      skillsById: skillMap(sql),
+      retrievalQueue: [],
+      items: [],
+      now: NOW,
+    });
+
+    expect(result.blocks.some((b) => b.type === "check")).toBe(false);
+    // And the time is the work's, not lost: a session still fills its slot.
+    expect(result.totalMinutes).toBe(30);
+    expect(result.blocks.some((b) => b.type === "apply")).toBe(true);
+  });
+
+  /**
+   * The format follows the *author*, not the item's type — the distinction
+   * that inference got wrong. A `short_text` item can ask for a sequence of
+   * CLI commands, and a `code_read` item usually wants a sentence back about
+   * the snippet it shows.
+   */
+  it("carries the answer format the item's author declared", () => {
+    const check = (over: Partial<EngineItem>) =>
+      composeSession({
+        sessionIndex: 1,
+        availableMinutes: 30,
+        ranked: [scored("joins")],
+        skillsById: skillMap(sql),
+        retrievalQueue: [],
+        items: [item("joins", "q1", over)],
+        now: NOW,
+      }).blocks.find((b) => b.type === "check");
+
+    expect(
+      check({ type: "short_text", answerFormat: "code" }),
+    ).toMatchObject({ answerFormat: "code" });
+    expect(
+      check({ type: "code_read", answerFormat: "prose" }),
+    ).toMatchObject({ answerFormat: "prose" });
+  });
+});
+
+describe("selectCheckItem", () => {
+  const bank = [
+    item("joins", "easy", { difficulty: 0.1 }),
+    item("joins", "mid", { difficulty: 0.5 }),
+    item("joins", "hard", { difficulty: 0.9 }),
+    item("other", "elsewhere", { difficulty: 0.5 }),
+  ];
+
+  it("asks the question nearest what the learner is believed to know", () => {
+    // The diagnostic's rule, for the diagnostic's reason: far below tells you
+    // nothing new, far above measures guessing.
+    expect(selectCheckItem(bank, "joins", 0.12, [])?.itemId).toBe("easy");
+    expect(selectCheckItem(bank, "joins", 0.55, [])?.itemId).toBe("mid");
+    expect(selectCheckItem(bank, "joins", 0.95, [])?.itemId).toBe("hard");
+  });
+
+  it("never serves a skill's question against another skill", () => {
+    expect(selectCheckItem(bank, "other", 0.5, [])?.itemId).toBe("elsewhere");
+    expect(selectCheckItem(bank, "nothing-here", 0.5, [])).toBeUndefined();
+  });
+
+  it("leaves an item that is already coming back on its own schedule", () => {
+    // Serving it here would ask it twice in one session and reset a spacing
+    // interval that was doing its job.
+    const queued = [retrieval("joins", "mid", "2026-08-20T09:00:00.000Z", 2)];
+    expect(selectCheckItem(bank, "joins", 0.5, queued)?.itemId).not.toBe("mid");
+  });
+
+  it("will not serve what a textarea cannot ask", () => {
+    // An MCQ would render its stem with no options; a micro artefact is what
+    // the apply block is for.
+    const unusable = [
+      item("joins", "mcq-1", { type: "mcq" }),
+      item("joins", "artefact-1", { type: "micro_artifact" }),
+    ];
+    expect(selectCheckItem(unusable, "joins", 0.5, [])).toBeUndefined();
+  });
+
+  it("breaks a tie on item id, so the same state asks the same question", () => {
+    const tied = [
+      item("joins", "b", { difficulty: 0.4 }),
+      item("joins", "a", { difficulty: 0.6 }),
+    ];
+    expect(selectCheckItem(tied, "joins", 0.5, [])?.itemId).toBe("a");
   });
 });
 

@@ -70,6 +70,10 @@ vi.mock("@/lib/session/store", () => ({
   advance: (...a: unknown[]) => advanceMock(...(a as [])),
   completeSession: (...a: unknown[]) => completeMock(...(a as [])),
   recordResponse: (...a: unknown[]) => recordResponseMock(...(a as [])),
+  // Pure, and the actions read it as a fact about the session they were handed
+  // — a spy returning a fixed answer would assert nothing about the guard.
+  isAnswered: (session: { responses: { blockIndex: number }[] }, index: number) =>
+    session.responses.some((r) => r.blockIndex === index),
   appendBlocks: (...a: unknown[]) => appendBlocksMock(...(a as [])),
   recentSignals: (...a: unknown[]) => recentSignalsMock(...(a as [])),
   openSession: (...a: unknown[]) => openSessionMock(...(a as [])),
@@ -103,14 +107,20 @@ const checkBlock: SessionBlock = {
   estMinutes: 5,
 };
 
-const stored = (over: Partial<{ blockIndex: number; blocks: SessionBlock[] }> = {}) => ({
+const stored = (
+  over: Partial<{
+    blockIndex: number;
+    blocks: SessionBlock[];
+    responses: { blockIndex: number }[];
+  }> = {},
+) => ({
   id: SESSION_ID,
   userId: "u1",
   goalId: "g1",
   planId: "p1",
   blocks: over.blocks ?? [checkBlock],
   blockIndex: over.blockIndex ?? 0,
-  responses: [],
+  responses: over.responses ?? [],
   startedAt: new Date(),
   completedAt: null,
 });
@@ -287,6 +297,17 @@ describe("answerAction", () => {
     expect(answerCheckMock).not.toHaveBeenCalled();
   });
 
+  it("marks a block once, however many times the form is posted", async () => {
+    // The learner stays on the block while they read the marking, so the
+    // cursor no longer refuses a resubmission on its own. A second marking
+    // would buy a second model call and move mastery twice on one answer.
+    sessionByIdMock.mockResolvedValue(stored({ responses: [{ blockIndex: 0 }] }));
+    await expect(
+      answerAction(SESSION_ID, form({ block: "0", answer: "again" })),
+    ).rejects.toThrow(`REDIRECT:/session/${SESSION_ID}`);
+    expect(answerCheckMock).not.toHaveBeenCalled();
+  });
+
   it("treats a form with no answer field as an empty answer", async () => {
     await expect(
       answerAction(SESSION_ID, form({ block: "0" })),
@@ -387,6 +408,19 @@ describe("noteAction", () => {
     sessionByIdMock.mockResolvedValue(stored({ blockIndex: 1 }));
     await expect(
       noteAction(SESSION_ID, form({ block: "0", answer: "x" })),
+    ).rejects.toThrow(`REDIRECT:/session/${SESSION_ID}`);
+    expect(recordResponseMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the reflection that was saved rather than a resubmitted one", async () => {
+    sessionByIdMock.mockResolvedValue(
+      stored({
+        blocks: [{ type: "reflect", prompt: "p", estMinutes: 5 }],
+        responses: [{ blockIndex: 0 }],
+      }),
+    );
+    await expect(
+      noteAction(SESSION_ID, form({ block: "0", answer: "second thoughts" })),
     ).rejects.toThrow(`REDIRECT:/session/${SESSION_ID}`);
     expect(recordResponseMock).not.toHaveBeenCalled();
   });

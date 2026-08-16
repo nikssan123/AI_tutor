@@ -23,11 +23,16 @@ import {
 
 export const PACK_ITEMS_PROMPT = {
   name: "pack_item_author",
+  // 3: asks for `answerFormat`. The session gives a code answer a monospace
+  // box with the browser's prose habits off, and the item's `type` could not
+  // say which items those were — "list the exact CLI commands" is `short_text`
+  // and pure code. Only the author knows, so the author is asked.
+  //
   // 2: asks for the answer position to vary. `balanceAnswerPositions`
   // guarantees it regardless, but a bank that arrives already spread needs less
   // rearranging — and the version is what ties an `AgentRun` row to the text
   // that produced it, so the two must move together.
-  version: 2,
+  version: 3,
   text: `You write assessment items that find out whether someone can already do a skill.
 
 You are given a group of skills from one subject, each with the can-do statement it will be measured against. You return items that test them.
@@ -43,6 +48,8 @@ Write mostly items that make the person produce something:
 - \`mcq\` — use sparingly, and only where the wrong options are genuinely tempting to someone with a real misconception.
 
 **At most one item in three may be \`mcq\`.** Items that make someone produce an answer tell you far more than items that make them pick one.
+
+**Say how the answer is typed, with \`answerFormat\`.** \`code\` when what they write is code, a command, a query, a config fragment or a stack trace — anything where capitalisation and spacing are part of being right. \`prose\` when it is a sentence about the thing. This is about the *answer*, not the question: "list the exact commands you would run" is a \`short_text\` item whose answer is \`code\`, and "explain what this snippet prints" is a \`code_read\` item whose answer is \`prose\`. A code answer is given a monospace box with autocorrect off; getting this wrong means someone's commands are spellchecked at them, or a paragraph is typed in a code box.
 
 Spread difficulty across the range for each skill: one an early learner would get, one a competent person would get, one that separates competent from strong. Difficulty is 0 to 1 on the same scale as mastery.
 
@@ -79,6 +86,12 @@ export const PACK_ITEMS_TOOL_SCHEMA = {
             description: "0 to 1, same scale as mastery.",
           },
           prompt: { type: "string" },
+          answerFormat: {
+            type: "string",
+            enum: ["prose", "code"],
+            description:
+              "How the ANSWER is typed, not the question. `code` for commands, queries, snippets, config — anything where spacing and capitalisation are part of being right.",
+          },
           options: {
             type: "array",
             items: { type: "string" },
@@ -95,7 +108,7 @@ export const PACK_ITEMS_TOOL_SCHEMA = {
               "Free-text only. Checkable claims a correct answer must contain.",
           },
         },
-        required: ["skill", "type", "difficulty", "prompt"],
+        required: ["skill", "type", "difficulty", "prompt", "answerFormat"],
         additionalProperties: false,
       },
     },

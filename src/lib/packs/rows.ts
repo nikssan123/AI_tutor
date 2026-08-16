@@ -53,6 +53,7 @@ export interface PackRows {
     slug: string;
     type: string;
     prompt: string;
+    answerFormat: string;
     options: string[] | null;
     answerKey: unknown;
     difficulty: number;
@@ -146,6 +147,7 @@ export function toRows(pack: DomainPack): PackRows {
       slug: i.slug,
       type: i.type,
       prompt: i.prompt,
+      answerFormat: i.answerFormat,
       options: i.options ?? null,
       answerKey: i.answerKey ?? null,
       difficulty: i.difficulty,

@@ -18,6 +18,7 @@ import {
   advance,
   appendBlocks,
   completeSession,
+  isAnswered,
   recentSignals,
   recordResponse,
   sessionById,
@@ -123,7 +124,16 @@ export async function answerAction(
 
   // A form posted against a block the learner is not on — a stale tab, or the
   // back button after answering. Dropped rather than recorded twice.
-  if (blockIndex !== session.blockIndex || block?.type !== "check") {
+  //
+  // `isAnswered` is the half the cursor used to cover on its own: answering no
+  // longer moves the learner off the block, so a resubmitted form now lands on
+  // a block that still matches. Marking it again would spend a second model
+  // call and move mastery twice on one answer.
+  if (
+    blockIndex !== session.blockIndex ||
+    block?.type !== "check" ||
+    isAnswered(session, blockIndex)
+  ) {
     redirect(`/session/${sessionId}`);
   }
 
@@ -247,7 +257,7 @@ export async function noteAction(
   if (!session) redirect("/today");
 
   const blockIndex = Number(formData.get("block"));
-  if (blockIndex === session.blockIndex) {
+  if (blockIndex === session.blockIndex && !isAnswered(session, blockIndex)) {
     await recordResponse(db, session, {
       blockIndex,
       answer: String(formData.get("answer") ?? "").slice(0, 10_000),

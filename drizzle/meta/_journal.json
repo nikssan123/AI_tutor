@@ -183,6 +183,13 @@
       "when": 1786913620750,
       "tag": "0025_far_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786918997310,
+      "tag": "0026_curvy_nomad",
+      "breakpoints": true
     }
   ]
 }

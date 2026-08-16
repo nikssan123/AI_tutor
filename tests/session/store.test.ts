@@ -23,6 +23,7 @@ import {
   advance,
   completeSession,
   dueRetrieval,
+  isAnswered,
   nextSessionIndex,
   openMisconceptions,
   openSession,
@@ -37,8 +38,10 @@ import {
   sessionsThisPeriod,
   startSession,
 } from "@/lib/session/store";
+import type { StoredSession } from "@/lib/session/store";
 import { answerCheck, checkBlockAt, isBlank } from "@/lib/session/run";
 import {
+  blockToShow,
   cachedLessonFor,
   lessonForBlock,
   lessonRequestFor,
@@ -726,7 +729,7 @@ live("the session store", () => {
     expect(await sessionById(db, session.id, owner)).toBeDefined();
   });
 
-  it("records an answer and advances in one write", async () => {
+  it("records an answer and leaves the learner on the block it answers", async () => {
     const userId = await newUser();
     const goalId = await newGoal(userId);
     const session = await startSession(db, { userId, goalId, planned: planned(goalId), now: NOW });
@@ -742,11 +745,15 @@ live("the session store", () => {
     };
 
     const next = await recordResponse(db, session, response);
-    expect(next.blockIndex).toBe(1);
+    // The marking is only reachable while the cursor is still on the block it
+    // marks — moving it here is what used to hide the verdict entirely.
+    expect(next.blockIndex).toBe(0);
+    expect(isAnswered(next, 0)).toBe(true);
+    expect(isAnswered(next, 1)).toBe(false);
 
     const reloaded = await sessionById(db, session.id, userId);
     expect(reloaded?.responses).toHaveLength(1);
-    expect(reloaded?.blockIndex).toBe(1);
+    expect(reloaded?.blockIndex).toBe(0);
   });
 
   it("replaces rather than duplicates an answer to the same block", async () => {
@@ -1409,16 +1416,96 @@ live("the session view and its lesson", () => {
       now: NOW,
     });
 
-    // Answered, then the cursor pushed back — a refresh after answering must
-    // show the verdict rather than an empty box asking again.
-    const answered = await recordResponse(db, stored, {
+    // Answered, and nothing else — the cursor stays on the block that was just
+    // marked, which is the only way the verdict reaches the screen. The
+    // redirect after `answerAction` lands here, so this is the state a learner
+    // sees the moment marking finishes, not just the one a refresh produces.
+    await recordResponse(db, stored, {
       blockIndex: 0, answer: "the grain", correct: true, gradedBy: "model",
       feedback: "That's it.", evidenceTier: 2, at: NOW.toISOString(),
     });
-    await advance(db, answered, 0);
 
     const view = await sessionView(db, userId, stored.id, NOW);
     expect(view?.response?.answer).toBe("the grain");
+    expect(view?.response?.correct).toBe(true);
+    expect(view?.response?.feedback).toBe("That's it.");
+    expect(view?.finished).toBe(false);
+    expect(view?.viewing).toBe(0);
+    expect(view?.lookingBack).toBe(false);
+  });
+
+  /**
+   * Going back is a way of *looking* at the session, not a move within it.
+   *
+   * So it lives in the query string and writes nothing: the cursor stays where
+   * the work got to, the back button works, and closing the tab mid-reread
+   * leaves the learner on the block they had actually reached.
+   */
+  it("puts an earlier block on screen without moving the cursor", async () => {
+    const userId = await newUser();
+    const goalId = await createGoal(db, {
+      userId, packSlug: PACK, spec: spec(), mastery: [], now: NOW,
+    });
+    const stored = await startSession(db, {
+      userId, goalId,
+      planned: {
+        goalId, plannedFor: "2026-08-13", sessionIndex: 1,
+        blocks: [
+          { type: "explain", skillId: skill.id, content: "c", estMinutes: 10 },
+          {
+            type: "check", skillId: skill.id, prompt: "why?",
+            expected: skill.canDoStatement, isRetrieval: false,
+            itemId: null, estMinutes: 5,
+          },
+          { type: "reflect", prompt: "How was it?", estMinutes: 5 },
+        ],
+        totalMinutes: 20, targetSkillIds: [skill.id], backingOff: false,
+        reason: "r", compression: null, ranked: [],
+      },
+      now: NOW,
+    });
+
+    const answered = await recordResponse(db, stored, {
+      blockIndex: 1, answer: "the grain", correct: true, gradedBy: "model",
+      feedback: "That's it.", evidenceTier: 2, at: NOW.toISOString(),
+    });
+    await advance(db, answered, 2);
+
+    const back = await sessionView(db, userId, stored.id, NOW, "1");
+    expect(back?.viewing).toBe(1);
+    expect(back?.lookingBack).toBe(true);
+    expect(back?.block?.type).toBe("check");
+    // The marking on screen is the one for the block on screen, not for the
+    // block the learner is on.
+    expect(back?.response?.answer).toBe("the grain");
+    // And the session itself did not move.
+    expect(back?.session.blockIndex).toBe(2);
+    expect((await sessionById(db, stored.id, userId))?.blockIndex).toBe(2);
+
+    // Asking for the block they are already on is not looking back.
+    const here = await sessionView(db, userId, stored.id, NOW, "2");
+    expect(here?.viewing).toBe(2);
+    expect(here?.lookingBack).toBe(false);
+    expect(here?.response).toBeUndefined();
+  });
+
+  it("only ever looks backwards, whatever the URL says", () => {
+    // Nothing here is a security boundary — the session is the learner's own.
+    // Jumping *ahead* would skip the work on the way and leave holes behind
+    // the cursor, so out-of-range and nonsense alike fall back to it.
+    const session = { blockIndex: 2 } as StoredSession;
+
+    expect(blockToShow(session, "0")).toBe(0);
+    expect(blockToShow(session, "1")).toBe(1);
+
+    expect(blockToShow(session, undefined)).toBe(2);
+    expect(blockToShow(session, "2")).toBe(2);
+    expect(blockToShow(session, "9")).toBe(2);
+    expect(blockToShow(session, "-1")).toBe(2);
+    expect(blockToShow(session, "")).toBe(2);
+    expect(blockToShow(session, " 1 ")).toBe(2);
+    expect(blockToShow(session, "1.5")).toBe(2);
+    expect(blockToShow(session, "banana")).toBe(2);
   });
 
   it("degrades to no session when the goal's pack has left the build", async () => {

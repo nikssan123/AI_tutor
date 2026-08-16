@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { TUTOR_TURN_WARNING_MARGIN } from "@/lib/session/tutor";
 import { GeneratedProse } from "@/components/generated-prose";
 import { cx, Meta } from "@/components/ui";
+// From a plain module, never re-exported from here: a non-component export
+// from a `"use client"` file is a client-reference proxy on the server, and
+// `page.tsx` renders on the server. See `dock-frame.ts`.
+import { DOCK_INNER, DOCK_OUTER, DOCK_PANEL } from "./dock-frame";
 
 /**
  * The tutor, docked along the bottom of the session.
@@ -36,53 +40,6 @@ interface Turn {
 
 /** How tall the transcript may grow before it scrolls inside itself. */
 const TRANSCRIPT = "max-h-[55vh]";
-
-/**
- * Where the dock sits, exported so the page's loading state can sit there too.
- *
- * `pointer-events-none` on the strip and back on for the panel itself: the
- * strip spans the viewport so the panel can centre on the same column the
- * lesson uses, and without this it would also swallow every click in the
- * margins either side of it.
- *
- * It clears the mobile bar rather than sitting under it. That bar is
- * `min-h-[var(--touch-min)]` plus `py-2`, so 60px, and it owns `z-30`; above
- * `lg` it is not rendered at all and the dock goes to the floor.
- */
-export const DOCK_OUTER = [
-  "pointer-events-none fixed left-0 right-0 z-20",
-  // `lg:left-56` clears the desktop nav rail (`lg:w-56`, sticky rather than
-  // fixed, so it is a flex sibling of the content and not something the
-  // viewport knows about). Without it the dock centres on the *window* while
-  // the lesson centres on the content area, and the two sit 112px apart.
-  // Written as `left-0 … lg:left-56` rather than `inset-x-0 lg:left-56`,
-  // because `inset-x` and `left` set the same property and would resolve by
-  // emission order; a responsive variant of the same utility always wins.
-  "lg:left-56",
-  "bottom-[calc(60px+env(safe-area-inset-bottom))] lg:bottom-0",
-].join(" ");
-
-/**
- * The width of the session — the lesson, and the dock under it.
- *
- * One constant because the two have to agree: a dock of any other width reads
- * as a bar that happens to be near the page rather than the foot of it. The
- * page imports this rather than repeating the literal.
- *
- * 52rem, up from 46: at 19px the prose caps itself at `--measure` well before
- * this, so what the extra 96px widens is the listings and the answers, and what
- * it narrows is the empty margin either side of them.
- */
-export const SESSION_COLUMN = "max-w-[52rem]";
-
-export const DOCK_INNER = `mx-auto w-full ${SESSION_COLUMN} px-6`;
-
-/** The panel's own surface — shared with the loading state for the same reason. */
-export const DOCK_PANEL = [
-  "pointer-events-auto flex flex-col overflow-hidden",
-  "rounded-t-[var(--radius-card)] border border-b-0 border-hairline",
-  "bg-surface shadow-[var(--shadow-lifted)]",
-].join(" ");
 
 export function TutorDock({
   sessionId,

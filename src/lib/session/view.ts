@@ -51,17 +51,50 @@ export interface SessionView {
   session: StoredSession;
   goal: StoredGoal;
   pack: DomainPack;
-  /** The block the learner is on, or undefined when the session is finished. */
+  /**
+   * The block on screen: the one they are on, or an earlier one they went back
+   * to. Undefined when the session is finished and they are not looking back.
+   */
   block: SessionBlock | undefined;
+  /** Which block that is — equal to the cursor unless they are looking back. */
+  viewing: number;
+  /** True when `viewing` is behind the cursor: a record, not work to do. */
+  lookingBack: boolean;
   /** The skill that block is about, when it is about one. */
   skill: EngineSkill | undefined;
   mastery: MasteryState | undefined;
   skillNames: Map<string, string>;
-  /** The answer already given to the current block, if it has been answered. */
+  /** The answer already given to the block on screen, if it was answered. */
   response: BlockResponse | undefined;
   /** §14.3 — the cached prefix the tutor runs on. */
   learnerContext: string;
   finished: boolean;
+}
+
+/**
+ * Which block to put on screen, given what the URL asked for.
+ *
+ * **Backwards only, and it writes nothing.** Re-reading the lesson two blocks
+ * ago is a way of looking at the session, not a move within it, so it lives in
+ * the query string rather than in the cursor: the back button works, a refresh
+ * shows the same thing, and closing the tab leaves the learner exactly where
+ * the work had got to.
+ *
+ * Anything else — a block they have not reached, a negative, a number for a
+ * block that does not exist, or somebody's hand-typed `?block=banana` — falls
+ * back to the cursor rather than erroring. There is nothing to protect here (a
+ * session is the learner's own, and every block in it was planned for them),
+ * but jumping *ahead* would skip the work on the way and quietly leave holes
+ * behind the cursor, so the one direction that is allowed is the one that
+ * cannot lose anything.
+ */
+export function blockToShow(
+  session: StoredSession,
+  wanted: string | undefined,
+): number {
+  if (wanted === undefined || !/^\d+$/.test(wanted)) return session.blockIndex;
+  const index = Number(wanted);
+  return index < session.blockIndex ? index : session.blockIndex;
 }
 
 export async function sessionView(
@@ -69,6 +102,8 @@ export async function sessionView(
   userId: string,
   sessionId: string,
   now: Date,
+  /** `?block=` — an earlier block to look back at. See `blockToShow`. */
+  wanted?: string,
 ): Promise<SessionView | undefined> {
   const session = await sessionById(db, sessionId, userId);
   if (!session) return undefined;
@@ -87,7 +122,8 @@ export async function sessionView(
   const mastery = await masteryFor(db, userId, goal.packSlug);
   const masteryById = new Map(mastery.map((m) => [m.skillId, m]));
 
-  const block = session.blocks[session.blockIndex];
+  const viewing = blockToShow(session, wanted);
+  const block = session.blocks[viewing];
   const skillSlug =
     block && block.type !== "review" && block.type !== "reflect"
       ? block.skillId
@@ -104,13 +140,15 @@ export async function sessionView(
     goal,
     pack,
     block,
+    viewing,
+    lookingBack: viewing < session.blockIndex,
     skill,
     mastery:
       skill === undefined
         ? undefined
         : (masteryById.get(skill.id) ?? initialMastery(skill.id, skill.bktPriors)),
     skillNames: new Map(pack.skills.map((s) => [s.slug, s.name])),
-    response: session.responses.find((r) => r.blockIndex === session.blockIndex),
+    response: session.responses.find((r) => r.blockIndex === viewing),
     learnerContext: buildLearnerContext({
       goal: goal.spec,
       packName: pack.name,

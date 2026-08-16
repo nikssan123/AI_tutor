@@ -1,0 +1,1 @@
+ALTER TABLE "assessment_item" ADD COLUMN "answer_format" text DEFAULT 'prose' NOT NULL;

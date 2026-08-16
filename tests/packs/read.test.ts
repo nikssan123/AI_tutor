@@ -214,6 +214,43 @@ live("packFromDb (integration)", () => {
    * the read path's job is to return a coherent pack either way.
    */
 
+  it("round-trips how an item's answer is typed", async () => {
+    // The column decides whether a learner gets a monospace box with the
+    // browser's prose habits off. A row written before it existed — or by a
+    // generator that omitted it — reads back as prose, which is what those
+    // items were already rendering as.
+    const pack = fixture("valid-minimal");
+    await seedPack(db, {
+      ...pack,
+      items: [
+        { ...pack.items[0]!, slug: "cli-item", answerFormat: "code" },
+        { ...pack.items[1]!, slug: "prose-item", answerFormat: "prose" },
+      ],
+    });
+
+    const packRow = (
+      await db.select().from(domainPack).where(eq(domainPack.slug, pack.slug))
+    )[0]!;
+    await db.insert(assessmentItem).values({
+      id: itemId(pack.slug, "legacy-item"),
+      packId: packRow.id,
+      skillId: skillId(pack.slug, pack.skills[0]!.slug),
+      slug: "legacy-item",
+      type: "short_text",
+      prompt: "An item written before the column existed.",
+      difficulty: 0.5,
+      discrimination: 1,
+    });
+
+    const fromDb = await packFromDb(db, pack.slug);
+    const format = (slug: string) =>
+      fromDb!.items.find((i) => i.slug === slug)?.answerFormat;
+
+    expect(format("cli-item")).toBe("code");
+    expect(format("prose-item")).toBe("prose");
+    expect(format("legacy-item")).toBe("prose");
+  });
+
   it("drops an item whose skill belongs to another pack", async () => {
     const pack = fixture("valid-minimal");
     const other = loadPack("packs/business-writing");

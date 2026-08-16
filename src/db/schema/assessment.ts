@@ -35,6 +35,11 @@ export const assessmentItem = pgTable(
     /** mcq | short_text | explain | code_read | micro_artifact — §8 screen 4 */
     type: text("type").notNull(),
     prompt: text("prompt").notNull(),
+    /**
+     * prose | code — how the *answer* is typed, not what the question is
+     * about. A `short_text` item can ask for a sequence of CLI commands.
+     */
+    answerFormat: text("answer_format").notNull().default("prose"),
     options: jsonb("options"),
     answerKey: jsonb("answer_key"),
     /** IRT-lite: item difficulty on the same 0..1 scale as mastery. */

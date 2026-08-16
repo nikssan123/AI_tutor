@@ -156,6 +156,9 @@ export async function packFromDb(
             difficulty: i.difficulty,
             discrimination: i.discrimination,
             prompt: i.prompt,
+            // Rows written before the column existed default to prose, which
+            // is what they were rendering as anyway.
+            answerFormat: i.answerFormat === "code" ? "code" : "prose",
             // `options` is absent on every type but MCQ, and the validator
             // warns when a non-MCQ carries one. Null must come back as absent,
             // not as an empty array.

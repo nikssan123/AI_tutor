@@ -1,6 +1,6 @@
 import type { Db } from "@/db";
 import { plan } from "@/lib/engine";
-import { toEngineGraph } from "@/lib/packs/validate";
+import { toEngineGraph, toEngineItems } from "@/lib/packs/validate";
 import { resolvePack } from "@/lib/content/resolve";
 import type { DomainPack } from "@/lib/packs/types";
 import type { PlannedSession } from "@/lib/engine";
@@ -112,6 +112,11 @@ export async function todayFor(
     history,
     attempts,
     retrievalQueue,
+    // The pack's authored questions. Passed since the session composer got a
+    // way to ask one — before that a learn session's check was the skill's
+    // can-do statement with an instruction in front of it, and the bank sat
+    // unread however many questions it held.
+    items: toEngineItems(pack),
     constraints: {
       availableMinutes:
         options.availableMinutes ?? (await sessionMinutesFor(db, userId)),

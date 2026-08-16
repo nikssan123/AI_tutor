@@ -136,6 +136,39 @@ export interface RetrievalCandidate {
   estMinutes: number;
 }
 
+/**
+ * One authored question the composer may serve as a check.
+ *
+ * The item bank existed from the first pack and no session could reach it: a
+ * learn session templated its check off the skill's can-do statement and set
+ * `itemId: null`, so the only blocks that ever carried a real item were the
+ * retrieval ones — and the retrieval queue is written *only* by answering a
+ * block that already had an item. A closed loop that could never start. The
+ * .NET pack had 69 authored questions and served none of them; a learner was
+ * asked to restate the objective instead, and then asked to do the same thing
+ * again as the session's `apply`.
+ *
+ * Flattened from the pack rather than passed as `PackItem` because the engine
+ * is pure and knows nothing about pack storage — `expected` is resolved on the
+ * way in, by the one function that already knew how (`expectedFor`).
+ */
+export interface EngineItem {
+  itemId: string;
+  skillId: string;
+  /** The authored kind. `mcq` and `micro_artifact` never reach a check. */
+  type: string;
+  prompt: string;
+  /** What a correct answer establishes — what the grader marks against. */
+  expected: string;
+  /**
+   * How the answer is typed, as the item's author declared it. Not derivable
+   * from `type`: "list the exact CLI commands" is `short_text` and all code.
+   */
+  answerFormat: "prose" | "code";
+  /** 0..1, as the diagnostic uses it. */
+  difficulty: number;
+}
+
 export interface LearnerConstraints {
   /** Minutes available for today's session. */
   availableMinutes: number;
@@ -167,6 +200,11 @@ export interface PlannerInput {
    */
   stuckSignals?: string[] | undefined;
   retrievalQueue: RetrievalCandidate[];
+  /**
+   * The pack's item bank. Omitted plans a session with no authored questions in
+   * it — which is what every caller did before there was a way to pass them.
+   */
+  items?: EngineItem[] | undefined;
   constraints: LearnerConstraints;
   /** Sequence number of the session being planned, 1-based (§16.1 step 4). */
   sessionIndex: number;
@@ -197,6 +235,16 @@ export type SessionBlock =
        * with two queued items for one skill answers once and both come back.
        */
       itemId: string | null;
+      /**
+       * How the answer is typed, not what it is about.
+       *
+       * `code` turns the browser's prose habits off and the monospace on. A
+       * learner answering "state the CLI command" into a proof-reading box gets
+       * `dotnet new` capitalised and underlined for their trouble. Optional
+       * because sessions planned before this field exists have no opinion, and
+       * those default to prose.
+       */
+      answerFormat?: "prose" | "code";
       estMinutes: number;
     }
   | {

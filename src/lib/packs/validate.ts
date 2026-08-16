@@ -1,6 +1,7 @@
 import { detectCycle } from "@/lib/engine/graph";
 import { gradingModeFor } from "@/lib/engine/diagnostic";
-import type { EngineSkillGraph } from "@/lib/engine/types";
+import type { EngineItem, EngineSkillGraph } from "@/lib/engine/types";
+import { expectedFor } from "@/lib/session/prove";
 import { PRODUCTION_ITEM_TYPES, type DomainPack } from "./types";
 
 /**
@@ -111,6 +112,39 @@ export function toEngineGraph(pack: DomainPack): EngineSkillGraph {
       strength: d.strength,
     })),
   };
+}
+
+/**
+ * The pack's item bank, flattened for the planner.
+ *
+ * The engine is pure and knows nothing about packs, so `expected` is resolved
+ * here — by `expectedFor`, which is the function the prove-it offer already
+ * used to turn an item's `concepts` into something a grader can mark against.
+ * Items whose skill is not in the graph are dropped rather than served against
+ * a skill that does not exist; the validator rejects such a pack, so this is a
+ * guard for a hand-edited one.
+ */
+export function toEngineItems(pack: DomainPack): EngineItem[] {
+  const canDoBySlug = new Map(
+    pack.skills.map((s) => [s.slug, s.canDoStatement]),
+  );
+
+  return pack.items.flatMap((item) => {
+    const canDo = canDoBySlug.get(item.skill);
+    return canDo === undefined
+      ? []
+      : [
+          {
+            itemId: item.slug,
+            skillId: item.skill,
+            type: item.type,
+            prompt: item.prompt,
+            expected: expectedFor(item, canDo),
+            answerFormat: item.answerFormat,
+            difficulty: item.difficulty,
+          },
+        ];
+  });
 }
 
 export function validatePack(pack: DomainPack): ValidationReport {
