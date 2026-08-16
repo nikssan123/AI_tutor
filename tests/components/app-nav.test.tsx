@@ -35,6 +35,7 @@ describe("isCurrent", () => {
   it("only matches on a path boundary", () => {
     expect(isCurrent("/today-digest", "/today")).toBe(false);
   });
+
 });
 
 describe("AppNav", () => {
@@ -61,7 +62,7 @@ describe("AppNav", () => {
 
     // §8.5.5 bans "tooltips that explain an icon" — which in practice means an
     // icon may never be the only label.
-    for (const label of ["Today", "Calendar", "Mastery", "Progress", "You"]) {
+    for (const label of ["Today", "Path", "Mastery", "Progress", "You"]) {
       expect(screen.getAllByRole("link", { name: label }).length).toBe(2);
     }
   });
@@ -71,6 +72,35 @@ describe("AppNav", () => {
    * the DOM twice. That is fine for a link and a defect for a submit button,
    * which is why sign-out lives on /account instead.
    */
+  /**
+   * §8.5.5 names three destinations — "Today · Path · You" — and Path was the
+   * one the rail did not have. It could not have had it: the screen lives at
+   * `/goals/{id}/path` and this is a Client Component with no session to
+   * resolve an id from, which is what `/path` exists to solve.
+   */
+  it("carries the destination the spec names and the rail was missing", () => {
+    pathname.mockReturnValue("/today");
+    render(<AppNav />);
+
+    for (const link of screen.getAllByRole("link", { name: "Path" })) {
+      expect(link.getAttribute("href")).toBe("/path");
+    }
+  });
+
+  it("marks Path as current on the course screen", () => {
+    pathname.mockReturnValue("/path");
+    render(<AppNav />);
+
+    const current = screen.getAllByRole("link", { name: "Path" });
+    expect(current.length).toBe(2);
+    for (const link of current) {
+      expect(link.getAttribute("aria-current")).toBe("page");
+    }
+    for (const link of screen.getAllByRole("link", { name: "Today" })) {
+      expect(link.getAttribute("aria-current")).toBeNull();
+    }
+  });
+
   it("holds no sign-out", () => {
     pathname.mockReturnValue("/today");
     render(<AppNav />);

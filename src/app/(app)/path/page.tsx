@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
 import { activeGoal, masteryFor } from "@/lib/goals/store";
+import { standingFor } from "@/lib/goals/standing";
+import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import { projectSkills } from "@/lib/goals/projection";
 import { buildOutline } from "@/lib/goals/outline";
 import { depthOptions } from "@/lib/goals/depth";
@@ -116,22 +118,46 @@ const STATE = {
   },
 } as const;
 
-type Props = { params: Promise<{ id: string }> };
-
-export default async function PathPage({ params }: Props) {
+export default async function PathPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const { id } = await params;
   const db = getDb();
-
   const goal = await activeGoal(db, session.user.id);
-  // Scoped to the signed-in learner's own goal: reading someone else's path by
-  // guessing a UUID is not a feature.
-  if (!goal || goal.id !== id) notFound();
 
-  const pack = await resolvePack(db, goal.packSlug);
-  if (!pack) notFound();
+  /*
+   * No course running, and no ownership check needed to say so.
+   *
+   * This screen used to live at `/goals/{id}/path` and opened by comparing the
+   * id in the URL against the learner's active goal — because reading someone
+   * else's path by guessing a UUID is not a feature. The id is gone and the
+   * guarantee is stronger for it: there is no id to guess, and `activeGoal`
+   * only ever returns this learner's own.
+   *
+   * The same card the other destinations give the same learner, for
+   * `NothingRunning`'s own reason: the offer is the same learner's state
+   * wherever they read it, and a `notFound()` here would have been the one
+   * destination in the rail that answered "nothing running" with a 404.
+   */
+  const pack = goal ? await resolvePack(db, goal.packSlug) : undefined;
+
+  if (!goal || !pack) {
+    const standing = await standingFor(db, session.user.id);
+
+    return (
+      <AppFrame>
+        <AppHeader
+          title="Your path"
+          lead="The whole course, in the order it builds on itself — once there is a course to lay out."
+        />
+        <NothingRunning
+          standing={standing}
+          note="Once a course is running, this is where you can see all of it: what is open to you now, what is waiting on something else, and what we skipped because you can already do it."
+        />
+        <PickBackUp courses={standing.again} />
+      </AppFrame>
+    );
+  }
 
   const now = new Date().toISOString();
   const graph = toEngineGraph(pack);

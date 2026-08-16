@@ -48,6 +48,14 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
+/**
+ * Whether the tutor will actually answer. The page only advertises it when the
+ * session screen would draw the panel, so the two cannot promise different
+ * things — and a suite whose result depended on whether the machine running it
+ * had a key exported would be worse than either branch.
+ */
+const apiKey = vi.fn(() => true);
+vi.mock("@/lib/ai/client", () => ({ hasApiKey: () => apiKey() }));
 vi.mock("@/lib/billing/gate", () => ({
   nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
 }));
@@ -144,6 +152,7 @@ beforeEach(() => {
   loadIntakeMock.mockResolvedValue(EMPTY_INTAKE);
   coursesForMock.mockResolvedValue([]);
   buildInFlightForMock.mockResolvedValue(undefined);
+  apiKey.mockReturnValue(true);
 });
 
 afterEach(cleanup);
@@ -404,6 +413,49 @@ describe("with a plan", () => {
     expect(screen.getByText("Read")).toBeDefined();
     // Blocks are named by skill, not by slug.
     expect(screen.getByText(`${pack.skills[1]!.name}`)).toBeDefined();
+  });
+
+  /**
+   * The band was called "Your path" and linked nowhere.
+   *
+   * It has always printed two counts off the projection, on the screen people
+   * open daily, while the screen that lays the whole course out had one inbound
+   * link in the entire product — from `/calendar`'s empty state.
+   */
+  it("offers the path it is named after", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    const link = screen.getByRole("link", { name: "See all of it" });
+    expect(link.getAttribute("href")).toBe("/path");
+  });
+
+  /**
+   * §8 screen 7's tutor, which was reported as missing by someone who had never
+   * started a session — correctly, because nothing outside one said it existed.
+   */
+  it("says a tutor comes with the session", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.getByText(/A tutor sits with you through every block/)).toBeDefined();
+  });
+
+  it("does not promise a tutor that cannot answer", async () => {
+    // The same condition the session screen swaps the panel out on. Advertising
+    // it here regardless would be a promise the next screen visibly breaks.
+    apiKey.mockReturnValue(false);
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText(/A tutor sits with you/)).toBeNull();
+  });
+
+  it("does not offer a tutor for a session with nothing in it", async () => {
+    todayForMock.mockResolvedValue(view({ session: { blocks: [] } }));
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(screen.queryByText(/A tutor sits with you/)).toBeNull();
   });
 
   it("says when it is backing off rather than quietly grinding", async () => {

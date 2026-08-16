@@ -947,7 +947,7 @@ describe("the screen", () => {
     render(await StartPage({ searchParams: search() }));
 
     const open = screen.getByRole("link", { name: "Open my course" });
-    expect(open.getAttribute("href")).toBe("/goals/g-9/path");
+    expect(open.getAttribute("href")).toBe("/path");
     // Named by the pack rather than by its slug: the course is called
     // "Photography", not "photography".
     expect(screen.getByText("Photography")).toBeDefined();
@@ -976,7 +976,7 @@ describe("the screen", () => {
       a.className.includes("text-on-accent"),
     );
     expect(filled).toHaveLength(1);
-    expect(filled[0]!.getAttribute("href")).toBe("/goals/g-9/path");
+    expect(filled[0]!.getAttribute("href")).toBe("/path");
   });
 
   it("promotes the catalogue when there is no course to open", async () => {
@@ -1361,7 +1361,7 @@ describe("turning the conversation into a goal", () => {
     };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
     expect(createGoalMock).toHaveBeenCalledOnce();
     expect(startBuildMock).not.toHaveBeenCalled();
@@ -1534,7 +1534,7 @@ describe("turning the conversation into a goal", () => {
     };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
     expect(startBuildMock).not.toHaveBeenCalled();
     expect(createGoalMock.mock.calls[0]![1]).toMatchObject({
@@ -1558,7 +1558,7 @@ describe("turning the conversation into a goal", () => {
     };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
 
     expect(sendMock).toHaveBeenCalledWith({
@@ -1585,7 +1585,7 @@ describe("turning the conversation into a goal", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
 
     // Swallowed for the learner, reported to whoever is running the server —
@@ -1909,7 +1909,7 @@ describe("adopting a pack that finished building", () => {
 
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
-    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
+    ).rejects.toThrow("REDIRECT:/path");
     expect(createGoalMock).toHaveBeenCalledOnce();
   });
 
@@ -1945,7 +1945,7 @@ describe("adopting a pack that finished building", () => {
 
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
-    ).rejects.toThrow("REDIRECT:/goals/g-9/path");
+    ).rejects.toThrow("REDIRECT:/path");
     // Idempotent, not merely redirected: a second goal for the same pack would
     // be a duplicate course with the same name in the learner's list.
     expect(createGoalMock).not.toHaveBeenCalled();

@@ -28,6 +28,7 @@ import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { nudgeAt } from "@/lib/billing/gate";
 import { buildInFlightFor } from "@/lib/packs/build";
+import { hasApiKey } from "@/lib/ai/client";
 import type { SessionBlock } from "@/lib/engine";
 import { startSessionAction } from "../session/[id]/actions";
 
@@ -340,6 +341,32 @@ export default async function TodayPage({ searchParams }: Props) {
         ) : (
           <EmptyState message="Nothing is unlocked right now — every skill on your path is either done or waiting on a prerequisite." />
         )}
+
+        {/*
+         * §8 screen 7's tutor, said out loud on the screen people actually open.
+         *
+         * It was reported as missing — "I don't see the AI tutor chat anywhere"
+         * — by someone who had never started a session, which is exactly right:
+         * it renders inside `/session/{id}`, below the block, and nothing
+         * outside a running session mentioned that it exists. Scoping it to a
+         * block is the correct design, because a tutor that knows what you are
+         * looking at is the thing a general chat window is not. Being invisible
+         * until you are three clicks into one is not part of that design.
+         *
+         * Here rather than in the footer: the footer is where the decision to
+         * start gets made, and this is a fact about what starting gets you.
+         * Only when there is something to start, and only when the tutor will
+         * actually answer — `hasApiKey` is the same condition the session
+         * screen swaps the panel out on, so this cannot promise a control that
+         * screen will not draw.
+         */}
+        {planned.blocks.length > 0 && hasApiKey() ? (
+          <Meta>
+            A tutor sits with you through every block. Ask it anything as you
+            go, or tell it the explanation isn&rsquo;t landing and it will try a
+            different one.
+          </Meta>
+        ) : null}
       </HeroBand>
 
       {/* A plan that has been cut to fit a date is the second-loudest thing
@@ -360,7 +387,28 @@ export default async function TodayPage({ searchParams }: Props) {
       ) : null}
 
       <section className="rise flex flex-col gap-6" style={stagger(4)}>
-        <SectionHead label="The rest of it" title="Your path" />
+        <SectionHead
+          label="The rest of it"
+          title="Your path"
+          /*
+           * The band was named after a screen it did not link to.
+           *
+           * It has always printed two counts off the projection and stopped
+           * there, so the one screen that lays the whole course out — sectioned,
+           * every skill carrying its state and a sentence for it — was reachable
+           * from a single link on `/calendar`'s empty state and nowhere else.
+           * A learner read "Your path · 14 skills to go" every day of their
+           * course without ever being offered the path.
+           */
+          action={
+            <Link
+              href="/path"
+              className="font-[550] text-accent underline-offset-4 hover:underline"
+            >
+              See all of it
+            </Link>
+          }
+        />
 
         <Lead>
           {projection.requiredSkillIds.length} skills to go ·{" "}

@@ -1,11 +1,12 @@
 import { AppLoading } from "@/components/app-shell";
 
 /**
- * No title. This screen opens "The last seven days" with a course running and
- * "Your week" without one, and which of those is true is exactly what we are
- * still waiting on — so writing either would mean swapping the heading out from
- * under someone who had already started reading it.
+ * The heading names the window, which does not depend on the data — but the
+ * facts row under it does, so the title is left to the skeleton.
+ *
+ * Six bands since `/calendar` merged in: the week, where it went, the month,
+ * what is coming, what is ahead, and the courses.
  */
 export default function Loading() {
-  return <AppLoading bands={3} />;
+  return <AppLoading bands={6} />;
 }

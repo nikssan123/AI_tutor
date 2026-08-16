@@ -272,7 +272,7 @@ describe("creating the goal", () => {
 
   it("stores the goal and lands on the path screen, where it can be built", async () => {
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
 
     expect(createGoalMock).toHaveBeenCalledTimes(1);
@@ -293,7 +293,7 @@ describe("creating the goal", () => {
     jar.set("check_photography", encode({ a: [{ i: closed.slug, c: 1 }] }));
 
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
 
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -307,7 +307,7 @@ describe("creating the goal", () => {
   it("does not pick up a check taken in a different subject", async () => {
     jar.set("check_sql-data-analysis", encode({ a: [{ i: "any", c: 1 }] }));
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/goals/goal-1/path",
+      "REDIRECT:/path",
     );
 
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -373,7 +373,7 @@ describe("a subject we do not have", () => {
     // pack for it would be a worse answer to a better-spelled question.
     await expect(
       createGoalAction(custom({ customSubject: "Photography" })),
-    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
+    ).rejects.toThrow("REDIRECT:/path");
 
     expect(startBuildMock).not.toHaveBeenCalled();
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -388,7 +388,7 @@ describe("a subject we do not have", () => {
     // mind still submits what was typed first.
     await expect(
       createGoalAction(form({ ...valid, customSubject: "Rust" })),
-    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
+    ).rejects.toThrow("REDIRECT:/path");
 
     expect(startBuildMock).not.toHaveBeenCalled();
   });

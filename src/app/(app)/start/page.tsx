@@ -201,7 +201,7 @@ function IntakeClosed({ built }: { built: { id: string; name: string } | null })
           state="Built for you"
           title={built.name}
           action={
-            <ButtonLink href={`/goals/${built.id}/path`}>
+            <ButtonLink href="/path">
               Open my course
             </ButtonLink>
           }

@@ -3,6 +3,8 @@ import { EVENTS, inngest } from "@/lib/inngest/client";
 import {
   buildPack,
   buildPackHandler,
+  buildPath,
+  buildPathHandler,
   evaluate,
   evaluateHandler,
   type EvaluateResult,
@@ -39,7 +41,10 @@ describe("the ping function — E1's durability proof", () => {
     expect(functions).toContain(ping);
     expect(functions).toContain(buildPack);
     expect(functions).toContain(evaluate);
-    expect(functions).toHaveLength(3);
+    // `buildPath` had been a name in `EVENTS` with nothing on either end of it
+    // since E1. A registered function is what makes the event mean something.
+    expect(functions).toContain(buildPath);
+    expect(functions).toHaveLength(4);
   });
 
   it("triggers on the ping event", () => {
@@ -183,6 +188,16 @@ vi.mock("@/lib/packs/build", () => ({
 }));
 vi.mock("@/lib/packs/notify", () => ({
   notifyBuildFailed: vi.fn(async () => true),
+}));
+/**
+ * The shared builder, mocked here for the same reason `generatePack` is: what
+ * this file owes is that the registered function reaches it with a real
+ * database handle and a real client. What it *does* is tested against its own
+ * seams in tests/lib/curriculum-build.test.ts.
+ */
+const curriculumOutcome = vi.fn(() => ({ built: true, source: "generated" }));
+vi.mock("@/lib/curriculum/build", () => ({
+  buildCurriculumFor: vi.fn(async () => curriculumOutcome()),
 }));
 
 describe("the registered build function", () => {
@@ -824,5 +839,123 @@ describe("a pack build nobody asked for", () => {
       expect.objectContaining({ userId: null, plan: undefined }),
       { slug: "rust", subject: "Rust", rawGoal: null },
     );
+  });
+});
+
+/**
+ * §14.9.1's buildPath chain, which had a name and nothing else.
+ *
+ * The consequence of the missing sender and handler was not abstract: no goal
+ * ever got a curriculum unless its owner found the button on `/path`,
+ * and without a curriculum there are no checkpoints — so `/calendar` opened
+ * empty on a course that had only just been built.
+ */
+describe("the path build function", () => {
+  it("triggers on the path event and runs one per goal at a time", () => {
+    expect(buildPath.opts.triggers).toEqual([{ event: EVENTS.buildPath }]);
+    // Two runs would both pay, and the second would supersede the first's
+    // curriculum for no gain.
+    expect(buildPath.opts.concurrency).toMatchObject({
+      key: "event.data.goalId",
+      limit: 1,
+    });
+  });
+
+  it("retries once, for the same reason a ~£1 step does", () => {
+    /*
+     * A model that refuses or returns nonsense never reaches this layer:
+     * `generateValidatedCurriculum` falls back to the deterministic canonical
+     * path rather than throwing. So a throw out here is transient, and one
+     * more go covers it without buying a third and fourth full generation.
+     */
+    expect(buildPath.opts.retries).toBe(1);
+  });
+
+  it("wires the shared builder to the real database and client", async () => {
+    const { buildCurriculumFor } = await import("@/lib/curriculum/build");
+    vi.mocked(buildCurriculumFor).mockClear();
+    curriculumOutcome.mockReturnValue({ built: true, source: "generated" });
+
+    const ran: string[] = [];
+    const result = await (
+      buildPath as unknown as {
+        fn: (c: unknown) => Promise<{ status: string; detail: string }>;
+      }
+    ).fn({
+      event: { data: { userId: "u1", goalId: "goal-1" } },
+      step: {
+        run: async <T>(name: string, f: () => T | Promise<T>) => {
+          ran.push(name);
+          return f();
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      goalId: "goal-1",
+      status: "built",
+      detail: "generated",
+    });
+    // One step, not two: there is no expensive half to protect from a resumed
+    // run, because the whole of it either stores a curriculum or does not.
+    expect(ran).toEqual(["build-curriculum"]);
+    expect(buildCurriculumFor).toHaveBeenCalledWith(
+      {
+        db: expect.objectContaining({ db: true }),
+        client: { client: true },
+      },
+      { userId: "u1", goalId: "goal-1" },
+    );
+  });
+
+  /**
+   * An event can arrive after the learner has put that course aside. A
+   * background job is exactly where money gets spent on a course nobody is
+   * taking, so a skip is a result rather than a failure.
+   */
+  it("reports a skip rather than failing when there was nothing to build", async () => {
+    curriculumOutcome.mockReturnValue({
+      built: false,
+      source: "",
+      reason: "not-active",
+    } as never);
+
+    const result = await (
+      buildPath as unknown as {
+        fn: (c: unknown) => Promise<{ status: string; detail: string }>;
+      }
+    ).fn({
+      event: { data: { userId: "u1", goalId: "goal-1" } },
+      step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
+    });
+
+    expect(result).toEqual({
+      goalId: "goal-1",
+      status: "skipped",
+      detail: "not-active",
+    });
+  });
+});
+
+describe("buildPathHandler", () => {
+  /**
+   * An event that arrives without its fields must not become a build for the
+   * empty-string learner. `buildCurriculumFor` answers `not-active` for one,
+   * which is the correct answer, but the handler is what has to hand it
+   * something to answer about rather than throwing on a missing property.
+   */
+  it("tolerates an event with no data at all", async () => {
+    const build = vi.fn(async () => ({
+      built: false as const,
+      reason: "not-active",
+    }));
+
+    const result = await buildPathHandler({ build })({
+      event: {},
+      step: { run: async <T>(_n: string, f: () => T | Promise<T>) => f() },
+    });
+
+    expect(build).toHaveBeenCalledWith({ userId: "", goalId: "" });
+    expect(result).toEqual({ goalId: "", status: "skipped", detail: "not-active" });
   });
 });

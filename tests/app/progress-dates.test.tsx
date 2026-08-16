@@ -10,13 +10,17 @@ import type { CalendarView } from "@/lib/calendar/view";
 import type { LearnerStanding } from "@/lib/goals/standing";
 
 /**
- * The calendar screen.
+ * The dated half of `/progress` — what used to be `/calendar`, before the two
+ * merged into one destination.
  *
- * `calendarFor` is stubbed: what it computes is tested against a real database
- * in tests/calendar/store.test.ts, and the question here is whether the screen
- * says what those dates actually rest on. A calendar is where a product is most
- * tempted to draw a guess like a fact, so the assertions below are mostly about
- * the difference between the three.
+ * Kept as its own file rather than folded into `progress-page.test.tsx` because
+ * the questions are different: that file is about the honesty of the week's
+ * sentences, this one is about whether a date says what it actually rests on. A
+ * calendar is where a product is most tempted to draw a guess like a fact, so
+ * the assertions below are mostly about the difference between the three marks.
+ *
+ * `calendarFor` is stubbed; what it computes is tested against a real database
+ * in tests/calendar/store.test.ts.
  */
 
 const redirectMock = vi.fn((url: string) => {
@@ -24,6 +28,8 @@ const redirectMock = vi.fn((url: string) => {
 });
 const getSessionMock = vi.fn();
 const calendarForMock = vi.fn();
+const digestForMock = vi.fn();
+const coursesForMock = vi.fn();
 const standingForMock = vi.fn();
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
@@ -37,13 +43,22 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/calendar/view", () => ({
   calendarFor: (...args: unknown[]) => calendarForMock(...(args as [])),
 }));
+// The screen's other half. Stubbed to something valid throughout this file so
+// the dates are what is under test — `progress-page.test.tsx` owns the digest.
+vi.mock("@/lib/mastery/view", () => ({
+  digestFor: (...args: unknown[]) => digestForMock(...(args as [])),
+}));
+vi.mock("@/lib/goals/courses", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
+  coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
+}));
 // What the learner has on when there is nothing to date. Stubbed for the same
 // reason `calendarFor` is: it is a database read, tested in tests/goals.
 vi.mock("@/lib/goals/standing", () => ({
   standingFor: (...args: unknown[]) => standingForMock(...(args as [])),
 }));
 
-const { default: CalendarPage } = await import("@/app/(app)/calendar/page");
+const { default: ProgressPage } = await import("@/app/(app)/progress/page");
 
 const NOTHING_ON: LearnerStanding = {
   building: undefined,
@@ -115,10 +130,37 @@ function view(
   };
 }
 
+const DIGEST = {
+  goal: {
+    id: "g1",
+    packSlug: pack.slug,
+    spec: {} as CalendarView["goal"]["spec"],
+    createdAt: new Date("2026-08-01T09:00:00.000Z"),
+  },
+  pack,
+  digest: {
+    hoursLogged: 2,
+    committedHours: 3,
+    keptCommitment: false,
+    sessions: 4,
+    moved: [{ name: "Metering", delta: 0.2 }],
+    artefacts: 2,
+    tracked: 3,
+    slipping: 1,
+    remainingHours: 30,
+    weeksAtCommitment: 10,
+    weeksAtActualPace: 15,
+  },
+  from: new Date("2026-08-06T12:00:00.000Z"),
+  to: new Date("2026-08-13T12:00:00.000Z"),
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
   standingForMock.mockResolvedValue(NOTHING_ON);
+  coursesForMock.mockResolvedValue([]);
+  digestForMock.mockResolvedValue(DIGEST);
 });
 
 afterEach(cleanup);
@@ -126,17 +168,40 @@ afterEach(cleanup);
 describe("before there is anything to date", () => {
   it("redirects an unauthenticated visitor to sign in", async () => {
     getSessionMock.mockResolvedValue(null);
-    await expect(CalendarPage({ searchParams: search() })).rejects.toThrow(
+    await expect(ProgressPage({ searchParams: search() })).rejects.toThrow(
       "REDIRECT:/sign-in",
     );
   });
 
   it("says what this screen will hold rather than only what is missing", async () => {
     calendarForMock.mockResolvedValue(undefined);
-    render(await CalendarPage({ searchParams: search() }));
+    digestForMock.mockResolvedValue(undefined);
+    render(await ProgressPage({ searchParams: search() }));
 
-    expect(screen.getByText(/everything owed and everything already done/i)).toBeDefined();
+    expect(screen.getByText(/everything owed turns up on a date/i)).toBeDefined();
     expect(screen.getByText("Pick a subject")).toBeDefined();
+  });
+
+  /**
+   * Two reads, so both are checked. They ask the same two questions — is there
+   * an active goal, does its pack still resolve — but they ask separately, and
+   * a course paused between the two answers would leave one view and not the
+   * other. Half a screen is worse than the offer.
+   */
+  it("shows the offer when only the dates are missing", async () => {
+    calendarForMock.mockResolvedValue(undefined);
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+    expect(screen.queryByText("The month")).toBeNull();
+  });
+
+  it("shows the offer when only the week is missing", async () => {
+    digestForMock.mockResolvedValue(undefined);
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText("Pick a subject")).toBeDefined();
+    expect(screen.queryByText("The month")).toBeNull();
   });
 
   /**
@@ -146,11 +211,12 @@ describe("before there is anything to date", () => {
    */
   it("carries the conversation they left, rather than offering a fresh start", async () => {
     calendarForMock.mockResolvedValue(undefined);
+    digestForMock.mockResolvedValue(undefined);
     standingForMock.mockResolvedValue({
       ...NOTHING_ON,
       resume: { subject: "Kite surfing", turns: 2, ofTurns: 6, ready: false },
     });
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("You were partway through")).toBeDefined();
     expect(screen.getByText(/2 of 6 questions answered/)).toBeDefined();
@@ -162,6 +228,7 @@ describe("before there is anything to date", () => {
 
   it("sends them to the wait screen while a subject is being written", async () => {
     calendarForMock.mockResolvedValue(undefined);
+    digestForMock.mockResolvedValue(undefined);
     standingForMock.mockResolvedValue({
       ...NOTHING_ON,
       building: {
@@ -172,7 +239,7 @@ describe("before there is anything to date", () => {
         startedAt: new Date("2026-08-13T09:00:00.000Z"),
       },
     });
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/writing your course now/)).toBeDefined();
     expect(
@@ -180,118 +247,100 @@ describe("before there is anything to date", () => {
     ).toBe("/start/building?subject=kite-surfing");
   });
 
+  /**
+   * No `PickBackUp` on this branch, unlike the screen `/calendar` used to be:
+   * the courses band below already lists every course, this one included, and
+   * is where a course is managed rather than re-entered. Two offers to resume
+   * the same course on one screen is the drift the merge existed to stop.
+   */
   it("offers a course they put aside, which already has dates behind it", async () => {
     calendarForMock.mockResolvedValue(undefined);
-    standingForMock.mockResolvedValue({
-      ...NOTHING_ON,
-      again: [
-        {
-          goalId: "g-old",
-          name: "Photography",
-          taxonomyParent: "creative",
-          status: "paused" as const,
-        },
-      ],
-    });
-    render(await CalendarPage({ searchParams: search() }));
+    digestForMock.mockResolvedValue(undefined);
+    coursesForMock.mockResolvedValue([
+      {
+        goalId: "g-old",
+        name: "Photography",
+        taxonomyParent: "creative",
+        status: "paused" as const,
+      },
+    ]);
+    render(await ProgressPage({ searchParams: search() }));
 
-    expect(screen.getByText("Pick one back up")).toBeDefined();
+    expect(screen.getByText("What you have on")).toBeDefined();
     expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
   });
 
   /** See the same test on `/mastery`: nothing here can tell the two apart. */
   it("does not claim the learner has no goal, which it cannot know", async () => {
     calendarForMock.mockResolvedValue(undefined);
-    render(await CalendarPage({ searchParams: search() }));
+    digestForMock.mockResolvedValue(undefined);
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {
-    const { metadata } = await import("@/app/(app)/calendar/page");
+    const { metadata } = await import("@/app/(app)/progress/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });
 
-describe("the commitment", () => {
-  it("leads with the weeks kept, not with a day count", async () => {
+/**
+ * One hero, not two.
+ *
+ * `/calendar` led with a streak in weeks and `/progress` with the hours in the
+ * last seven days — the same commitment read twice, on two destinations. The
+ * hours keep the `Figure` because they are what the learner can still act on
+ * today; the streak survives as a `Status` beside it, which is also what
+ * §8.5.10's "one Figure per band, never a row" requires.
+ *
+ * The figure itself is `progress-page.test.tsx`'s; what is checked here is that
+ * the streak came across the merge rather than being dropped with the screen.
+ */
+describe("the streak, after the merge", () => {
+  it("credits the weeks kept without giving them a figure of their own", async () => {
     // A daily streak would tell someone on three hours a week that they failed
     // on Tuesday. The commitment they set is the thing worth counting against.
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
-    // Scoped to the figure: the grid under it is full of bare numbers, and a
-    // day square is not the screen's one number.
-    const figure = screen
-      .getByText(/running, in which you did what you said you would/)
-      .closest("div")!;
-    expect(within(figure).getByText("2")).toBeDefined();
-    expect(within(figure).getByText("weeks")).toBeDefined();
+    expect(screen.getByText("2 weeks running, kept")).toBeDefined();
   });
 
   it("counts a single kept week in the singular", async () => {
     calendarForMock.mockResolvedValue(view({ commitment: { weeksKept: 1 } }));
-    render(await CalendarPage({ searchParams: search() }));
-    expect(screen.getByText("week")).toBeDefined();
+    render(await ProgressPage({ searchParams: search() }));
+
+    expect(screen.getByText("1 week running, kept")).toBeDefined();
   });
 
-  it("falls back to the hours when there is no run to report", async () => {
-    calendarForMock.mockResolvedValue(
-      view({ commitment: { weeksKept: 0, thisWeekHours: 1 } }),
-    );
-    render(await CalendarPage({ searchParams: search() }));
+  it("says nothing at all when there is no run to report", async () => {
+    // Silence, not "0 weeks": §8 screen 6 spends a whole interaction refusing
+    // to build guilt mechanics, and a streak is where they come back.
+    calendarForMock.mockResolvedValue(view({ commitment: { weeksKept: 0 } }));
+    render(await ProgressPage({ searchParams: search() }));
 
-    const figure = screen
-      .getByText("in the last seven days, of the 3 hours you set aside.")
-      .closest("div")!;
-    expect(within(figure).getByText("1")).toBeDefined();
-    expect(within(figure).getByText("hour")).toBeDefined();
-  });
-
-  it("counts more than one of those hours in the plural", async () => {
-    calendarForMock.mockResolvedValue(
-      view({ commitment: { weeksKept: 0, thisWeekHours: 2 } }),
-    );
-    render(await CalendarPage({ searchParams: search() }));
-
-    const figure = screen
-      .getByText("in the last seven days, of the 3 hours you set aside.")
-      .closest("div")!;
-    expect(within(figure).getByText("hours")).toBeDefined();
-  });
-
-  it("says how much of the week is left rather than that you are behind", async () => {
-    calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
-    expect(screen.getByText("1 hour to go this week")).toBeDefined();
-  });
-
-  it("credits a week already met", async () => {
-    calendarForMock.mockResolvedValue(
-      view({ commitment: { thisWeekHours: 3, keptThisWeek: true } }),
-    );
-    render(await CalendarPage({ searchParams: search() }));
-    expect(screen.getByText("This week is already done")).toBeDefined();
+    expect(screen.queryByText(/running, kept/)).toBeNull();
   });
 });
 
 describe("the month", () => {
   it("draws the month it was given, and offers the ones either side", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("August 2026")).toBeDefined();
     expect(screen.getByRole("link", { name: "Earlier" }).getAttribute("href")).toBe(
-      "/calendar?month=2026-07",
+      "/progress?month=2026-07",
     );
     expect(screen.getByRole("link", { name: "Later" }).getAttribute("href")).toBe(
-      "/calendar?month=2026-09",
+      "/progress?month=2026-09",
     );
   });
 
   it("passes the month asked for straight through", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search({ month: "2026-11" }) }));
+    render(await ProgressPage({ searchParams: search({ month: "2026-11" }) }));
 
     expect(calendarForMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -305,7 +354,7 @@ describe("the month", () => {
     // §8.5.5 — colour is never the sole carrier of meaning, and a grid of dots
     // is where a product breaks that rule without noticing.
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     for (const word of ["You worked", "Due", "Projected"]) {
       expect(screen.getByText(word)).toBeDefined();
@@ -314,7 +363,7 @@ describe("the month", () => {
 
   it("writes out what sits on a marked day", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Mon 10 Aug — 120 minutes")).toBeDefined();
     expect(
@@ -324,7 +373,7 @@ describe("the month", () => {
 
   it("says plainly that a projected day is not a promise", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
     expect(screen.getByText(/Nothing on them has been promised to you/)).toBeDefined();
   });
 });
@@ -332,7 +381,7 @@ describe("the month", () => {
 describe("what's coming", () => {
   it("names each thing, what it rests on, and how far off it is", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     const row = screen.getByText("1 question comes back to you").closest("li")!;
     expect(within(row).getByText("Metering and histogram")).toBeDefined();
@@ -342,7 +391,7 @@ describe("what's coming", () => {
 
   it("says a skill stops counting without explaining our machinery", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     const row = screen
       .getByText("Exposure triangle stops counting")
@@ -363,7 +412,7 @@ describe("what's coming", () => {
         }),
       }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Waiting")).toBeDefined();
     expect(screen.getByText("7 days ago")).toBeDefined();
@@ -383,7 +432,7 @@ describe("what's coming", () => {
         }),
       }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText("Waiting")).toBeNull();
   });
@@ -395,7 +444,7 @@ describe("what's coming", () => {
         checkpoints: [],
       }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/Nothing is waiting on you/)).toBeDefined();
   });
@@ -404,7 +453,7 @@ describe("what's coming", () => {
 describe("checkpoints", () => {
   it("prices each one at the pace set aside and the pace actually kept", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Ten frames of one thing")).toBeDefined();
     expect(screen.getByText("Marked against a rubric")).toBeDefined();
@@ -424,7 +473,7 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(
       view({ checkpoints: [checkpoint({ graded: false })] }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
     expect(screen.queryByText("Marked against a rubric")).toBeNull();
   });
 
@@ -432,23 +481,23 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(
       view({ checkpoints: [checkpoint({ dayAtActualPace: null })] }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/no second date to give you/)).toBeDefined();
   });
 
   it("offers to build the path when there isn't one", async () => {
     calendarForMock.mockResolvedValue(view({ hasPath: false, checkpoints: [] }));
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(
       screen.getByRole("link", { name: "Build my path" }).getAttribute("href"),
-    ).toBe("/goals/g1/path");
+    ).toBe("/path");
   });
 
   it("says when a built path has no hand-ins left on it", async () => {
     calendarForMock.mockResolvedValue(view({ checkpoints: [] }));
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByRole("link", { name: "Build my path" })).toBeNull();
     expect(
@@ -460,7 +509,7 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(
       view({ deadline: "2026-08-20", checkpoints: [checkpoint()] }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("More work than time")).toBeDefined();
     // The date is named in the claim itself, not only in the sentence under it:
@@ -480,7 +529,7 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(
       view({ deadline: "2026-09-01", checkpoints: [checkpoint()] }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Behind the pace, not the plan")).toBeDefined();
     expect(screen.queryByText("More work than time")).toBeNull();
@@ -496,7 +545,7 @@ describe("checkpoints", () => {
     calendarForMock.mockResolvedValue(
       view({ deadline: "2026-12-01", checkpoints: [checkpoint()] }),
     );
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText("More work than time")).toBeNull();
     expect(screen.queryByText("Behind the pace, not the plan")).toBeNull();
@@ -508,17 +557,17 @@ describe("the house rules", () => {
   it("shows no percentage anywhere (§24 E9)", async () => {
     calendarForMock.mockResolvedValue(view({ deadline: "2026-12-01" }));
     const { container } = render(
-      await CalendarPage({ searchParams: search() }),
+      await ProgressPage({ searchParams: search() }),
     );
     expect(container.textContent).not.toMatch(/\d%|percent/i);
   });
 
   it("carries the facts about the goal on the header's rule", async () => {
     calendarForMock.mockResolvedValue(view());
-    render(await CalendarPage({ searchParams: search() }));
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      "Your calendar",
+      "The last seven days",
     );
     expect(screen.getByText(pack.name)).toBeDefined();
     expect(screen.getByText("3 hours a week")).toBeDefined();

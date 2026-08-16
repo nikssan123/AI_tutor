@@ -61,6 +61,43 @@ const config: NextConfig = {
         destination: "/check/:skill",
         permanent: true,
       },
+      /*
+       * The course used to live at `/goals/{id}/path`, and the id in it could
+       * only ever have one value — one active course at a time is enforced in
+       * the same transaction that could create a second (`pauseOthers`). It is
+       * `/path` now, which is what let the rail have the destination §8.5.5
+       * names.
+       *
+       * Kept here rather than as a page that redirects, and that is the point
+       * rather than a tidiness preference. A Server Component whose whole job is
+       * to throw `redirect()` lands in React's *errored* component path, and the
+       * dev-only user-timing instrumentation there measures the failed render
+       * with an unclamped end timestamp — `performance.measure` then throws
+       * "'PathPage' cannot have a negative time stamp" into the browser. A
+       * config redirect is answered before any component renders, so there is no
+       * measurement and nothing to throw.
+       *
+       * Temporary, not permanent: nothing was ever indexed under it (the whole
+       * `(app)` segment is noindex by construction), so there is no cached 308
+       * to regret if this moves again.
+       */
+      {
+        source: "/goals/:id/path",
+        destination: "/path",
+        permanent: false,
+      },
+      /*
+       * `/calendar` merged into `/progress` — one destination for "how it is
+       * going" and "when", which is what freed the rail slot Path now has.
+       * Here rather than as a page for the same reason as above: a component
+       * whose only job is to throw `redirect()` is the thing that crashes
+       * React's dev-time timing instrumentation.
+       */
+      {
+        source: "/calendar",
+        destination: "/progress",
+        permanent: false,
+      },
     ];
   },
 };

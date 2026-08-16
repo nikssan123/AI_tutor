@@ -8,6 +8,7 @@ import { seedPack } from "@/lib/packs/seed";
 import { findBuild, finishBuild, markBuildStage } from "@/lib/packs/build";
 import { notifyBuildFailed } from "@/lib/packs/notify";
 import { evaluateSubmission } from "@/lib/evaluation";
+import { buildCurriculumFor } from "@/lib/curriculum/build";
 import { entitlementsForUser } from "@/lib/billing/store";
 import { subsidisesPackBuilds } from "@/lib/billing/catalog";
 import { GRADER_PROMPT } from "@/lib/evaluation/grade";
@@ -383,7 +384,88 @@ export const evaluate = inngest.createFunction(
   }),
 );
 
-export const functions = [ping, buildPack, evaluate];
+/* ── §14.9.1's buildPath chain, finally sent something ────────────────────── */
+
+export interface BuildPathEvent {
+  data?: { userId?: string; goalId?: string };
+}
+
+export interface BuildPathContext {
+  event: BuildPathEvent;
+  step: StepLike;
+}
+
+export interface BuildPathResult {
+  goalId: string;
+  status: "built" | "skipped";
+  /** The source it was built from, or why nothing was built. */
+  detail: string;
+}
+
+/**
+ * Cuts a new goal into modules, off the request path.
+ *
+ * `EVENTS.buildPath` has been declared since E1 and had no sender and no
+ * handler, so the only way a learner ever got a curriculum was to find a button
+ * on a page nothing in the product linked to. This is the half that was missing:
+ * creating a goal now asks for the path, and the wait happens where nobody is
+ * looking at it.
+ *
+ * It is one step, not two, because there is no expensive half to protect from a
+ * resumed run: `buildCurriculumFor` either stores a curriculum or it does not,
+ * and it supersedes rather than overwrites, so the worst a re-run costs is a
+ * second version of the same course.
+ *
+ * Injected rather than imported, so the branching is testable without a database
+ * or an API key — the same seam `pingHandler` and `buildPackHandler` use.
+ */
+export function buildPathHandler(deps: {
+  build: (input: {
+    userId: string;
+    goalId: string;
+  }) => Promise<{ built: true; source: string } | { built: false; reason: string }>;
+}) {
+  return async ({ event, step }: BuildPathContext): Promise<BuildPathResult> => {
+    const userId = event.data?.userId ?? "";
+    const goalId = event.data?.goalId ?? "";
+
+    const outcome = await step.run("build-curriculum", () =>
+      deps.build({ userId, goalId }),
+    );
+
+    return outcome.built
+      ? { goalId, status: "built", detail: outcome.source }
+      : { goalId, status: "skipped", detail: outcome.reason };
+  };
+}
+
+export const buildPath = inngest.createFunction(
+  {
+    id: "goal-path-build",
+    name: "Build a learning path",
+    triggers: [{ event: EVENTS.buildPath }],
+    // One at a time per goal: two runs would both pay, and the second would
+    // supersede the first's curriculum for no gain.
+    concurrency: { key: "event.data.goalId", limit: 1 },
+    /*
+     * One retry, for `buildPack`'s reason rather than by copying its number.
+     *
+     * The step is up to two model calls at §20.2's $0.55, and a model that
+     * refuses or returns nonsense is *not* what reaches this layer:
+     * `generateValidatedCurriculum` already falls back to the deterministic
+     * canonical path rather than throwing. So a throw out here is a dropped
+     * connection or a worker dying mid-step, and one more go covers those
+     * without buying a third and fourth full generation.
+     */
+    retries: 1,
+  },
+  buildPathHandler({
+    build: (input) =>
+      buildCurriculumFor({ db: getDb(), client: getAnthropic() }, input),
+  }),
+);
+
+export const functions = [ping, buildPack, evaluate, buildPath];
 
 /* ── §7.1's Generated tier ────────────────────────────────────────────────── */
 

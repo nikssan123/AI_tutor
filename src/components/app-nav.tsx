@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AccountIcon,
-  CalendarIcon,
   MasteryIcon,
+  PathIcon,
   ProgressIcon,
   TodayIcon,
 } from "@/components/icons";
@@ -42,14 +42,39 @@ import { cx } from "@/components/ui";
  * "the exactly-four-item bottom tab bar" as an iOS tic, which is an argument
  * against copying a number rather than for one. The rule that does bind is one
  * flat level with a word on every destination, and this keeps it.
+ *
+ * **Path is the one §8.5.5 actually named, and it was the one that was missing.**
+ * The rail shipped Today, Calendar, Mastery, Progress and You — two of the
+ * spec's three, plus *three* reporting surfaces, and no slot at all for the
+ * thing being reported on. The most expensive artefact the product makes had
+ * one inbound link in the entire application, from `/calendar`'s empty state,
+ * and a learner who never hit that state never saw their own course.
+ *
+ * The room for it came from `/calendar`, which was never a destination's worth
+ * of screen on its own: it opened with a `Figure` about the same commitment
+ * `/progress` opens with, and closed with the same work priced at the same two
+ * paces. It is bands three to five of `/progress` now.
+ *
+ * It sits second because it is the only destination that answers "what am I
+ * taking" rather than "how is it going", and that question comes first.
+ *
+ * The screen answers to `/path` directly. It used to live at `/goals/{id}/path`,
+ * which is what made this destination impossible to draw — the rail is a Client
+ * Component and has no session to resolve an id from. One active course at a
+ * time is a transactional invariant (`pauseOthers`), so the id in that URL only
+ * ever had one value and the screen never needed it.
  */
-const DESTINATIONS = [
+const DESTINATIONS: ReadonlyArray<{
+  href: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
   { href: "/today", label: "Today", Icon: TodayIcon },
-  { href: "/calendar", label: "Calendar", Icon: CalendarIcon },
+  { href: "/path", label: "Path", Icon: PathIcon },
   { href: "/mastery", label: "Mastery", Icon: MasteryIcon },
   { href: "/progress", label: "Progress", Icon: ProgressIcon },
   { href: "/account", label: "You", Icon: AccountIcon },
-] as const;
+];
 
 /**
  * `/mastery` is current on `/mastery?show=left`, and `/account` on any screen

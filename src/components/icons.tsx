@@ -142,6 +142,23 @@ export function CalendarIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * A route between marked points: the course, in the order it is taken.
+ *
+ * Deliberately not `StepsIcon` — that one is a flat list, and the whole claim
+ * this destination makes is that the order is *derived*, from what depends on
+ * what. The line turns because the path does.
+ */
+export function PathIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M6 19.5v-4a3 3 0 0 1 3-3h6a3 3 0 0 0 3-3v-4" />
+      <circle cx="6" cy="19.5" r="1.75" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="5.5" r="1.75" />
+    </Svg>
+  );
+}
+
 /** A tick in a ring: something proved, and still standing. */
 export function MasteryIcon({ className }: IconProps) {
   return (

@@ -5,7 +5,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { AppLoading } from "@/components/app-shell";
 
 import TodayLoading from "@/app/(app)/today/loading";
-import CalendarLoading from "@/app/(app)/calendar/loading";
 import MasteryLoading from "@/app/(app)/mastery/loading";
 import SubjectsLoading from "@/app/(app)/subjects/loading";
 import AccountLoading from "@/app/(app)/account/loading";
@@ -14,7 +13,7 @@ import ReferralsLoading from "@/app/(app)/account/referrals/loading";
 import ProgressLoading from "@/app/(app)/progress/loading";
 import SessionLoading from "@/app/(app)/session/[id]/loading";
 import SubmissionLoading from "@/app/(app)/submission/[id]/loading";
-import PathLoading from "@/app/(app)/goals/[id]/path/loading";
+import PathLoading from "@/app/(app)/path/loading";
 
 /**
  * The `loading.tsx` boundaries under `(app)`.
@@ -39,7 +38,6 @@ const BOUNDARIES: Array<
   [name: string, Loading: () => ReactElement, heading: string | null]
 > = [
   ["/today", TodayLoading, "Today"],
-  ["/calendar", CalendarLoading, "Your calendar"],
   ["/mastery", MasteryLoading, "What you can do"],
   ["/subjects", SubjectsLoading, "What you can learn here"],
   ["/account", AccountLoading, "Account"],
@@ -48,7 +46,9 @@ const BOUNDARIES: Array<
   ["/progress", ProgressLoading, null],
   ["/session/[id]", SessionLoading, null],
   ["/submission/[id]", SubmissionLoading, null],
-  ["/goals/[id]/path", PathLoading, null],
+  // A rail destination, so it is hovered before it is clicked — exactly the
+  // route a missing boundary hurts most.
+  ["/path", PathLoading, "Your path"],
 ];
 
 describe("(app) loading boundaries", () => {

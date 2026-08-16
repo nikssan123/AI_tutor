@@ -106,7 +106,7 @@ export async function saveCurriculum(
   return id;
 }
 
-/** The curriculum `/goals/[id]/path` renders — newest non-superseded version. */
+/** The curriculum `/path` renders — newest non-superseded version. */
 export async function currentCurriculum(
   db: Db,
   goalId: string,

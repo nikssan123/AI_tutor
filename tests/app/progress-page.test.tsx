@@ -36,6 +36,16 @@ vi.mock("@/db", () => ({ getDb: () => ({}) }));
 vi.mock("@/lib/mastery/view", () => ({
   digestFor: (...args: unknown[]) => digestForMock(...(args as [])),
 }));
+/**
+ * The screen's dated half, which arrived when `/calendar` merged in. Stubbed to
+ * something valid throughout this file so the week's sentences are what is
+ * under test — `progress-dates.test.tsx` owns the month, the marks and the
+ * checkpoints.
+ */
+const calendarForMock = vi.fn();
+vi.mock("@/lib/calendar/view", () => ({
+  calendarFor: (...args: unknown[]) => calendarForMock(...(args as [])),
+}));
 vi.mock("@/lib/goals/courses", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
   coursesFor: (...args: unknown[]) => coursesForMock(...(args as [])),
@@ -87,11 +97,40 @@ function view(overrides: Partial<Digest> = {}): DigestView {
   };
 }
 
+const calendarView = () => ({
+  goal: {
+    id: "g1",
+    packSlug: pack.slug,
+    spec: {} as DigestView["goal"]["spec"],
+    createdAt: new Date("2026-08-13T09:00:00.000Z"),
+  },
+  pack,
+  month: "2026-08",
+  label: "August 2026",
+  previousMonth: "2026-07",
+  nextMonth: "2026-09",
+  today: "2026-08-13",
+  weeks: [],
+  ahead: [],
+  checkpoints: [],
+  commitment: {
+    weeklyHours: 3,
+    weeksKept: 0,
+    thisWeekHours: 2,
+    keptThisWeek: false,
+  },
+  deadline: null,
+  hasPath: true,
+});
+
+const search = (params: { month?: string } = {}) => Promise.resolve(params);
+
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue(SIGNED_IN);
   coursesForMock.mockResolvedValue([]);
   standingForMock.mockResolvedValue(NOTHING_ON);
+  calendarForMock.mockResolvedValue(calendarView());
 });
 
 afterEach(cleanup);
@@ -115,7 +154,7 @@ describe("your courses", () => {
   it("offers to put the running course aside, or stop it", async () => {
     digestForMock.mockResolvedValue(view());
     coursesForMock.mockResolvedValue([course("active")]);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByRole("button", { name: "Put aside" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Stop it" })).toBeDefined();
@@ -130,7 +169,7 @@ describe("your courses", () => {
   it("lists courses even when there is no week to report on", async () => {
     digestForMock.mockResolvedValue(undefined);
     coursesForMock.mockResolvedValue([course("paused")]);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("What you have on")).toBeDefined();
     expect(screen.getByRole("button", { name: "Pick it up" })).toBeDefined();
@@ -144,7 +183,7 @@ describe("your courses", () => {
   it("never offers to mark a course finished", async () => {
     digestForMock.mockResolvedValue(view());
     coursesForMock.mockResolvedValue([course("active")]);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByRole("button", { name: /finish|complete|done/i })).toBeNull();
     expect(screen.getByText(/something you can press/i)).toBeDefined();
@@ -153,7 +192,7 @@ describe("your courses", () => {
   it("shows a finished course with nothing to press on it", async () => {
     digestForMock.mockResolvedValue(undefined);
     coursesForMock.mockResolvedValue([course("achieved")]);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Finished")).toBeDefined();
     expect(screen.queryByRole("button")).toBeNull();
@@ -161,7 +200,7 @@ describe("your courses", () => {
 
   it("draws no band at all for a learner with no courses", async () => {
     digestForMock.mockResolvedValue(undefined);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText("What you have on")).toBeNull();
   });
@@ -170,12 +209,12 @@ describe("your courses", () => {
 describe("before there is a week to report on", () => {
   it("redirects an unauthenticated visitor to sign in", async () => {
     getSessionMock.mockResolvedValue(null);
-    await expect(ProgressPage()).rejects.toThrow("REDIRECT:/sign-in");
+    await expect(ProgressPage({ searchParams: search() })).rejects.toThrow("REDIRECT:/sign-in");
   });
 
   it("says what this screen will hold rather than only what is missing", async () => {
     digestForMock.mockResolvedValue(undefined);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/hours you meant to/i)).toBeDefined();
     expect(screen.getByText("Pick a subject")).toBeDefined();
@@ -197,7 +236,7 @@ describe("before there is a week to report on", () => {
         startedAt: new Date("2026-08-13T09:00:00.000Z"),
       },
     });
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/Nobody had written Kite surfing/)).toBeDefined();
     expect(
@@ -221,7 +260,7 @@ describe("before there is a week to report on", () => {
     };
     coursesForMock.mockResolvedValue([paused]);
     standingForMock.mockResolvedValue({ ...NOTHING_ON, again: [paused] });
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText("Pick one back up")).toBeNull();
     expect(screen.getAllByRole("button", { name: "Pick it up" })).toHaveLength(1);
@@ -230,7 +269,7 @@ describe("before there is a week to report on", () => {
   /** See the same test on `/mastery`: nothing here can tell the two apart. */
   it("does not claim the learner has no goal, which it cannot know", async () => {
     digestForMock.mockResolvedValue(undefined);
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.queryByText(/don't have a goal yet/i)).toBeNull();
   });
@@ -244,7 +283,7 @@ describe("before there is a week to report on", () => {
 describe("time against the commitment", () => {
   it("says what was done against what was planned", async () => {
     digestForMock.mockResolvedValue(view());
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     // The hours are the screen's one figure — the number is set apart from
     // the sentence that qualifies it, so they are asserted apart too.
@@ -260,7 +299,7 @@ describe("time against the commitment", () => {
     digestForMock.mockResolvedValue(
       view({ hoursLogged: 3, keptCommitment: true, sessions: 1 }),
     );
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("You did what you said you would")).toBeDefined();
     expect(screen.getByText(/across 1 session\./)).toBeDefined();
@@ -268,7 +307,7 @@ describe("time against the commitment", () => {
 
   it("leaves the session clause off a week with none in it", async () => {
     digestForMock.mockResolvedValue(view({ hoursLogged: 1, sessions: 0 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("1")).toBeDefined();
     expect(screen.getByText("hour")).toBeDefined();
@@ -281,7 +320,7 @@ describe("time against the commitment", () => {
 describe("what changed", () => {
   it("names the skills that moved", async () => {
     digestForMock.mockResolvedValue(view());
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText("Metering")).toBeDefined();
     expect(screen.getByText("2 pieces of work handed in")).toBeDefined();
@@ -289,7 +328,7 @@ describe("what changed", () => {
 
   it("says why nothing moved rather than showing an empty box", async () => {
     digestForMock.mockResolvedValue(view({ moved: [], artefacts: 0 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/Mastery only moves on work we can mark/)).toBeDefined();
     expect(screen.getByText("Nothing handed in")).toBeDefined();
@@ -297,7 +336,7 @@ describe("what changed", () => {
 
   it("counts a single hand-in in the singular", async () => {
     digestForMock.mockResolvedValue(view({ artefacts: 1 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
     expect(screen.getByText("1 piece of work handed in")).toBeDefined();
   });
 
@@ -305,7 +344,7 @@ describe("what changed", () => {
     // The delta exists to order the list. Putting 0.2 in front of a learner
     // would be a number with no unit and no meaning.
     digestForMock.mockResolvedValue(view());
-    const { container } = render(await ProgressPage());
+    const { container } = render(await ProgressPage({ searchParams: search() }));
     expect(container.textContent).not.toMatch(/0\.\d/);
   });
 });
@@ -313,7 +352,7 @@ describe("what changed", () => {
 describe("holding on to it", () => {
   it("says how much is slipping, and offers to show which", async () => {
     digestForMock.mockResolvedValue(view());
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/3 skills you have shown/)).toBeDefined();
     expect(screen.getByText(/1 of them is starting to slip/)).toBeDefined();
@@ -324,13 +363,13 @@ describe("holding on to it", () => {
 
   it("counts several slipping skills in the plural", async () => {
     digestForMock.mockResolvedValue(view({ tracked: 4, slipping: 2 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
     expect(screen.getByText(/2 of them are starting to slip/)).toBeDefined();
   });
 
   it("says plainly when nothing is slipping, and offers no list", async () => {
     digestForMock.mockResolvedValue(view({ tracked: 1, slipping: 0 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/1 skill you have shown/)).toBeDefined();
     expect(screen.getByText(/None of them are slipping/)).toBeDefined();
@@ -339,7 +378,7 @@ describe("holding on to it", () => {
 
   it("does not pretend to track retention before anything is proved", async () => {
     digestForMock.mockResolvedValue(view({ tracked: 0, slipping: 0 }));
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/Nothing to hold on to yet/)).toBeDefined();
   });
@@ -348,7 +387,7 @@ describe("holding on to it", () => {
 describe("the revised estimate", () => {
   it("prices what is left at the planned pace and at the real one", async () => {
     digestForMock.mockResolvedValue(view());
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(
       screen.getByText(/About 30 hours, which is 10 weeks at the 3 hours a week/),
@@ -361,7 +400,7 @@ describe("the revised estimate", () => {
     digestForMock.mockResolvedValue(
       view({ hoursLogged: 0, sessions: 0, weeksAtActualPace: null }),
     );
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/no finish date to give you/)).toBeDefined();
   });
@@ -375,7 +414,7 @@ describe("the revised estimate", () => {
         hoursLogged: 1,
       }),
     );
-    render(await ProgressPage());
+    render(await ProgressPage({ searchParams: search() }));
 
     expect(screen.getByText(/About 1 hour, which is 1 week/)).toBeDefined();
     expect(screen.getByText(/At the 1 hour you actually did: 1 week\./)).toBeDefined();
@@ -383,7 +422,7 @@ describe("the revised estimate", () => {
 
   it("shows no percentage anywhere (§24 E9)", async () => {
     digestForMock.mockResolvedValue(view());
-    const { container } = render(await ProgressPage());
+    const { container } = render(await ProgressPage({ searchParams: search() }));
     expect(container.textContent).not.toMatch(/\d%|percent/i);
   });
 });

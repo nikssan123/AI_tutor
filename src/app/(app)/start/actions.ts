@@ -168,10 +168,10 @@ async function dispatchBuild(
  * Asks the queue to cut the new goal into modules.
  *
  * Every goal has always needed this and no goal ever got it: `EVENTS.buildPath`
- * had no sender, so the only way to a curriculum was a button on
- * `/goals/[id]/path` that nothing in the product linked to. A learner without
- * one has no checkpoints, which is why `/calendar` opened empty on a course that
- * had only just been built, and their outline stays grouped by the pack's own
+ * had no sender, so the only way to a curriculum was a button on `/path` that
+ * nothing in the product linked to. A learner without one has no checkpoints,
+ * which is why `/calendar` opened empty on a course that had only just been
+ * built, and their outline stays grouped by the pack's own
  * areas rather than by modules that each end in something they hand in.
  *
  * Queued rather than awaited, for §14.9.3's reason and not merely for speed:
@@ -333,7 +333,7 @@ async function finish(
    *
    * Both intakes still end in the same place — that was always the point, and
    * it holds — but the place was wrong. `createGoal` does not build a path;
-   * `buildPathAction` does, and it lives on `/goals/[id]/path` behind a button.
+   * `buildPathAction` does, and it lives on `/path` behind a button.
    * So a learner who had just waited six minutes for a course landed on
    * `/today`, which has no session to offer because nothing has been planned
    * yet, and no obvious way to say so. `/calendar` already handles the same
@@ -343,7 +343,7 @@ async function finish(
    * `goalId` was already being computed and thrown away with `void goalId` to
    * satisfy the linter. It is the answer.
    */
-  redirect(`/goals/${goalId}/path`);
+  redirect("/path");
 }
 
 /* ── The conversation ─────────────────────────────────────────────────────── */
@@ -696,7 +696,7 @@ export async function adoptBuiltPackAction(formData: FormData): Promise<void> {
   const adopted = (await goalsFor(db, userId)).find(
     (goal) => goal.packSlug === pack.slug,
   );
-  if (adopted) redirect(`/goals/${adopted.id}/path`);
+  if (adopted) redirect("/path");
 
   const intake = await loadIntake(db, userId);
   if (!intake.captured) redirect("/start");

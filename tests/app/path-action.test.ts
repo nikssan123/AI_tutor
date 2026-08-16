@@ -1,19 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * §14.9.3 — "sync only where a human is waiting."
+ * What is left of the build action once the building moved out of it.
  *
- * Generation is deliberately not on the goal form: creating a goal stays
- * instant, and the minute-long wait happens where the learner asked for it.
+ * `buildCurriculumFor` is shared with the Inngest handler and is tested in
+ * `tests/lib/curriculum-build.test.ts`. What this file is about is the wiring
+ * the action still owns: who is allowed to press the button, and where each
+ * outcome leaves them.
+ *
+ * §14.9.3 — "sync only where a human is waiting" — is why this is still a
+ * server action at all. It is no longer the only way a path gets built:
+ * `finish` in `start/actions.ts` queues one for every new goal, and this is the
+ * door for a goal that predates that, and for a depth change the learner wants
+ * the modules re-cut around.
  */
 
 const redirectMock = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
 const getSessionMock = vi.fn();
-const activeGoalMock = vi.fn();
-const generateMock = vi.fn();
-const saveMock = vi.fn(async () => "curriculum-1");
+const buildMock = vi.fn();
 const revalidateMock = vi.fn();
 const setDepthMock = vi.fn(async () => true);
 
@@ -24,125 +30,70 @@ vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
-// The action resolves the learner's plan before generating, so the spend cap
-// applies to the call (§14.9.7 limit 1 — it used to be hardcoded to "free").
-// Stubbed rather than given a fake `db`, because what this file tests is the
-// generation flow, not the entitlement resolver.
-vi.mock("@/lib/billing/store", () => ({
-  entitlementsForUser: async () => ({
-    planId: "free",
-    entitlements: { evaluationsPerMonth: 1, premiumModels: false },
-    spendCapCents: 100,
-    source: "plan",
-  }),
-}));
-// These exercise the disk half of `resolvePack` with the real `findPack`. The
-// database half has nothing to find and no stub db to find it with, so a miss
-// on disk is a miss outright — which is what "not a real pack" means here.
-vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
 vi.mock("@/lib/ai/client", () => ({ getAnthropic: () => ({}) }));
 vi.mock("@/lib/goals/store", () => ({
-  activeGoal: (...a: unknown[]) => activeGoalMock(...(a as [])),
-  masteryFor: async () => [],
   setGoalDepth: (...a: unknown[]) => setDepthMock(...(a as [])),
 }));
-vi.mock("@/lib/curriculum/generate", () => ({
-  generateValidatedCurriculum: (...a: unknown[]) => generateMock(...(a as [])),
-}));
-vi.mock("@/lib/curriculum/store", () => ({
-  saveCurriculum: (...a: unknown[]) => saveMock(...(a as [])),
+vi.mock("@/lib/curriculum/build", () => ({
+  buildCurriculumFor: (...a: unknown[]) => buildMock(...(a as [])),
 }));
 
 const { buildPathAction, setDepthAction } = await import(
-  "@/app/(app)/goals/[id]/path/actions"
+  "@/app/(app)/path/actions"
 );
 
 const GOAL_ID = "goal-1";
-const goal = {
-  id: GOAL_ID,
-  packSlug: "photography",
-  createdAt: new Date(),
-  spec: {
-    rawGoal: "shoot in manual",
-    domain: "photography",
-    targetOutcome: "Photography",
-    outcomeType: "personal",
-    statedLevel: "beginner",
-    weeklyHours: 4,
-    deadline: null,
-    motivation: "",
-    constraints: [],
-    existingAssets: [],
-    depth: "standard",
-    clarity: 1,
-  },
-};
 
 beforeEach(() => {
   vi.clearAllMocks();
   getSessionMock.mockResolvedValue({ user: { id: "u1" } });
-  activeGoalMock.mockResolvedValue(goal);
-  generateMock.mockResolvedValue({
-    draft: { modules: [], totalHours: 0, rationale: "" },
-    report: { passed: true, checks: [] },
-    source: "generated",
-    repairs: [],
-    attempts: 1,
-  });
+  buildMock.mockResolvedValue({ built: true, source: "generated" });
 });
 
 describe("buildPathAction", () => {
   it("requires a signed-in learner", async () => {
     getSessionMock.mockResolvedValue(null);
     await expect(buildPathAction(GOAL_ID)).rejects.toThrow("REDIRECT:/sign-in");
-    expect(generateMock).not.toHaveBeenCalled();
+    expect(buildMock).not.toHaveBeenCalled();
+  });
+
+  it("builds against the signed-in learner and refreshes the page", async () => {
+    await buildPathAction(GOAL_ID);
+
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    const [, input] = buildMock.mock.calls[0] as [
+      unknown,
+      { userId: string; goalId: string },
+    ];
+    // The learner comes from the session, never from the argument: the goal id
+    // arrives from a form and is the only thing a caller controls.
+    expect(input).toEqual({ userId: "u1", goalId: GOAL_ID });
+    expect(revalidateMock).toHaveBeenCalledWith("/path");
   });
 
   it("refuses to build a path for someone else's goal", async () => {
+    buildMock.mockResolvedValue({ built: false, reason: "not-active" });
     await expect(buildPathAction("not-mine")).rejects.toThrow("REDIRECT:/today");
-    expect(generateMock).not.toHaveBeenCalled();
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 
   it("bails out when the goal's pack has left the build", async () => {
-    activeGoalMock.mockResolvedValue({ ...goal, packSlug: "deleted-pack" });
+    buildMock.mockResolvedValue({ built: false, reason: "no-pack" });
     await expect(buildPathAction(GOAL_ID)).rejects.toThrow("REDIRECT:/today");
   });
 
-  it("generates, saves, and refreshes the page", async () => {
-    await buildPathAction(GOAL_ID);
-
-    expect(generateMock).toHaveBeenCalledTimes(1);
-    const [deps, input] = generateMock.mock.calls[0] as [
-      { userId: string; plan: string; projects: unknown[] },
-      { rawGoal: string; rubricCriteria: Map<string, number> },
-    ];
-
-    expect(deps.userId).toBe("u1");
-    // §14.9.7's cap is real from the first commit — a runaway does not wait
-    // for a pricing page.
-    expect(deps.plan).toBe("free");
-    expect(deps.projects.length).toBeGreaterThan(0);
-    expect(input.rawGoal).toBe("shoot in manual");
-    expect(input.rubricCriteria.size).toBeGreaterThan(0);
-
-    expect(saveMock).toHaveBeenCalledTimes(1);
-    expect(revalidateMock).toHaveBeenCalledWith(`/goals/${GOAL_ID}/path`);
-  });
-
-  it("saves nothing when there was no path to build", async () => {
-    generateMock.mockResolvedValue({
-      draft: null,
-      report: null,
-      source: "none",
-      repairs: [],
-      attempts: 2,
-    });
+  /**
+   * The one failure the path screen can say something about, so it is the one
+   * that re-renders rather than redirecting: the learner is still on a course,
+   * and "there is nothing left to teach you" belongs on it.
+   */
+  it("stays on the screen when there was no path left to build", async () => {
+    buildMock.mockResolvedValue({ built: false, reason: "nothing-to-teach" });
 
     await buildPathAction(GOAL_ID);
-    expect(saveMock).not.toHaveBeenCalled();
-    // The page still refreshes, so the learner sees the current state rather
-    // than a button that appears to have done nothing.
-    expect(revalidateMock).toHaveBeenCalled();
+
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(revalidateMock).toHaveBeenCalledWith("/path");
   });
 });
 
@@ -161,7 +112,7 @@ describe("setDepthAction", () => {
     expect(setDepthMock).toHaveBeenCalledWith({}, "u1", GOAL_ID, "mastery");
     // /today reads the same projection. Leaving it cached would show two
     // different courses on two screens.
-    expect(revalidateMock).toHaveBeenCalledWith(`/goals/${GOAL_ID}/path`);
+    expect(revalidateMock).toHaveBeenCalledWith("/path");
     expect(revalidateMock).toHaveBeenCalledWith("/today");
   });
 
