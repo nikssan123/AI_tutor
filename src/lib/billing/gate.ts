@@ -4,7 +4,7 @@ import { sessionsThisPeriod } from "@/lib/session/store";
 import { degradesGeneration, PLANS, type PlanId } from "./catalog";
 import { nudgeFor, type Nudge, type NudgeReason } from "./nudge";
 import { evaluationsUsed } from "./quota";
-import { entitlementsForUser } from "./store";
+import { entitlementsForUser, hasUsedTrial } from "./store";
 
 /**
  * §14.9.7 limit 1, applied to every call rather than to three of them.
@@ -108,16 +108,30 @@ export async function nudgeAt(
   now: Date = new Date(),
 ): Promise<Nudge | undefined> {
   const resolved = await entitlementsForUser(db, userId, plan, now);
+  const paying = resolved.source !== "plan" || resolved.planId !== "free";
 
-  const [evaluations, sessions] = await Promise.all([
+  const [evaluations, sessions, trialUsed] = await Promise.all([
     evaluationsUsed(db, userId, now),
     sessionsThisPeriod(db, userId, now),
+    /*
+     * Asked of everybody rather than only of free accounts, because the answer
+     * is cheap (one indexed row) and the alternative is a conditional await
+     * whose false branch nothing would ever exercise. `hasUsedTrial` reads the
+     * whole subscription history, so a cancelled or refunded trial still counts
+     * — offering a second four days to somebody who already had them is an offer
+     * `startCheckoutAction` would refuse at the till.
+     */
+    hasUsedTrial(db, userId),
   ]);
 
   return nudgeFor(reason, {
     planId: resolved.planId,
     entitlements: resolved.entitlements,
-    paying: resolved.source !== "plan" || resolved.planId !== "free",
+    paying,
+    // Somebody already paying is not sold the way in. The walls below mostly
+    // return nothing for them anyway; this keeps the copy right in the cases
+    // where a paid plan still has a ceiling above it.
+    trialEligible: !paying && !trialUsed,
     evaluationsUsed: evaluations,
     sessionsUsed: sessions,
   });

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
 import { createClient } from "@/db";
-import { agentRun, spendLedger, user } from "@/db/schema";
+import { agentRun, spendLedger, subscription, user } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
 import { aiAccess, nudgeAt, overCapMessage } from "@/lib/billing/gate";
 
@@ -203,6 +203,61 @@ live("against a real database", () => {
       expect(
         await nudgeAt(db, LEARNER, "free", "evaluation_landed"),
       ).toBeUndefined();
+    });
+
+    /**
+     * Which ask a wall makes, which is a different question from whether it
+     * makes one.
+     *
+     * Every nudge used to point a free learner at a monthly subscription. The
+     * cheapest yes in the catalogue is four days for €3, and somebody who has
+     * just been stopped is deciding whether this product works *on them* —
+     * which is the question a trial answers and a subscription defers.
+     */
+    describe("the way in it offers", () => {
+      const spendTheirMarking = () =>
+        db.insert(spendLedger).values({
+          userId: LEARNER,
+          period: "2026-08",
+          costCents: 0,
+          evaluationsUsed: PLANS.free.entitlements.evaluationsPerMonth,
+          updatedAt: NOW,
+        });
+
+      it("offers the four days to somebody who has never had them", async () => {
+        await spendTheirMarking();
+
+        const nudge = await nudgeAt(db, LEARNER, "free", "evaluation_landed", NOW);
+        expect(nudge?.cta).toBe("Try everything for four days");
+      });
+
+      it("does not re-offer a trial this account has already taken", async () => {
+        /*
+         * `hasUsedTrial` asks the whole subscription history rather than the
+         * current row, so a trial that was cancelled, refunded or simply ran
+         * out still counts — all three mean this person has had their four
+         * days, and `startCheckoutAction` would bounce them at the till. An
+         * offer the next screen refuses is worse than no offer.
+         */
+        await spendTheirMarking();
+        await db.insert(subscription).values({
+          userId: LEARNER,
+          stripeSubscriptionId: "sub_gate_trial",
+          stripeCustomerId: "cus_gate",
+          planId: "trial",
+          interval: "month",
+          currency: "eur",
+          amountCents: 300,
+          status: "canceled",
+          currentPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
+        });
+
+        const nudge = await nudgeAt(db, LEARNER, "free", "evaluation_landed", NOW);
+
+        // Still asked — the wall is the same wall.
+        expect(nudge).toBeDefined();
+        expect(nudge!.cta).toBe("See what Pro includes");
+      });
     });
   });
 });

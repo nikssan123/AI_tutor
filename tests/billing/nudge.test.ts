@@ -15,6 +15,9 @@ const on = (planId: keyof typeof PLANS, over: Partial<NudgeInput> = {}): NudgeIn
   planId,
   entitlements: PLANS[planId].entitlements,
   paying: planId !== "free",
+  // False by default so the *ask* is what these tests assert. The trial wording
+  // is a separate question with its own describe block below.
+  trialEligible: false,
   evaluationsUsed: PLANS[planId].entitlements.evaluationsPerMonth,
   sessionsUsed: 0,
   ...over,
@@ -87,6 +90,85 @@ describe("evaluation_landed — the strongest moment", () => {
   });
 });
 
+describe("pack_built — stating the deal before the wall", () => {
+  it("fires when a free learner's own course has just been written", () => {
+    /*
+     * The one nudge that arrives before a limit rather than at one. A free
+     * learner meets `lessonsPerCourse` at lesson two inside `lessonForBlock`
+     * with no warning, and a limit discovered by walking into it reads as a
+     * bait-and-switch however generous the free tier is.
+     */
+    const nudge = nudgeFor("pack_built", on("free"));
+
+    expect(nudge?.headline).toMatch(/course is written/i);
+    expect(nudge?.body).toMatch(/whole plan is yours to read/i);
+  });
+
+  it("says nothing to a plan with no lesson wall to sell past", () => {
+    // Rule 2. A paying learner who commissions a pack is shown nothing,
+    // because there is nothing they would be buying.
+    for (const plan of ["trial", "learner", "pro"] as const) {
+      expect(PLANS[plan].entitlements.lessonsPerCourse).toBeNull();
+      expect(nudgeFor("pack_built", on(plan))).toBeUndefined();
+    }
+  });
+
+  it("counts the lessons off the catalog rather than saying 'the first'", () => {
+    // "the first lesson" is only true while the allowance is one. A plan that
+    // included two would otherwise be described by copy written for a plan that
+    // included one — the exact bug the sessions line shipped with.
+    const one = nudgeFor("pack_built", on("free"))!;
+    expect(one.body).toMatch(/the first lesson/);
+
+    const two = nudgeFor(
+      "pack_built",
+      on("free", {
+        entitlements: { ...PLANS.free.entitlements, lessonsPerCourse: 2 },
+      }),
+    )!;
+    expect(two.body).toMatch(/2 lessons/);
+    expect(two.body).not.toMatch(/the first lesson/);
+  });
+});
+
+describe("the way in is the one somebody can take today", () => {
+  const reasonsThatFire = ["evaluation_landed", "pack_built", "evaluations_spent", "sessions_spent", "tutor_turns_spent"] as const;
+
+  it("offers the four days to an account that has not used them", () => {
+    /*
+     * Every nudge used to point a free learner at a €12.99 subscription. The
+     * cheapest yes in the catalogue is four days for €3, and somebody who has
+     * just hit a wall is deciding whether this works *on them* — which is the
+     * question a trial answers and a subscription defers.
+     */
+    for (const reason of reasonsThatFire) {
+      const nudge = nudgeFor(reason, on("free", { trialEligible: true }))!;
+      expect({ [reason]: nudge.cta }).toEqual({
+        [reason]: "Try everything for four days",
+      });
+      expect(nudge.href).toBe("/pricing");
+    }
+  });
+
+  it("does not re-offer a trial that has already been taken", () => {
+    // `startCheckoutAction` refuses a second trial at the till, so offering one
+    // here would be an ask the next screen bounces.
+    for (const reason of reasonsThatFire) {
+      const nudge = nudgeFor(reason, on("free", { trialEligible: false }))!;
+      expect(nudge.cta).toBe("See what Pro includes");
+    }
+  });
+
+  it("names no price, because the page that charges one localises it", () => {
+    // A nudge quoting €3 to somebody who checks out in dollars is the drift
+    // `/pricing` has its own rule about.
+    for (const reason of reasonsThatFire) {
+      const nudge = nudgeFor(reason, on("free", { trialEligible: true }))!;
+      expect(`${nudge.cta} ${nudge.body}`).not.toMatch(/€|£|\$|\d+[.,]\d{2}/);
+    }
+  });
+});
+
 describe("the copy itself", () => {
   const everyNudge = () =>
     NUDGE_REASONS.flatMap((reason) => {
@@ -130,5 +212,30 @@ describe("the copy itself", () => {
     expect(turns.body).toContain(
       String(PLANS.pro.entitlements.tutorTurnsPerSession),
     );
+  });
+
+  it("does not promise more free sessions than the catalog allows", () => {
+    /*
+     * A regression test with a shipped bug behind it. This sentence read "Free
+     * includes two" for as long as `sessionsPerMonth` had been one — the only
+     * hard-coded number in the module, wrong, at the exact moment a learner is
+     * deciding whether our pricing can be trusted.
+     */
+    const sessions = nudgeFor("sessions_spent", on("free"))!;
+
+    expect(PLANS.free.entitlements.sessionsPerMonth).toBe(1);
+    expect(sessions.body).toMatch(/Free includes one a month/);
+    expect(sessions.body).not.toMatch(/two/);
+  });
+
+  it("pluralises a larger session allowance rather than saying 'one'", () => {
+    const sessions = nudgeFor(
+      "sessions_spent",
+      on("free", {
+        entitlements: { ...PLANS.free.entitlements, sessionsPerMonth: 3 },
+      }),
+    )!;
+
+    expect(sessions.body).toMatch(/Free includes 3 a month/);
   });
 });
