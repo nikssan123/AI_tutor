@@ -1710,13 +1710,19 @@ describe("the wait screen", () => {
 });
 
 describe("adopting a pack that finished building", () => {
+  const built = {
+    slug: "photography",
+    name: "Photography",
+    skills: [
+      { slug: "a", name: "Exposure", level: "core", canDoStatement: "Set an exposure by hand." },
+      { slug: "b", name: "Composition", level: "applied", canDoStatement: "Frame a shot that leads the eye." },
+    ],
+    items: [{ slug: "i1" }, { slug: "i2" }, { slug: "i3" }],
+  };
+
   it("badges it Experimental rather than passing it off as reviewed", async () => {
     // §7.1 — depth is declared, never faked.
-    packMock.mockResolvedValue({
-      slug: "photography",
-      name: "Photography",
-      skills: [{ slug: "a" }, { slug: "b" }],
-    });
+    packMock.mockResolvedValue(built);
 
     render(
       await BuildingPage({
@@ -1725,6 +1731,32 @@ describe("adopting a pack that finished building", () => {
     );
     expect(screen.getByText(/Experimental/)).toBeDefined();
     expect(screen.getByRole("button", { name: "See my plan" })).toBeDefined();
+  });
+
+  it("shows what was built, because the caveat asks them to check it", async () => {
+    /*
+     * This screen shipped as a lone `AppHeader` in a `narrow` frame — a title,
+     * a sentence, a badge and a button, with ~350px of dead gutter either side.
+     * Widening an empty page only widens the emptiness, so the fix was the
+     * content: the lead asks a learner to say "when something looks wrong"
+     * while showing them nothing to look at, and this is the one moment they
+     * can sanity-check a machine-written course before committing to it.
+     */
+    packMock.mockResolvedValue(built);
+
+    render(
+      await BuildingPage({
+        searchParams: Promise.resolve({ subject: "photography" }),
+      }),
+    );
+
+    expect(screen.getByText("Exposure")).toBeDefined();
+    expect(screen.getByText("Composition")).toBeDefined();
+    // The can-do statement, not the slug: it is what tells them whether the
+    // skill is the one they wanted.
+    expect(screen.getByText("Set an exposure by hand.")).toBeDefined();
+    // And the size of what they got, so "2 skills" is not the only fact.
+    expect(screen.getByText(/2 skills · 3 questions/)).toBeDefined();
   });
 
   it("creates the goal from the same conversation a covered subject would use", async () => {

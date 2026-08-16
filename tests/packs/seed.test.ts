@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { eq, ne } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { join } from "node:path";
 import { createClient } from "@/db";
 import {
@@ -205,9 +205,24 @@ live("seeding a pack with no dependencies", () => {
   const { db, close } = createClient(DATABASE_URL!, 1);
 
   afterAll(async () => {
-    // These tests share a database with local development, so any fixture pack
-    // that survives shows up at /admin/packs and in every listing query.
-    await db.delete(domainPack).where(ne(domainPack.slug, "sql-data-analysis"));
+    /*
+     * The fixtures this suite seeds, by name — not "everything except one".
+     *
+     * The intent was always to clear up after itself, because a fixture pack
+     * that survives shows up at `/admin/packs` and in every listing query. The
+     * implementation was `ne(slug, "sql-data-analysis")`, which is a different
+     * thing entirely: it deletes every pack the database holds, including real
+     * ones. These tests share a database with local development, so the first
+     * time a generated pack actually shipped and somebody adopted it, this
+     * teardown tried to delete the course out from under a live
+     * `learning_goal` — and only failed because a foreign key stopped it.
+     *
+     * A cleanup that can destroy data it did not create is a worse bug than
+     * the mess it was written to prevent, and the fix is to name what it owns.
+     */
+    await db
+      .delete(domainPack)
+      .where(inArray(domainPack.slug, ["valid-minimal", "cyclic"]));
     await close();
   });
 

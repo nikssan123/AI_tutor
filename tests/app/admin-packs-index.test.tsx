@@ -34,6 +34,22 @@ vi.mock("@/lib/packs/build", async (importOriginal) => ({
   stoppedBuilds: () => stoppedMock(),
 }));
 
+/**
+ * The review queue, empty by default — the same reasoning as the list above,
+ * applied to the third list on this page rather than only the second.
+ *
+ * It was the one that stayed live against the database, which held nothing to
+ * find until the day a generated pack actually shipped. Then `net-c` landed and
+ * four ordering assertions started counting a row nobody had asked for,
+ * including a duplicate React key. A page that renders three lists needs all
+ * three controlled before it can be asked a question about one of them.
+ */
+const generatedMock = vi.fn(async () => [] as unknown[]);
+vi.mock("@/lib/admin/generated", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/admin/generated")>()),
+  generatedPacks: () => generatedMock(),
+}));
+
 vi.mock("@/lib/admin/guard", () => ({
   requireAdmin: async () => ({
     userId: "u1",

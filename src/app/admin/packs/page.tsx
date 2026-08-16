@@ -228,6 +228,19 @@ export default async function PacksIndexPage() {
                 {/* Why it cannot be promoted, rather than a disabled button
                     with no explanation attached to it. */}
                 {promotable ? null : <Meta tone="muted">{blockers.join(" · ")}</Meta>}
+                {/*
+                  What the build threw away to get here, which is the question a
+                  reviewer asks first and until now could not answer: a pack with
+                  no reading list looked exactly like a subject nobody had
+                  anything to recommend for. An empty list says nothing was lost
+                  and is worth as much as a full one — so the only silence here
+                  is a row that predates the column.
+                */}
+                {build?.dropped?.length ? (
+                  <Meta tone="muted">
+                    Dropped in assembly: {build.dropped.join(" · ")}
+                  </Meta>
+                ) : null}
               </span>
 
               <span className="flex shrink-0 items-center gap-3">

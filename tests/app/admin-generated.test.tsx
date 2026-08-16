@@ -159,7 +159,7 @@ describe("the review queue on /admin/packs", () => {
   it("falls back to a plain label when a failure carried no detail", async () => {
     queue = [
       entry({
-        build: { status: "failed", detail: null },
+        build: { status: "failed", detail: null, dropped: null },
         promotable: false,
         blockers: ["it does not pass validation"],
       }),
@@ -168,10 +168,48 @@ describe("the review queue on /admin/packs", () => {
     expect(screen.getByText("Build failed")).toBeDefined();
   });
 
+  it("shows what a shipped pack lost on the way", async () => {
+    /*
+     * The question a reviewer asks first, and until now could not answer: a
+     * pack with no reading list looked exactly like a subject nobody had
+     * anything to recommend for. `dropped` is computed on every build and was
+     * discarded whenever one succeeded.
+     */
+    queue = [
+      entry({
+        build: {
+          status: "ready",
+          detail: null,
+          dropped: ['resource "A Guide" covers no skill this pack contains'],
+        },
+        promotable: true,
+        blockers: [],
+      }),
+    ];
+    render(await PacksIndexPage());
+    expect(
+      screen.getByText(/covers no skill this pack contains/),
+    ).toBeDefined();
+  });
+
+  it("stays quiet about a build that dropped nothing", async () => {
+    // An empty drop log is good news, and good news does not need a line of
+    // its own on a screen whose job is to surface what needs attention.
+    queue = [
+      entry({
+        build: { status: "ready", detail: null, dropped: [] },
+        promotable: true,
+        blockers: [],
+      }),
+    ];
+    render(await PacksIndexPage());
+    expect(screen.queryByText(/Dropped in assembly/)).toBeNull();
+  });
+
   it("shows a failed build's reason next to the pack", async () => {
     queue = [
       entry({
-        build: { status: "failed", detail: "7 items; needs at least 24" },
+        build: { status: "failed", detail: "7 items; needs at least 24", dropped: null },
         promotable: false,
         blockers: ["it does not pass validation"],
       }),

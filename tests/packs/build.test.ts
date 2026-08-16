@@ -183,6 +183,54 @@ live("pack builds and intake", () => {
       expect((await findBuild(db, "rust"))!.stage).toBeNull();
     });
 
+    it("writes down what assembly dropped, on a build that shipped", async () => {
+      /*
+       * The success path is the whole reason this exists. A failure explains
+       * itself in `detail`; a pack that *shipped* used to say nothing about
+       * what it lost on the way — and one shipped with no reading list at all
+       * after a run that had paid 34¢ for one, with no way to tell whether the
+       * links had failed their check or the resources had named skills the
+       * final graph did not have. Two different bugs, indistinguishable,
+       * because the record that knew was discarded on success.
+       */
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", {
+        status: "ready",
+        dropped: ['resource "A Guide" covers no skill this pack contains'],
+      });
+
+      const [row] = await db
+        .select()
+        .from(packBuild)
+        .where(eq(packBuild.slug, "rust"));
+      expect(row!.status).toBe("ready");
+      expect(row!.dropped).toEqual([
+        'resource "A Guide" covers no skill this pack contains',
+      ]);
+    });
+
+    it("tells a build that dropped nothing from one that never said", async () => {
+      // Empty and null are different answers: empty means assembly threw
+      // nothing away, null means the row never got far enough to know.
+      await startBuild(db, { slug: "rust", subject: "Rust", userId: IDS[0]! });
+      await finishBuild(db, "rust", { status: "ready", dropped: [] });
+
+      const [clean] = await db
+        .select()
+        .from(packBuild)
+        .where(eq(packBuild.slug, "rust"));
+      expect(clean!.dropped).toEqual([]);
+
+      await startBuild(db, { slug: "go", subject: "Go", userId: IDS[0]! });
+      await finishBuild(db, "go", { status: "ready" });
+
+      const [silent] = await db
+        .select()
+        .from(packBuild)
+        .where(eq(packBuild.slug, "go"));
+      expect(silent!.dropped).toBeNull();
+    });
+
     it("cannot move a build that has already finished", async () => {
       // The seed step and the ready mark are milliseconds apart. A stage
       // landing after the finish must not reopen a build the learner has

@@ -12,11 +12,14 @@ import {
   cx,
   HeroBand,
   Meta,
+  Row,
+  RowList,
   Signal,
+  stagger,
   Status,
   Title,
 } from "@/components/ui";
-import { AppFrame, AppHeader } from "@/components/app-shell";
+import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { abandonBuildAction, adoptBuiltPackAction } from "../actions";
 import {
   BUILD_STEPS,
@@ -102,12 +105,37 @@ export default async function BuildingPage({ searchParams }: Props) {
 
   if (pack) {
     return (
-      <AppFrame width="narrow">
+      /*
+       * The default width, and content to earn it.
+       *
+       * This shipped `narrow` holding one `AppHeader` and nothing else: a
+       * title, a sentence, a badge and a button, adrift in a 624px column with
+       * ~350px of gutter either side — the exact fault `AppFrame` documents
+       * `/account` having had. Widening an empty page would only have made the
+       * emptiness wider, which is why the fix is what the page *says*, not what
+       * it measures.
+       *
+       * And there was something to say. The lead asks them to "tell us when
+       * something looks wrong" while showing them nothing to look at, which is
+       * an unactionable request dressed as an invitation — the one moment a
+       * learner can sanity-check a machine-written course is before they commit
+       * to it, and this screen had them commit blind. The skills are the pack's
+       * substance, we already have them, and a list of them is what makes both
+       * the caveat and the column honest.
+       */
+      <AppFrame>
         <AppHeader
           eyebrow="Built for you"
           title={`${pack.name} is ready`}
-          lead={`${pack.skills.length} skills, built for you just now. It has not been reviewed by a person yet, so tell us when something looks wrong.`}
-          facts={<Status tone="attention">Experimental — help us improve it</Status>}
+          lead="Written for you just now, and nobody has reviewed it yet. Have a look at what it covers before you start — if something here looks wrong, tell us and we will fix it."
+          facts={
+            <>
+              <Meta>
+                {pack.skills.length} skills · {pack.items.length} questions
+              </Meta>
+              <Status tone="attention">Experimental — help us improve it</Status>
+            </>
+          }
           action={
             <form action={adoptBuiltPackAction}>
               <input type="hidden" name="slug" value={pack.slug} />
@@ -115,6 +143,25 @@ export default async function BuildingPage({ searchParams }: Props) {
             </form>
           }
         />
+
+        <SectionHead
+          label="What it covers"
+          title="The skills, in the order they build on each other"
+        />
+        {/* The pack's own order, not sorted here: it is a dependency order, and
+            re-sorting it alphabetically would throw away the one piece of
+            information the graph call was bought for. */}
+        <RowList>
+          {pack.skills.map((skill, i) => (
+            <Row key={skill.slug} style={stagger(i)}>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="font-[550]">{skill.name}</span>
+                <Meta>{skill.canDoStatement}</Meta>
+              </span>
+              <Status tone="neutral">{skill.level}</Status>
+            </Row>
+          ))}
+        </RowList>
       </AppFrame>
     );
   }

@@ -165,7 +165,11 @@ export const buildPack = inngest.createFunction(
           : { client: getAnthropic(), db, userId, plan, onStage },
         { slug, subject, rawGoal: null },
       );
-      return { pack: outcome.pack, reasons: outcome.reasons };
+      return {
+        pack: outcome.pack,
+        reasons: outcome.reasons,
+        dropped: outcome.dropped,
+      };
     },
     seed: async (pack) => {
       const built = pack as DomainPack;
@@ -414,11 +418,13 @@ export function buildPackHandler(deps: {
     slug: string;
     subject: string;
     userId: string | null;
-  }) => Promise<{ pack: unknown | null; reasons: string[] }>;
+  }) => Promise<{ pack: unknown | null; reasons: string[]; dropped: string[] }>;
   seed: (pack: unknown) => Promise<void>;
   finish: (
     slug: string,
-    outcome: { status: "ready" } | { status: "failed"; detail: string },
+    outcome:
+      | { status: "ready"; dropped: string[] }
+      | { status: "failed"; detail: string; dropped: string[] },
   ) => Promise<void>;
 }) {
   return async ({ event, step }: BuildPackContext): Promise<BuildPackResult> => {
@@ -435,13 +441,21 @@ export function buildPackHandler(deps: {
         generated.reasons[0] ??
         "We could not build a good enough course for this subject.";
       await step.run("record-failure", () =>
-        deps.finish(slug, { status: "failed", detail }),
+        deps.finish(slug, { status: "failed", detail, dropped: generated.dropped }),
       );
       return { slug, status: "failed", detail };
     }
 
     await step.run("seed-pack", () => deps.seed(generated.pack));
-    await step.run("record-ready", () => deps.finish(slug, { status: "ready" }));
+    /*
+     * The drop log rides the *success* path too, which is the whole reason it
+     * exists. A pack that shipped without the reading list it paid for looks
+     * identical to one that never had resources to lose, unless what assembly
+     * discarded is written down at the moment it succeeds.
+     */
+    await step.run("record-ready", () =>
+      deps.finish(slug, { status: "ready", dropped: generated.dropped }),
+    );
 
     return { slug, status: "ready", detail: null };
   };

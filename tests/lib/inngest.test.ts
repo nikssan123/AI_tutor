@@ -238,10 +238,15 @@ describe("the registered build function", () => {
       expect.objectContaining({ db: true }),
       { slug: "rust" },
     );
+    /*
+     * `dropped` rides the success path, which is the point of it: a failure
+     * explains itself in `detail`, while a pack that shipped without the
+     * reading list it paid for used to say nothing at all.
+     */
     expect(finishBuild).toHaveBeenCalledWith(
       expect.objectContaining({ db: true }),
       "rust",
-      { status: "ready" },
+      { status: "ready", dropped: [] },
     );
   });
 
@@ -425,14 +430,18 @@ describe("buildPackHandler", () => {
     };
   };
 
-  const deps = (pack: unknown | null, reasons: string[] = []) => {
+  const deps = (
+    pack: unknown | null,
+    reasons: string[] = [],
+    dropped: string[] = [],
+  ) => {
     const seeded: unknown[] = [];
     const finished: unknown[] = [];
     return {
       seeded,
       finished,
       handler: buildPackHandler({
-        generate: async () => ({ pack, reasons }),
+        generate: async () => ({ pack, reasons, dropped }),
         seed: async (p) => {
           seeded.push(p);
         },
@@ -454,7 +463,9 @@ describe("buildPackHandler", () => {
 
     expect(result).toEqual({ slug: "rust", status: "ready", detail: null });
     expect(seeded).toEqual([{ slug: "rust" }]);
-    expect(finished).toEqual([{ slug: "rust", outcome: { status: "ready" } }]);
+    expect(finished).toEqual([
+      { slug: "rust", outcome: { status: "ready", dropped: [] } },
+    ]);
     expect(ran).toEqual(["author-pack", "seed-pack", "record-ready"]);
   });
 

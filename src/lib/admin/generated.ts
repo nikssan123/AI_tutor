@@ -26,8 +26,18 @@ export interface GeneratedPackSummary {
   report: ValidationReport;
   /** How many learners have a goal against it. Drives the promotion gate. */
   learners: number;
-  /** The build that produced it, when the row is still around. */
-  build: { status: BuildStatus; detail: string | null } | undefined;
+  /**
+   * The build that produced it, when the row is still around.
+   *
+   * `dropped` is here for the pack that *shipped*: a failure explains itself in
+   * `detail`, while a success used to say nothing about what assembly threw
+   * away on the way. One shipped with no reading list at all after paying for
+   * one, and nothing recorded whether the links had failed their check or the
+   * resources had named skills the final graph did not have.
+   */
+  build:
+    | { status: BuildStatus; detail: string | null; dropped: string[] | null }
+    | undefined;
   /** Whether §7.1's two conditions are both met right now. */
   promotable: boolean;
   /** Why not, when it is not. Empty when it is. */
@@ -91,7 +101,11 @@ export async function generatedPacks(db: Db): Promise<GeneratedPackSummary[]> {
       report,
       learners,
       build: buildRow
-        ? { status: statusOf(buildRow.status), detail: buildRow.detail }
+        ? {
+            status: statusOf(buildRow.status),
+            detail: buildRow.detail,
+            dropped: buildRow.dropped,
+          }
         : undefined,
       promotable: blockers.length === 0,
       blockers,

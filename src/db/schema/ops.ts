@@ -294,6 +294,24 @@ export const packBuild = pgTable(
      * and is one an operator can only see if it is written down.
      */
     notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    /**
+     * What assembly threw away, on the build that shipped as well as the one
+     * that stopped.
+     *
+     * `PackOutcome.dropped` has always been computed — a forward prerequisite,
+     * an item naming a skill that is not there, a citation whose page did not
+     * answer — and on a *successful* build nothing ever wrote it down. That is
+     * the gap this closes, and it is not academic: a pack shipped with no
+     * reading list at all after a run that had paid 34¢ for one, and there was
+     * no way to tell whether the links had failed their check or the resources
+     * had been dropped for naming skills the final graph did not have. Two very
+     * different bugs, indistinguishable from the outside, because the one
+     * record that knew was discarded at the moment the build succeeded.
+     *
+     * A shipped pack is exactly where this matters most: a failure explains
+     * itself in `detail`, while a success quietly ships whatever survived.
+     */
+    dropped: jsonb("dropped").$type<string[]>(),
   },
   (t) => [index("pack_build_status_idx").on(t.status, t.startedAt)],
 );

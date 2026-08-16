@@ -278,7 +278,9 @@ export async function markBuildStage(
 export async function finishBuild(
   db: Db,
   slug: string,
-  outcome: { status: "ready" } | { status: "failed"; detail: string },
+  outcome:
+    | { status: "ready"; dropped?: string[] }
+    | { status: "failed"; detail: string; dropped?: string[] },
   now: Date = new Date(),
 ): Promise<void> {
   await db
@@ -286,6 +288,15 @@ export async function finishBuild(
     .set({
       status: outcome.status,
       detail: outcome.status === "failed" ? outcome.detail : null,
+      /*
+       * Written on both outcomes, and the *ready* one is the point.
+       *
+       * A failure explains itself in `detail`; a success used to ship whatever
+       * survived assembly and say nothing about what did not. An empty list and
+       * a null are deliberately different: empty means assembly dropped
+       * nothing, null means this row predates the column or never got that far.
+       */
+      ...(outcome.dropped === undefined ? {} : { dropped: outcome.dropped }),
       finishedAt: now,
     })
     .where(eq(packBuild.slug, slug));
