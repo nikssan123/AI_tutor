@@ -392,6 +392,57 @@ version answers questions with money in them, and Haiku 4.5 rejects the thinking
 parameters outright (`models.ts:32`). Measure, then consider demoting. Recorded
 as an open decision (§14).
 
+### 10.1 Measured, after Phase 3 — and the numbers do not fit
+
+The cached prefix is **982 tokens** (1,610 chars of frozen prompt, 2,022 of tool
+schema), so `costCentsFor` over realistic usage gives:
+
+| | 1 step, no tool | typical, 2 steps | worst, 4 steps |
+|---|---|---|---|
+| Sonnet 5 | 0.37¢ | **0.75¢** | 2.19¢ |
+| Haiku 4.5 | 0.13¢ | **0.25¢** | 0.73¢ |
+
+Set that against what each plan has already promised — its evaluations and
+sessions at §20.2's measured 45¢ and 17¢, with `null` sessions priced at a
+realistic twelve a month:
+
+| plan | cap | committed | headroom | messages/mo it affords (Sonnet) | `assistantMessagesPerDay` × 30 |
+|---|---|---|---|---|---|
+| free | 120¢ | 62¢ | 58¢ | 77 | **90** |
+| trial | 450¢ | 429¢ | 21¢ | 28 | **600** |
+| learner | 600¢ | 339¢ | 261¢ | 348 | **600** |
+| pro | 1500¢ | 654¢ | 846¢ | 1,129 | **1,200** |
+
+**Every plan's daily allowance is written past what its monthly ceiling can
+afford**, and `trial` is written twenty-one times past it. The numbers in §10
+were picked for how a limit *feels* rather than from the budget it draws on.
+
+**The structural problem is worse than the arithmetic.** The assistant, sessions
+and evaluations all spend from one `spendLedger`, and `aiAccess` checks it
+first-come-first-served — so a chatty afternoon can leave a learner unable to
+start the session they are paying for. That is exactly backwards: the assistant
+is a support surface, the session is the product. A daily cap does not fix it,
+because the daily cap bounds the assistant against *itself*, not against what
+else the month still owes.
+
+Three changes, in the order they matter:
+
+1. **Reserve the product's budget.** The assistant should refuse at
+   `cap − (what this month's remaining sessions and evaluations will need)`,
+   not at the cap. One line in the gate; it makes the assistant yield to the
+   session rather than race it.
+2. **Demote to `fast`.** Haiku is 3× cheaper and the work is tool routing plus
+   two sentences — §14.2 already calls classification the fast tier's own job.
+   This settles the *cost* half of §14 decision 1; the quality half still needs
+   checking against six tools before it lands.
+3. **Re-derive the daily caps from headroom** rather than from feel. At a third
+   of headroom on Haiku: free 2/day, learner 11/day, pro 37/day. `trial` comes
+   out at zero, which is not an assistant problem — that plan is already 95%
+   committed before it answers a single question, and it is the number that
+   should be looked at.
+
+None of this is implemented. It is a pricing decision, not a code one.
+
 ---
 
 ## 11. Data model
