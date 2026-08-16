@@ -420,7 +420,7 @@ function CheckBlock(
       <div className="flex flex-wrap items-start gap-4">
         <SubmitButton
           pendingLabel="Marking your answer"
-          note="Reading what you wrote. This takes a few seconds."
+          note="It takes a few seconds to read and mark."
         >
           Submit answer
         </SubmitButton>
@@ -489,7 +489,7 @@ function ApplyBlock(
             twice against a monthly allowance. */}
         <SubmitButton
           pendingLabel="Marking your work"
-          note="Reading it against the rubric. Longer than a question — stay on this page."
+          note="Reading a whole piece of work against the rubric takes longer than a question."
         >
           Hand it in
         </SubmitButton>
