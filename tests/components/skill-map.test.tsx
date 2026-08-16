@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { SkillMap } from "@/components/skill-map";
+import { SkillMap, layersOf } from "@/components/skill-map";
 import { SKILL_MAP, type SkillMapLayout } from "@/lib/goals/skill-map";
 
 /**
@@ -22,6 +22,7 @@ const layout: SkillMapLayout = {
       name: "Basics",
       state: "proved",
       x: 16,
+      xCentred: 110,
       y: 16,
       lines: ["Basics"],
       labelY: 45,
@@ -31,6 +32,7 @@ const layout: SkillMapLayout = {
       name: "Metering and the histogram",
       state: "open",
       x: 204,
+      xCentred: 298,
       y: 16,
       lines: ["Metering and the", "histogram"],
       labelY: 38,
@@ -40,6 +42,7 @@ const layout: SkillMapLayout = {
       name: "Tonal correction",
       state: "locked",
       x: 110,
+      xCentred: 110,
       y: 120,
       lines: ["Tonal correction"],
       labelY: 149,
@@ -49,29 +52,99 @@ const layout: SkillMapLayout = {
       name: "Tuning",
       state: "optional",
       x: 300,
+      xCentred: 300,
       y: 120,
       lines: ["Tuning"],
       labelY: 149,
     },
   ],
   edges: [
-    { key: "basics->tonal", path: "M100 68 C 100 94, 194 94, 194 120", soft: false },
-    { key: "basics->tuning", path: "M100 68 C 100 94, 384 94, 384 120", soft: true },
+    {
+      key: "basics->tonal",
+      path: "M100 68 C 100 94, 194 94, 194 120",
+      pathCentred: "M194 68 C 194 94, 194 94, 194 120",
+      soft: false,
+    },
+    {
+      key: "basics->tuning",
+      path: "M100 68 C 100 94, 384 94, 384 120",
+      pathCentred: "M194 68 C 194 94, 384 94, 384 120",
+      soft: true,
+    },
   ],
 };
+
+/**
+ * The two placements, and how the picture is put together to support them.
+ *
+ * `buildSkillMap` computes both because which one is right is a question about
+ * the viewport; these assert the component gives the stylesheet what it needs
+ * to choose — and, just as importantly, that it does not pay for the choice
+ * twice where it does not have to.
+ */
+describe("the two placements", () => {
+  it("draws the edges once per placement", () => {
+    const { container } = render(<SkillMap layout={layout} label="How it fits" />);
+
+    const panned = container.querySelectorAll("svg > g.map-panned > path");
+    const whole = container.querySelectorAll("svg > g.map-whole > path");
+
+    expect(panned).toHaveLength(2);
+    expect(whole).toHaveLength(2);
+    expect(panned[0]!.getAttribute("d")).toBe(layout.edges[0]!.path);
+    expect(whole[0]!.getAttribute("d")).toBe(layout.edges[0]!.pathCentred);
+  });
+
+  /**
+   * The nodes are drawn *once* and moved, which is the point of the layer
+   * grouping: a second copy would put every skill's name in the DOM twice, and
+   * a `<title>` announced twice is worse than a curve drawn twice.
+   */
+  it("draws each skill exactly once, whatever the placement", () => {
+    render(<SkillMap layout={layout} label="How it fits" />);
+
+    expect(
+      screen.getAllByText("Metering and the histogram — open now"),
+    ).toHaveLength(1);
+    expect(screen.getAllByText("Basics")).toHaveLength(1);
+  });
+
+  it("hands each layer the offset its whole row moves by", () => {
+    const { container } = render(<SkillMap layout={layout} label="How it fits" />);
+    const layers = [...container.querySelectorAll("svg > g.map-layer")];
+
+    // Two rows in the fixture, and every node in a row shares one offset.
+    expect(layers).toHaveLength(2);
+    expect(layers[0]!.getAttribute("style")).toContain("--map-shift: 94px");
+    // The widest layer has nowhere to go and says so rather than being absent.
+    expect(layers[1]!.getAttribute("style")).toContain("--map-shift: 0px");
+  });
+});
+
+describe("layersOf", () => {
+  it("groups the nodes back into the rows they were laid out in", () => {
+    const layers = layersOf(layout.nodes);
+
+    expect(layers.map((l) => l.y)).toEqual([16, 120]);
+    expect(layers.map((l) => l.nodes.length)).toEqual([2, 2]);
+    expect(layers.map((l) => l.shift)).toEqual([94, 0]);
+  });
+});
 
 describe("SkillMap", () => {
   it("draws a box per skill and a curve per dependency", () => {
     const { container } = render(<SkillMap layout={layout} label="How it fits" />);
 
-    expect(container.querySelectorAll("svg > g > rect")).toHaveLength(4);
-    expect(container.querySelectorAll("svg > path")).toHaveLength(2);
+    expect(container.querySelectorAll("svg > g.map-layer > g > rect")).toHaveLength(4);
+    expect(container.querySelectorAll("svg > g.map-panned > path")).toHaveLength(2);
   });
 
   /** A soft prerequisite helps; it does not gate. The line has to say so. */
   it("dashes a soft prerequisite and leaves a hard one solid", () => {
     const { container } = render(<SkillMap layout={layout} label="How it fits" />);
-    const [hard, soft] = [...container.querySelectorAll("svg > path")];
+    const [hard, soft] = [
+      ...container.querySelectorAll("svg > g.map-panned > path"),
+    ];
 
     expect(hard!.getAttribute("stroke-dasharray")).toBeNull();
     expect(soft!.getAttribute("stroke-dasharray")).toBe("4 4");
@@ -150,7 +223,7 @@ describe("SkillMap", () => {
 
   it("draws every box at the geometry the layout was computed for", () => {
     const { container } = render(<SkillMap layout={layout} label="How it fits" />);
-    const rect = container.querySelector("svg > g > rect")!;
+    const rect = container.querySelector("svg > g.map-layer > g > rect")!;
 
     expect(rect.getAttribute("width")).toBe(String(SKILL_MAP.nodeWidth));
     expect(rect.getAttribute("height")).toBe(String(SKILL_MAP.nodeHeight));

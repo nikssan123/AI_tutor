@@ -1,5 +1,11 @@
+import type { CSSProperties } from "react";
 import { Card, cx, Meta } from "@/components/ui";
-import { SKILL_MAP, type SkillMapLayout } from "@/lib/goals/skill-map";
+import {
+  SKILL_MAP,
+  type SkillMapEdge,
+  type SkillMapLayout,
+  type SkillMapNode,
+} from "@/lib/goals/skill-map";
 import {
   SKILL_STATE_WORD,
   SKILL_STATES,
@@ -87,6 +93,29 @@ const NODE: Record<
  */
 const PHONE_COLUMN = 320;
 
+/**
+ * The nodes back into the layers `buildSkillMap` laid them out in.
+ *
+ * `y` identifies a layer — it is `depth * STEP_Y` plus a constant margin — and
+ * every node in one shares a centring offset, which is what lets the whole
+ * layer move as a group rather than each node carrying its own copy.
+ */
+export function layersOf(
+  nodes: SkillMapNode[],
+): Array<{ y: number; shift: number; nodes: SkillMapNode[] }> {
+  const byY = new Map<number, SkillMapNode[]>();
+  for (const node of nodes) {
+    byY.set(node.y, [...(byY.get(node.y) ?? []), node]);
+  }
+
+  return [...byY].map(([y, layer]) => ({
+    y,
+    // Equal across the layer by construction, so the first one speaks for it.
+    shift: layer[0]!.xCentred - layer[0]!.x,
+    nodes: layer,
+  }));
+}
+
 const EDGE_KEY = [
   { dashed: false, label: "Needed before it" },
   { dashed: true, label: "Helps, but not required" },
@@ -151,50 +180,83 @@ export function SkillMap({
           aria-label={label}
           className="block max-w-none shrink-0"
         >
-          {layout.edges.map((edge) => (
-            <path
-              key={edge.key}
-              d={edge.path}
-              fill="none"
-              stroke={EDGE_STROKE}
-              strokeOpacity={EDGE_OPACITY}
-              strokeWidth={EDGE_WIDTH}
-              strokeDasharray={edge.soft ? EDGE_DASH : undefined}
-            />
+          {/*
+            The edges twice, and the nodes once.
+
+            An edge spans two layers whose centring offsets differ, so no single
+            translate carries a curve from one placement to the other — it has
+            to be drawn from each set of coordinates. A *node* lives in exactly
+            one layer, so it moves with its layer and is drawn once. That
+            asymmetry is worth the slightly odd shape of this block: duplicating
+            the nodes would put every skill's name in the DOM twice, and a
+            `<title>` read out twice is worse than a curve drawn twice.
+
+            See `.map-panned` / `.map-whole` and `.map-layer` in `globals.css`,
+            and `buildSkillMap` for why there are two placements at all.
+          */}
+          {(
+            [
+              ["map-panned", (e: SkillMapEdge) => e.path],
+              ["map-whole", (e: SkillMapEdge) => e.pathCentred],
+            ] as const
+          ).map(([placement, pathOf]) => (
+            <g key={placement} className={placement}>
+              {layout.edges.map((edge) => (
+                <path
+                  key={edge.key}
+                  d={pathOf(edge)}
+                  fill="none"
+                  stroke={EDGE_STROKE}
+                  strokeOpacity={EDGE_OPACITY}
+                  strokeWidth={EDGE_WIDTH}
+                  strokeDasharray={edge.soft ? EDGE_DASH : undefined}
+                />
+              ))}
+            </g>
           ))}
 
-          {layout.nodes.map((node) => {
-            const style = NODE[node.state];
-            return (
-              <g key={node.skillId}>
-                {/* The full name, for a label that had to be wrapped short. */}
-                <title>{`${node.name} — ${SKILL_STATE_WORD[node.state].toLowerCase()}`}</title>
-                <rect
-                  x={node.x}
-                  y={node.y}
-                  width={SKILL_MAP.nodeWidth}
-                  height={SKILL_MAP.nodeHeight}
-                  rx={12}
-                  fill={style.fill}
-                  stroke={style.stroke}
-                  strokeDasharray={style.dash ?? undefined}
-                />
-                {node.lines.map((line, index) => (
-                  <text
-                    key={`${node.skillId}-${index}`}
-                    x={node.x + SKILL_MAP.nodeWidth / 2}
-                    y={node.labelY + index * SKILL_MAP.lineHeight}
-                    textAnchor="middle"
-                    fill={style.ink}
-                    fontSize={SKILL_MAP.fontSize}
-                    fontWeight={550}
-                  >
-                    {line}
-                  </text>
-                ))}
-              </g>
-            );
-          })}
+          {layersOf(layout.nodes).map((layer) => (
+            <g
+              key={layer.y}
+              className="map-layer"
+              // Every node in a layer shares one offset, which is the whole
+              // reason the nodes need no second copy.
+              style={{ "--map-shift": `${layer.shift}px` } as CSSProperties}
+            >
+              {layer.nodes.map((node) => {
+                const style = NODE[node.state];
+                return (
+                  <g key={node.skillId}>
+                    {/* The full name, for a label that had to be wrapped short. */}
+                    <title>{`${node.name} — ${SKILL_STATE_WORD[node.state].toLowerCase()}`}</title>
+                    <rect
+                      x={node.x}
+                      y={node.y}
+                      width={SKILL_MAP.nodeWidth}
+                      height={SKILL_MAP.nodeHeight}
+                      rx={12}
+                      fill={style.fill}
+                      stroke={style.stroke}
+                      strokeDasharray={style.dash ?? undefined}
+                    />
+                    {node.lines.map((line, index) => (
+                      <text
+                        key={`${node.skillId}-${index}`}
+                        x={node.x + SKILL_MAP.nodeWidth / 2}
+                        y={node.labelY + index * SKILL_MAP.lineHeight}
+                        textAnchor="middle"
+                        fill={style.ink}
+                        fontSize={SKILL_MAP.fontSize}
+                        fontWeight={550}
+                      >
+                        {line}
+                      </text>
+                    ))}
+                  </g>
+                );
+              })}
+            </g>
+          ))}
         </svg>
       </div>
 

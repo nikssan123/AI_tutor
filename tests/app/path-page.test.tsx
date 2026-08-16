@@ -191,14 +191,22 @@ describe("access", () => {
  * the list are telling the same story.
  */
 describe("the DAG", () => {
+  /*
+   * One group deeper than it used to be, and the edges are per placement.
+   *
+   * The picture is laid out twice — layers left-aligned for a screen that must
+   * pan it, centred for one that need not — so the nodes sit inside a
+   * `.map-layer` group that moves as a row, and the curves exist once under
+   * each placement. Counting `.map-panned`'s is counting them once.
+   */
   const boxes = (container: HTMLElement) =>
-    container.querySelectorAll('svg[role="img"] > g > rect');
+    container.querySelectorAll('svg[role="img"] > g.map-layer > g > rect');
 
   it("draws a node per skill and an edge per dependency", async () => {
     const { container } = render(await PathPage());
 
     expect(boxes(container)).toHaveLength(pack.skills.length);
-    expect(container.querySelectorAll('svg[role="img"] > path')).toHaveLength(
+    expect(container.querySelectorAll('svg[role="img"] > g.map-panned > path')).toHaveLength(
       pack.dependencies.length,
     );
   });
@@ -206,7 +214,7 @@ describe("the DAG", () => {
   it("distinguishes soft prerequisites from hard ones", async () => {
     const { container } = render(await PathPage());
     const dashed = [
-      ...container.querySelectorAll('svg[role="img"] > path'),
+      ...container.querySelectorAll('svg[role="img"] > g.map-panned > path'),
     ].filter((l) => l.getAttribute("stroke-dasharray"));
 
     expect(dashed).toHaveLength(

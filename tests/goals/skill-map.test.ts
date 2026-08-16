@@ -188,6 +188,70 @@ describe("buildSkillMap", () => {
     }
   });
 
+  /**
+   * The second placement, for a screen wide enough not to pan.
+   *
+   * Left-aligned, a two-node layer under a five-node one is a staircase whose
+   * shape says nothing; centred, the subject reads as something that opens out
+   * and converges again. Both are computed because which is right is a question
+   * about the viewport, and the stylesheet is the only thing that knows.
+   */
+  it("centres every layer on the widest one", () => {
+    const map = mapFor();
+
+    const byRow = new Map<number, number[]>();
+    for (const node of map.nodes) {
+      byRow.set(node.y, [...(byRow.get(node.y) ?? []), node.xCentred]);
+    }
+
+    const content =
+      map.width - SKILL_MAP.padding * 2 + SKILL_MAP.gapX;
+    expect(byRow.size).toBeGreaterThan(1);
+
+    for (const xs of byRow.values()) {
+      const span =
+        Math.max(...xs) + SKILL_MAP.nodeWidth - Math.min(...xs);
+      const left = Math.min(...xs) - SKILL_MAP.padding;
+      const right = content - SKILL_MAP.gapX - span - left;
+      // Within a pixel either side: the offset is rounded, so an odd remainder
+      // cannot split evenly and should not be asserted as though it could.
+      expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  /** The widest layer has nowhere to go, so it is the one fixed point. */
+  it("leaves the widest layer exactly where it was", () => {
+    const map = mapFor();
+    const widest = Math.max(
+      ...[...new Map(map.nodes.map((n) => [n.y, 0]))].map(
+        ([y]) => map.nodes.filter((n) => n.y === y).length,
+      ),
+    );
+
+    for (const node of map.nodes) {
+      const layer = map.nodes.filter((n) => n.y === node.y).length;
+      if (layer === widest) expect(node.xCentred).toBe(node.x);
+    }
+  });
+
+  /**
+   * An edge spans two layers whose offsets differ, so it cannot be carried
+   * from one placement to the other by a transform — which is the whole reason
+   * the curve is built twice rather than the nodes being drawn twice.
+   */
+  it("rebuilds each curve against the centred placement", () => {
+    const map = mapFor();
+    const moved = map.nodes.filter((n) => n.xCentred !== n.x);
+    expect(moved.length).toBeGreaterThan(0);
+
+    for (const edge of map.edges) {
+      expect(edge.pathCentred).toMatch(/^M[\d.]+ [\d.]+ C /);
+    }
+    // At least one curve genuinely differs, or the fixture is not exercising
+    // the case this exists for.
+    expect(map.edges.some((e) => e.pathCentred !== e.path)).toBe(true);
+  });
+
   /** And the columns line up, so the grid reads as deliberate. */
   it("puts every layer on the same column grid", () => {
     const columns = new Set(

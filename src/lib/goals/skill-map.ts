@@ -66,7 +66,13 @@ export interface SkillMapNode {
   /** The full name, for the node's `<title>` — the wrapped one may be cut. */
   name: string;
   state: SkillState;
+  /** Left-aligned: every layer shares a left margin. What a phone gets. */
   x: number;
+  /**
+   * The same node with its layer centred on the widest one. What a screen wide
+   * enough not to pan gets — see `buildSkillMap` for why it is both.
+   */
+  xCentred: number;
   y: number;
   /** The name broken over at most `maxLines` lines. Never cut mid-word. */
   lines: string[];
@@ -78,6 +84,9 @@ export interface SkillMapEdge {
   key: string;
   /** A cubic curve from the bottom of the prerequisite to the top of the skill. */
   path: string;
+  /** The same curve against `xCentred`. An edge spans two layers whose centring
+   *  offsets differ, so it cannot be derived from `path` by a transform. */
+  pathCentred: string;
   /** Soft prerequisites are drawn dashed: they help, they do not gate. */
   soft: boolean;
 }
@@ -165,25 +174,42 @@ export function buildSkillMap(
   const height =
     layout.depth * STEP_Y - SKILL_MAP.gapY + SKILL_MAP.padding * 2;
 
+  /*
+   * Both placements, because the right one depends on whether the picture has
+   * to be panned — and that is a question about the viewport, which arithmetic
+   * running on a server cannot answer.
+   *
+   * **Centred is right when the whole picture is in view.** A two-node layer
+   * over a five-node one draws a symmetric diamond, and the subject reads as
+   * something that opens out and converges again. Left-aligned, the same graph
+   * is a staircase whose shape says nothing: a narrow layer hard against the
+   * margin with three columns of white beside it.
+   *
+   * **Left-aligned is right when it has to be panned.** The picture is ~950px
+   * and a phone column is ~340, so it is dragged, and dragging starts at the
+   * left. With the layers centred, the left of the canvas is exactly where the
+   * *narrow* layers are not — so a learner opens on blank space with the roots
+   * of their own subject off-frame.
+   *
+   * So both are computed here and the stylesheet picks, at the one breakpoint
+   * that knows. Neither is a fallback for the other and neither is generated in
+   * the component: two placements of the same graph is still arithmetic, and it
+   * is testable exactly where the rest of the geometry is.
+   *
+   * The offset is per *layer*, which is why an edge cannot simply be shifted:
+   * its two ends sit in layers whose offsets differ. `pathCentred` is built
+   * from the centred coordinates rather than translated from `path`.
+   */
+  const perLayer = new Map<number, number>();
+  for (const node of layout.nodes) {
+    perLayer.set(node.depth, (perLayer.get(node.depth) ?? 0) + 1);
+  }
+  const content = layout.width * STEP_X - SKILL_MAP.gapX;
+
   const nodes: SkillMapNode[] = layout.nodes.map((node) => {
-    /*
-     * Layers share a left margin and a column grid.
-     *
-     * They were centred first, and centring is prettier on a desktop — a
-     * two-node layer over a five-node one draws a symmetric diamond, and the
-     * subject looks like it opens out and converges again. It is also wrong,
-     * and a phone is where you find out: the picture is 950px, a phone column
-     * is 340, so it has to be panned, and panning starts at the left. With the
-     * layers centred, the left of the canvas is where the *narrow* layers
-     * aren't — so the screen a learner actually opens on is blank at the top,
-     * with the roots of their own subject off-frame to the right.
-     *
-     * A shared left margin means scroll position zero shows the first column
-     * of every layer, top to bottom, on any width. What it costs is a symmetry
-     * that carried no information: which column a skill sits in has never meant
-     * anything, so nothing true was being said by centring it.
-     */
     const x = Math.round(SKILL_MAP.padding + node.index * STEP_X);
+    const layerWidth = perLayer.get(node.depth)! * STEP_X - SKILL_MAP.gapX;
+    const xCentred = Math.round(x + (content - layerWidth) / 2);
     const y = SKILL_MAP.padding + node.depth * STEP_Y;
     const lines = wrapLabel(node.name, SKILL_MAP.maxChars, SKILL_MAP.maxLines);
 
@@ -192,6 +218,7 @@ export function buildSkillMap(
       name: node.name,
       state: states.get(node.id)!,
       x,
+      xCentred,
       y,
       lines,
       labelY: baselineFor(y, lines.length),
@@ -207,18 +234,19 @@ export function buildSkillMap(
     const from = at.get(edge.fromSkillId)!;
     const to = at.get(edge.toSkillId)!;
 
-    const x1 = from.x + half;
     const y1 = from.y + SKILL_MAP.nodeHeight;
-    const x2 = to.x + half;
     const y2 = to.y;
     // Control points straight below the start and straight above the end: the
     // curve leaves and arrives vertically, so it is obvious which end is which
     // even where a dozen of them converge on the same box.
     const bend = (y2 - y1) / 2;
+    const curve = (x1: number, x2: number) =>
+      `M${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`;
 
     return {
       key: `${edge.fromSkillId}->${edge.toSkillId}`,
-      path: `M${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`,
+      path: curve(from.x + half, to.x + half),
+      pathCentred: curve(from.xCentred + half, to.xCentred + half),
       soft: edge.type === "soft",
     };
   });

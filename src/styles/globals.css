@@ -607,3 +607,66 @@ body {
       )
       100% 0 / 0.875rem 100% no-repeat scroll;
 }
+
+/*
+ * Two placements of one graph, and the pane that holds them.
+ *
+ * `buildSkillMap` emits both because the right one is a question about the
+ * viewport: centred layers read as a subject opening out and converging again,
+ * which is worth having whenever the whole picture is in view — and is exactly
+ * wrong when it is not, because a panned picture is dragged from the left and
+ * that is where the narrow layers aren't.
+ *
+ * So the breakpoint picks. `lg` is where `AppFrame`'s `max-w-5xl` column stops
+ * growing, which makes it the width at which a graph either fits for good or
+ * never will.
+ *
+ * `display` rather than `visibility` or opacity, so the hidden placement is out
+ * of the accessibility tree: each node carries a `<title>`, and two of every
+ * name is worse than none.
+ */
+.map-whole {
+  display: none;
+}
+
+.map-layer {
+  transform: translateX(0);
+}
+
+@media (min-width: 64rem) {
+  .map-panned {
+    display: none;
+  }
+
+  .map-whole {
+    display: inline;
+  }
+
+  /*
+   * The nodes are drawn once and moved; only the edges exist twice. A node
+   * lives in exactly one layer, so one translate carries it — an edge's two
+   * ends sit in layers whose offsets differ, so it does not.
+   *
+   * User units, not CSS pixels that happen to match: the canvas is never
+   * scaled (`max-w-none` on the `svg`), so the viewBox maps 1:1 and the offset
+   * `buildSkillMap` computed is the offset applied.
+   */
+  .map-layer {
+    transform: translateX(var(--map-shift, 0));
+  }
+}
+
+/*
+ * And the canvas itself sits in the middle of what is left over.
+ *
+ * A graph three layers wide is about 590px in a 976px card, so left-aligned it
+ * hangs off one side of a screen with room for all of it. `safe` is the whole
+ * reason this is safe to pair with `.scroll-x`: centring an overflowing child
+ * in a flex row puts half the overflow past the scroll origin, where nothing
+ * can reach it. `safe center` falls back to `start` at exactly the point that
+ * would happen, which is the same point `.map-panned` takes over.
+ */
+.scroll-x {
+  display: flex;
+  justify-content: safe center;
+}
