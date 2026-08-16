@@ -26,6 +26,7 @@ import {
   stagger,
 } from "@/components/ui";
 import { AppFrame, AppHeader } from "@/components/app-shell";
+import { SubmitButton } from "@/components/submit-button";
 import { submitWorkAction } from "@/app/(app)/submission/actions";
 import { TutorPanel } from "./tutor-panel";
 import { LessonBody } from "./lesson-body";
@@ -412,8 +413,17 @@ function CheckBlock(
         className="w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 py-3 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         placeholder="From memory — don't look it up"
       />
-      <div className="flex flex-wrap items-center gap-4">
-        <Button type="submit">Submit answer</Button>
+      {/* `SubmitButton`, because this press buys a model call. The form posts
+          over `fetch`, so without it the box sits there with the answer still
+          in it and nothing anywhere saying it went — which reads as a press
+          that missed, and the second press is a second marking. */}
+      <div className="flex flex-wrap items-start gap-4">
+        <SubmitButton
+          pendingLabel="Marking your answer"
+          note="Reading what you wrote. This takes a few seconds."
+        >
+          Submit answer
+        </SubmitButton>
         <Meta>Marked against what the question asked for, not on wording.</Meta>
       </div>
     </form>
@@ -473,7 +483,16 @@ function ApplyBlock(
           placeholder="Paste your work here…"
           className="w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 py-3 font-mono text-[length:var(--text-meta-size)] text-ink placeholder:text-ink-faint focus:border-accent"
         />
-        <Button type="submit">Hand it in</Button>
+        {/* The longest wait in a session — a rubric read over a whole piece of
+            work — and the one where a silent press costs the most: the learner
+            who thinks it missed presses again, and hands the same work in
+            twice against a monthly allowance. */}
+        <SubmitButton
+          pendingLabel="Marking your work"
+          note="Reading it against the rubric. Longer than a question — stay on this page."
+        >
+          Hand it in
+        </SubmitButton>
       </form>
 
       <ContinueOnly sessionId={props.sessionId} index={props.index} label="Skip for now" />

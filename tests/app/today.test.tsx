@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { shortDate } from "@/lib/calendar/dates";
 import { findPack } from "@/lib/content";
 import { cookieName, encode } from "@/lib/check/session";
@@ -683,6 +683,29 @@ describe("with a plan", () => {
     // reads "Carry on" instead of "Start session" is a difference you can only
     // notice if you already know both labels exist.
     expect(screen.getByText("Already started")).toBeDefined();
+  });
+
+  /**
+   * The press was reported as doing nothing for half a minute.
+   *
+   * It was doing plenty — re-planning the day, checking the allowance, opening
+   * the session — but a server action posts over `fetch`, so the browser has no
+   * navigation to spin and this screen stays exactly as it was until the
+   * session arrives. `SubmitButton` is the acknowledgement, and its live region
+   * is the part a plain `Button` cannot fake: asserting on it here means
+   * swapping the component back fails the suite instead of shipping.
+   *
+   * What the region *says* while pending is `SubmitButton`'s own test, driving
+   * a real form action. This one only asks that this screen still uses it.
+   */
+  it("acknowledges the press instead of sitting there unchanged", async () => {
+    todayForMock.mockResolvedValue(view());
+    render(await TodayPage({ searchParams: search() }));
+
+    const form = screen
+      .getByRole("button", { name: "Start session" })
+      .closest("form")!;
+    expect(within(form).getByRole("status")).toBeDefined();
   });
 
   it("says nothing about an open session when there isn't one", async () => {

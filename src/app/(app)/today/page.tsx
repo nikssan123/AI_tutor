@@ -10,9 +10,9 @@ import { answeredTopics } from "@/lib/check/session";
 import { allTopics } from "@/lib/content";
 import { SubjectIcon } from "@/components/icons";
 import { SubjectList } from "@/components/subject-list";
+import { SubmitButton } from "@/components/submit-button";
 import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import {
-  Button,
   ButtonLink,
   EmptyState,
   HeroBand,
@@ -324,12 +324,30 @@ export default async function TodayPage({ searchParams }: Props) {
           <>
             {/* A form, not a link: starting a session writes rows. The action
                 hands back the session already in progress if there is one, so a
-                second click cannot split a learner's answers across two. */}
+                second click cannot split a learner's answers across two.
+
+                `SubmitButton` rather than `Button` for the reason it exists: a
+                server action posts over `fetch`, so there is no navigation for
+                the browser to spin and this screen sits there looking exactly
+                as it did before the press. This is the product's most-pressed
+                button, and between the press and the session appearing it has
+                to re-plan the day, check the allowance and open the session —
+                which is long enough that the report was the same one the path
+                build got: "I pressed it and nothing happened." */}
             {planned.blocks.length > 0 ? (
               <form action={startSessionAction}>
-                <Button type="submit">
+                <SubmitButton
+                  pendingLabel={
+                    openSessionId ? "Opening your session" : "Setting up your session"
+                  }
+                  note={
+                    openSessionId
+                      ? "Finding the block you stopped at."
+                      : "Getting today’s first block ready."
+                  }
+                >
                   {openSessionId ? "Carry on" : "Start session"}
-                </Button>
+                </SubmitButton>
               </form>
             ) : (
               <Meta>Nothing to start today.</Meta>

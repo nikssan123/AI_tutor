@@ -149,6 +149,25 @@ describe("startSessionAction", () => {
     expect(startSessionMock).not.toHaveBeenCalled();
   });
 
+  it("goes back to today when there is no goal to start against", async () => {
+    activeGoalMock.mockResolvedValue(undefined);
+    await expect(startSessionAction()).rejects.toThrow("REDIRECT:/today");
+    // Asked before anything is planned, so a learner with no course does not
+    // pay for a planning pass to be told they have no course.
+    expect(todayForMock).not.toHaveBeenCalled();
+    expect(startSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("hands the planner the goal it just read, rather than paying for it twice", async () => {
+    await expect(startSessionAction()).rejects.toThrow(
+      `REDIRECT:/session/${SESSION_ID}`,
+    );
+
+    expect(todayForMock.mock.calls[0]![3]).toMatchObject({
+      goal: { id: "g1", packSlug: PACK },
+    });
+  });
+
   describe("the free tier's session allowance", () => {
     /** Free: three a month, and the ledger says three have been started. */
     const spent = () => {
@@ -184,16 +203,29 @@ describe("startSessionAction", () => {
     });
 
     it("never strands somebody mid-session", async () => {
-      // `startSession` hands back an open session rather than opening a second,
-      // so somebody three blocks into today's work is not starting anything.
-      // Refusing them would be the one outcome worse than not letting them begin.
+      // Somebody three blocks into today's work is not starting anything, so
+      // the allowance never gets a say. Refusing them would be the one outcome
+      // worse than not letting them begin.
       spent();
       openSessionMock.mockResolvedValue({ id: SESSION_ID } as never);
 
       await expect(startSessionAction()).rejects.toThrow(
         `REDIRECT:/session/${SESSION_ID}`,
       );
-      expect(startSessionMock).toHaveBeenCalledOnce();
+      expect(entitlementsMock).not.toHaveBeenCalled();
+    });
+
+    it("resumes without planning a day it is going to throw away", async () => {
+      // The point of reading the open session before anything else: "Carry on"
+      // writes nothing, so it needs no plan — and it used to build a whole one
+      // over the skill graph for `startSession` to discard unread.
+      openSessionMock.mockResolvedValue({ id: SESSION_ID } as never);
+
+      await expect(startSessionAction()).rejects.toThrow(
+        `REDIRECT:/session/${SESSION_ID}`,
+      );
+      expect(todayForMock).not.toHaveBeenCalled();
+      expect(startSessionMock).not.toHaveBeenCalled();
     });
 
     it("does not count sessions for a plan with no limit", async () => {

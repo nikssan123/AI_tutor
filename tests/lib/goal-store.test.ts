@@ -526,6 +526,28 @@ live("todayFor — assembling what /today plans against", () => {
     expect(JSON.stringify(a?.session)).toBe(JSON.stringify(b?.session));
   });
 
+  it("plans the same session from a goal the caller already read", async () => {
+    // `startSessionAction` reads the goal to ask whether a session is open,
+    // then hands it over rather than paying for the row twice. The option has
+    // to be a shortcut past one query and nothing else — if it were a second
+    // way in, the plan it produced could drift from the one `/today` showed.
+    const userId = await newUser();
+    await createGoal(db, {
+      userId,
+      packSlug: PACK,
+      spec: spec(),
+      mastery: [],
+      now: NOW,
+    });
+
+    const goal = await activeGoal(db, userId);
+    const passed = await todayFor(db, userId, NOW, { goal });
+    const looked = await todayFor(db, userId, NOW);
+
+    expect(JSON.stringify(passed?.session)).toBe(JSON.stringify(looked?.session));
+    expect(passed?.goal.id).toBe(goal!.id);
+  });
+
   it("honours 'I have less time' without changing anything stored", async () => {
     const userId = await newUser();
     await createGoal(db, {

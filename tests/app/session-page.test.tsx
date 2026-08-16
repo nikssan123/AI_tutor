@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import type { SessionBlock } from "@/lib/engine";
 import type { BlockResponse } from "@/lib/contracts/session";
 
@@ -196,6 +196,14 @@ describe("the session screen", () => {
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByText("What decides the row count?")).toBeDefined();
     expect(screen.getByLabelText("Your answer")).toBeDefined();
+
+    // Marking is a model call and the form posts over `fetch`, so the box sits
+    // there with the answer still in it and nothing spinning. The live region
+    // is what a plain `Button` does not have — see `SubmitButton`.
+    const form = screen
+      .getByRole("button", { name: "Submit answer" })
+      .closest("form")!;
+    expect(within(form).getByRole("status")).toBeDefined();
   });
 
   const answered = (correct: boolean | null, gradedBy: BlockResponse["gradedBy"]) =>
@@ -271,7 +279,12 @@ describe("the session screen", () => {
 
     await show(await SessionPage({ params, searchParams: search }));
     expect(screen.getByPlaceholderText("Paste your work here…")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Hand it in" })).toBeDefined();
+    const handIn = screen.getByRole("button", { name: "Hand it in" });
+    expect(handIn).toBeDefined();
+    // The longest wait in a session, so the one that most needs saying it is
+    // under way: a learner who thinks the press missed hands the same work in
+    // twice, against a monthly allowance.
+    expect(within(handIn.closest("form")!).getByRole("status")).toBeDefined();
     // Nothing bounced, so nothing is being explained.
     expect(screen.queryByText(/nothing in the box/)).toBeNull();
   });

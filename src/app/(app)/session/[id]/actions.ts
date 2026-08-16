@@ -36,38 +36,70 @@ import { proveBlocks, proveItems, proveOffer } from "@/lib/session/prove";
  * piece that ships script, and the session works without it.
  */
 
-/** §8 screen 6's primary action: start today's session, or return to it. */
+/**
+ * §8 screen 6's primary action: start today's session, or return to it.
+ *
+ * The order below is the whole of it, and it is ordered by cost. Asking whether
+ * a session is already open takes one indexed row; planning a day takes the
+ * skill graph, a projection over it, six more reads and the planner itself. So
+ * the cheap question is asked first, and the expensive work only happens on the
+ * branch that has something to write.
+ */
 export async function startSessionAction(): Promise<void> {
   const user = await requireUser();
   const db = getDb();
   const now = new Date();
 
-  const view = await todayFor(db, user.id, now);
-  if (!view) redirect("/today");
+  const goal = await activeGoal(db, user.id);
+  if (!goal) redirect("/today");
 
   /*
-   * The free tier's session allowance, checked only when a *new* session would
-   * be started.
+   * "Carry on" — a session is already under way, so hand it back.
    *
-   * `startSession` hands back an already-open session rather than opening a
-   * second one, and somebody three blocks into today's work is not starting
-   * anything — refusing them would strand them mid-session, which is the one
-   * outcome worse than not letting them begin.
+   * This is the press that was doing the most pointless work in the product.
+   * It used to run the full `todayFor` first, re-planning the entire day over
+   * the skill graph, and then hand the plan to `startSession`, which saw the
+   * open session and threw the plan away unread. Every one of those reads and
+   * the planning pass on top of them bought nothing: resuming writes nothing,
+   * so there is nothing to plan for.
+   *
+   * The allowance is not checked here either, for the reason it never was:
+   * somebody three blocks into today's work is not starting anything, and
+   * refusing them would strand them mid-session — the one outcome worse than
+   * not letting them begin.
    */
-  const open = await openSession(db, user.id, view.goal.id);
-  if (!open) {
-    const { entitlements } = await entitlementsForUser(db, user.id, user.plan);
-    const limit = entitlements.sessionsPerMonth;
+  const open = await openSession(db, user.id, goal.id);
+  if (open) redirect(`/session/${open.id}`);
 
-    if (limit !== null && (await sessionsThisPeriod(db, user.id, now)) >= limit) {
-      capture("quota_reached", { quota_type: "session", limit });
-      redirect("/today?error=sessions");
-    }
+  /*
+   * A new session, so now the plan is worth paying for.
+   *
+   * Re-planned here rather than accepted from the form that posted, and that is
+   * not a redundancy to optimise away later: a session spec arriving over the
+   * wire is a request, and honouring one would let anybody choose their own
+   * blocks — including an `apply` block against a skill they have never
+   * unlocked. The goal is threaded through because it was just read above; the
+   * planning is not, because it cannot be.
+   */
+  const view = await todayFor(db, user.id, now, { goal });
+  if (!view) redirect("/today");
+
+  const { entitlements } = await entitlementsForUser(db, user.id, user.plan);
+  const limit = entitlements.sessionsPerMonth;
+
+  if (limit !== null && (await sessionsThisPeriod(db, user.id, now)) >= limit) {
+    capture("quota_reached", { quota_type: "session", limit });
+    redirect("/today?error=sessions");
   }
 
+  /*
+   * `startSession` asks for an open session once more before it inserts. That
+   * is not the check above repeated — this one closes the gap between the read
+   * and the write, where a second press can land.
+   */
   const session = await startSession(db, {
     userId: user.id,
-    goalId: view.goal.id,
+    goalId: goal.id,
     planned: view.session,
     now,
   });

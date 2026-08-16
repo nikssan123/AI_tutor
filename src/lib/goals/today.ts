@@ -48,6 +48,20 @@ export interface TodayView {
 export interface TodayOptions {
   /** §8 screen 6's "I have less time" — a shorter session, same planner. */
   availableMinutes?: number | undefined;
+  /**
+   * The active goal, when the caller has already read it.
+   *
+   * `startSessionAction` has to look the goal up before it can ask whether a
+   * session is already open, and that question decides whether it needs a plan
+   * at all. Without this it would then pay for the same row a second time on
+   * the one path that does — which is the sort of duplicate read the rest of
+   * this file goes out of its way to avoid.
+   *
+   * It is the caller's own read of the same query, taken microseconds earlier,
+   * not a goal from anywhere else: nothing here trusts it further than
+   * `activeGoal` would be trusted, because it *is* `activeGoal`.
+   */
+  goal?: StoredGoal | undefined;
 }
 
 export async function todayFor(
@@ -56,7 +70,7 @@ export async function todayFor(
   now: Date,
   options: TodayOptions = {},
 ): Promise<TodayView | undefined> {
-  const goal = await activeGoal(db, userId);
+  const goal = options.goal ?? (await activeGoal(db, userId));
   if (!goal) return undefined;
 
   // A goal can outlive the pack it was created against — a pack removed from
