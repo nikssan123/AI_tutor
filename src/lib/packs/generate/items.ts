@@ -23,7 +23,11 @@ import {
 
 export const PACK_ITEMS_PROMPT = {
   name: "pack_item_author",
-  version: 1,
+  // 2: asks for the answer position to vary. `balanceAnswerPositions`
+  // guarantees it regardless, but a bank that arrives already spread needs less
+  // rearranging — and the version is what ties an `AgentRun` row to the text
+  // that produced it, so the two must move together.
+  version: 2,
   text: `You write assessment items that find out whether someone can already do a skill.
 
 You are given a group of skills from one subject, each with the can-do statement it will be measured against. You return items that test them.
@@ -42,7 +46,7 @@ Write mostly items that make the person produce something:
 
 Spread difficulty across the range for each skill: one an early learner would get, one a competent person would get, one that separates competent from strong. Difficulty is 0 to 1 on the same scale as mastery.
 
-For free-text items, \`concepts\` is what a correct answer must contain — the learner marks themselves against it, so write checkable claims and not a model answer. For multiple choice, give \`options\` and the 0-based \`correct\` index.
+For free-text items, \`concepts\` is what a correct answer must contain — the learner marks themselves against it, so write checkable claims and not a model answer. For multiple choice, give \`options\` and the 0-based \`correct\` index — and vary which position holds the answer, because a bank whose answers sit mostly in one slot can be scored by guessing that slot.
 
 Each skill you are given carries a short reference like \`s3\`. Put that reference in the item's \`skill\` field — not the skill's name.`,
 } as const;

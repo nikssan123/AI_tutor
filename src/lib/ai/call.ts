@@ -337,12 +337,36 @@ export async function callStructured<T>(
      */
     const options = () => {
       const left = msLeft();
-      // Floored at 1ms rather than passed through: the clock moves between the
-      // check above and this line, and a zero or negative timeout makes the SDK
-      // abort by *throwing* — which would leave `generatePack` on the exception
-      // path, where a deterministic failure looks transient to the queue and
-      // gets retried at full price. An overrun must return, not throw.
-      return left === null ? undefined : { timeout: Math.max(left, 1) };
+      if (left === null) return undefined;
+
+      return {
+        // Floored at 1ms rather than passed through: the clock moves between
+        // the check above and this line, and a zero or negative timeout makes
+        // the SDK abort by *throwing* — which would leave `generatePack` on the
+        // exception path, where a deterministic failure looks transient to the
+        // queue and gets retried at full price. An overrun must return, not
+        // throw.
+        timeout: Math.max(left, 1),
+        /*
+         * And the transport retries off, which is the half a timeout alone does
+         * not cover — measured the hard way.
+         *
+         * `timeout` bounds one HTTP attempt, not the chain: the client is built
+         * with `maxRetries: 2`, so a single `create()` can spend
+         * `timeout × 3` in wall clock. A reading list budgeted at three minutes
+         * ran for **291 seconds** — the first attempt timed out at 180s and the
+         * retry then succeeded 111s in — which is a budget the caller was told
+         * it had and did not get.
+         *
+         * Zero rather than one, because for a budgeted call the budget *is* the
+         * retry policy: the loop above already re-attempts while time remains,
+         * and it can see the clock, which the SDK's backoff cannot. Losing a
+         * transient 429 costs a reading list, and the pipeline treats a missing
+         * one as a thinner pack rather than a failed run — the same trade that
+         * justified giving this call a ceiling at all.
+         */
+        maxRetries: 0,
+      };
     };
 
     let response = await client.messages.create(

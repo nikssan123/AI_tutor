@@ -278,28 +278,56 @@ export function validatePack(pack: DomainPack): ValidationReport {
 
   // §16.4 again, from the other side: recognition items must not be gameable by
   // position. See MAX_MCQ_ANSWER_POSITION_SHARE for what this caught.
-  const answerPositions = pack.items
+  const scored = pack.items
     .filter((i) => i.type === "mcq")
     // An MCQ with no answer key at all is caught by its own check; here it is
     // simply not a position, rather than a crash.
-    .map((i) => (i.answerKey as { correct?: unknown } | undefined)?.correct)
-    .filter((c): c is number => typeof c === "number");
+    .map((i) => ({
+      correct: (i.answerKey as { correct?: unknown } | undefined)?.correct,
+      options: i.options?.length ?? 0,
+    }))
+    .filter((i): i is { correct: number; options: number } =>
+      typeof i.correct === "number",
+    );
 
-  if (answerPositions.length >= MIN_MCQS_FOR_POSITION_CHECK) {
+  if (scored.length >= MIN_MCQS_FOR_POSITION_CHECK) {
     const perPosition = new Map<number, number>();
-    for (const position of answerPositions) {
-      perPosition.set(position, (perPosition.get(position) ?? 0) + 1);
+    for (const { correct } of scored) {
+      perPosition.set(correct, (perPosition.get(correct) ?? 0) + 1);
     }
     const [topPosition, topCount] = [...perPosition].reduce((a, b) =>
       b[1] > a[1] ? b : a,
     );
-    const share = topCount / answerPositions.length;
-    if (share > MAX_MCQ_ANSWER_POSITION_SHARE) {
+    const share = topCount / scored.length;
+
+    /*
+     * The limit, or the best any arrangement could possibly do — whichever is
+     * looser. **The flat half was sometimes arithmetically unsatisfiable.**
+     *
+     * Spreading `n` answers over `k` positions cannot get the busiest one below
+     * `ceil(n / k) / n`. With three or more options that is always at or under
+     * a half, so this changes nothing for any ordinary bank. With two — a
+     * true/false item, which the schema permits — and an odd count, the floor
+     * is above a half: five of them can only ever be 3–2, which is 60%. The old
+     * rule failed that pack, and would have failed every rewrite of it, because
+     * no arrangement of five two-way answers exists that satisfies it. A gate
+     * nothing can pass is a gate that only spends money.
+     *
+     * So the rule is unchanged wherever it is achievable, and where it is not,
+     * it asks for the best there is. `balanceAnswerPositions` produces exactly
+     * that, which is what lets `meetsQualityFloor` keep claiming assembly
+     * satisfies every blocking rule.
+     */
+    const widest = Math.max(...scored.map((i) => i.options), 1);
+    const achievable = Math.ceil(scored.length / widest) / scored.length;
+    const limit = Math.max(MAX_MCQ_ANSWER_POSITION_SHARE, achievable);
+
+    if (share > limit) {
       issues.push(
         issue(
           "mcq_answer_position",
           "blocking",
-          `${topCount} of ${answerPositions.length} multiple-choice answers sit in option ${topPosition + 1} (${Math.round(share * 100)}%); always guessing it would score that much. Limit is ${Math.round(MAX_MCQ_ANSWER_POSITION_SHARE * 100)}%`,
+          `${topCount} of ${scored.length} multiple-choice answers sit in option ${topPosition + 1} (${Math.round(share * 100)}%); always guessing it would score that much. Limit is ${Math.round(limit * 100)}%`,
         ),
       );
     }

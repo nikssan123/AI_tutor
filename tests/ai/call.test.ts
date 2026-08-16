@@ -61,7 +61,7 @@ function stub(replies: Anthropic.Message[]) {
   const create = vi.fn(
     async (
       _body: Anthropic.MessageCreateParamsNonStreaming,
-      _options?: { timeout?: number },
+      _options?: { timeout?: number; maxRetries?: number },
     ) => replies.shift() ?? reply(),
   );
   return {
@@ -549,12 +549,22 @@ describe("server tools", () => {
        * Stopping between requests is only half of it. The SDK's default is ten
        * minutes per request with two transport retries behind it, so one hung
        * call would outlast any ceiling the loop kept on its own.
+       *
+       * `maxRetries: 0` is the other half, and it is here because leaving it
+       * out was caught in production rather than in review: `timeout` bounds
+       * one HTTP attempt, and the client carries `maxRetries: 2`, so a call
+       * budgeted at 180s spent 291 — one timeout plus a retry that then
+       * succeeded. Asserted as an exact object so a re-introduced retry policy
+       * fails here rather than four minutes into a build.
        */
       const { client, create } = stub([reply()]);
 
       await callStructured(client, { ...searching, budgetMs: 5_000 }, ticking(0));
 
-      expect(create.mock.calls[0]![1]).toEqual({ timeout: 5_000 });
+      expect(create.mock.calls[0]![1]).toEqual({
+        timeout: 5_000,
+        maxRetries: 0,
+      });
     });
 
     it("leaves an unbudgeted call exactly as it was", async () => {

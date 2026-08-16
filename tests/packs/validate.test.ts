@@ -188,6 +188,43 @@ describe("multiple-choice answer position", () => {
     }
   });
 
+  /**
+   * The rule stops short of demanding the impossible.
+   *
+   * Spreading `n` answers over `k` positions cannot get the busiest one below
+   * `ceil(n / k) / n`. Three or more options always leave that at or under a
+   * half, so nothing about an ordinary bank changes — but two options with an
+   * odd count put the floor *above* a half, and the flat rule then failed a
+   * pack that no rewrite could have saved. A gate nothing can pass only spends
+   * money: it cost one build 149¢ before it was measured.
+   */
+  it("asks for the best achievable when half is arithmetically impossible", () => {
+    const twoWay = (positions: number[]) => {
+      const pack = withAnswers(positions);
+      for (const item of pack.items) {
+        if (item.type === "mcq") item.options = ["true", "false"];
+      }
+      return pack;
+    };
+
+    // Five true/false answers can only ever split 3–2. That is 60%, and it is
+    // the best there is, so it passes.
+    expect(blockingChecks(twoWay([0, 0, 0, 1, 1]))).not.toContain(
+      "mcq_answer_position",
+    );
+    // 4 of 5 is not the best there is, and is still refused.
+    expect(blockingChecks(twoWay([0, 0, 0, 0, 1]))).toContain(
+      "mcq_answer_position",
+    );
+    // And an even bank of them keeps the ordinary half rule.
+    expect(blockingChecks(twoWay([0, 0, 0, 1]))).toContain(
+      "mcq_answer_position",
+    );
+    expect(blockingChecks(twoWay([0, 0, 1, 1]))).not.toContain(
+      "mcq_answer_position",
+    );
+  });
+
   it("counts every production type toward the ratio", () => {
     const pack = fixture("valid-minimal");
     pack.items = PRODUCTION_ITEM_TYPES.map((type, index) => ({

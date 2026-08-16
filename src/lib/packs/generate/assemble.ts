@@ -197,7 +197,106 @@ function itemsFrom(
     });
   }
 
-  return enforceRatio(kept, dropped);
+  // After the ratio, never before it: `enforceRatio` drops multiple-choice
+  // items, and dropping changes the very distribution this is balancing.
+  return balanceAnswerPositions(enforceRatio(kept, dropped));
+}
+
+/**
+ * Options whose text names where they sit, and so cannot be moved.
+ *
+ * "None of the above" is the whole family: reorder it and the item stops making
+ * sense, or worse, quietly starts being wrong. Deliberately a little greedy —
+ * over-matching costs one item its shuffle, which the balancer works around,
+ * while under-matching corrupts an item nobody would catch reading the diff.
+ */
+const POSITIONAL_OPTION = /\b(?:above|below)\b|^\s*(?:all|none|both|neither)\b/i;
+
+/**
+ * Spreads the correct answers across the option positions.
+ *
+ * **This is the repair `meetsQualityFloor` already assumes exists.** Its comment
+ * says assembly "builds a pack that satisfies every blocking rule ... so this
+ * should never fire" — and that was true of every rule but one.
+ * `mcq_answer_position` had no repair, so a bank the model happened to write
+ * with its answers bunched was thrown away *after* every model call had been
+ * paid for. A measured build died exactly that way: 3 of 5 answers in option 2,
+ * 149¢ spent, no pack.
+ *
+ * It was not the model's fault either, and that is the part worth keeping in
+ * mind if this is ever revisited. Nothing in `PACK_ITEMS_PROMPT` asked for
+ * variety until now, and items are authored in independent parallel batches, so
+ * no single call can see the distribution it is contributing to. Asking nicely
+ * cannot guarantee an aggregate property that no one participant can observe —
+ * which is why the guarantee lives here, where the whole bank is in hand, and
+ * the prompt only has to make the raw output better rather than perfect.
+ *
+ * The move is a swap, and a swap is safe: `correct` is an index into `options`,
+ * so exchanging two entries and pointing the index at the new one preserves
+ * exactly which text is the right answer. Nothing is rewritten, nothing is
+ * dropped, and no model call is made — a validator failure worth £1 becomes
+ * arithmetic.
+ *
+ * Least-loaded rather than round-robin: option counts vary from two to five, so
+ * a fixed rotation would pile onto the low positions every time a short item
+ * appeared. Ties break toward the lower index, so the result is deterministic —
+ * the same bank always assembles the same way.
+ */
+export function balanceAnswerPositions(
+  items: DomainPack["items"],
+): DomainPack["items"] {
+  const load = new Map<number, number>();
+  const bump = (at: number) => load.set(at, (load.get(at) ?? 0) + 1);
+
+  const movable: { index: number; options: string[]; correct: number }[] = [];
+
+  items.forEach((item, index) => {
+    const correct = (item.answerKey as { correct?: number } | undefined)?.correct;
+    const options = item.options;
+    if (item.type !== "mcq" || !options || typeof correct !== "number") return;
+
+    /*
+     * Pinned, not skipped, and the difference matters: an answer that cannot
+     * move still occupies a position, and the validator counts it. Balancing
+     * the movable ones *around* it is what makes the result even rather than
+     * merely different. An out-of-range index is pinned for the same reason —
+     * it is a broken item for another check to fail, and moving it would only
+     * disguise that.
+     */
+    if (
+      correct < 0 ||
+      correct >= options.length ||
+      options.some((option) => POSITIONAL_OPTION.test(option))
+    ) {
+      bump(correct);
+      return;
+    }
+
+    movable.push({ index, options, correct });
+  });
+
+  const balanced = [...items];
+
+  for (const { index, options, correct } of movable) {
+    let target = 0;
+    for (let at = 1; at < options.length; at += 1) {
+      if ((load.get(at) ?? 0) < (load.get(target) ?? 0)) target = at;
+    }
+    bump(target);
+    if (target === correct) continue;
+
+    const swapped = [...options];
+    swapped[target] = options[correct]!;
+    swapped[correct] = options[target]!;
+
+    balanced[index] = {
+      ...balanced[index]!,
+      options: swapped,
+      answerKey: { correct: target },
+    };
+  }
+
+  return balanced;
 }
 
 /**

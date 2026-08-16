@@ -3,9 +3,14 @@ import {
   GENERATED_QUALITY,
   MAX_REPORTED_ISSUES,
   assemblePack,
+  balanceAnswerPositions,
   enforceRatio,
   meetsQualityFloor,
 } from "@/lib/packs/generate/assemble";
+import {
+  MAX_MCQ_ANSWER_POSITION_SHARE,
+  MIN_MCQS_FOR_POSITION_CHECK,
+} from "@/lib/packs/validate";
 import { MAX_SLUG_LENGTH } from "@/lib/packs/types";
 import { skillRef } from "@/lib/packs/generate/derive";
 import { detectCycle } from "@/lib/engine/graph";
@@ -304,8 +309,16 @@ describe("assemblePack", () => {
       ];
       const { pack } = assemble(EIGHT, { items });
       const mcq = pack.items.find((i) => i.type === "mcq")!;
-      expect(mcq.options).toEqual(["a", "b", "c"]);
-      expect(mcq.answerKey).toEqual({ correct: 2 });
+      /*
+       * The options survive as a set rather than in the order given, because
+       * `balanceAnswerPositions` may swap two of them on the way through — what
+       * this test is about is that they are attached at all, and only to the
+       * type that uses them. That the *answer* survives a swap is asserted
+       * where the swapping lives.
+       */
+      expect([...mcq.options!].sort()).toEqual(["a", "b", "c"]);
+      const at = (mcq.answerKey as { correct: number }).correct;
+      expect(mcq.options![at]).toBe("c");
       expect(pack.items.filter((i) => i.type !== "mcq").every((i) => i.options === undefined)).toBe(true);
     });
 
@@ -441,6 +454,128 @@ describe("assemblePack", () => {
       const { pack } = assemble(EIGHT, { rubrics });
       expect(pack.projects).toHaveLength(1);
     });
+  });
+});
+
+describe("balanceAnswerPositions", () => {
+  /*
+   * The repair `meetsQualityFloor` always claimed existed. Its comment says
+   * assembly "builds a pack that satisfies every blocking rule ... so this
+   * should never fire" — true of every rule except `mcq_answer_position`,
+   * which had no repair at all. A measured build died on it: 3 of 5 answers in
+   * option 2, 149¢ of model calls spent, no pack. Nothing in the prompt asked
+   * for variety, and items are authored in independent parallel batches, so no
+   * single call could see the distribution it was contributing to.
+   */
+  const mcq = (correct: number, options = 4, slug = `i${correct}`) => ({
+    slug,
+    skill: "s",
+    type: "mcq" as const,
+    difficulty: 0.5,
+    discrimination: 1,
+    prompt: "a prompt long enough",
+    options: Array.from({ length: options }, (_, i) => `option ${i}`),
+    answerKey: { correct },
+  });
+
+  /** What the validator measures: the busiest position's share. */
+  const topShare = (items: ReturnType<typeof mcq>[]) => {
+    const seen = new Map<number, number>();
+    for (const item of items) {
+      const at = item.answerKey.correct;
+      seen.set(at, (seen.get(at) ?? 0) + 1);
+    }
+    return Math.max(...seen.values()) / items.length;
+  };
+
+  const balanced = (items: ReturnType<typeof mcq>[]) =>
+    balanceAnswerPositions(items) as ReturnType<typeof mcq>[];
+
+  it("fixes the distribution that actually cost a build", () => {
+    // 3 of 5 in option 2 — the exact shape of the failure, replayed.
+    const failed = [mcq(1, 4, "a"), mcq(1, 4, "b"), mcq(1, 4, "c"), mcq(0, 4, "d"), mcq(3, 4, "e")];
+    expect(topShare(failed)).toBeGreaterThan(MAX_MCQ_ANSWER_POSITION_SHARE);
+
+    expect(topShare(balanced(failed))).toBeLessThanOrEqual(
+      MAX_MCQ_ANSWER_POSITION_SHARE,
+    );
+  });
+
+  it("keeps the right answer right", () => {
+    // The swap is only safe because `correct` indexes `options` — so the text
+    // behind the index must be identical afterwards, every time.
+    const before = [mcq(1, 4, "a"), mcq(1, 4, "b"), mcq(1, 4, "c"), mcq(0, 4, "d"), mcq(3, 4, "e")];
+    const answers = before.map((i) => i.options[i.answerKey.correct]);
+
+    expect(balanced(before).map((i) => i.options[i.answerKey.correct])).toEqual(
+      answers,
+    );
+    // And no option text is invented or lost, only moved.
+    expect(balanced(before).map((i) => [...i.options].sort())).toEqual(
+      before.map((i) => [...i.options].sort()),
+    );
+  });
+
+  it("will not move an option that names its own position", () => {
+    /*
+     * "None of the above" has to stay last. Reordering it does not fail
+     * loudly — it silently makes the item wrong, which is worse than the
+     * imbalance being repaired.
+     */
+    const pinned = {
+      ...mcq(3, 4, "pinned"),
+      options: ["ten", "twenty", "thirty", "none of the above"],
+    };
+    const [after] = balanced([pinned, mcq(3, 4, "b"), mcq(3, 4, "c"), mcq(3, 4, "d")]);
+
+    expect(after!.answerKey.correct).toBe(3);
+    expect(after!.options[3]).toBe("none of the above");
+  });
+
+  it("leaves everything that is not a multiple-choice item alone", () => {
+    const free = {
+      slug: "f",
+      skill: "s",
+      type: "short_text" as const,
+      difficulty: 0.5,
+      discrimination: 1,
+      prompt: "a prompt long enough",
+      answerKey: { concepts: ["a"] },
+    };
+    expect(balanceAnswerPositions([free])).toEqual([free]);
+  });
+
+  it("is deterministic — the same bank always assembles the same way", () => {
+    const bank = () => [mcq(1, 4, "a"), mcq(1, 4, "b"), mcq(1, 4, "c"), mcq(2, 3, "d")];
+    expect(balanced(bank())).toEqual(balanced(bank()));
+  });
+
+  it("satisfies the gate for every bank the model could produce", () => {
+    /*
+     * Exhaustive rather than illustrative, because the whole point is that this
+     * can no longer be a coin flip. Every worst case — every answer in one slot
+     * — across the range of bank sizes and option counts the schema allows.
+     *
+     * Two options with an odd count is the case that proves the validator had
+     * to change too: five two-way answers can only ever split 3–2, so the flat
+     * half was unsatisfiable by any arrangement. The gate now asks for the best
+     * achievable, and this asserts the balancer actually reaches it.
+     */
+    for (let n = MIN_MCQS_FOR_POSITION_CHECK; n <= 12; n += 1) {
+      for (let options = 2; options <= 5; options += 1) {
+        const worst = Array.from({ length: n }, (_, i) =>
+          mcq(0, options, `i${i}`),
+        );
+        const share = topShare(balanced(worst));
+        const achievable = Math.ceil(n / options) / n;
+
+        expect(share).toBeLessThanOrEqual(
+          Math.max(MAX_MCQ_ANSWER_POSITION_SHARE, achievable),
+        );
+        // Not merely inside the limit — actually optimal.
+        expect(share).toBeCloseTo(achievable, 10);
+      }
+    }
   });
 });
 
