@@ -115,6 +115,22 @@ const AHEAD: WidgetView = {
   },
 };
 
+const DIGEST_PAYLOAD = {
+  digest: {
+    hoursLogged: 3.5,
+    committedHours: 4,
+    keptCommitment: false,
+    sessions: 2,
+    moved: [{ name: "Window functions", delta: 0.2 }],
+    artefacts: 1,
+    remainingHours: 20,
+    weeksAtCommitment: 5,
+    weeksAtActualPace: 6,
+    tracked: 4,
+    slipping: 1,
+  },
+};
+
 /** The prose/view text of one turn, in order, for readable assertions. */
 function shape(turn: { segments: Segment[] }): string[] {
   return turn.segments.map((segment) =>
@@ -215,12 +231,48 @@ describe("readWidget", () => {
    * Both must be a missing view rather than a crashed thread.
    */
   it("drops a widget this build cannot render", () => {
-    expect(readWidget("plan_card", { plan: "pro" })).toBeNull();
+    // `path_outline` is a real widget this build simply does not have yet —
+    // which is exactly the deploy-skew case: a route one release ahead sends a
+    // view whose component has not shipped here.
+    expect(readWidget("path_outline", { sections: [] })).toBeNull();
+    expect(readWidget("charges", { rows: [] })).toBeNull();
     expect(readWidget("calendar_month", null)).toBeNull();
     expect(readWidget("calendar_month", "september")).toBeNull();
   });
 
+  it("accepts the three later widgets too", () => {
+    expect(readWidget("week_digest", DIGEST_PAYLOAD)).toEqual({
+      widget: "week_digest",
+      payload: DIGEST_PAYLOAD,
+    });
+    expect(readWidget("course_list", { courses: [] })).toEqual({
+      widget: "course_list",
+      payload: { courses: [] },
+    });
+    expect(readWidget("plan_card", { planId: "pro", renewsOn: null })).toEqual({
+      widget: "plan_card",
+      payload: { planId: "pro", renewsOn: null },
+    });
+  });
+
+  /**
+   * A plan id is checked against the catalogue rather than for "a string": an
+   * unknown one indexes `PLAN_COPY` to undefined and takes the thread down at
+   * the first property read, which is the crash this guard exists to prevent.
+   */
+  it("drops a plan the catalogue does not have", () => {
+    expect(readWidget("plan_card", { planId: "enterprise" })).toBeNull();
+    expect(readWidget("plan_card", { planId: 4 })).toBeNull();
+    expect(readWidget("plan_card", {})).toBeNull();
+  });
+
   it("drops a payload missing what its component reads", () => {
+    expect(readWidget("week_digest", { digest: null })).toBeNull();
+    expect(readWidget("week_digest", { digest: "a good week" })).toBeNull();
+    expect(readWidget("week_digest", { digest: {} })).toBeNull();
+    expect(readWidget("week_digest", {})).toBeNull();
+    expect(readWidget("course_list", { courses: "none" })).toBeNull();
+    expect(readWidget("course_list", {})).toBeNull();
     expect(readWidget("calendar_month", { weeks: [], hasMarks: true })).toBeNull();
     expect(
       readWidget("calendar_month", { label: "Sep", hasMarks: true }),
@@ -462,10 +514,88 @@ describe("AssistantPanel", () => {
     await waitFor(() => expect(screen.getByText("Window functions")).toBeDefined());
   });
 
+  /**
+   * The inert rule (§6.1) at the surface a learner actually touches. Two of the
+   * three course actions are hard to walk back, and a thread whose whole
+   * premise is that it only reads must not be a fourth place to press them.
+   */
+  it("renders the course list without the buttons that change a course", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `${JSON.stringify({
+          t: "widget",
+          name: "course_list",
+          payload: {
+            courses: [
+              {
+                goalId: "g1",
+                name: "SQL for data analysis",
+                taxonomyParent: null,
+                status: "active",
+              },
+            ],
+          },
+        })}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("SQL for data analysis")).toBeDefined(),
+    );
+    expect(screen.queryByRole("button", { name: "Put aside" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop it" })).toBeNull();
+  });
+
+  it("renders the plan, ending at a link rather than a control", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `${JSON.stringify({
+          t: "widget",
+          name: "plan_card",
+          payload: { planId: "pro", renewsOn: "2026-10-01" },
+        })}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Renews 1 October 2026")).toBeDefined(),
+    );
+    expect(
+      screen.getByRole("link", { name: /Change or cancel it/ }).getAttribute("href"),
+    ).toBe("/account/billing");
+  });
+
+  it("renders the week's digest", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `${JSON.stringify({
+          t: "widget",
+          name: "week_digest",
+          payload: DIGEST_PAYLOAD,
+        })}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
+
+    await waitFor(() => expect(screen.getByText("What changed")).toBeDefined());
+    expect(screen.getByText("Window functions")).toBeDefined();
+  });
+
   it("drops a widget it cannot render and keeps the answer", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       streaming(
-        '{"t":"widget","name":"plan_card","payload":{"plan":"pro"}}\n{"t":"text","v":"You are on Pro."}\n{"t":"done"}\n',
+        '{"t":"widget","name":"path_outline","payload":{"sections":[]}}\n{"t":"text","v":"You are on Pro."}\n{"t":"done"}\n',
       ) as unknown as Response,
     );
 

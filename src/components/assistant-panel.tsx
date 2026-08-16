@@ -4,10 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AheadList } from "@/components/ahead-list";
 import { CalendarMonth } from "@/components/calendar-month";
+import { CourseList } from "@/components/course-list";
 import { GeneratedProse } from "@/components/generated-prose";
+import { PlanCard } from "@/components/plan-card";
+import { WeekDigest } from "@/components/week-digest";
+import { isPlanId } from "@/lib/billing/catalog";
 import type {
   AheadListPayload,
   CalendarMonthPayload,
+  CourseListPayload,
+  PlanCardPayload,
+  WeekDigestPayload,
   WidgetView,
 } from "@/lib/assistant/widgets";
 
@@ -95,6 +102,35 @@ export function readWidget(name: unknown, payload: unknown): WidgetView | null {
     };
   }
 
+  if (name === "week_digest") {
+    const digest = value.digest;
+    if (typeof digest !== "object" || digest === null) return null;
+    if (!Array.isArray((digest as Record<string, unknown>).moved)) return null;
+    return {
+      widget: "week_digest",
+      payload: value as unknown as WeekDigestPayload,
+    };
+  }
+
+  if (name === "course_list") {
+    if (!Array.isArray(value.courses)) return null;
+    return {
+      widget: "course_list",
+      payload: value as unknown as CourseListPayload,
+    };
+  }
+
+  if (name === "plan_card") {
+    // Checked against the catalogue rather than for "a string": an unknown plan
+    // id would index `PLAN_COPY` to undefined and take the thread down at the
+    // first property read.
+    if (!isPlanId(value.planId)) return null;
+    return {
+      widget: "plan_card",
+      payload: value as unknown as PlanCardPayload,
+    };
+  }
+
   return null;
 }
 
@@ -119,6 +155,16 @@ export function Widget({ view }: { view: WidgetView }) {
           today={view.payload.today}
           hasCheckpoints={view.payload.hasCheckpoints}
         />
+      );
+    case "week_digest":
+      return <WeekDigest digest={view.payload.digest} />;
+    case "course_list":
+      // Inert, per §6.1. Starting, pausing and stopping a course stays on the
+      // page that owns those decisions — two of the three are hard to undo.
+      return <CourseList courses={view.payload.courses} actions={false} />;
+    case "plan_card":
+      return (
+        <PlanCard planId={view.payload.planId} renewsOn={view.payload.renewsOn} />
       );
   }
 }

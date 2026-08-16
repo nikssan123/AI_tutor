@@ -14,14 +14,37 @@ import type { CalendarView } from "@/lib/calendar/view";
  */
 
 const calendarForMock = vi.fn();
+const digestForMock = vi.fn();
+const coursesForMock = vi.fn();
+const entitlementsMock = vi.fn();
+const subscriptionMock = vi.fn();
 
 vi.mock("@/lib/calendar/view", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/calendar/view")>()),
   calendarFor: (...a: unknown[]) => calendarForMock(...(a as [])),
 }));
+vi.mock("@/lib/mastery/view", () => ({
+  digestFor: (...a: unknown[]) => digestForMock(...(a as [])),
+}));
+vi.mock("@/lib/goals/courses", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/goals/courses")>()),
+  coursesFor: (...a: unknown[]) => coursesForMock(...(a as [])),
+}));
+vi.mock("@/lib/billing/store", () => ({
+  entitlementsForUser: (...a: unknown[]) => entitlementsMock(...(a as [])),
+  latestSubscription: (...a: unknown[]) => subscriptionMock(...(a as [])),
+}));
 
-const { aheadTool, buildTools, calendarTool, findPageTool, stringArg } =
-  await import("@/lib/assistant/tools");
+const {
+  aheadTool,
+  buildTools,
+  calendarTool,
+  coursesTool,
+  findPageTool,
+  planTool,
+  standingTool,
+  stringArg,
+} = await import("@/lib/assistant/tools");
 
 type AssistantContext = import("@/lib/assistant/tools").AssistantContext;
 
@@ -29,6 +52,7 @@ const NOW = new Date("2026-09-03T09:00:00.000Z");
 const context = {
   db: {} as Db,
   userId: "learner-1",
+  plan: "pro",
   now: NOW,
 } satisfies AssistantContext;
 
@@ -66,9 +90,41 @@ function view(over: Partial<CalendarView> = {}): CalendarView {
   } as unknown as CalendarView;
 }
 
+const DIGEST = {
+  hoursLogged: 3.5,
+  committedHours: 4,
+  keptCommitment: false,
+  sessions: 2,
+  moved: [{ name: "Window functions", delta: 0.2 }],
+  artefacts: 1,
+  remainingHours: 20,
+  weeksAtCommitment: 5,
+  weeksAtActualPace: 6,
+  tracked: 4,
+  slipping: 1,
+};
+
+const COURSE = {
+  goalId: "g1",
+  name: "SQL for data analysis",
+  taxonomyParent: "technology",
+  status: "active" as const,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   calendarForMock.mockResolvedValue(view());
+  digestForMock.mockResolvedValue({ digest: DIGEST });
+  coursesForMock.mockResolvedValue([COURSE]);
+  entitlementsMock.mockResolvedValue({
+    planId: "pro",
+    entitlements: {},
+    spendCapCents: 1_500,
+    source: "subscription",
+  });
+  subscriptionMock.mockResolvedValue({
+    currentPeriodEnd: new Date("2026-10-01T00:00:00.000Z"),
+  });
 });
 
 describe("stringArg", () => {
@@ -251,6 +307,124 @@ describe("whats_next", () => {
   });
 });
 
+describe("my_standing", () => {
+  it("puts the week on screen and forbids a verdict on it", async () => {
+    const outcome = await standingTool(context).run({});
+
+    expect(outcome.forView).toEqual({
+      widget: "week_digest",
+      payload: { digest: DIGEST },
+    });
+    expect(outcome.forModel).toContain("1 skill moved");
+    expect(outcome.forModel).toContain("1 of 4 slipping");
+    // §4.2 law 1 — the assistant is not the part of this system that judges.
+    expect(outcome.forModel).toContain("do not tell them whether it is good");
+  });
+
+  it("reads the signed-in learner", async () => {
+    await standingTool(context).run({});
+    expect(digestForMock).toHaveBeenCalledWith({}, "learner-1", NOW);
+  });
+
+  it("says there is no week to report when no course is running", async () => {
+    digestForMock.mockResolvedValue(undefined);
+
+    const outcome = await standingTool(context).run({});
+    expect(outcome.forView).toBeNull();
+    expect(outcome.forModel).toContain("no course running");
+  });
+
+  it("pluralises what moved", async () => {
+    digestForMock.mockResolvedValue({
+      digest: { ...DIGEST, moved: [{ name: "a", delta: 1 }, { name: "b", delta: 1 }] },
+    });
+
+    const outcome = await standingTool(context).run({});
+    expect(outcome.forModel).toContain("2 skills moved");
+  });
+});
+
+describe("my_courses", () => {
+  it("puts the courses on screen and says who may change them", async () => {
+    const outcome = await coursesTool(context).run({});
+
+    expect(outcome.forView).toEqual({
+      widget: "course_list",
+      payload: { courses: [COURSE] },
+    });
+    expect(outcome.forModel).toContain("1 course on screen, 1 running");
+    // §9.2 — the assistant cannot act, and the sentence says where the learner
+    // can rather than leaving the model to invent an offer.
+    expect(outcome.forModel).toContain("you cannot");
+  });
+
+  it("reads the signed-in learner", async () => {
+    await coursesTool(context).run({});
+    expect(coursesForMock).toHaveBeenCalledWith({}, "learner-1");
+  });
+
+  it("counts only what is running as running", async () => {
+    coursesForMock.mockResolvedValue([
+      COURSE,
+      { ...COURSE, goalId: "g2", status: "paused" as const },
+    ]);
+
+    const outcome = await coursesTool(context).run({});
+    expect(outcome.forModel).toContain("2 courses on screen, 1 running");
+  });
+
+  it("says there are none rather than showing an empty list", async () => {
+    coursesForMock.mockResolvedValue([]);
+
+    const outcome = await coursesTool(context).run({});
+    expect(outcome.forModel).toContain("no courses at all");
+  });
+});
+
+describe("my_plan", () => {
+  it("shows what is in force, with the day the window ends", async () => {
+    const outcome = await planTool(context).run({});
+
+    expect(outcome.forView).toEqual({
+      widget: "plan_card",
+      payload: { planId: "pro", renewsOn: "2026-10-01" },
+    });
+    expect(outcome.forModel).toContain("billing page");
+  });
+
+  /**
+   * The resolved entitlement, not the `user.plan` column: a grant or a live
+   * subscription outranks it, and somebody asking what they are paying wants
+   * what is actually in force.
+   */
+  it("reads the resolved plan rather than the column", async () => {
+    entitlementsMock.mockResolvedValue({
+      planId: "learner",
+      entitlements: {},
+      spendCapCents: 600,
+      source: "grant",
+    });
+
+    const outcome = await planTool(context).run({});
+    expect(outcome.forView).toMatchObject({ payload: { planId: "learner" } });
+    expect(entitlementsMock).toHaveBeenCalledWith({}, "learner-1", "pro", NOW);
+  });
+
+  it("has no renewal date where there is no paid-for window", async () => {
+    subscriptionMock.mockResolvedValue(undefined);
+
+    const outcome = await planTool(context).run({});
+    expect(outcome.forView).toMatchObject({ payload: { renewsOn: null } });
+  });
+
+  it("treats a missing subscription row the same as none", async () => {
+    subscriptionMock.mockResolvedValue(null);
+
+    const outcome = await planTool(context).run({});
+    expect(outcome.forView).toMatchObject({ payload: { renewsOn: null } });
+  });
+});
+
 describe("buildTools", () => {
   it("registers every lookup, each with a name the model can call", () => {
     const tools = buildTools(context);
@@ -259,6 +433,9 @@ describe("buildTools", () => {
       "find_page",
       "my_calendar",
       "whats_next",
+      "my_standing",
+      "my_courses",
+      "my_plan",
     ]);
     for (const tool of tools) {
       expect(tool.description).not.toBe("");

@@ -2,6 +2,9 @@ import type { DayKey } from "@/lib/calendar/dates";
 import type { DayCell } from "@/lib/calendar/month";
 import type { CalendarEntry } from "@/lib/calendar/schedule";
 import type { CalendarView } from "@/lib/calendar/view";
+import type { Digest } from "@/lib/mastery/digest";
+import type { CourseSummary } from "@/components/course-list";
+import type { PlanId } from "@/lib/billing/catalog";
 
 /**
  * What a tool may put on screen — `ASSISTANT-PLAN.md` §2.
@@ -45,10 +48,27 @@ export interface AheadListPayload {
   hasCheckpoints: boolean;
 }
 
+export interface WeekDigestPayload {
+  digest: Digest;
+}
+
+export interface CourseListPayload {
+  courses: CourseSummary[];
+}
+
+export interface PlanCardPayload {
+  planId: PlanId;
+  /** `YYYY-MM-DD`, or null where there is no paid-for window. */
+  renewsOn: string | null;
+}
+
 /** Every widget, by the name that travels on the wire. */
 export type WidgetView =
   | { widget: "calendar_month"; payload: CalendarMonthPayload }
-  | { widget: "ahead_list"; payload: AheadListPayload };
+  | { widget: "ahead_list"; payload: AheadListPayload }
+  | { widget: "week_digest"; payload: WeekDigestPayload }
+  | { widget: "course_list"; payload: CourseListPayload }
+  | { widget: "plan_card"; payload: PlanCardPayload };
 
 export type WidgetName = WidgetView["widget"];
 
@@ -102,5 +122,18 @@ export function summarise(view: WidgetView): string {
         ? "Nothing is due. The list on screen says so and says why."
         : `${entries.length} ${entries.length === 1 ? "thing is" : "things are"} ahead of them${overdue > 0 ? `, ${overdue} overdue` : ""}, now on screen. Do not list them.`;
     }
+    case "week_digest": {
+      const { digest } = view.payload;
+      return `Their week is on screen: ${digest.moved.length} ${digest.moved.length === 1 ? "skill" : "skills"} moved, ${digest.slipping} of ${digest.tracked} slipping. Do not repeat the numbers, and do not tell them whether it is good.`;
+    }
+    case "course_list": {
+      const { courses } = view.payload;
+      const running = courses.filter((course) => course.status === "active").length;
+      return courses.length === 0
+        ? "They have no courses at all. Say so, and offer the subjects page."
+        : `${courses.length} ${courses.length === 1 ? "course" : "courses"} on screen, ${running} running. Do not list them. They can start, pause or stop a course on the progress page — you cannot.`;
+    }
+    case "plan_card":
+      return `Their plan is on screen: ${view.payload.planId}. Do not read the features back to them. Anything they want changed happens on the billing page, which the card links to.`;
   }
 }

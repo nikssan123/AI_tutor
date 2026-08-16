@@ -192,11 +192,24 @@ All read-only. All already backed by functions that exist.
 | `my_calendar` | `calendarFor` (`src/lib/calendar/view.ts:147`) | `calendar_month` |
 | `whats_next` | `calendarFor().ahead` | `ahead_list` |
 | `my_courses` | `coursesFor` (`src/lib/goals/courses.ts`) | `course_list` |
-| `my_standing` | `standingFor` (`src/lib/goals/standing.ts`) | `standing` |
-| `my_path` | `src/lib/curriculum/store.ts` | `path_outline` |
-| `my_plan` | `planFor` + entitlements (`billing/catalog.ts:413`) | `plan_card` |
-| `my_charges` | `src/lib/billing/store.ts` | `charges` |
+| `my_standing` | `digestFor` (`src/lib/mastery/view.ts`) | `week_digest` |
+| `my_plan` | `entitlementsForUser` + `latestSubscription` | `plan_card` |
 | `find_page` | static route map | `null` (returns a link) |
+| `my_path` | `src/lib/curriculum/store.ts` | `path_outline` — **deferred**, see below |
+
+**`my_charges` was dropped, not deferred.** There is no invoice table — billing
+keeps a `subscription` row and grants, nothing itemised — so "what am I paying"
+is answered in full by `plan_card` (the plan in force, what it includes, when the
+window ends) and anything itemised belongs to Stripe's own portal, which
+`/account/billing` already reaches. Inventing a charges view over data we do not
+hold would be the opposite of §9.3.
+
+**`my_path` is deferred with a reason.** `CourseOutline` is pure and ready, but
+`buildOutline` needs a graph, mastery, a projection and the stored modules —
+six coordinated reads that only `/path` assembles today. Doing it properly means
+extracting that assembly into a shared reader, which is its own change and
+touches a page another session has been working in. It is worth doing; it is not
+worth smuggling into this one.
 
 `find_page` is the cheap one that will earn its keep: most "how do I…" questions
 are navigation, and answering them with a real link beats describing a path
@@ -473,8 +486,21 @@ Two decisions worth recording:
   `readWidget`, which keeps Zod out of the one bundle a signed-in learner
   receives.
 
-**Phase 3 — the rest of the catalog.** Remaining tools and widgets, thread
-persistence and re-render.
+**Phase 3 — the rest of the catalog.** Tools done: `my_standing`, `my_courses`,
+`my_plan`, rendering `week_digest`, `course_list` and a new `plan_card`.
+`my_path` deferred and `my_charges` dropped, both for the reasons in §5.
+
+`CourseList` gained an `actions` prop to make this possible, and the reason is
+§6.1 rather than styling: the list carries buttons that pause and stop a course,
+two of which are hard to walk back, and a thread whose whole premise is that it
+only reads must not be a fourth place they can be pressed. The widget renders the
+same rows, inert.
+
+Still outstanding in this phase: **thread re-render.** Turns already persist
+(Phase 1), but the panel opens empty every time, and the widgets a turn produced
+are not stored — so a reopened thread would degrade to prose even once history
+loads. That needs §11's `widgets` column and a way for the panel to read its own
+history back.
 
 **Phase 4 — polish.** Suggested questions, tool-running labels, skeletons,
 keyboard and screen-reader pass, daily cap copy.

@@ -222,4 +222,79 @@ describe("summarise", () => {
 
     expect(line).toContain("Nothing is due");
   });
+
+  const DIGEST = {
+    hoursLogged: 3.5,
+    committedHours: 4,
+    keptCommitment: false,
+    sessions: 2,
+    moved: [{ name: "Window functions", delta: 0.2 }],
+    artefacts: 1,
+    remainingHours: 20,
+    weeksAtCommitment: 5,
+    weeksAtActualPace: 6,
+    tracked: 4,
+    slipping: 1,
+  };
+
+  /**
+   * The one summary that forbids a verdict as well as a recital. §4.2 law 1
+   * puts mastery on evidence, and a cheerful "great week!" over a digest the
+   * learner can read is the assistant claiming an authority it does not have.
+   */
+  it("tells the model not to judge the week it just put up", () => {
+    const line = summarise({
+      widget: "week_digest",
+      payload: { digest: DIGEST },
+    });
+
+    expect(line).toContain("1 skill moved");
+    expect(line).toContain("do not tell them whether it is good");
+    expect(line).not.toContain("Window functions");
+  });
+
+  it("counts what is running, and names none of the courses", () => {
+    const line = summarise({
+      widget: "course_list",
+      payload: {
+        courses: [
+          {
+            goalId: "g1",
+            name: "SQL for data analysis",
+            taxonomyParent: null,
+            status: "active",
+          },
+          {
+            goalId: "g2",
+            name: "Photography",
+            taxonomyParent: null,
+            status: "paused",
+          },
+        ],
+      },
+    });
+
+    expect(line).toContain("2 courses on screen, 1 running");
+    expect(line).not.toContain("SQL for data analysis");
+    // §9.2 — where the learner can act, and that the assistant cannot.
+    expect(line).toContain("you cannot");
+  });
+
+  it("says plainly when there are no courses at all", () => {
+    const line = summarise({ widget: "course_list", payload: { courses: [] } });
+    expect(line).toContain("no courses at all");
+  });
+
+  it("names the plan and ends at the page that can change it", () => {
+    const line = summarise({
+      widget: "plan_card",
+      payload: { planId: "pro", renewsOn: "2026-10-01" },
+    });
+
+    expect(line).toContain("pro");
+    expect(line).toContain("billing page");
+    // The features are on the card; reading them back is the double-render
+    // §2.1 exists to prevent.
+    expect(line).toContain("Do not read the features back");
+  });
 });

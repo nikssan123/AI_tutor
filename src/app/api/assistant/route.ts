@@ -116,7 +116,7 @@ export async function POST(request: Request): Promise<Response> {
     ],
     // The context the data tools close over. `userId` comes from the session
     // and never from the model — see §9.1 and `buildTools`.
-    tools: buildTools({ db, userId: auth.user.id, now }),
+    tools: buildTools({ db, userId: auth.user.id, plan: auth.user.plan, now }),
     budgetMs: ASSISTANT_BUDGET_MS,
   });
 

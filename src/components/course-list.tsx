@@ -57,9 +57,21 @@ function Action({
 export function CourseRow({
   course,
   index = 0,
+  actions = true,
 }: {
   course: CourseSummary;
   index?: number;
+  /**
+   * Whether the row carries the buttons that change a course.
+   *
+   * False in exactly one place, and for a reason worth stating: the assistant
+   * renders this list inside a chat thread, and a widget there is inert by rule
+   * (`ASSISTANT-PLAN.md` §6.1) — no forms, no buttons that mutate, links only.
+   * Two of these three actions are hard to walk back, and a surface whose whole
+   * premise is that it only *reads* must not be the fourth place they can be
+   * pressed.
+   */
+  actions?: boolean;
 }) {
   return (
     <Row className="rise flex-wrap" style={stagger(index)}>
@@ -73,14 +85,14 @@ export function CourseRow({
       <span className="flex shrink-0 flex-wrap items-center gap-3">
         <Status tone={TONE[course.status]}>{STATUS_LABEL[course.status]}</Status>
 
-        {course.status === "active" ? (
+        {actions && course.status === "active" ? (
           <>
             <Action goalId={course.goalId} action="pause" label="Put aside" />
             <Action goalId={course.goalId} action="abandon" label="Stop it" />
           </>
         ) : null}
 
-        {isResumable(course.status) ? (
+        {actions && isResumable(course.status) ? (
           <Action goalId={course.goalId} action="resume" label="Pick it up" />
         ) : null}
 
@@ -98,13 +110,21 @@ export function CourseRow({
 
 export function CourseList({
   courses,
+  actions = true,
 }: {
   courses: readonly CourseSummary[];
+  /** See `CourseRow` — false only where the surface may not mutate anything. */
+  actions?: boolean;
 }) {
   return (
     <RowList className="shadow-[var(--shadow-raised)]">
       {courses.map((course, i) => (
-        <CourseRow key={course.goalId} course={course} index={i} />
+        <CourseRow
+          key={course.goalId}
+          course={course}
+          index={i}
+          actions={actions}
+        />
       ))}
     </RowList>
   );

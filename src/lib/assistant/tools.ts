@@ -1,6 +1,10 @@
 import type { Db } from "@/db";
 import type { AgentTool, ToolOutcome } from "@/lib/ai/agent";
+import { entitlementsForUser, latestSubscription } from "@/lib/billing/store";
+import { dayOf } from "@/lib/calendar/dates";
 import { calendarFor } from "@/lib/calendar/view";
+import { coursesFor } from "@/lib/goals/courses";
+import { digestFor } from "@/lib/mastery/view";
 import { findPages } from "./pages";
 import {
   aheadListPayload,
@@ -30,6 +34,8 @@ export interface AssistantContext {
   db: Db;
   /** From the session, never from the model. */
   userId: string;
+  /** The `user.plan` column — the fast path `entitlementsForUser` falls back to. */
+  plan: unknown;
   now: Date;
 }
 
@@ -160,6 +166,102 @@ export function aheadTool(context: AssistantContext): AgentTool {
 }
 
 /**
+ * The week: what moved, and what is slipping.
+ *
+ * The one tool whose summary tells the model *not to judge* the numbers. §4.2
+ * law 1 puts mastery on evidence, and a chirpy "great week!" over a digest the
+ * learner can read for themselves is the assistant claiming an authority it
+ * does not have (§1.2).
+ */
+export function standingTool(context: AssistantContext): AgentTool {
+  return {
+    name: "my_standing",
+    description:
+      "Show how the learner's week went: which skills moved, how much they logged, and what is starting to slip. Use it for 'how am I doing', 'what did I get done', 'am I forgetting anything'.",
+    label: "Checking your week…",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    run: async () => {
+      const view = await digestFor(context.db, context.userId, context.now);
+
+      if (!view) {
+        return {
+          forModel:
+            "They have no course running, so there is no week to report. Say that, and offer to point them at the subjects page.",
+          forView: null,
+        };
+      }
+
+      return showing({
+        widget: "week_digest",
+        payload: { digest: view.digest },
+      });
+    },
+  };
+}
+
+export function coursesTool(context: AssistantContext): AgentTool {
+  return {
+    name: "my_courses",
+    description:
+      "List the learner's courses and the state of each — running, put aside, finished. Use it for 'what am I studying', 'what did I pause', 'what have I finished'.",
+    label: "Checking your courses…",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    run: async () => {
+      const courses = await coursesFor(context.db, context.userId);
+
+      return showing({
+        widget: "course_list",
+        // Rendered inert — see `CourseRow`'s `actions` prop. Starting, pausing
+        // and stopping a course stays on the page that owns those decisions.
+        payload: { courses: [...courses] },
+      });
+    },
+  };
+}
+
+/**
+ * What they are on, and when it renews.
+ *
+ * The resolved entitlement rather than the `user.plan` column, because a grant
+ * or a live subscription can outrank it — and a learner asking what they are
+ * paying wants what is actually in force, not what a denormalised column last
+ * recorded.
+ */
+export function planTool(context: AssistantContext): AgentTool {
+  return {
+    name: "my_plan",
+    description:
+      "Show the learner's current plan, what it includes, and when it renews. Use it for anything about what they are paying, what they get, upgrading, cancelling or refunds.",
+    label: "Checking your plan…",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    run: async () => {
+      const [resolved, subscription] = await Promise.all([
+        entitlementsForUser(
+          context.db,
+          context.userId,
+          context.plan,
+          context.now,
+        ),
+        latestSubscription(context.db, context.userId),
+      ]);
+
+      return showing({
+        widget: "plan_card",
+        payload: {
+          planId: resolved.planId,
+          // Only where a paid-for window actually exists. A free account has no
+          // date, rather than a date we are unsure of.
+          renewsOn:
+            subscription === undefined || subscription === null
+              ? null
+              : dayOf(subscription.currentPeriodEnd.toISOString()),
+        },
+      });
+    },
+  };
+}
+
+/**
  * The registry, in the order the model reads it.
  *
  * Built per request because the data tools close over *this* learner — but its
@@ -169,5 +271,12 @@ export function aheadTool(context: AssistantContext): AgentTool {
  * exactly the property §9.1 wants.
  */
 export function buildTools(context: AssistantContext): AgentTool[] {
-  return [findPageTool(), calendarTool(context), aheadTool(context)];
+  return [
+    findPageTool(),
+    calendarTool(context),
+    aheadTool(context),
+    standingTool(context),
+    coursesTool(context),
+    planTool(context),
+  ];
 }
