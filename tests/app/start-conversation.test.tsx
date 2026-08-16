@@ -1986,9 +1986,18 @@ describe("adopting a pack that finished building", () => {
   it("creates the goal from the same conversation a covered subject would use", async () => {
     intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
 
+    /*
+     * A bare `/path`, and the anchored match is deliberate. This briefly carried
+     * `?built=1`, to tell the next screen that the learner had just watched us
+     * author a subject — which was the wrong mechanism: it survived exactly one
+     * navigation, so anyone who closed the tab or came back through the
+     * "your course is ready" email saw nothing. `/path` works that out from
+     * durable state instead (an uncurated pack with no lesson delivered yet),
+     * and the parameter is gone rather than left behind meaning nothing.
+     */
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
-    ).rejects.toThrow("REDIRECT:/path");
+    ).rejects.toThrow(/REDIRECT:\/path$/);
     expect(createGoalMock).toHaveBeenCalledOnce();
   });
 
@@ -2022,9 +2031,15 @@ describe("adopting a pack that finished building", () => {
       { id: "g-9", packSlug: "photography", spec: {}, status: "active" },
     ]);
 
+    /*
+     * A bare `/path` here, deliberately. The second press is not a handoff out
+     * of a build — the course has been theirs since the first one — so greeting
+     * them again with "your course is written" would be the product losing
+     * track of what it had already said.
+     */
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
-    ).rejects.toThrow("REDIRECT:/path");
+    ).rejects.toThrow(/REDIRECT:\/path$/);
     // Idempotent, not merely redirected: a second goal for the same pack would
     // be a duplicate course with the same name in the learner's list.
     expect(createGoalMock).not.toHaveBeenCalled();

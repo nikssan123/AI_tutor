@@ -43,6 +43,27 @@ vi.mock("@/lib/goals/store", () => ({
 vi.mock("@/lib/curriculum/store", () => ({
   currentCurriculum: (...a: unknown[]) => currentCurriculumMock(...(a as [])),
 }));
+/**
+ * The queue's side of the path, stubbed at the read. What the screen does with
+ * each state of that row is `tests/app/path-building.test.tsx`; what this file
+ * owes is that the page asks about the goal in front of it at all.
+ */
+const pathBuildMock = vi.fn(async () => undefined as unknown);
+vi.mock("@/lib/curriculum/build-state", async (actual) => ({
+  ...(await actual<typeof import("@/lib/curriculum/build-state")>()),
+  findPathBuild: (...a: unknown[]) => pathBuildMock(...(a as [])),
+}));
+/**
+ * The billing question this screen asks once, at the handoff out of a build.
+ *
+ * Stubbed at `nudgeAt` rather than below it: whether a given plan is owed a
+ * prompt is `tests/billing/nudge.test.ts`'s subject, and what this file owes is
+ * that the screen asks at the right moment and renders the answer.
+ */
+const nudgeAtMock = vi.fn(async () => undefined as unknown);
+vi.mock("@/lib/billing/gate", () => ({
+  nudgeAt: (...a: unknown[]) => nudgeAtMock(...(a as [])),
+}));
 // The screen absorbed `/goals/{id}/path`'s two `notFound()` branches when it
 // moved to `/path`: a rail destination that 404s at somebody with no course is
 // worse than one that makes them the same offer every other destination does.
@@ -102,6 +123,8 @@ beforeEach(() => {
   packFromDbMock.mockResolvedValue(undefined);
   masteryForMock.mockResolvedValue([]);
   currentCurriculumMock.mockResolvedValue(undefined);
+  pathBuildMock.mockResolvedValue(undefined);
+  nudgeAtMock.mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -359,6 +382,28 @@ describe("the modules", () => {
     expect(screen.getByText("Build my path")).toBeDefined();
   });
 
+  /**
+   * The build runs in the queue, so the screen has to ask what the queue is
+   * doing before it can offer anything — otherwise a learner who pressed the
+   * button is shown the button again, which is exactly what they saw when the
+   * build ran inside the request and left no record of itself.
+   */
+  it("asks the queue what is happening to this goal", async () => {
+    pathBuildMock.mockResolvedValue({
+      goalId: GOAL_ID,
+      status: "building",
+      stage: "planning",
+      detail: null,
+      startedAt: new Date(),
+    });
+
+    render(await PathPage());
+
+    expect(pathBuildMock).toHaveBeenCalledWith({}, GOAL_ID);
+    expect(screen.getByText("Step 1 of 3")).toBeDefined();
+    expect(screen.queryByText("Build my path")).toBeNull();
+  });
+
   it("lists the stored modules in order, marking the graded one", async () => {
     currentCurriculumMock.mockResolvedValue({
       id: "c1",
@@ -608,5 +653,82 @@ describe("the depth dial", () => {
 
     expect(sprint.hasAttribute("open")).toBe(false);
     expect(sprint.textContent).toContain("Consistency across a set");
+  });
+});
+
+/**
+ * Stating the free tier's shape on a course we authored, before it bites.
+ *
+ * A free learner gets the whole plan and the first lesson on it. Until this
+ * screen said so, the second half was discovered by walking into it — the
+ * lesson body refuses lesson two — and a limit met that way reads as a
+ * bait-and-switch however generous the tier actually is.
+ *
+ * The conditions are deliberately durable rather than a query parameter off the
+ * handoff redirect, which is what this shipped with first and what made it
+ * nearly invisible: it survived one navigation, so anybody who closed the tab —
+ * or came back through the "your course is ready" email, whose whole job is
+ * bringing them back — arrived at a plain `/path` and was told nothing.
+ */
+describe("the free tier's shape, stated on the screen it applies to", () => {
+  const NUDGE = {
+    reason: "course_locked" as const,
+    headline: "You can see all of this course, and read one lesson of it",
+    body: "Free includes one lesson on any course.",
+    cta: "Try everything for four days",
+    href: "/pricing",
+  };
+
+  it("tells a capped learner what they can actually reach", async () => {
+    nudgeAtMock.mockResolvedValue(NUDGE);
+
+    render(await PathPage());
+
+    expect(nudgeAtMock).toHaveBeenCalledWith(
+      {},
+      "u1",
+      undefined,
+      "course_locked",
+    );
+    expect(screen.getByText(NUDGE.headline)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Try everything for four days" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps saying it after they have spent the lesson", async () => {
+    /*
+     * The regression this exists to prevent. It was briefly hidden once the
+     * course had been started, on the theory that a nudge should be
+     * self-limiting — which muted it at precisely the point a learner has seen
+     * what the product does, has nothing left to do with it, and is the readiest
+     * they will ever be to pay. Standing condition, not an event.
+     */
+    nudgeAtMock.mockResolvedValue(NUDGE);
+
+    render(await PathPage());
+
+    expect(screen.getByText(NUDGE.headline)).toBeTruthy();
+  });
+
+  it("says nothing to somebody whose lessons are not capped", async () => {
+    // Rule 2, enforced inside `nudgeAt` rather than here: a paying learner gets
+    // no answer back, so the screen renders none.
+    nudgeAtMock.mockResolvedValue(undefined);
+
+    render(await PathPage());
+
+    expect(nudgeAtMock).toHaveBeenCalled();
+    expect(screen.queryByText(NUDGE.headline)).toBeNull();
+  });
+
+  it("still lays the course out underneath it", async () => {
+    // An addition to the screen, not a replacement for it.
+    nudgeAtMock.mockResolvedValue(NUDGE);
+
+    render(await PathPage());
+
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+    expect(screen.getByText("Sprint")).toBeTruthy();
   });
 });

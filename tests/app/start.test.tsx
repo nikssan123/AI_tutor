@@ -271,8 +271,10 @@ describe("creating the goal", () => {
   });
 
   it("stores the goal and lands on the path screen, where it can be built", async () => {
+    // Anchored, so a query string appended here has to be justified rather than
+    // slipping past a substring match.
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/path",
+      /REDIRECT:\/path$/,
     );
 
     expect(createGoalMock).toHaveBeenCalledTimes(1);

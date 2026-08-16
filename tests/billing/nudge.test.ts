@@ -90,49 +90,61 @@ describe("evaluation_landed — the strongest moment", () => {
   });
 });
 
-describe("pack_built — stating the deal before the wall", () => {
-  it("fires when a free learner's own course has just been written", () => {
+describe("course_locked — the standing ask", () => {
+  it("states what a capped learner can actually reach", () => {
     /*
-     * The one nudge that arrives before a limit rather than at one. A free
-     * learner meets `lessonsPerCourse` at lesson two inside `lessonForBlock`
-     * with no warning, and a limit discovered by walking into it reads as a
+     * The one nudge that is a condition rather than an event. A free learner
+     * meets `lessonsPerCourse` at lesson two inside `lessonForBlock` with no
+     * warning, and a limit discovered by walking into it reads as a
      * bait-and-switch however generous the free tier is.
      */
-    const nudge = nudgeFor("pack_built", on("free"));
+    const nudge = nudgeFor("course_locked", on("free"));
 
-    expect(nudge?.headline).toMatch(/course is written/i);
-    expect(nudge?.body).toMatch(/whole plan is yours to read/i);
+    expect(nudge?.headline).toMatch(/see all of this course/i);
+    expect(nudge?.body).toMatch(/one lesson on any course/i);
   });
 
   it("says nothing to a plan with no lesson wall to sell past", () => {
-    // Rule 2. A paying learner who commissions a pack is shown nothing,
-    // because there is nothing they would be buying.
+    // Rule 2. A paying learner is shown nothing, because there is nothing they
+    // would be buying.
     for (const plan of ["trial", "learner", "pro"] as const) {
       expect(PLANS[plan].entitlements.lessonsPerCourse).toBeNull();
-      expect(nudgeFor("pack_built", on(plan))).toBeUndefined();
+      expect(nudgeFor("course_locked", on(plan))).toBeUndefined();
     }
   });
 
-  it("counts the lessons off the catalog rather than saying 'the first'", () => {
-    // "the first lesson" is only true while the allowance is one. A plan that
-    // included two would otherwise be described by copy written for a plan that
-    // included one — the exact bug the sessions line shipped with.
-    const one = nudgeFor("pack_built", on("free"))!;
-    expect(one.body).toMatch(/the first lesson/);
+  it("reads the same whether or not the lesson has been spent", () => {
+    /*
+     * The regression guard. This nudge was briefly switched off once a learner
+     * had started their course, on the theory that it should be self-limiting —
+     * which silenced it at exactly the point somebody has seen what the product
+     * does, has nothing left to do with it, and is readiest to pay. The copy
+     * takes no reading of their progress, so there is no state that can hide it.
+     */
+    const nudge = nudgeFor("course_locked", on("free"))!;
+
+    expect(nudge.body).not.toMatch(/you have|you've|already read|so far/i);
+  });
+
+  it("counts the lessons off the catalog rather than typing them", () => {
+    // "one lesson" stops being true the moment the allowance moves — the exact
+    // bug the sessions line shipped with.
+    const one = nudgeFor("course_locked", on("free"))!;
+    expect(one.body).toMatch(/one lesson/);
 
     const two = nudgeFor(
-      "pack_built",
+      "course_locked",
       on("free", {
         entitlements: { ...PLANS.free.entitlements, lessonsPerCourse: 2 },
       }),
     )!;
     expect(two.body).toMatch(/2 lessons/);
-    expect(two.body).not.toMatch(/the first lesson/);
+    expect(two.body).not.toMatch(/one lesson/);
   });
 });
 
 describe("the way in is the one somebody can take today", () => {
-  const reasonsThatFire = ["evaluation_landed", "pack_built", "evaluations_spent", "sessions_spent", "tutor_turns_spent"] as const;
+  const reasonsThatFire = ["evaluation_landed", "course_locked", "evaluations_spent", "sessions_spent", "tutor_turns_spent"] as const;
 
   it("offers the four days to an account that has not used them", () => {
     /*

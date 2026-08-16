@@ -12,8 +12,18 @@ import { PLANS } from "./catalog";
  * ## Three rules
  *
  * **1. Only at a wall.** A nudge appears when a learner has just been stopped by
- * a limit, or has just been given the thing the product is *for*. Never on a
- * timer, never on a page they merely visited, never twice for one event.
+ * a limit, or has just been given the thing the product is *for*, or is looking
+ * at something they can see all of and reach almost none of. Never on a timer,
+ * never on a page they merely visited, never twice for one event.
+ *
+ * That third case was added after the first two proved too narrow to be seen.
+ * Every wall here is an *event*, and an event-shaped ask is only ever put to
+ * somebody mid-task: a learner who signs up, reads the one lesson free includes
+ * and then browses their plan for a week is never stopped by anything, so the
+ * product spent that week saying nothing at all about paying. `course_locked`
+ * is the standing case — a condition rather than a moment — and the guard that
+ * keeps it from becoming nagging is rule 2, not scarcity: it is shown only to
+ * somebody who genuinely cannot reach the thing they are looking at.
  *
  * **2. Only to somebody who could act on it.** A plan with no ceiling in front
  * of it is not shown a way past one. That is why every branch below checks the
@@ -35,8 +45,8 @@ import { PLANS } from "./catalog";
 export const NUDGE_REASONS = [
   /** The strongest moment in the product: their work has just been marked. */
   "evaluation_landed",
-  /** The second strongest: the course they asked for has just been written. */
-  "pack_built",
+  /** Standing: they are looking at a course they can only partly reach. */
+  "course_locked",
   "evaluations_spent",
   "sessions_spent",
   "tutor_turns_spent",
@@ -91,16 +101,16 @@ function callToAction(trialEligible: boolean): Pick<Nudge, "cta" | "href"> {
 }
 
 /**
- * The free tier's lesson allowance, in words, for the one nudge that states the
- * deal before the learner reaches it.
+ * The free tier's lesson allowance, in words, for the nudge that states the
+ * deal rather than waiting for the learner to hit it.
  *
- * Derived rather than written out, because "the first lesson" is only true
- * while `lessonsPerCourse` is 1 — and a nudge that keeps saying it after the
- * number changes is the same class of bug as the sessions copy that promised
+ * Derived rather than written out, because "one lesson" stops being true the
+ * moment `lessonsPerCourse` changes — and a nudge that keeps saying it after
+ * the number moves is the same class of bug as the sessions copy that promised
  * two when the catalogue allowed one.
  */
 function lessonAllowance(lessons: number): string {
-  return lessons === 1 ? "the first lesson" : `${lessons} lessons`;
+  return lessons === 1 ? "one lesson" : `${lessons} lessons`;
 }
 
 /**
@@ -172,32 +182,41 @@ export function nudgeFor(
     }
 
     /*
-     * A course this learner asked for has just been written for them.
+     * They are looking at a course they can see all of and reach almost none of.
      *
-     * The only nudge in this file that fires before a wall rather than at one,
-     * and it earns that under rule 1's second clause — "or has just been given
-     * the thing the product is *for*". A generated pack is the largest single
-     * thing this product ever does on request: six answers, three model calls,
-     * and a subject that did not exist when they signed up.
+     * The one *standing* nudge in this file, and the third category rule 1 had
+     * to grow to admit. It is not an event and not a page they merely visited —
+     * it is a condition a learner is in for as long as they hold a plan whose
+     * lessons are mostly shut, and it ends when they buy or when they leave.
      *
-     * **It states the deal rather than selling past it**, and that is the whole
-     * design. A free learner meets `lessonsPerCourse` at lesson two, in
-     * `lessonForBlock`, with no warning — and a limit discovered by walking into
-     * it reads as a bait-and-switch even when the free tier is generous. Said
-     * here, at the moment the plan appears, the same limit is a price on a thing
-     * they can see the whole of. That is the version somebody can decide about.
+     * **The reason it cannot be an event.** This shipped twice as one, and both
+     * versions were nearly invisible. First keyed to a `?built=1` parameter off
+     * the handoff redirect: survived a single navigation, so anybody who closed
+     * the tab or returned through the "your course is ready" email saw nothing.
+     * Then keyed to the course being untouched, which was worse in a subtler
+     * way — it switched itself off the moment somebody read the one lesson free
+     * includes, which is precisely the moment they have seen what the product
+     * does and have nothing left to do with it. Both rules muted the ask for the
+     * learner most ready to answer it.
      *
-     * Gated on the lesson wall existing at all, per rule 2: a paying learner who
-     * commissions a pack is shown nothing, because there is nothing they would
-     * be buying.
+     * **What it says is the deal, not a pitch.** `lessonForBlock` refuses lesson
+     * two, and a limit discovered by walking into it reads as a bait-and-switch
+     * however generous the tier is. On the screen that shows the whole plan, the
+     * same limit is a price on a thing they can see all of — which is the only
+     * version somebody can actually decide about.
+     *
+     * Gated on the lesson wall existing at all, per rule 2: a paying learner
+     * sees nothing here, because there is nothing they would be buying.
      */
-    case "pack_built": {
+    case "course_locked": {
       const lessons = entitlements.lessonsPerCourse;
       if (lessons === null) return undefined;
       return {
         reason,
-        headline: "Your course is written",
-        body: `The whole plan is yours to read — every skill, in the order they build on each other. Free includes ${lessonAllowance(lessons)} on it and one graded project; a paid plan opens the rest.`,
+        headline: "You can see all of this course, and read one lesson of it",
+        // True whether or not they have spent the lesson yet, deliberately: a
+        // sentence that had to know would be a second condition to get wrong.
+        body: `Free includes ${lessonAllowance(lessons)} on any course and one graded project a month. The plan itself stays yours to read either way — a paid plan opens the lessons behind it.`,
         ...action,
       };
     }

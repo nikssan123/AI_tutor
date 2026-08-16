@@ -15,7 +15,6 @@ import { toEngineGraph } from "@/lib/packs/validate";
 import { buildSkillMap } from "@/lib/goals/skill-map";
 import {
   Button,
-  ButtonLink,
   Card,
   Lead,
   Meta,
@@ -27,7 +26,11 @@ import { ChevronIcon } from "@/components/icons";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { CourseOutline, OutlineLegend } from "@/components/course-outline";
 import { SkillMap } from "@/components/skill-map";
-import { buildPathAction, setDepthAction } from "./actions";
+import { findPathBuild } from "@/lib/curriculum/build-state";
+import { nudgeAt } from "@/lib/billing/gate";
+import { UpgradeNudge } from "@/components/upgrade-nudge";
+import { PathBuildState } from "./building";
+import { setDepthAction } from "./actions";
 
 /**
  * §8's rule for this screen is that it sets expectations honestly, so the dial
@@ -192,6 +195,9 @@ export default async function PathPage() {
     depth: goal.spec.depth,
   });
   const stored = await currentCurriculum(db, goal.id);
+  // What the queue is doing to this goal, if anything. Cheap — one row on the
+  // primary key — and it is what turns a silent button into a wait with steps.
+  const pathBuild = await findPathBuild(db, goal.id);
   const depths = depthOptions({
     graph,
     mastery,
@@ -210,6 +216,34 @@ export default async function PathPage() {
   // Built from the outline rather than re-derived, so the picture and the list
   // cannot end up saying two different things about the same skill.
   const map = buildSkillMap(graph, outline);
+
+  /*
+   * The free tier's shape, on the one screen that shows what it applies to.
+   *
+   * This is the whole plan — every skill, in order — and a free learner can
+   * reach exactly one lesson of it. Saying so here is the difference between a
+   * price and a bait-and-switch: `lessonForBlock` refuses lesson two either
+   * way, and a limit discovered by walking into it feels like one however
+   * generous the tier is.
+   *
+   * **Asked unconditionally, after two narrower rules failed.** It was keyed
+   * first to a `?built=1` parameter off the handoff redirect (survived one
+   * navigation; anyone returning through the "your course is ready" email saw
+   * nothing), then to the course being untouched — which switched the ask off
+   * the moment somebody read the one lesson free includes, i.e. at the exact
+   * point they have seen what the product does and have nothing left to do with
+   * it. Both rules hid it from the learner most ready to act on it.
+   *
+   * So the condition is the plan, and only the plan. `nudgeAt` returns nothing
+   * for anybody whose lessons are not capped, so a paying learner sees nothing
+   * and there is no plan check to write here.
+   */
+  const locked = await nudgeAt(
+    db,
+    session.user.id,
+    session.user.plan,
+    "course_locked",
+  );
 
   return (
     <AppFrame>
@@ -235,6 +269,10 @@ export default async function PathPage() {
         }
       />
 
+      {/* Under the header, which still says what course this is — and above the
+          outline, because the outline is the thing being described. */}
+      {locked ? <UpgradeNudge nudge={locked} /> : null}
+
       {/* ── The outline ────────────────────────────────────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(1)}>
         <SectionHead
@@ -248,41 +286,14 @@ export default async function PathPage() {
         </Lead>
         <OutlineLegend counts={outline.counts} />
 
-        {stored ? (
-          <div>
-            <ButtonLink href="/today">Start today&rsquo;s session</ButtonLink>
-          </div>
-        ) : (
-          /* §8.5.5's empty state is one sentence and one button — except this
-             one is no longer empty. The outline below is already the subject,
-             grouped by area; building the path is what re-cuts it into modules
-             that end in something you hand in. */
-          <Card className="flex flex-col items-start gap-4">
-            {/*
-              No duration in it, and that is deliberate.
+        {/* The offer, the wait, or what stopped it — one question, answered in
+            one place. See `building.tsx`. */}
+        <PathBuildState
+          build={pathBuild}
+          hasPath={stored !== undefined}
+          goalId={goal.id}
+        />
 
-              It said "about a minute", which is not true for a free account:
-              `aiCurriculum` is false there, so the path is arithmetic over the
-              graph and comes back at once. Quoting a wait to somebody who will
-              not have one is the same fault the build screen had when it
-              promised three minutes for a build that takes three to eight —
-              and this screen has no idea which plan is reading it, so any
-              single figure is wrong for somebody.
-
-              What is true for everyone is what the step is *for*, so that is
-              what it says. If a plan ever needs a wait explained, the honest
-              place is a screen that knows which plan it is talking to.
-            */}
-            <Meta>
-              These are the pack&rsquo;s own areas. Build your path and we
-              regroup them into modules that each end in a piece of work,
-              checked against the graph before you see it.
-            </Meta>
-            <form action={buildPathAction.bind(null, goal.id)}>
-              <Button type="submit">Build my path</Button>
-            </form>
-          </Card>
-        )}
 
         <CourseOutline outline={outline} />
       </section>
