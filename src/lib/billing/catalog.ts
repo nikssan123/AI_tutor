@@ -145,6 +145,26 @@ export interface Entitlements {
    * path rather than two.
    */
   premiumModels: boolean;
+  /**
+   * Questions the Assistant will answer for this account in one day.
+   *
+   * Daily rather than monthly, and it is the only limit in this interface that
+   * is. Every other allowance here bounds a thing the learner *chose* to spend —
+   * a session, an evaluation, a pack. The assistant is a button on every screen,
+   * so the failure it has to bound is a runaway afternoon rather than a
+   * generous month, and a monthly figure would let one bad hour eat all of it.
+   *
+   * It is not the cost control. `aiAccess` is — the monthly ceiling is checked
+   * before every message and refuses rather than degrades, because the assistant
+   * runs on standard and there is no cheaper tier to fall to. This is the
+   * narrower guard in front of it (`ASSISTANT-PLAN.md` §10).
+   *
+   * Free gets three. Not zero: somebody deciding whether to trust this product
+   * asks where things are, and answering that is worth more than the three
+   * lookups cost. Not more: a free month's whole ceiling is 120¢, and most of it
+   * is already promised to the session and the evaluation they came for.
+   */
+  assistantMessagesPerDay: number;
 }
 
 export interface PlanDef {
@@ -255,6 +275,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: 1,
       restartIntake: false,
       premiumModels: false,
+      assistantMessagesPerDay: 3,
     },
     spendCapCents: 120,
   },
@@ -270,6 +291,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: true,
+      assistantMessagesPerDay: 20,
     },
     spendCapCents: 450,
   },
@@ -285,6 +307,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: false,
+      assistantMessagesPerDay: 20,
     },
     spendCapCents: 600,
   },
@@ -300,6 +323,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: true,
+      assistantMessagesPerDay: 40,
     },
     spendCapCents: 1_500,
   },

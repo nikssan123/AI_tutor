@@ -68,6 +68,18 @@ export const STEP_MODELS = {
    */
   tutorSignal: "fast",
   /**
+   * The Assistant (`ASSISTANT-PLAN.md` §10) — the account-facing agent, which is
+   * the only step in the product that runs a tool loop rather than one call.
+   *
+   * The work is tool routing plus two sentences, which argues for the fast tier.
+   * It is on standard anyway, for now, because the first version answers
+   * questions with money in them and Haiku rejects the thinking parameters
+   * outright — so there is no headroom to add if it turns out to need any. The
+   * plan records this as a decision to revisit against measured tool-call
+   * quality, not as a preference.
+   */
+  assistant: "standard",
+  /**
    * §14.2 — "Assessment Agent: Haiku 4.5 *only* to grade free-text." §14.9.3's
    * cost table has no row for a session's recall checks, because it predates
    * there being a session to run; the routing rule it would follow is this one,
@@ -122,6 +134,10 @@ export const STEP_EFFORT = {
   tutor: null,
   // Haiku rejects both thinking and effort outright (see above).
   tutorSignal: null,
+  // Somebody is watching it decide which tool to reach for. Thinking before
+  // every step of a loop is latency multiplied by the step count, on a step
+  // whose hardest judgement is which of eight lookups answers the question.
+  assistant: null,
   artifactIngestor: null,
   rubricGrader: "high",
   consistencyPass: "medium",

@@ -278,11 +278,19 @@ A launcher in `src/components/app-shell.tsx` so it is present on every `(app)`
 page, fixed to the bottom-right, above content, never over the primary action of
 a page.
 
-The panel is a **non-modal** drawer — `@radix-ui/react-dialog` with
-`modal={false}`, already a dependency. Non-modal is the deliberate choice: this
-is consulted *while reading a page*, and a focus trap would make it a detour.
-Escape closes; focus returns to the launcher; open/closed persists in
-`localStorage` per device.
+The panel is a **non-modal** drawer. Non-modal is the deliberate choice: this is
+consulted *while reading a page*, and a focus trap would make it a detour.
+Escape closes; focus returns to the launcher.
+
+**Hand-rolled, not `@radix-ui/react-dialog`.** The package is a dependency, but
+nothing in `src/` imports it — so reaching for it here would put a portal and a
+focus-trap implementation into the only bundle a signed-in learner receives, to
+buy an Escape handler and two aria attributes. Revisit if the panel ever needs
+real modal semantics.
+
+Open/closed persistence in `localStorage` moved to Phase 4; it is polish, and an
+effect that hydrates after mount is not worth its test surface in the phase that
+proves the loop.
 
 ### 8.2 States
 
@@ -373,12 +381,20 @@ as an open decision (§14).
 `interaction.sessionId` is **already nullable** (`src/db/schema/ops.ts:26`), and
 both tutor queries filter on it — `turnsTaken` and `transcriptFor` are keyed by
 session id, so rows with a null session are invisible to them. Assistant turns
-can therefore live in `interaction` without touching the tutor's counting.
+therefore live in `interaction` without touching the tutor's counting, and
+`tests/assistant/store.test.ts` asserts that isolation from both directions.
 
-One migration:
+**Shipped in Phase 1, not Phase 3.** The original phasing kept history
+client-side until later, and that turned out to be the harder option: it made
+the client the source of the replayed transcript, and left the daily cap with
+nothing server-side to count. Persisting from the start needs no migration —
+`sessionId = null` *is* the single rolling thread §14 decision 3 defaults to —
+and it removes the forged-history question before it can be asked.
 
-- `interaction.thread_id` — nullable uuid, indexed with `user_id`. Groups an
-  assistant thread. Null for every tutor row.
+Still to come, both in Phase 3:
+
+- `interaction.thread_id` — nullable uuid, indexed with `user_id`. Only needed
+  when one rolling thread stops being enough.
 - `interaction.widgets` — nullable jsonb. The widget frames emitted with that
   turn, so a reopened thread re-renders as it was rather than degrading to prose.
 
@@ -415,9 +431,20 @@ client double that can emit a `tool_use` block and then an `end_turn`.
 `progress/page.tsx` into components. No behaviour change, pages keep passing.
 Ships value on its own and de-risks everything after it.
 
-**Phase 1 — the loop, text only.** `agent.ts`, registry with `find_page` alone,
-route, NDJSON, launcher and panel. One tool, no widgets. Proves the loop, the
-protocol, the caps and the ledger.
+**Phase 1 — the loop, text only. Done.** `src/lib/ai/agent.ts` (step cap, wall
+clock, per-step ledger, tool failures as results), `src/lib/assistant/*`
+(registry with `find_page`, the frozen prompt, the thread and the daily count),
+`src/app/api/assistant/route.ts` (NDJSON, 401/400/429/402, error frames), and
+`src/components/assistant-panel.tsx` (launcher, line-buffered decoding, tool
+labels). `assistantMessagesPerDay` added to every plan. 103 tests across six
+files; every file at 100%.
+
+One defect worth recording, because the fix generalises: the page matcher scored
+title words at double weight, and "What you can do" is a page title — so **"how
+do I cancel my subscription" returned the mastery page**, with "do" outscoring
+"cancel". A question word beating the subject of the question is how a lookup
+ends up confidently wrong, which is worse than returning nothing. Fixed with a
+stop list and a one-rule stemmer, both applied to titles and queries alike.
 
 **Phase 2 — the first widgets.** `my_calendar` and `next_up`, the widget frame,
 the client renderer. This is the phase that demonstrates the idea.

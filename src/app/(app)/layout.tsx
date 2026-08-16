@@ -4,6 +4,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/account/session";
 import { VERIFY_SNOOZE_COOKIE } from "@/lib/account/verify-banner";
 import { AppNav } from "@/components/app-nav";
+import { AssistantPanel } from "@/components/assistant-panel";
 import { CloseIcon } from "@/components/icons";
 import { snoozeVerifyBannerAction } from "./actions";
 
@@ -106,6 +107,10 @@ export default async function AppLayout({
       <div className="min-w-0 flex-1">
         {nudge ? <UnverifiedBanner /> : null}
         {children}
+        {/* On every signed-in screen, which is the whole point of it — and only
+            for a session that exists, because every question it answers is
+            about the account asking (ASSISTANT-PLAN.md §8.1). */}
+        <AssistantPanel />
       </div>
     </div>
   );
