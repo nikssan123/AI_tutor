@@ -953,6 +953,51 @@ describe("the screen", () => {
     expect(screen.getByText("Photography")).toBeDefined();
   });
 
+  it("gives the built course the page's one filled control", async () => {
+    /*
+     * §8.5.5 allows one filled button per screen, and when a course exists it
+     * belongs to the one action a learner can take right now. Two filled
+     * controls make somebody choose between them instead of seeing the obvious
+     * next step — which on this screen would be choosing between the course
+     * they already have and the catalogue they were consoled with.
+     */
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    goalsForMock.mockResolvedValue([
+      { id: "g-9", packSlug: "photography", spec: {}, status: "active" },
+    ]);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    const { container } = render(await StartPage({ searchParams: search() }));
+
+    // `text-on-accent`, not `bg-accent`: the latter is a substring of the text
+    // variant's own `hover:bg-accent-weak` and matches every button on screen.
+    const filled = [...container.querySelectorAll("a")].filter((a) =>
+      a.className.includes("text-on-accent"),
+    );
+    expect(filled).toHaveLength(1);
+    expect(filled[0]!.getAttribute("href")).toBe("/goals/g-9/path");
+  });
+
+  it("promotes the catalogue when there is no course to open", async () => {
+    // The other half of the same rule: a screen whose every action is a text
+    // link has no next step at all, and this wall is reachable with the build
+    // still running or the pack discarded.
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    const { container } = render(await StartPage({ searchParams: search() }));
+
+    // `text-on-accent`, not `bg-accent`: the latter is a substring of the text
+    // variant's own `hover:bg-accent-weak` and matches every button on screen.
+    const filled = [...container.querySelectorAll("a")].filter((a) =>
+      a.className.includes("text-on-accent"),
+    );
+    expect(filled).toHaveLength(1);
+    expect(filled[0]!.getAttribute("href")).toBe("/start/form");
+  });
+
   it("says nothing about a course when there is no goal to point at", async () => {
     // A learner can reach this wall with the build still running, or with the
     // pack discarded by an operator. An "Open my course" link to nothing would

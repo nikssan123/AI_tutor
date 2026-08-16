@@ -139,6 +139,16 @@ const ERRORS: Record<string, React.ReactNode> = {
 };
 
 /**
+ * The pairing `/account` settled on, reused rather than reinvented.
+ *
+ * `items-start` is the load-bearing half: stretching a row to its tallest card
+ * puts a void inside a drawn border under the shorter one, which reads as
+ * something failing to load. Uneven bottom edges are the honest version — a
+ * card is short because it has little to say.
+ */
+const CHOICE_GRID = "grid items-start gap-6 sm:grid-cols-2";
+
+/**
  * What a free learner sees once their custom subject is spent.
  *
  * Two ways onward and neither is a dead end, which is the difference between a
@@ -153,54 +163,103 @@ const ERRORS: Record<string, React.ReactNode> = {
  */
 function IntakeClosed({ built }: { built: { id: string; name: string } | null }) {
   return (
-    <AppFrame width="narrow">
+    /*
+     * The default width, and cards paired to earn it.
+     *
+     * This shipped `narrow` holding three stacked cards, which is the exact
+     * fault `AppFrame` documents `/account` having had and having been fixed
+     * for: a handful of cards, each a title and one control, one per row in a
+     * 624px column with dead gutter either side. The rule it states is the rule
+     * followed here — a page made of several cards goes `wide` and pairs them
+     * into a grid — and `/account`'s own `grid` string is reused rather than
+     * reinvented so the two screens line up.
+     */
+    <AppFrame>
       <AppHeader
         eyebrow="Set a goal"
         title="You&rsquo;ve had the custom subject your plan builds"
         lead="We built you a course for a subject nobody had curated. That is the one your plan includes, so this conversation is closed — but the catalogue is not."
       />
+
       {/*
-        The course the sentence above is about, with a way into it.
+        The course they already have, given the weight of the thing that
+        actually matters here.
         
-        This screen named it and then offered the catalogue and a price list,
-        which reads as a wall for somebody who has just been told they already
-        have the thing. It is also where the "See my plan" button used to land
-        anyone who pressed it twice — bounced off their own finished course by
-        the control that exists to open it — so it is worth being the first
-        thing here rather than a footnote.
+        A `Signal` rather than a third card: it is the one element in the
+        product that carries a colour on its leading edge, and this is the one
+        fact on the screen a learner can act on right now. `attention` is the
+        honest tone — §8.5.5's "waiting on you" — because that is precisely what
+        a built course nobody has opened is. It is also the full width of the
+        page above the pair below, so the order reads as "here is yours, and
+        here is what else is open to you" rather than as three equal offers.
+        
+        One per scroll band, per its own rule, and this is the only one.
       */}
       {built ? (
-        <Card className="flex flex-col items-start gap-4">
-          <Title>{built.name}</Title>
+        <Signal
+          tone="attention"
+          state="Built for you"
+          title={built.name}
+          action={
+            <ButtonLink href={`/goals/${built.id}/path`}>
+              Open my course
+            </ButtonLink>
+          }
+        >
           <Meta>
-            The one we built for you. Everything you answered went into it.
+            The subject nobody had curated, written for you. Everything you
+            answered went into it, and it is waiting where you left it.
           </Meta>
-          <ButtonLink href={`/goals/${built.id}/path`}>Open my course</ButtonLink>
-        </Card>
+        </Signal>
       ) : null}
-      <Card className="flex flex-col items-start gap-4">
-        <Title>Start on something we already cover</Title>
-        <Meta>
-          Every subject in the catalogue is open to you, with the same plan, the
-          same graded briefs and the same ledger.
-        </Meta>
-        <div className="flex flex-wrap gap-3">
-          <ButtonLink href="/start/form">Pick a subject</ButtonLink>
-          <ButtonLink href="/learn" variant="text">
-            See what we cover
+
+      {/*
+        The two ways onward, side by side rather than stacked.
+        
+        They are alternatives to each other — a subject we already have, or a
+        plan that builds another — so reading them as a pair is what the
+        information actually is. Neither is a dead end, which is the difference
+        between this and a paywall: the catalogue costs nothing and needs no
+        model call, and the plans page answers the smaller question honestly
+        rather than selling a retry that money would not fix.
+      */}
+      <div className={CHOICE_GRID}>
+        <Card className="flex flex-col items-start gap-4">
+          <Title>Start on something we already cover</Title>
+          <Meta>
+            Every subject in the catalogue is open to you, with the same plan,
+            the same graded briefs and the same ledger.
+          </Meta>
+          <div className="flex flex-wrap gap-3">
+            {/*
+              Primary only when the Signal above is absent.
+              
+              §8.5.5 allows one filled control per screen, and when the course
+              exists it belongs to "Open my course" — two filled buttons make a
+              learner choose between them rather than see the obvious next step.
+              But a learner can reach this wall with no goal to point at (a
+              build still running, a pack an operator discarded), and a screen
+              whose every action is a text link has no next step at all.
+            */}
+            <ButtonLink href="/start/form" variant={built ? "text" : "primary"}>
+              Pick a subject
+            </ButtonLink>
+            <ButtonLink href="/learn" variant="text">
+              See what we cover
+            </ButtonLink>
+          </div>
+        </Card>
+        <Card className="flex flex-col items-start gap-4">
+          <Title>Or build another one</Title>
+          <Meta>
+            Paid plans keep the conversation open, so you can have a course
+            built for any subject, as often as you want one.
+          </Meta>
+          <ButtonLink href="/pricing" variant="text">
+            See the plans
           </ButtonLink>
-        </div>
-      </Card>
-      <Card className="flex flex-col items-start gap-4">
-        <Title>Or build another one</Title>
-        <Meta>
-          Paid plans keep the conversation open, so you can have a course built
-          for any subject, as often as you want one.
-        </Meta>
-        <ButtonLink href="/pricing" variant="text">
-          See the plans
-        </ButtonLink>
-      </Card>
+        </Card>
+      </div>
     </AppFrame>
   );
 }
