@@ -1,16 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import {
+import type { WidgetView } from "@/lib/assistant/widgets";
+
+const pathnameMock = vi.fn(() => "/today");
+
+vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
+
+const {
   appendText,
   applyFrame,
   AssistantPanel,
+  hiddenOn,
   parseFrame,
   readWidget,
   takeLines,
-  type Segment,
-} from "@/components/assistant-panel";
-import type { WidgetView } from "@/lib/assistant/widgets";
+} = await import("@/components/assistant-panel");
+
+type Segment = import("@/components/assistant-panel").Segment;
 
 /**
  * The panel.
@@ -246,9 +253,35 @@ function streaming(...chunks: string[]) {
   };
 }
 
+describe("hiddenOn", () => {
+  /**
+   * The session already has the tutor, and the tutor is the one that can
+   * teach. Two launchers make a stuck learner choose between them at the moment
+   * they are least able to.
+   */
+  it("stands down on the screen that already has a chat", () => {
+    expect(hiddenOn("/session/abc-123")).toBe(true);
+    expect(hiddenOn("/session")).toBe(true);
+  });
+
+  it("is present everywhere else, including screens that merely start with the word", () => {
+    for (const path of ["/today", "/progress", "/account/billing", "/sessions"]) {
+      expect(hiddenOn(path)).toBe(false);
+    }
+  });
+});
+
 describe("AssistantPanel", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    pathnameMock.mockReturnValue("/today");
+  });
+
+  it("renders nothing at all inside a session", () => {
+    pathnameMock.mockReturnValue("/session/abc-123");
+    render(<AssistantPanel />);
+
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
   });
 
   it("shows nothing but the button until it is opened", () => {

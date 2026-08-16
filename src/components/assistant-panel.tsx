@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AheadList } from "@/components/ahead-list";
 import { CalendarMonth } from "@/components/calendar-month";
 import type {
@@ -232,11 +233,32 @@ const OPENERS = [
   "What am I paying?",
 ];
 
+/**
+ * Screens that already have a chat on them, where a second one is a worse
+ * screen rather than a fuller one.
+ *
+ * Only the session, and the reasoning is about which of the two a stuck learner
+ * should reach for. `/session/[id]` carries the tutor: scoped to the block in
+ * front of them, holding their whole history, and — the part that decides it —
+ * able to *teach*. This assistant explicitly cannot (§1.2); it reads state and
+ * navigates. Two launchers side by side make a learner choose between them at
+ * the moment they are least able to, and roughly half of them would choose the
+ * one that has to answer "that's what a session is for".
+ *
+ * So the one that yields is this one. It costs the learner nothing: everything
+ * it answers is still reachable from the pages, and the session is a screen they
+ * are deliberately inside for a bounded time.
+ */
+export function hiddenOn(pathname: string): boolean {
+  return pathname === "/session" || pathname.startsWith("/session/");
+}
+
 export function AssistantPanel() {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
   const launcher = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
 
   // Escape closes from anywhere, which is the one dialog affordance worth
   // keeping when there is no dialog: the panel sits over a page somebody is
@@ -309,6 +331,10 @@ export function AssistantPanel() {
       setPending(false);
     }
   }
+
+  // After every hook, never before one: an early return above `useEffect` would
+  // change the hook count between a session screen and every other screen.
+  if (hiddenOn(pathname)) return null;
 
   return (
     <>

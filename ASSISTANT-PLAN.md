@@ -492,9 +492,15 @@ keyboard and screen-reader pass, daily cap copy.
    attached. Default: yes, with a low `assistantMessagesPerDay`.
 3. **Thread lifetime** — one rolling thread per learner, or a new one per day?
    Default: one rolling thread, trimmed to a depth like `TRANSCRIPT_DEPTH`.
-4. **Launcher on the session page** — the tutor panel is already there. Two chat
-   affordances on one screen is a confusion worth designing around; likely the
-   launcher hides itself inside `/session/[id]`.
+4. ~~**Launcher on the session page**~~ — **decided: the assistant stands down
+   inside `/session/[id]`** (`hiddenOn` in `assistant-panel.tsx`). The session
+   screen carries the tutor in a sticky rail, and the deciding difference is
+   that the tutor can *teach* while this explicitly cannot (§1.2). Two launchers
+   side by side make a stuck learner choose between them at the moment they are
+   least able to, and about half would choose the one whose honest answer is
+   "that's what a session is for". It costs the learner nothing: everything the
+   assistant answers stays reachable from the pages, and a session is a bounded
+   screen they are deliberately inside.
 
 ---
 
