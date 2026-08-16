@@ -73,6 +73,47 @@ export type WidgetView =
 export type WidgetName = WidgetView["widget"];
 
 /**
+ * Every widget name, as a value.
+ *
+ * `satisfies` rather than a plain array, so adding a member to `WidgetView`
+ * without listing it here is a type error. A stored layout is read back against
+ * this list, and a name missing from it would silently drop a view that this
+ * build can in fact render.
+ */
+export const WIDGET_NAMES = [
+  "calendar_month",
+  "ahead_list",
+  "week_digest",
+  "course_list",
+  "plan_card",
+] as const satisfies readonly WidgetName[];
+
+/**
+ * One turn's layout: prose and views, in the order they arrived.
+ *
+ * Lives here rather than in the panel because both ends need it — the route
+ * builds the list as it streams, the panel redraws from it, and the database
+ * stores it between the two. Arrival order is the only order that reads
+ * correctly: a tool runs *before* the sentence that introduces its result, so
+ * appending views would put every calendar underneath the words explaining it.
+ */
+export type Segment =
+  | { kind: "text"; text: string }
+  | { kind: "view"; view: WidgetView };
+
+/**
+ * Prose onto the end of a turn: extending the last passage if that is what it
+ * is, opening a new one if a view came between.
+ */
+export function appendText(segments: Segment[], text: string): Segment[] {
+  const last = segments[segments.length - 1];
+
+  return last?.kind === "text"
+    ? [...segments.slice(0, -1), { kind: "text", text: last.text + text }]
+    : [...segments, { kind: "text", text }];
+}
+
+/**
  * The month, as the grid needs it.
  *
  * Four fields out of a `CalendarView` that also carries the whole pack and the

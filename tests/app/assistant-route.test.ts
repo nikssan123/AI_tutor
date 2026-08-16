@@ -15,6 +15,7 @@ import type { AgentFrame, AgentOutcome } from "@/lib/ai/agent";
 const currentSessionMock = vi.fn();
 const messagesTodayMock = vi.fn(async (..._a: unknown[]) => 0);
 const historyMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
+const threadMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 const logTurnMock = vi.fn();
 const recordRunMock = vi.fn();
 const streamAgentMock = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/lib/ai/agent", async (importOriginal) => ({
 }));
 vi.mock("@/lib/assistant/store", () => ({
   assistantHistory: (...a: unknown[]) => historyMock(...(a as [])),
+  assistantThread: (...a: unknown[]) => threadMock(...(a as [])),
   logAssistantTurn: (...a: unknown[]) => logTurnMock(...(a as [])),
   messagesToday: (...a: unknown[]) => messagesTodayMock(...(a as [])),
 }));
@@ -47,7 +49,7 @@ vi.mock("@/lib/billing/gate", () => ({
   overCapMessage: () => "over cap",
 }));
 
-const { POST, line, parseBody } = await import("@/app/api/assistant/route");
+const { GET, POST, line, parseBody } = await import("@/app/api/assistant/route");
 
 const META = {
   model: "claude-sonnet-5",
@@ -109,6 +111,7 @@ beforeEach(() => {
   });
   messagesTodayMock.mockResolvedValue(0);
   historyMock.mockResolvedValue([]);
+  threadMock.mockResolvedValue([]);
   allowanceMock.mockResolvedValue({
     blocked: false,
     allowanceCents: 100,
@@ -147,6 +150,47 @@ describe("line", () => {
     const written = line({ t: "text", v: "one\ntwo" });
     expect(written.split("\n")).toHaveLength(2);
     expect(JSON.parse(written)).toEqual({ t: "text", v: "one\ntwo" });
+  });
+});
+
+
+describe("GET", () => {
+  it("turns away anyone not signed in", async () => {
+    currentSessionMock.mockResolvedValue(null);
+    expect((await GET()).status).toBe(401);
+  });
+
+  /**
+   * Fetched on open rather than inlined by the layout: that renders on every
+   * signed-in screen, and putting a conversation into every page's HTML would
+   * make everybody pay for a thread most never open.
+   */
+  it("hands back the thread as the panel redraws it", async () => {
+    const turns = [
+      { role: "user", segments: [{ kind: "text", text: "what am I paying?" }] },
+      {
+        role: "assistant",
+        segments: [
+          { kind: "text", text: "Here it is." },
+          {
+            kind: "view",
+            view: { widget: "plan_card", payload: { planId: "pro", renewsOn: null } },
+          },
+        ],
+      },
+    ];
+    threadMock.mockResolvedValue(turns);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ turns });
+    expect(threadMock).toHaveBeenCalledWith({}, "u1");
+  });
+
+  it("hands back nothing for a learner who has never asked", async () => {
+    expect(await (await GET()).json()).toEqual({ turns: [] });
   });
 });
 
@@ -254,6 +298,43 @@ describe("POST", () => {
     // Three requests, three rows. One averaged row would hide a loop
     // misbehaving from the only review that would catch it.
     expect(recordRunMock).toHaveBeenCalledTimes(3);
+  });
+
+
+  /**
+   * The layout is assembled from what is actually sent, not from the outcome:
+   * the outcome carries the joined prose and nothing about where the views sat
+   * in it, and where they sat is the whole point.
+   */
+  it("stores the layout, with the views where they arrived", async () => {
+    streamAgentMock.mockImplementation(() =>
+      answering([
+        { t: "text", v: "Here it is." },
+        { t: "tool", label: "Checking…" },
+        {
+          t: "widget",
+          name: "plan_card",
+          payload: { planId: "pro", renewsOn: null },
+        },
+        { t: "text", v: " Renews in October." },
+      ]),
+    );
+
+    await framesOf(await POST(post({ message: "what am I paying?" })));
+
+    const record = logTurnMock.mock.calls[0]![1] as {
+      segments: Array<{ kind: string }>;
+    };
+    expect(record.segments.map((s) => s.kind)).toEqual(["text", "view", "text"]);
+  });
+
+  it("stores no layout for an answer that showed nothing", async () => {
+    await framesOf(await POST(post({ message: "hi" })));
+
+    const record = logTurnMock.mock.calls[0]![1] as { segments: unknown[] };
+    expect(record.segments).toEqual([
+      { kind: "text", text: "Billing does that." },
+    ]);
   });
 
   it("records a refused turn as a refusal, and still bills it", async () => {

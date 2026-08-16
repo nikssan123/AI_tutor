@@ -1,6 +1,11 @@
 import { getDb } from "@/db";
 import { currentSession } from "@/lib/account/session";
 import { streamAgent, type AgentFrame } from "@/lib/ai/agent";
+import {
+  appendText,
+  type Segment,
+  type WidgetView,
+} from "@/lib/assistant/widgets";
 import { getAnthropic } from "@/lib/ai/client";
 import { recordAgentRun } from "@/lib/ai/runlog";
 import { assistantAllowance, overCapMessage } from "@/lib/billing/gate";
@@ -8,6 +13,7 @@ import { PLANS, resolvePlanId } from "@/lib/billing/catalog";
 import { ASSISTANT_PROMPT } from "@/lib/assistant/prompt";
 import {
   assistantHistory,
+  assistantThread,
   logAssistantTurn,
   messagesToday,
 } from "@/lib/assistant/store";
@@ -60,6 +66,26 @@ export function parseBody(body: unknown): { message: string } | undefined {
   const { message } = body as Record<string, unknown>;
   if (typeof message !== "string" || message.trim() === "") return undefined;
   return { message: message.slice(0, MAX_MESSAGE_CHARS) };
+}
+
+/**
+ * The thread as it was left, for a panel that has just opened.
+ *
+ * Fetched on open rather than handed down by the layout, deliberately: the
+ * layout renders on every signed-in screen, and inlining a conversation into
+ * every page's HTML would make everybody pay for a thread most of them will not
+ * open. This costs one request, once, and only for somebody who asked.
+ */
+export async function GET(): Promise<Response> {
+  const auth = await currentSession();
+  if (!auth) return new Response("Sign in first.", { status: 401 });
+
+  const turns = await assistantThread(getDb(), auth.user.id);
+
+  return Response.json(
+    { turns },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -131,10 +157,37 @@ export async function POST(request: Request): Promise<Response> {
   return new Response(
     new ReadableStream<Uint8Array>({
       async start(controller) {
+        /*
+         * The same layout the panel is building from these frames, built again
+         * here so it can be stored.
+         *
+         * Assembled from what is actually sent rather than from the outcome,
+         * because the outcome carries the joined prose and nothing about where
+         * the views sat in it — and where they sat is the whole point (§6.1).
+         */
+        let segments: Segment[] = [];
+
         try {
           let next = await stream.next();
           while (!next.done) {
-            controller.enqueue(encoder.encode(line(next.value)));
+            const frame = next.value;
+            segments =
+              frame.t === "text"
+                ? appendText(segments, frame.v)
+                : frame.t === "widget"
+                  ? [
+                      ...segments,
+                      {
+                        kind: "view",
+                        view: {
+                          widget: frame.name,
+                          payload: frame.payload,
+                        } as WidgetView,
+                      },
+                    ]
+                  : segments;
+
+            controller.enqueue(encoder.encode(line(frame)));
             next = await stream.next();
           }
 
@@ -145,6 +198,7 @@ export async function POST(request: Request): Promise<Response> {
             question: parsed.message,
             answer: outcome.text,
             steps: outcome.steps,
+            segments,
             now,
           });
 

@@ -35,6 +35,22 @@ export const interaction = pgTable(
     model: text("model"),
     costCents: real("cost_cents"),
     latencyMs: integer("latency_ms"),
+    /**
+     * How an Assistant turn is laid out — prose and rendered views, in the
+     * order they arrived. Null on every tutor row and on every question.
+     *
+     * `content` is not enough to redraw one, and the difference is not
+     * cosmetic: a tool runs *before* the sentence introducing its result, so a
+     * turn is prose, then a calendar, then more prose. Reopening a thread with
+     * only the text would degrade every answer that showed something into an
+     * answer that talks about something.
+     *
+     * It duplicates the prose that is already in `content`, deliberately, and
+     * the two have different owners: `content` is what the *model* reads back
+     * as history, this is what the *screen* redraws. Deriving either from the
+     * other would tie the model's transcript to the panel's layout.
+     */
+    segments: jsonb("segments"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

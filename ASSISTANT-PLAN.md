@@ -574,11 +574,28 @@ two of which are hard to walk back, and a thread whose whole premise is that it
 only reads must not be a fourth place they can be pressed. The widget renders the
 same rows, inert.
 
-Still outstanding in this phase: **thread re-render.** Turns already persist
-(Phase 1), but the panel opens empty every time, and the widgets a turn produced
-are not stored — so a reopened thread would degrade to prose even once history
-loads. That needs §11's `widgets` column and a way for the panel to read its own
-history back.
+**Thread re-render is done too**, which closes the phase. Migration `0025` adds
+`interaction.segments`; the route builds the layout from the frames it actually
+sends and stores it; `GET /api/assistant` hands the thread back; the panel reads
+it once, on first open.
+
+Three decisions inside that:
+
+- **The column stores `segments`, not `widgets`.** §11 named it for the views,
+  but views alone cannot redraw a turn — a tool runs *before* the sentence
+  introducing its result, so the order is prose, view, prose. It duplicates the
+  prose already in `content`, deliberately: `content` is what the *model* reads
+  back as history, `segments` is what the *screen* redraws, and deriving either
+  from the other would tie the model's transcript to the panel's layout.
+- **Read on first open, not on mount or on every open.** The launcher renders on
+  every signed-in screen and most are never opened, so a fetch on mount would be
+  a request per page load for a conversation nobody asked to see. Once, because a
+  thread that reloaded itself would throw away whatever was said since.
+- **A stored layout is checked like a wire frame.** It was written by a build
+  that may be older than this one, so a view whose widget no longer exists is
+  dropped from within its turn and the prose around it survives. A row with no
+  layout at all — every row written before the migration — falls back to its
+  prose rather than leaving a hole.
 
 **Phase 4 — polish.** Suggested questions, tool-running labels, skeletons,
 keyboard and screen-reader pass, daily cap copy.

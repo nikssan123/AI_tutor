@@ -1,0 +1,1 @@
+ALTER TABLE "interaction" ADD COLUMN "segments" jsonb;

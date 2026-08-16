@@ -1,23 +1,25 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { WidgetView } from "@/lib/assistant/widgets";
+import {
+  appendText,
+  type Segment,
+  type WidgetView,
+} from "@/lib/assistant/widgets";
 
 const pathnameMock = vi.fn(() => "/today");
 
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 
 const {
-  appendText,
   applyFrame,
+  readTurns,
   AssistantPanel,
   hiddenOn,
   parseFrame,
   readWidget,
   takeLines,
 } = await import("@/components/assistant-panel");
-
-type Segment = import("@/components/assistant-panel").Segment;
 
 /**
  * The panel.
@@ -305,6 +307,76 @@ function streaming(...chunks: string[]) {
   };
 }
 
+
+describe("readTurns", () => {
+  const stored = {
+    turns: [
+      { role: "user", segments: [{ kind: "text", text: "where?" }] },
+      {
+        role: "assistant",
+        segments: [
+          { kind: "text", text: "Here it is." },
+          { kind: "view", view: CALENDAR },
+        ],
+      },
+    ],
+  };
+
+  it("redraws a stored thread, views and all", () => {
+    const turns = readTurns(stored);
+
+    expect(turns).toHaveLength(2);
+    expect(shape(turns[1]!)).toEqual(["Here it is.", "[calendar_month]"]);
+  });
+
+  /** Same rule as the wire: a server a deploy ahead may send a view this build
+      has no component for, and the prose around it has to survive. */
+  it("drops a view it cannot render and keeps the words", () => {
+    const turns = readTurns({
+      turns: [
+        {
+          role: "assistant",
+          segments: [
+            { kind: "text", text: "About your path:" },
+            { kind: "view", view: { widget: "path_outline", payload: {} } },
+          ],
+        },
+      ],
+    });
+
+    expect(shape(turns[0]!)).toEqual(["About your path:"]);
+  });
+
+  it("drops a turn with nothing left in it", () => {
+    expect(
+      readTurns({
+        turns: [
+          {
+            role: "assistant",
+            segments: [{ kind: "view", view: { widget: "nope", payload: {} } }],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("has nothing to draw from anything that is not a thread", () => {
+    expect(readTurns(null)).toEqual([]);
+    expect(readTurns("turns")).toEqual([]);
+    expect(readTurns({})).toEqual([]);
+    expect(readTurns({ turns: "none" })).toEqual([]);
+    expect(readTurns({ turns: [null, 4] })).toEqual([]);
+    expect(readTurns({ turns: [{ role: "system", segments: [] }] })).toEqual([]);
+    expect(readTurns({ turns: [{ role: "user" }] })).toEqual([]);
+    expect(readTurns({ turns: [{ role: "user", segments: [null, 7] }] })).toEqual(
+      [],
+    );
+    expect(
+      readTurns({ turns: [{ role: "user", segments: [{ kind: "text" }] }] }),
+    ).toEqual([]);
+  });
+});
+
 describe("hiddenOn", () => {
   /**
    * The session already has the tutor, and the tutor is the one that can
@@ -334,6 +406,121 @@ describe("AssistantPanel", () => {
     render(<AssistantPanel />);
 
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+  });
+
+
+  /**
+   * The thread as it was left. Read on open rather than on mount, because the
+   * launcher is on every signed-in screen and most are never opened.
+   */
+  it("draws the thread back when it is opened", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        turns: [
+          { role: "user", segments: [{ kind: "text", text: "what am I paying?" }] },
+          {
+            role: "assistant",
+            segments: [
+              { kind: "text", text: "Here it is." },
+              { kind: "view", view: { widget: "plan_card", payload: { planId: "pro", renewsOn: null } } },
+            ],
+          },
+        ],
+      }),
+    } as unknown as Response);
+
+    render(<AssistantPanel />);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByText("Here it is.")).toBeDefined());
+    expect(screen.getByText("what am I paying?")).toBeDefined();
+    // The stored view is redrawn, not summarised.
+    expect(screen.getByText("Pro")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/assistant");
+  });
+
+  it("reads the thread once, not on every open", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ turns: [] }),
+    } as unknown as Response);
+
+    render(<AssistantPanel />);
+    const launcher = screen.getByRole("button", { name: "Ask" });
+
+    fireEvent.click(launcher);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(launcher);
+
+    // A thread that reloaded itself would throw away whatever was said since.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  /** The thread is a convenience; somebody who opened the panel to ask a
+      question can still ask it. */
+  it("opens empty rather than erroring when the thread cannot be read", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    } as unknown as Response);
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Show me my calendar" })).toBeDefined(),
+    );
+  });
+
+  it("survives the thread request rejecting outright", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "What am I paying?" })).toBeDefined(),
+    );
+  });
+
+
+  /**
+   * The race the guard exists for: a question asked while the thread request
+   * is still in flight must not be overwritten by the history it predates.
+   */
+  it("does not let a slow thread overwrite a question asked meanwhile", async () => {
+    let handOverThread: (value: unknown) => void = () => {};
+    const thread = new Promise((resolve) => {
+      handOverThread = resolve;
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) =>
+      init?.method === "POST"
+        ? Promise.resolve(
+            streaming('{"t":"text","v":"On the free plan."}\n{"t":"done"}\n') as unknown as Response,
+          )
+        : (thread as Promise<Response>),
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What am I paying?" }));
+
+    await waitFor(() => expect(screen.getByText("On the free plan.")).toBeDefined());
+
+    handOverThread({
+      ok: true,
+      json: async () => ({
+        turns: [{ role: "user", segments: [{ kind: "text", text: "ancient history" }] }],
+      }),
+    });
+
+    await waitFor(() => expect(screen.getByText("What am I paying?")).toBeDefined());
+    expect(screen.queryByText("ancient history")).toBeNull();
   });
 
   it("shows nothing but the button until it is opened", () => {
@@ -623,7 +810,10 @@ describe("AssistantPanel", () => {
   });
 
   it("ignores an empty question", () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ turns: [] }),
+    } as unknown as Response);
 
     render(<AssistantPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -632,7 +822,11 @@ describe("AssistantPanel", () => {
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.submit(input.closest("form")!);
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Opening the panel reads the thread, so "no request" is now "no *asking*
+    // request" — nothing was posted.
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(false);
   });
 
   /** A failed request must not leave an empty bubble looking like it is still

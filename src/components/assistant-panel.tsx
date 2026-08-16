@@ -9,6 +9,7 @@ import { GeneratedProse } from "@/components/generated-prose";
 import { PlanCard } from "@/components/plan-card";
 import { WeekDigest } from "@/components/week-digest";
 import { isPlanId } from "@/lib/billing/catalog";
+import { appendText, type Segment } from "@/lib/assistant/widgets";
 import type {
   AheadListPayload,
   CalendarMonthPayload,
@@ -36,19 +37,6 @@ import type {
  * reading a page and a focus trap would make it a detour; Escape closes; focus
  * returns to the launcher.
  */
-
-/**
- * One turn is a sequence of prose and views, in the order they arrived.
- *
- * Not prose-with-views-appended, which was the tempting shape. A tool runs
- * *before* the sentence that introduces its result — the model asks, the view
- * lands, then it writes around it — so appending would put every calendar
- * underneath the words explaining it. §6.1 asks for arrival order, and arrival
- * order is the only order that reads correctly.
- */
-export type Segment =
-  | { kind: "text"; text: string }
-  | { kind: "view"; view: WidgetView };
 
 interface Turn {
   role: "user" | "assistant";
@@ -225,15 +213,43 @@ export function takeLines(buffer: string): { lines: string[]; rest: string } {
 }
 
 /**
- * Prose onto the end of a turn: extending the last passage if that is what it
- * is, opening a new one if a view came between.
+ * A stored thread, checked before it is drawn.
+ *
+ * The same rule the wire follows: this arrives as `unknown` from a server that
+ * may be a deploy ahead, so a turn whose shape is not recognised is dropped and
+ * a view this build cannot render is dropped from within its turn — leaving the
+ * prose around it. A thread with a gap in it beats a thread that throws.
  */
-export function appendText(segments: Segment[], text: string): Segment[] {
-  const last = segments[segments.length - 1];
+export function readTurns(body: unknown): Turn[] {
+  if (typeof body !== "object" || body === null) return [];
+  const turns = (body as Record<string, unknown>).turns;
+  if (!Array.isArray(turns)) return [];
 
-  return last?.kind === "text"
-    ? [...segments.slice(0, -1), { kind: "text", text: last.text + text }]
-    : [...segments, { kind: "text", text }];
+  return turns.flatMap((entry): Turn[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const turn = entry as Record<string, unknown>;
+    if (turn.role !== "user" && turn.role !== "assistant") return [];
+    if (!Array.isArray(turn.segments)) return [];
+
+    const segments = turn.segments.flatMap((raw): Segment[] => {
+      if (typeof raw !== "object" || raw === null) return [];
+      const segment = raw as Record<string, unknown>;
+
+      if (segment.kind === "text" && typeof segment.text === "string") {
+        return [{ kind: "text", text: segment.text }];
+      }
+      if (segment.kind === "view") {
+        const view = readWidget(
+          (segment.view as Record<string, unknown> | undefined)?.widget,
+          (segment.view as Record<string, unknown> | undefined)?.payload,
+        );
+        return view ? [{ kind: "view", view }] : [];
+      }
+      return [];
+    });
+
+    return segments.length > 0 ? [{ role: turn.role, segments }] : [];
+  });
 }
 
 /** Applies one frame to the assistant turn in flight. */
@@ -305,7 +321,41 @@ export function AssistantPanel() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
   const launcher = useRef<HTMLButtonElement>(null);
+  const loaded = useRef(false);
   const pathname = usePathname();
+
+  /*
+   * The thread as it was left, read once on first open.
+   *
+   * On open rather than on mount, because the launcher is on every signed-in
+   * screen and most of them are never opened — a fetch on mount would be a
+   * request per page load for a conversation nobody asked to see. Once rather
+   * than on every open, because a thread that reloaded itself would throw away
+   * whatever was said since.
+   *
+   * A failure here is silent by design. The thread is a convenience; somebody
+   * who opened the panel to ask a question can still ask it, and an error where
+   * their history should be would be a worse answer than an empty panel.
+   */
+  useEffect(() => {
+    if (!open || loaded.current) return;
+    loaded.current = true;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/assistant");
+        if (!response.ok) return;
+
+        const body: unknown = await response.json();
+        const stored = readTurns(body);
+        // Only when it is still empty: a question asked while this was in
+        // flight must not be overwritten by the history it predates.
+        if (stored.length > 0) setTurns((prior) => (prior.length === 0 ? stored : prior));
+      } catch {
+        // Nothing to say and nobody to tell — see above.
+      }
+    })();
+  }, [open]);
 
   // Escape closes from anywhere, which is the one dialog affordance worth
   // keeping when there is no dialog: the panel sits over a page somebody is

@@ -5,11 +5,14 @@ import { interaction, user } from "@/db/schema";
 import type { CallMeta } from "@/lib/ai/call";
 import {
   assistantHistory,
+  assistantThread,
   dayStart,
   logAssistantTurn,
   messagesToday,
+  readSegments,
   totalCents,
 } from "@/lib/assistant/store";
+import type { Segment } from "@/lib/assistant/widgets";
 import { transcriptFor, turnsTaken } from "@/lib/session/tutor";
 
 /**
@@ -75,6 +78,48 @@ describe("totalCents", () => {
   });
 });
 
+
+describe("readSegments", () => {
+  const view = {
+    widget: "plan_card" as const,
+    payload: { planId: "pro" as const, renewsOn: null },
+  };
+
+  it("reads a stored layout back", () => {
+    const stored: Segment[] = [
+      { kind: "text", text: "Here it is." },
+      { kind: "view", view },
+    ];
+    expect(readSegments(stored)).toEqual(stored);
+  });
+
+  /**
+   * Written by a build that may be older than this one, so it is read the way
+   * the panel reads the wire: a view whose widget no longer exists is dropped
+   * from within its turn, and the prose around it survives.
+   */
+  it("drops a view this build cannot render, keeping the words", () => {
+    expect(
+      readSegments([
+        { kind: "text", text: "About your path:" },
+        { kind: "view", view: { widget: "path_outline", payload: {} } },
+      ]),
+    ).toEqual([{ kind: "text", text: "About your path:" }]);
+  });
+
+  it("has nothing to say about anything that is not a layout", () => {
+    expect(readSegments(null)).toBeNull();
+    expect(readSegments("segments")).toBeNull();
+    expect(readSegments({})).toBeNull();
+    expect(readSegments([])).toBeNull();
+    expect(readSegments([null, 4, "text"])).toBeNull();
+    expect(readSegments([{ kind: "text" }])).toBeNull();
+    expect(readSegments([{ kind: "view" }])).toBeNull();
+    expect(readSegments([{ kind: "view", view: null }])).toBeNull();
+    expect(readSegments([{ kind: "view", view: { widget: "plan_card" } }])).toBeNull();
+  });
+});
+
 const DATABASE_URL = process.env.DATABASE_URL;
 const live = DATABASE_URL ? describe : describe.skip;
 
@@ -102,6 +147,7 @@ live("the thread, in the database", () => {
       question: "what am I paying?",
       answer: "You are on the free plan.",
       steps: [meta(), meta({ costCents: 0.25, latencyMs: 100 })],
+      segments: [],
       now: NOW,
     });
 
@@ -142,6 +188,7 @@ live("the thread, in the database", () => {
       question: "hello?",
       answer: "",
       steps: [],
+      segments: [],
       now: NOW,
     });
 
@@ -165,6 +212,7 @@ live("the thread, in the database", () => {
         question: `question ${i}`,
         answer: `answer ${i}`,
         steps: [meta()],
+        segments: [],
         now: new Date(NOW.getTime() + i * 10_000),
       });
     }
@@ -196,6 +244,7 @@ live("the thread, in the database", () => {
       question: "one",
       answer: "a",
       steps: [meta()],
+      segments: [],
       now: NOW,
     });
     await logAssistantTurn(db, {
@@ -203,6 +252,7 @@ live("the thread, in the database", () => {
       question: "two",
       answer: "b",
       steps: [meta()],
+      segments: [],
       now: new Date(NOW.getTime() + 1_000),
     });
 
@@ -217,6 +267,7 @@ live("the thread, in the database", () => {
       question: "yesterday",
       answer: "a",
       steps: [meta()],
+      segments: [],
       now: new Date("2026-08-15T22:00:00.000Z"),
     });
 
@@ -227,6 +278,109 @@ live("the thread, in the database", () => {
     const userId = await newUser();
     expect(await messagesToday(db, userId, NOW)).toBe(0);
     expect(await assistantHistory(db, userId)).toEqual([]);
+  });
+
+
+  /**
+   * The panel's projection of the same rows — prose *and* the views around it.
+   * A tool runs before the sentence introducing its result, so a turn reopened
+   * with only its text would degrade every answer that showed something into an
+   * answer that talks about something.
+   */
+  it("redraws a turn with its views where they were", async () => {
+    const userId = await newUser();
+    const view = {
+      widget: "plan_card" as const,
+      payload: { planId: "pro" as const, renewsOn: "2026-10-01" },
+    };
+
+    await logAssistantTurn(db, {
+      userId,
+      question: "what am I paying?",
+      answer: "Here it is. Renews in October.",
+      steps: [meta()],
+      segments: [
+        { kind: "text", text: "Here it is." },
+        { kind: "view", view },
+        { kind: "text", text: " Renews in October." },
+      ],
+      now: NOW,
+    });
+
+    const thread = await assistantThread(db, userId);
+
+    expect(thread[0]).toEqual({
+      role: "user",
+      segments: [{ kind: "text", text: "what am I paying?" }],
+    });
+    expect(thread[1]!.segments.map((s) => s.kind)).toEqual([
+      "text",
+      "view",
+      "text",
+    ]);
+  });
+
+  /** Every row written before the column existed looks like this, and reads
+      correctly rather than leaving a hole in the thread. */
+  it("falls back to the prose for a turn with no stored layout", async () => {
+    const userId = await newUser();
+
+    await logAssistantTurn(db, {
+      userId,
+      question: "hello?",
+      answer: "Hello.",
+      steps: [meta()],
+      segments: [],
+      now: NOW,
+    });
+
+    const thread = await assistantThread(db, userId);
+    expect(thread[1]).toEqual({
+      role: "assistant",
+      segments: [{ kind: "text", text: "Hello." }],
+    });
+  });
+
+  it("keeps only the latest of a long thread, oldest first", async () => {
+    const userId = await newUser();
+
+    for (let i = 0; i < 3; i += 1) {
+      await logAssistantTurn(db, {
+        userId,
+        question: `q${i}`,
+        answer: `a${i}`,
+        steps: [meta()],
+        segments: [],
+        now: new Date(NOW.getTime() + i * 10_000),
+      });
+    }
+
+    const recent = await assistantThread(db, userId, 2);
+    expect(recent.map((turn) => turn.segments[0])).toEqual([
+      { kind: "text", text: "q2" },
+      { kind: "text", text: "a2" },
+    ]);
+  });
+
+  it("has no thread for a learner who has never asked", async () => {
+    const userId = await newUser();
+    expect(await assistantThread(db, userId)).toEqual([]);
+  });
+
+  /** Rows are parsed rather than cast on this path too — a role the schema
+      does not know would otherwise be drawn as a turn. */
+  it("skips a row whose role the schema does not recognise", async () => {
+    const userId = await newUser();
+
+    await db.insert(interaction).values({
+      userId,
+      sessionId: null,
+      role: "system",
+      content: "not a turn",
+      createdAt: NOW,
+    });
+
+    expect(await assistantThread(db, userId)).toEqual([]);
   });
 
   /**
@@ -240,6 +394,7 @@ live("the thread, in the database", () => {
       question: "where do I cancel?",
       answer: "Billing.",
       steps: [meta()],
+      segments: [],
       now: NOW,
     });
 
