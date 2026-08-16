@@ -27,8 +27,9 @@ For what exists right now, and what to pick up next, go straight to
 conversation, the diagnostic, the curriculum, the session and tutor, and
 on-demand pack generation are all in, and so is **E8 — submission and evaluation,
 the one the whole thesis rests on** (§4.2 law 1, §14.5). E8's code is complete
-and the loop has been run end to end; what remains is the hand-graded corpus its
-acceptance criteria need. **E9 — the mastery ledger and the weekly digest — is
+and the loop has been run end to end; what remains is **20 bands against
+`calibration/recommendation-memo.yaml`** — five memos, four criteria any
+professional reader can settle, and no subject expertise anywhere in it. **E9 — the mastery ledger and the weekly digest — is
 in too**, which means the loop now closes: work is set, marked, and the verdict
 lands somewhere a learner can point at. **`/calendar` (§8 screen 14) is in**, and
 with it the accountability half of §2.4. **`/subjects` (§8 screen 15) is in**,
@@ -2207,7 +2208,7 @@ before picking the next thing up.**
 | **E6** Curriculum + validator | ✅ Done | `src/lib/curriculum/` |
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
-| **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ still needs Nikolay's 20 hand-grades |
+| **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ needs 20 bands from Nikolay against `calibration/recommendation-memo.yaml` — five memos, no subject expertise |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
@@ -2228,11 +2229,34 @@ That measurement never needed a human and was blocked behind one anyway, because
 the calibration runner refused to start without a full set of hand-grades;
 `--stability-only` separates them (pass 28).
 
-**κ remains the last unmet criterion on E8, and it is Nikolay's to close.** The
-five submissions are now written (`calibration/query-rescue.yaml`), so the ask is
-20 hand-grades rather than a day of authoring. It cannot be delegated to a model:
-grading a model's artefacts with the same model family measures self-agreement,
-which comes out flattering and means nothing about human agreement.
+**κ remains the last unmet criterion on E8, and it is Nikolay's to close.** It
+cannot be delegated to a model: grading a model's artefacts with the same model
+family measures self-agreement, which comes out flattering and means nothing
+about human agreement.
+
+**What changed on 2026-08-16 is the domain, not the criterion.** κ measures the
+grader, and it had been aimed at `slow-query-rescue` — inside
+`sql-data-analysis`, the only `evalTier: 1` pack of the seven, where the query is
+executed and the result asserted before anything reviews its quality. Six of the
+seven packs are Tier 2 or 3, where the rubric *is* the ground truth and a vague
+band is where sycophantic grading enters. So the number that decides whether the
+thesis holds was aimed at the one pack with a safety net under it, and blocked
+there on domain expertise nobody in the building has.
+
+It now runs on `calibration/recommendation-memo.yaml` — `unbudgeted-spend-memo`
+in `business-writing`, five memos asking a finance director for £8,000, graded on
+whether the ask is in the first two sentences, whether rejected options carry
+reasons, whether estimates are marked as estimates, and whether a third could be
+cut. Four judgements any professional reader can settle. The ask is **20 bands**,
+and the corpus is written. `query-rescue.yaml` stays where it is: it is what the
+stability figure was measured on, and a second κ on a Tier-1 pack the day
+somebody with SQL depth grades it.
+
+The intended bands are in a separate `recommendation-memo.intent.md` rather than
+inline, the ids do not name their own quality, and the five are not in ascending
+order — three things `query-rescue.yaml` gets wrong, each of which hands the
+grader's answer to the person whose independent judgement is the entire
+measurement.
 
 One thing the run surfaced that neither criterion covers: **1 of 10 calls
 refused** — the verifier rejected its own grade — and the runner dropped that

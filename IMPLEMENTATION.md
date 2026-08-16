@@ -3332,3 +3332,105 @@ the one worth challenging.
 
 Unchanged: E8's hand-graded corpus, E4's 229 items, Lighthouse and GSC/Bing
 behind a deployed origin.
+
+---
+
+# Delivery record — pass 32: moving the one number nobody could produce
+
+E8's κ had been blocked since pass 19 on 20 hand-grades that were never going to
+arrive. Nikolay said so plainly on 2026-08-16: he does not know these subjects
+well enough to grade them, and he will not be doing it. That is the same
+constraint parts A and C of `HUMAN-REVIEW.md` hit, and this is the third time it
+has decided something.
+
+## The observation the whole pass turns on
+
+**κ measures the grader, not the subject.** Nothing in §24 E8's acceptance
+criteria names a pack, and the protocol says "pick one project" — so the domain
+was always a choice, and it had been made badly.
+
+`slow-query-rescue` lives in `sql-data-analysis`, which is the **only
+`evalTier: 1` pack of the seven**. Its own `pack.yaml` describes the tier as
+"execute the query, assert the result, then review quality" — there is a
+deterministic ground truth underneath every grade. The other six packs are Tier 2
+or 3, where `business-writing/pack.yaml` puts it exactly right: "the rubric *is*
+the ground truth. That makes band descriptions load-bearing — a vague band is
+where sycophantic grading enters."
+
+So the number that decides whether the product's core claim is technically true
+had been pointed at the single pack with a safety net beneath it, and then left
+blocked there for two months on expertise nobody in the building has. Moving it
+to `unbudgeted-spend-memo` is not a relaxation. It is the harder measurement, and
+it is one a professional reader can make: is the ask in the first two sentences,
+do the rejected options carry reasons, are estimates marked as estimates, could a
+third of it be cut.
+
+## What shipped
+
+`calibration/recommendation-memo.yaml` — five memos answering the
+`unbudgeted-spend-memo` brief, spread deliberately: 4 `absent`, 5 `developing`,
+5 `competent`, 6 `strong` across the 20 judgements. The runner resolves it with
+no code change, which is §7.3's claim about the engine holding for the
+calibration harness too.
+
+## Three things `query-rescue.yaml` does that hand the grader its answer
+
+Worth recording, because each was invisible until a corpus was written that did
+not do it. The person grading is the independent judgement being measured, and
+all three tell them what to think first:
+
+- **The intended band sits in a comment directly above each artefact.** It is
+  the authoring spec, and the file already says to treat it as intent rather than
+  evidence — but it is on the screen while you grade, which is not a thing a
+  reader can undo. It is now `recommendation-memo.intent.md`, a separate file
+  with an instruction not to open it until the twenty bands are written down.
+- **The ids name their own quality.** `s1-no-evidence` and `s5-verified` grade
+  themselves before the memo is read. The new ids name the subject —
+  `catalogue-licence`, `pen-test`, `support-contractor`.
+- **They ascend.** A corpus ordered worst-to-best tells you the last one is the
+  good one. These five do not.
+
+## The defect the blank corpus exposed
+
+Shipping the file with `grades:` blank for Nikolay to fill in is what found it.
+The runner validated criterion *ids* and never band *values*, and
+`agreementBetween` indexes a band with `BANDS.indexOf` — which returns `-1` for
+anything unrecognised. A blank or misspelled band therefore **pairs normally,
+scores as three bands of disagreement, and drags κ down without appearing in the
+output anywhere.** A half-graded corpus would have produced a confident, wrong,
+low number and sent someone to §17.3's kill criteria.
+
+`isBand` now gates it and `fail`s with the value it read. The grades are also
+read into `human` inside the validation loop rather than in the run loop, so the
+narrowing is structural: there is no longer a place in the file where a band is
+trusted without having been checked. `--stability-only` skips both, as before,
+because it needs no grades at all.
+
+Verified by running it: blank corpus refuses with
+`has no band for "leads-with-the-ask" — read null`, and a filled copy reaches
+`pairs: 20 judgements` before stopping at the missing API key. Neither spends
+anything.
+
+## Still open
+
+**E8's κ is now 20 bands and an evening, and it is the only thing standing
+between the build and E8 being done.** Nothing else about the criterion changed:
+0.6 is still the bar, and the corpus still cannot be graded by a model.
+
+Two things this deliberately does not claim:
+
+- **κ on business writing is not a claim about SQL.** One project was always one
+  domain; what is new is that the record names which. For the packs Nikolay
+  cannot reach, the answer is to buy the grades — twenty judgements from a senior
+  data engineer against `query-rescue.yaml` is an hour or two of freelance time,
+  and it should happen *after* this measurement, because a κ that fails on a memo
+  fails everywhere and saves the money.
+- **A bar of 0.6 is uninterpretable without human-versus-human κ.** Rubric
+  grading between two competent humans typically lands 0.4–0.7. If two SQL
+  experts agree with each other at 0.55, holding the grader to 0.6 against one of
+  them asks it to be more consistent than the profession is. Buying two graders
+  rather than one is the cheap way to learn this, and it is in
+  `HUMAN-REVIEW.md` part B now.
+
+Unchanged: E4's 229 items, E12 at ten pages of fifty, §2.6's week-1 keyword
+verification, Lighthouse and GSC/Bing behind a deployed origin.

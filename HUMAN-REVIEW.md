@@ -18,14 +18,21 @@ read, for the reason given there.
 > care about and, if you agree, changing `reviewKind: model` to `human` with
 > your name. That is the only edit that upgrades the badge.
 >
-> Part B is unchanged in what it needs from you, but is now half done: the five
-> submissions are written (`calibration/query-rescue.yaml`), so your work is the
-> **20 grades** and nothing else. Band stability — E8's other criterion — has
-> been measured and is met; see below.
+> **Updated 2026-08-16, after Nikolay said he will never hand-grade SQL.** Part
+> B has moved domain. κ measures the *grader*, not the subject, and it had been
+> pointed at `slow-query-rescue` — in the only `evalTier: 1` pack of the seven,
+> the one where the query can be executed and the answer asserted before
+> anything reviews its quality. It now runs on
+> `calibration/recommendation-memo.yaml`: five memos asking a finance director
+> for £8,000, graded on whether the ask is in the first two sentences, whether
+> rejected options carry reasons, whether estimates are marked as estimates, and
+> whether a third of it could be cut. **No subject expertise. Your work is 20
+> bands and nothing else.** Band stability — E8's other criterion — is measured
+> and met; see below.
 
-None is long. Together they are roughly **one focused day** for the SQL pack
-alone, which is enough to launch on. Part C is no longer one of the gates — it
-is twenty optional minutes.
+None is long. Together they are roughly **one focused evening**, which is enough
+to launch on. Part C is no longer one of the gates — it is twenty optional
+minutes.
 
 ---
 
@@ -222,47 +229,88 @@ interesting number here than the 100%**, and it is not covered by either E8
 criterion: a learner whose submission refuses twice sees a failure, not a grade.
 Worth watching once there is volume.
 
-### Why the corpus's own `grades` are not your grades
+### Why a memo, and not a SQL query
 
-`calibration/query-rescue.yaml` ships with a `grades` block per submission. Those
-are the bands each artefact was **written to exhibit** — the authoring spec, not
-an independent judgement — and κ computed against them measures whether the
-grader recovers an intent that was deliberately encoded by the same model family
-that grades it. That is a construct check and nothing more.
+The criterion is about the grader. Nothing in it says which pack, and "pick one
+project" was always going to mean one domain — the only question is which one
+answers the most.
 
-**Your 20 grades are still the thing E8 is waiting on.** What has changed is that
-you no longer have to write the five submissions first.
+`sql-data-analysis` is the **only `evalTier: 1` pack of the seven**: its own
+`pack.yaml` says "execute the query, assert the result, then review quality".
+There is a deterministic ground truth underneath it. The other six are Tier 2 or
+3, where — in `business-writing/pack.yaml`'s words — "the rubric *is* the ground
+truth. That makes band descriptions load-bearing, and a vague band is where
+sycophantic grading enters."
+
+So the one number that decides whether the thesis holds had been aimed at the
+single pack with a safety net beneath it, and blocked there on expertise nobody
+in the building has. `unbudgeted-spend-memo` aims it at a pack with no safety
+net, and its four criteria are ones any professional reader settles without
+knowing the subject:
+
+| criterion | the judgement |
+|---|---|
+| `leads-with-the-ask` | Is the recommendation in the first two sentences? |
+| `options-and-reasoning` | Do the rejected options carry reasons? |
+| `honest-uncertainty` | Are estimates marked as estimates, with a basis? |
+| `economy` | Could a third of this be cut? |
+
+This is the harder measurement, not the easier one.
+
+### Why the corpus's own intent is not your grades
+
+Each memo was written to exhibit a particular set of bands. Those are the
+authoring spec, not an independent judgement, and κ computed against them would
+measure whether the grader recovers an intent encoded by the same model family
+that grades it — a construct check and nothing more.
+
+They live in `calibration/recommendation-memo.intent.md`, which is a **separate
+file, and reading it before you grade destroys the measurement.**
+`query-rescue.yaml` puts the same information in a comment directly above each
+artefact, where you cannot avoid seeing it, and names its submissions
+`s1-no-evidence` and `s5-verified` so that the ids give the answer too. This
+corpus does neither: neutral ids, no inline notes, and the five are not in
+ascending order of quality.
+
+**Your 20 bands are the thing E8 is waiting on.** The memos are written.
 
 ## The protocol
 
-**Pick one project.** `slow-query-rescue` — SQL, four criteria, evenly weighted
-apart from the last:
+**The project is `unbudgeted-spend-memo`** — four criteria, on the
+`recommendation-memo` rubric:
 
 | id | criterion | weight |
 |---|---|---|
-| `diagnosis` | The cause is correctly identified | 0.30 |
-| `improvement` | The query is measurably faster | 0.30 |
-| `correctness-preserved` | The result is unchanged | 0.30 |
-| `proportionality` | The fix is proportionate | 0.10 |
+| `leads-with-the-ask` | Leads with the decision | 0.30 |
+| `options-and-reasoning` | Shows the options considered | 0.25 |
+| `honest-uncertainty` | Uncertainty is marked | 0.25 |
+| `economy` | Nothing that does not earn its place | 0.20 |
 
-**Write 5 submissions that span the range.** This is the part that is easy to get
-wrong: if all five are decent, κ is meaningless — it measures agreement *above
-chance*, and with no variance there is nothing above chance to measure. Aim for
-roughly:
+**Step 0, optional, ten minutes and about $1.** Run `--stability-only` on the
+corpus before you spend an evening on it. It needs nothing from you, it
+re-measures E8's consistency criterion on a Tier-2 pack rather than the Tier-1
+one, and — the real reason — it tells you whether these five artefacts run at
+all. One of ten calls on the SQL corpus *refused*, and finding that out after
+grading is worse than finding it out before.
 
-- 1 that is plainly **absent** on most criteria — wrong diagnosis, no measurement
-- 1 **developing** — right instinct, incomplete execution
-- 2 **competent** — the realistic middle, and the band that matters most
-- 1 **strong** — verified, measured, proportionate
+```sh
+DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate --stability-only calibration/recommendation-memo.yaml
+```
 
-Write them as a learner would, mess included. A corpus of clean submissions
-tells you how the grader handles clean submissions, which is not the question.
+**Then grade all five by hand, before running anything else.** Read a memo, put
+each of its four criteria in one of `absent | developing | competent | strong`,
+and write the band into the blank beside it in the YAML. Then the next memo.
+That is **20 judgements**, and it is the whole of your part.
 
-**Grade all five by hand, before running anything.** For each submission, place
-each of the four criteria in one of `absent | developing | competent | strong`.
-That is **20 judgements**. Write them down first — if you grade after seeing the
-model's output you will anchor to it and the number will be flattering and
-worthless.
+The five are written and spread deliberately across the range — one that is
+plainly absent on everything, one right-instinct-wrong-execution, two competent
+in *different* places, and one that clears every top band. That spread is not
+decoration: κ measures agreement above chance, and five decent submissions
+produce perfect observed agreement, expected agreement of 1, and no information
+at all.
+
+Do not open `recommendation-memo.intent.md` until the twenty bands are written
+down. It names what each memo was written to exhibit.
 
 **Then run the evaluator** on each, twice.
 
@@ -287,24 +335,29 @@ of you being wrong.
 ## Running it
 
 ```sh
-# calibration/query-rescue.yaml already exists, with the five submissions
-# written. Read them, overwrite each `grades:` block with your own bands —
-# before running anything — then:
-DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/query-rescue.yaml
+# Fill the blank `grades:` in calibration/recommendation-memo.yaml first —
+# five memos, four bands each — then:
+DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/recommendation-memo.yaml
 ```
 
 The file carries the four criteria with all sixteen band descriptions inline, so
-you grade without switching files, and each submission notes the band it was
-*written* to exhibit so you can see where you disagree with the author. Treat
-that note as the author's intent, not as evidence.
+you grade without switching files, and the brief the five memos answer. What it
+deliberately does not carry is any hint of the intended band — that is in
+`recommendation-memo.intent.md`, for afterwards.
 
-`calibration/query-rescue.example.yaml` is the empty template it was made from,
-kept for the next project's corpus.
+`calibration/query-rescue.yaml` is the SQL corpus, still written and still
+runnable; it is where the stability figure came from. If a domain expert ever
+grades it, it becomes a second κ on a Tier-1 pack, which is worth having and is
+not what E8 is blocked on. `calibration/query-rescue.example.yaml` is the empty
+template both were made from.
 
-The runner checks the corpus before spending anything — an unknown or missing
-criterion id stops it, because a corpus that quietly measures 12 pairs instead of
-20 is worse than one that refuses to run. Then it grades each submission twice
-and prints:
+The runner checks the corpus before spending anything — an unknown criterion id
+stops it, a missing one stops it, and **a blank or misspelled band stops it too**,
+because `BANDS` has no index for such a value: it would still pair, score as
+three bands of disagreement, and drag κ down without appearing anywhere in the
+output. A corpus that quietly measures 12 pairs instead of 20, or scores itself
+against a band that does not exist, is worse than one that refuses to run. Then
+it grades each submission twice and prints:
 
 - **κ** against your grades, with the observed and by-chance agreement it came from
 - **the stability figure**, run 1 against run 2
@@ -316,8 +369,25 @@ The arithmetic is in `src/lib/evaluation/agreement.ts` and unit-tested, includin
 the two ways this measurement misleads: a corpus with no spread (κ undefined, not
 zero) and a mispaired corpus (a smaller honest `n`, never a silent mismatch).
 
-Your part is now **20 hand-grades**, and nothing else. The five submissions are
-written and the stability half is measured and met.
+Your part is **20 bands**, and nothing else. The five memos are written and the
+stability half is measured and met.
+
+## What this does not prove, and what to do about it
+
+κ on business writing is not a claim about SQL, and the record has to say which
+domain the number came from. It never was that claim — one project was always
+one domain — but the constraint is worth naming rather than discovering later.
+
+For the packs you cannot reach, **buy the grades.** Twenty judgements from a
+senior data engineer against `query-rescue.yaml` is an hour or two of freelance
+time, roughly $100. Do it *after* this one: if κ fails on a memo it fails
+everywhere, and the money is saved.
+
+When you do buy, buy **two graders**. Human-versus-human κ is the real ceiling,
+and a bar of 0.6 is uninterpretable without it — rubric grading between two
+competent humans typically lands between 0.4 and 0.7. If two SQL experts agree
+with each other at 0.55, then holding the model to 0.6 against one of them is
+asking it to be more consistent than the profession is.
 
 ---
 

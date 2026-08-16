@@ -6,6 +6,7 @@ import { findPack } from "@/lib/content";
 import { evaluateSubmission } from "@/lib/evaluation";
 import {
   agreementBetween,
+  BANDS,
   KAPPA_TARGET,
   STABILITY_TARGET,
   verdictFor,
@@ -38,14 +39,25 @@ interface Corpus {
   submissions: Array<{
     id: string;
     artefact: string;
-    /** Your hand-grades: criterion id → band. */
-    grades: Record<string, Band>;
+    /**
+     * Your hand-grades: criterion id → band.
+     *
+     * Typed loose because it is parsed YAML, and a corpus is shipped with these
+     * blank for you to fill in. `isBand` is what turns it into a `Band`.
+     */
+    grades: Record<string, unknown>;
   }>;
 }
 
 function fail(message: string): never {
   console.error(`\n  ${message}\n`);
   process.exit(1);
+}
+
+function isBand(value: unknown): value is Band {
+  return (
+    typeof value === "string" && (BANDS as readonly string[]).includes(value)
+  );
 }
 
 async function main() {
@@ -75,18 +87,33 @@ async function main() {
   const skill = pack.skills.find((s) => project.targetSkills.includes(s.slug))!;
   const criterionIds = new Set(rubric.criteria.map((c) => c.id));
 
+  const human: Judgement[] = [];
+
   // Checked before spending anything: a typo'd criterion id silently drops a
   // judgement, and a corpus that quietly measures 12 pairs instead of 20 is
-  // worse than one that refuses to run.
+  // worse than one that refuses to run. The grades are read into `human` here
+  // rather than in the run loop, so nothing is trusted where it was not checked.
   if (!stabilityOnly) {
     for (const submission of corpus.submissions) {
-      const graded = Object.keys(submission.grades ?? {});
-      for (const id of graded) {
+      const graded = Object.entries(submission.grades ?? {});
+      for (const [id, band] of graded) {
         if (!criterionIds.has(id)) {
           fail(`submission "${submission.id}" grades unknown criterion "${id}"`);
         }
+        // An unfilled or misspelled band is worse than a missing one. `BANDS`
+        // has no index for it, so it still pairs, scores as three bands of
+        // disagreement, and drags κ down without appearing anywhere in the
+        // output. A corpus nobody has finished grading has to refuse to run.
+        if (!isBand(band)) {
+          fail(
+            `submission "${submission.id}" has no band for "${id}" — read ${JSON.stringify(band)}, expected one of ${BANDS.join(", ")}`,
+          );
+        }
+        human.push({ submissionId: submission.id, criterionId: id, band });
       }
-      const missing = [...criterionIds].filter((id) => !graded.includes(id));
+      const missing = [...criterionIds].filter(
+        (id) => !graded.some(([key]) => key === id),
+      );
       if (missing.length > 0) {
         fail(
           `submission "${submission.id}" is missing grades for: ${missing.join(", ")}`,
@@ -107,18 +134,11 @@ async function main() {
   const client = getAnthropic();
   const { db, close } = createClient(process.env.DATABASE_URL!, 2);
 
-  const human: Judgement[] = [];
   const first: Judgement[] = [];
   const second: Judgement[] = [];
 
   try {
     for (const submission of corpus.submissions) {
-      if (!stabilityOnly) {
-        for (const [criterionId, band] of Object.entries(submission.grades)) {
-          human.push({ submissionId: submission.id, criterionId, band });
-        }
-      }
-
       for (const [pass, sink] of [
         [1, first],
         [2, second],

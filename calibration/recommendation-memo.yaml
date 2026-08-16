@@ -1,0 +1,302 @@
+# The Phase-0 hand-graded set (§23), for `unbudgeted-spend-memo`.
+#
+#   DATABASE_URL=… ANTHROPIC_API_KEY=… pnpm calibrate calibration/recommendation-memo.yaml
+#
+# Two passes over five submissions is ten calls: roughly $1 and eight minutes.
+#
+# ── Why this project and not `slow-query-rescue` ────────────────────────────
+#
+# κ measures the *grader*, not the domain, and `sql-data-analysis` is the only
+# `evalTier: 1` pack of the seven — the one where the query can be executed and
+# the result asserted before anything reviews its quality. The other six are
+# Tier 2 or 3, where, in `business-writing/pack.yaml`'s own words, "the rubric
+# *is* the ground truth. That makes band descriptions load-bearing — a vague band
+# is where sycophantic grading enters."
+#
+# So the criterion was pointed at the one pack with a safety net underneath it.
+# This corpus points it at a pack without one, and the four criteria below are
+# ones any professional reader can settle without knowing the subject.
+#
+# ── The one thing that ruins this ───────────────────────────────────────────
+#
+# Grade every submission BEFORE you run the script. Cohen's κ measures agreement
+# above chance, and if you grade after reading the model's output you will anchor
+# to it — the number comes out flattering and means nothing.
+#
+# Three things are deliberately *not* in this file, for the same reason:
+#
+#   - No submission carries a note saying which band it was written to exhibit.
+#     `query-rescue.yaml` puts that note directly above each artefact, which
+#     tells you the answer before you have read the question.
+#   - No id names its own quality. `s1-no-evidence` grades itself.
+#   - They are not in ascending order of quality, because a corpus that climbs
+#     tells you the last one is the good one.
+#
+# The authoring spec lives in `recommendation-memo.intent.md`. **Do not open it
+# until your twenty bands are written down.** It is worth reading afterwards:
+# where you disagree with the author is as interesting as where you disagree
+# with the grader.
+#
+# ── The brief these five answer ─────────────────────────────────────────────
+#
+# "Write a one-page memo asking a finance director you have never met to approve
+# £8,000 that is not in the budget. They will read it between two other meetings
+# and will not ask you a clarifying question — they will simply decline if
+# anything is unclear."
+#
+# ── The rubric you are grading against ──────────────────────────────────────
+#
+# Four criteria. Every submission needs all four graded, or the script refuses to
+# run rather than quietly measuring 12 pairs instead of 20.
+#
+#   leads-with-the-ask     (0.30)  Leads with the decision
+#     absent       The ask appears in the final paragraph, or not at all.
+#     developing   The ask is present early but competes with context for attention.
+#     competent    The first two sentences state the recommendation and what approval means.
+#     strong       The opening states the recommendation, the cost and the consequence of declining.
+#
+#   options-and-reasoning  (0.25)  Shows the options considered
+#     absent       Only the preferred option is mentioned.
+#     developing   Alternatives are listed without reasons.
+#     competent    Each rejected option carries a specific reason.
+#     strong       Reasons are comparable against a stated criterion, so a reader could disagree usefully.
+#
+#   honest-uncertainty     (0.25)  Uncertainty is marked
+#     absent       Estimates are presented as facts.
+#     developing   Some hedging, but unattributed or vague.
+#     competent    Weak claims are marked as weak, with the basis named.
+#     strong       Marked, sourced, and the reader is told what would change the recommendation.
+#
+#   economy                (0.20)  Nothing that does not earn its place
+#     absent       A third of the document could be cut without loss.
+#     developing   Noticeable padding in one or two sections.
+#     competent    Tight throughout; each paragraph does distinct work.
+#     strong       Tight, and the structure makes the brevity feel generous rather than terse.
+#
+# ── How to grade ────────────────────────────────────────────────────────────
+#
+# Read one memo. Put each of its four criteria in one of `absent`, `developing`,
+# `competent`, `strong`. Write the band into the blank beside it. Then the next.
+# Twenty judgements. The script refuses to start on a blank, so a half-graded
+# corpus stops rather than scoring itself.
+
+pack: business-writing
+project: unbudgeted-spend-memo
+
+submissions:
+  - id: catalogue-licence
+    grades:
+      leads-with-the-ask:
+      options-and-reasoning:
+      honest-uncertainty:
+      economy:
+    artefact: |
+      Subject: £8,000 for a data catalogue licence — decision needed by 12 September
+
+      Marta,
+
+      I'm asking you to approve £8,000 for a one-year Atlan licence, which is not
+      in the FY26 budget. Approving it means the analytics team stops maintaining
+      our column definitions in a spreadsheet, which is where most of our
+      reporting errors start.
+
+      The problem: we have 340 tables across three warehouses and no shared
+      definition of what any column means. Four people maintain a "metrics
+      dictionary" spreadsheet by hand. Last quarter three numbers in the board
+      pack were wrong because two teams had different definitions of "active
+      customer", and we found out from the board rather than from a check.
+
+      Options considered, against one criterion: which of these stops two teams
+      defining the same metric differently, without adding headcount?
+
+      - Build it ourselves on dbt docs. Free, and we already run dbt. Rejected
+        because dbt docs describes tables, not agreed definitions — it would
+        document the disagreement rather than resolve it.
+      - Keep the spreadsheet and add a review step. Cheapest. Rejected because
+        the spreadsheet has been reviewed twice and drifted back within a month
+        both times; the failure is that nothing forces a change to it when a
+        column changes.
+      - Collibra. Does everything Atlan does and more. Rejected on cost — the
+        quote was £34,000, four times the ask, for governance features we would
+        not use this year.
+
+      Cost: £8,000 for twelve months, all in, no implementation fee.
+
+      If we do nothing, the dictionary keeps drifting and the next wrong number
+      in a board pack is a matter of time rather than chance. Unpicking the last
+      one took a day of your team's time as well as ours.
+
+      Atlan will cut our reporting errors substantially and the team will be up
+      and running inside two weeks.
+
+      Tom
+
+  - id: workshop-cutter
+    grades:
+      leads-with-the-ask:
+      options-and-reasoning:
+      honest-uncertainty:
+      economy:
+    artefact: |
+      Subject: Some thoughts on the workshop situation
+
+      Hi,
+
+      I hope this finds you well. I wanted to reach out and introduce myself — I
+      lead the product design studio on the third floor, and although we haven't
+      met I've heard good things from Priya about how supportive the finance team
+      has been this year, so I thought it might be worth sharing some context on
+      where we've got to.
+
+      As you may or may not know, our workshop is fairly central to the way the
+      design team works. We prototype in house rather than sending work out to a
+      bureau, which has been our practice since the studio was set up in 2021,
+      and I think it's a big part of why we're able to move as quickly as we do.
+      The team is proud of it and I think rightly so — it's genuinely one of the
+      things people mention when they join.
+
+      Over the past few weeks we've been having some difficulties. The laser
+      cutter has been increasingly unreliable, and there have been a number of
+      occasions where jobs have had to be repeated, sometimes more than once.
+      This has had a knock-on effect on morale as well as on timelines, and I
+      know a few people have found it quite frustrating. We tried a number of
+      things internally to keep it going, and for a while that seemed to be
+      working, but it hasn't lasted.
+
+      The situation now is that it has stopped working altogether. The engineer
+      who came out on Tuesday said it's reached end of life and isn't economical
+      to repair. Without it we can't prototype in house at all, which is
+      obviously a significant problem for us and is going to slow everything down
+      considerably over the coming months.
+
+      I've looked into replacements and the model we want is clearly the best
+      option available. It'll transform how the team works and will pay for
+      itself very quickly. Everyone I've spoken to agrees it's the right call.
+
+      So — could we possibly find £8,000 for this? I do appreciate it's not in
+      the budget and I'm sorry to be asking out of cycle. Let me know if you need
+      anything further from me and I'll get it over to you.
+
+      Best wishes,
+      Tom
+
+  - id: pen-test
+    grades:
+      leads-with-the-ask:
+      options-and-reasoning:
+      honest-uncertainty:
+      economy:
+    artefact: |
+      Subject: £8,000 penetration test — needed before the Halcyon signature
+
+      Marta,
+
+      I'm asking you to approve £8,000 for an external penetration test in
+      October, which is not in the FY26 budget. Approving it lets us sign Halcyon
+      on 1 November; declining it means we either sign without a clause they have
+      already refused to drop, or we don't sign.
+
+      Why now: Halcyon's security schedule requires an independent test within 90
+      days of signature. We have never had one. Their legal team declined our
+      request to substitute an internal review, in writing, on 8 August.
+
+      Options, judged against one thing — what produces a report Halcyon's team
+      will accept, before 1 November?
+
+      - Internal review by our own team. Free. Rejected because Halcyon has
+        already refused it in writing. It isn't that it's weaker; it's that it
+        doesn't satisfy the clause.
+      - The £3,200 automated scan. Rejected for that reason and one more: the
+        vendor's own scope statement excludes authorisation logic, which is where
+        both of our open findings sit.
+      - Defer to January and use the larger firm we had planned for FY27, also
+        £8,000. Rejected on timing rather than merit — same price, better firm,
+        arrives eight weeks after the signature date.
+
+      Cost and confidence. The £8,000 is a fixed-price quote from Cure53 dated 12
+      August and valid for 60 days: a price, not an estimate. The revenue at
+      stake is an estimate — £140,000 is Halcyon's stated first-year seat count
+      at our list price, and it will be lower once they negotiate, which they
+      will. Treat it as a ceiling.
+
+      What would change my recommendation: if Halcyon accepts a scoped internal
+      review, this becomes a January decision at the same price and I withdraw
+      the request. I've asked again and expect an answer this week.
+
+      If we do nothing, we reach 1 November with a clause we cannot satisfy.
+
+      Tom
+
+  - id: support-contractor
+    grades:
+      leads-with-the-ask:
+      options-and-reasoning:
+      honest-uncertainty:
+      economy:
+    artefact: |
+      Subject: Contractor for the support backlog
+
+      Marta,
+
+      You won't have come across me before — I run the support team. Ticket
+      volume has grown steadily since the March release and two of our four
+      people have been on the migration project since April, so the queue is now
+      at about three weeks against a normal two days. I'd like to bring in a
+      contractor for six weeks to clear it, which would be £8,000 and isn't in
+      this year's budget.
+
+      We did look at the alternatives — hiring someone permanently, spreading the
+      tickets across the wider engineering team, or pausing the migration for a
+      month. The contractor route came out as the most sensible of the four.
+
+      I think six weeks should be about right, though it's hard to be precise
+      about that. The rate is roughly £1,300 a week for someone with the right
+      experience, and we'd want them starting fairly soon.
+
+      If we don't do anything the queue will keep growing and I'd expect we'd
+      start losing customers over it, though I couldn't put a number on that.
+
+      Tom
+
+  - id: security-training
+    grades:
+      leads-with-the-ask:
+      options-and-reasoning:
+      honest-uncertainty:
+      economy:
+    artefact: |
+      Subject: Closing the gap both post-mortems found
+
+      Marta,
+
+      We had two security incidents this year — the credential leak in March and
+      the open S3 bucket in September — and the post-mortem on each landed on the
+      same finding: the engineers writing the code had never been taught what to
+      look for. We answered both with process. Both processes were followed, and
+      the second incident happened anyway. What I'd like to do instead is train
+      the eight engineers on the platform team. That costs £8,000 and is not in
+      this year's budget.
+
+      Options I considered:
+
+      - Internal training run by our own senior engineers. Free, and rejected
+        because the two people who could run it are the two who wrote the process
+        that didn't work — we'd be teaching ourselves what we already believe.
+      - A £900 online course for the whole team. Rejected because it has no
+        assessment, so I'd have no way to tell you afterwards whether it worked.
+      - Hiring a security engineer. Rejected on cost and timing: a £75,000 role
+        we could not fill before March, against a gap that is open now.
+
+      What I'm confident about and what I'm not. I'm confident the gap is
+      knowledge rather than process, because both post-mortems say so and they
+      were written by different people (IR-2026-03 and IR-2026-09, both on the
+      wiki). I'm not confident that training closes it. The vendor claims a 60%
+      reduction in findings; that figure is theirs, from their own case studies,
+      and I wouldn't rely on it. What I would rely on is our own before and
+      after: we run a static analysis scan monthly, and if high-severity findings
+      haven't moved by January I wouldn't renew this.
+
+      If we do nothing, the third incident is the one I'd expect to be
+      reportable. The first two weren't.
+
+      Tom
