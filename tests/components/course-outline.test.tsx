@@ -21,7 +21,7 @@ function skill(overrides: Partial<OutlineSkill> = {}): OutlineSkill {
     name: "Joins",
     state: "open",
     hours: 4,
-    note: "Open to you now — you'll be able to join three tables.",
+    note: "You'll be able to join three tables.",
     ...overrides,
   };
 }
@@ -208,5 +208,71 @@ describe("CourseOutline", () => {
       screen.getByText("Ends with a project you hand in, and we mark it"),
     ).toBeTruthy();
     expect(screen.getByText("Graded")).toBeTruthy();
+  });
+});
+
+/**
+ * The marks are what turned the list from something you read a line at a time
+ * into something you can scan, so they get their own block: four states, four
+ * glyphs, and none of them left as the only thing saying what a row is.
+ */
+describe("the state marks", () => {
+  const rowsOf = (states: OutlineSkill["state"][]) =>
+    render(
+      <CourseOutline
+        outline={outline({
+          sections: [
+            section({
+              skills: states.map((state, i) =>
+                skill({ skillId: `s${i}`, name: `Skill ${i}`, state }),
+              ),
+            }),
+          ],
+        })}
+      />,
+    ).container.querySelectorAll("details ul > li");
+
+  it("draws a different mark for every state", () => {
+    const rows = rowsOf(["open", "locked", "proved", "optional"]);
+    const marks = [...rows].map((row) => row.querySelector("svg")!.innerHTML);
+
+    expect(marks).toHaveLength(4);
+    expect(new Set(marks).size).toBe(4);
+  });
+
+  /**
+   * The one thing the user asked for by name, and the one state the screen
+   * could never draw before it: a lock, on the rows that are shut.
+   */
+  it("puts a lock on a locked row and nothing else", () => {
+    const rows = rowsOf(["open", "locked"]);
+    const locked = (row: Element) => row.querySelector("svg rect") !== null;
+
+    expect(locked(rows[0]!)).toBe(false);
+    expect(locked(rows[1]!)).toBe(true);
+  });
+
+  /**
+   * §8.5.5 bans an icon that needs explaining. Every mark is decorative and
+   * every row still carries the word and the sentence, so the glyph is the
+   * third statement of the same fact rather than the only one.
+   */
+  it("keeps the mark out of the a11y tree and the word in it", () => {
+    const rows = rowsOf(["locked"]);
+    const row = rows[0]!;
+
+    expect(row.querySelector("[aria-hidden='true'] svg")).toBeTruthy();
+    expect(row.textContent).toContain("Locked");
+    expect(row.textContent).toContain("You'll be able to");
+  });
+
+  /** The legend draws the same tiles, or it is a second thing to learn. */
+  it("keys the list with the marks the rows use", () => {
+    const { container } = render(
+      <OutlineLegend counts={{ open: 2, locked: 7, proved: 3, optional: 1 }} />,
+    );
+
+    expect(container.querySelectorAll("li svg")).toHaveLength(4);
+    expect(screen.getByText(/7\s*locked/)).toBeTruthy();
   });
 });

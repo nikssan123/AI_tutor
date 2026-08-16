@@ -1,0 +1,232 @@
+import { Card, cx, Meta } from "@/components/ui";
+import { SKILL_MAP, type SkillMapLayout } from "@/lib/goals/skill-map";
+import {
+  SKILL_STATE_WORD,
+  SKILL_STATES,
+  type SkillState,
+} from "@/lib/goals/outline";
+
+/**
+ * The subject graph, drawn.
+ *
+ * Everything positional was decided in `buildSkillMap` and everything here is
+ * colour — which is the split that lets the hard part be tested. What this file
+ * is responsible for is that the picture says the same thing the list above it
+ * says, and it had not been: the list showed four states and the graph showed
+ * three, missing *locked* entirely, so the one fact the graph is uniquely good
+ * at showing — that this box is unreachable because of that box above it — was
+ * the fact it could not draw. Same four states, same four words (§8.5.5's ban
+ * on colour as the sole carrier of meaning is why the key spells them out).
+ *
+ * The key also names what a dashed line is, which nothing on the screen did.
+ * A picture with two kinds of edge and an explanation of neither is a puzzle.
+ *
+ * `role="img"` with one label, rather than a tree of readable nodes: the
+ * outline above carries every one of these skills with its state and a sentence
+ * for it, so a screen reader that also walked the graph would read the whole
+ * course twice, in a worse order.
+ */
+
+/**
+ * The lines.
+ *
+ * `--hairline` is the token for a *rule between things*, and it was wrong here
+ * for a reason worth writing down: a hairline is meant to be barely there, and
+ * on a dark surface it measures 1.1:1 against the card it sits on. The edges
+ * are not furniture on this picture — they are its entire content, the only
+ * part that says anything a list could not — so they take `--ink-faint`, held
+ * back with opacity so that eighteen of them still read as a structure rather
+ * than as a scribble.
+ */
+const EDGE_STROKE = "var(--color-ink-faint)";
+const EDGE_OPACITY = 0.5;
+const EDGE_WIDTH = 1.5;
+const EDGE_DASH = "4 4";
+
+/** §8.5.4 — no colour is invented at a call site; these are all tokens. */
+const NODE: Record<
+  SkillState,
+  { fill: string; stroke: string; dash: string | null; ink: string }
+> = {
+  // The one solid fill, for the same reason the list gives it the one solid
+  // tile: the accent goes on what is next, never on what is finished.
+  open: {
+    fill: "var(--color-accent)",
+    stroke: "var(--color-accent)",
+    dash: null,
+    ink: "var(--color-on-accent)",
+  },
+  locked: {
+    fill: "var(--color-ground)",
+    stroke: "var(--color-hairline)",
+    dash: null,
+    ink: "var(--color-ink-muted)",
+  },
+  proved: {
+    fill: "var(--color-accent-weak)",
+    stroke: "var(--color-accent-weak)",
+    dash: null,
+    // Accent ink on the weak field, matching the list's proved mark exactly.
+    // Muted grey on it was a near-miss for the locked box — two states two
+    // shades apart in a picture whose whole job is telling states apart.
+    ink: "var(--color-accent)",
+  },
+  optional: {
+    fill: "var(--color-ground)",
+    stroke: "var(--color-hairline)",
+    dash: "4 3",
+    ink: "var(--color-ink-faint)",
+  },
+};
+
+const EDGE_KEY = [
+  { dashed: false, label: "Needed before it" },
+  { dashed: true, label: "Helps, but not required" },
+];
+
+function KeyList({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <ul
+      className={cx(
+        "m-0 flex list-none flex-wrap items-center gap-x-5 gap-y-2 p-0",
+        className,
+      )}
+    >
+      {children}
+    </ul>
+  );
+}
+
+export function SkillMap({
+  layout,
+  label,
+}: {
+  layout: SkillMapLayout;
+  /** What the picture is, for anyone who cannot see it. */
+  label: string;
+}) {
+  return (
+    <Card className="flex flex-col gap-5">
+      {/* The scroll bleeds to the card's edge so a wide subject reads as
+          continuing rather than as cropped, while the key below keeps the
+          card's own padding and stays put while the picture moves.
+
+          `shrink-0 max-w-none` is what stops the browser doing the obliging
+          thing. The reset gives an `svg` `max-width: 100%`, so a graph wider
+          than its card was being scaled down to fit — which sounds harmless
+          and is not: it takes the 12px label with it, so a wide subject on a
+          desktop set its names at 10px and the same subject on a phone set
+          them at 5. A picture you can read a third of is worth more than one
+          you can see all of and read none of. */}
+      <div className="-mx-6 overflow-x-auto px-6">
+        <svg
+          width={layout.width}
+          height={layout.height}
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          role="img"
+          aria-label={label}
+          className="block max-w-none shrink-0"
+        >
+          {layout.edges.map((edge) => (
+            <path
+              key={edge.key}
+              d={edge.path}
+              fill="none"
+              stroke={EDGE_STROKE}
+              strokeOpacity={EDGE_OPACITY}
+              strokeWidth={EDGE_WIDTH}
+              strokeDasharray={edge.soft ? EDGE_DASH : undefined}
+            />
+          ))}
+
+          {layout.nodes.map((node) => {
+            const style = NODE[node.state];
+            return (
+              <g key={node.skillId}>
+                {/* The full name, for a label that had to be wrapped short. */}
+                <title>{`${node.name} — ${SKILL_STATE_WORD[node.state].toLowerCase()}`}</title>
+                <rect
+                  x={node.x}
+                  y={node.y}
+                  width={SKILL_MAP.nodeWidth}
+                  height={SKILL_MAP.nodeHeight}
+                  rx={12}
+                  fill={style.fill}
+                  stroke={style.stroke}
+                  strokeDasharray={style.dash ?? undefined}
+                />
+                {node.lines.map((line, index) => (
+                  <text
+                    key={`${node.skillId}-${index}`}
+                    x={node.x + SKILL_MAP.nodeWidth / 2}
+                    y={node.labelY + index * SKILL_MAP.lineHeight}
+                    textAnchor="middle"
+                    fill={style.ink}
+                    fontSize={SKILL_MAP.fontSize}
+                    fontWeight={550}
+                  >
+                    {line}
+                  </text>
+                ))}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-hairline pt-4">
+        <KeyList>
+          {SKILL_STATES.map((state) => {
+            const style = NODE[state];
+            return (
+              <li key={state} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="inline-block size-3.5 rounded-[4px]"
+                  style={{
+                    background: style.fill,
+                    border: `1px ${style.dash ? "dashed" : "solid"} ${style.stroke}`,
+                  }}
+                />
+                <Meta>{SKILL_STATE_WORD[state]}</Meta>
+              </li>
+            );
+          })}
+        </KeyList>
+
+        <KeyList>
+          {EDGE_KEY.map((edge) => (
+            <li key={edge.label} className="flex items-center gap-2">
+              {/* Drawn rather than bordered, so the swatch is the same stroke
+                  at the same weight and opacity as the thing it explains. */}
+              <svg
+                width={24}
+                height={EDGE_WIDTH * 2}
+                aria-hidden="true"
+                className="shrink-0 overflow-visible"
+              >
+                <line
+                  x1={0}
+                  y1={EDGE_WIDTH}
+                  x2={24}
+                  y2={EDGE_WIDTH}
+                  stroke={EDGE_STROKE}
+                  strokeOpacity={EDGE_OPACITY}
+                  strokeWidth={EDGE_WIDTH}
+                  strokeDasharray={edge.dashed ? EDGE_DASH : undefined}
+                />
+              </svg>
+              <Meta>{edge.label}</Meta>
+            </li>
+          ))}
+        </KeyList>
+      </div>
+    </Card>
+  );
+}

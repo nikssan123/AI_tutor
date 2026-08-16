@@ -1,10 +1,19 @@
-import { ChevronIcon } from "@/components/icons";
+import {
+  ArrowIcon,
+  ChecklistIcon,
+  ChevronIcon,
+  LockIcon,
+  MasteryIcon,
+  PlusIcon,
+} from "@/components/icons";
 import { cx, Meta, Status, type StatusTone } from "@/components/ui";
-import type {
-  Outline,
-  OutlineSection,
-  OutlineSkill,
-  SkillState,
+import {
+  SKILL_STATE_WORD,
+  SKILL_STATES,
+  type Outline,
+  type OutlineSection,
+  type OutlineSkill,
+  type SkillState,
 } from "@/lib/goals/outline";
 
 /**
@@ -23,20 +32,51 @@ import type {
  * **No percentage, and no bar** (§4.2 law 3, §24 E9). Every course catalogue
  * this borrows its shape from puts "37% complete" at the top; the counts here
  * say the same thing without implying that a course is a container you fill.
+ *
+ * **Every row leads with a mark**, and that is the change this file exists
+ * for. The list previously said all four states the same way — a `Status` dot
+ * and a word, in the middle of a row, at the same weight as the hours beside
+ * it — so a locked skill and an open one had identical silhouettes and the
+ * list could only be read a line at a time. A mark in the gutter is what makes
+ * it scannable: a lock is a lock from across the room.
+ *
+ * It does not reopen §8.5.5's ban on icons. That rule is *"no tooltips that
+ * explain an icon"* and *"colour is never the sole carrier of meaning"*, and
+ * both still hold — every mark sits beside its own word **and** the sentence
+ * saying why the row reads that way, so the glyph is the third statement of the
+ * same fact rather than the only one.
  */
-
-const WORD: Record<SkillState, string> = {
-  open: "Open now",
-  locked: "Locked",
-  proved: "Already yours",
-  optional: "Optional",
-};
 
 /**
- * The accent goes on what is *next*, never on what is finished — the same rule
- * the graph below this list draws by. A screen that shouts loudest about
- * completed work is answering a question nobody asked it.
+ * The mark, the tile it sits in, and nothing else — the word comes from
+ * `SKILL_STATE_WORD`, so the list, the legend and the graph's key cannot drift
+ * into three vocabularies for four states.
+ *
+ * The accent goes on what is *next*, never on what is finished. `open` is the
+ * one solid tile in the list, because "what can I actually start" is the
+ * question a learner opens this screen with; `proved` gets the weak field,
+ * because a screen that shouts loudest about completed work is answering a
+ * question nobody asked it.
  */
+const MARK: Record<
+  SkillState,
+  { Icon: (props: { className?: string }) => React.ReactElement; tile: string }
+> = {
+  open: { Icon: ArrowIcon, tile: "bg-accent text-on-accent" },
+  locked: {
+    Icon: LockIcon,
+    tile: "border border-hairline bg-ground text-ink-faint",
+  },
+  proved: { Icon: MasteryIcon, tile: "bg-accent-weak text-accent" },
+  optional: {
+    Icon: PlusIcon,
+    // Dashed, so the two quiet states are still told apart with the colour
+    // ignored: a lock is waiting on something, an outline is waiting on you.
+    tile: "border border-dashed border-hairline text-ink-faint",
+  },
+};
+
+/** The section header keeps `Status`, because the mark column is its number. */
 const TONE: Record<SkillState, StatusTone> = {
   open: "verified",
   locked: "neutral",
@@ -44,8 +84,30 @@ const TONE: Record<SkillState, StatusTone> = {
   optional: "neutral",
 };
 
-/** Legend order: what you can do, then what is in the way, then the rest. */
-const LEGEND: SkillState[] = ["open", "locked", "proved", "optional"];
+/** The shared tile. `size` is the only thing the legend does differently. */
+function Marker({
+  state,
+  className,
+  iconClassName,
+}: {
+  state: SkillState;
+  className: string;
+  iconClassName: string;
+}) {
+  const { Icon, tile } = MARK[state];
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        "flex shrink-0 items-center justify-center rounded-[var(--radius-control)]",
+        className,
+        tile,
+      )}
+    >
+      <Icon className={iconClassName} />
+    </span>
+  );
+}
 
 /** "1 skill", not "1 skills". */
 function countOf(n: number): string {
@@ -63,20 +125,24 @@ function factsOf(section: OutlineSection): string {
 }
 
 /**
- * What the whole list adds up to, in the sanctioned component: a dot and a
- * word, four times. Zero counts are dropped — "0 locked" is a sentence about
- * nothing.
+ * What the whole list adds up to: the mark, the count and the word, four
+ * times. Zero counts are dropped — "0 locked" is a sentence about nothing.
+ *
+ * It draws the same tiles the rows do, which is the only reason a key above a
+ * list is worth the space it takes: a legend whose swatches do not match the
+ * thing they explain is a second thing to learn.
  */
 export function OutlineLegend({ counts }: { counts: Outline["counts"] }) {
   return (
     <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-3 p-0">
-      {LEGEND.filter((state) => counts[state] > 0).map((state) => (
-        <li key={state}>
+      {SKILL_STATES.filter((state) => counts[state] > 0).map((state) => (
+        <li key={state} className="flex items-center gap-2">
+          <Marker state={state} className="size-6" iconClassName="size-3.5" />
           {/* One string, not three children: a count split across text nodes
               reads the same to a person and differently to everything else. */}
-          <Status tone={TONE[state]}>
-            {`${counts[state]} ${WORD[state].toLowerCase()}`}
-          </Status>
+          <span className="text-[length:var(--text-label-size)] text-ink">
+            {`${counts[state]} ${SKILL_STATE_WORD[state].toLowerCase()}`}
+          </span>
         </li>
       ))}
     </ul>
@@ -84,12 +150,15 @@ export function OutlineLegend({ counts }: { counts: Outline["counts"] }) {
 }
 
 /**
- * Rows line up under the section *title*, not under the card edge — the chevron
- * and the number are the section's furniture, and a row that starts to the left
- * of the thing it belongs to reads as a sibling of it. Full-bleed below `sm`,
- * where 100px of indent would be a quarter of the screen.
+ * The mark sits in the column the section's number chip occupies, so a row's
+ * *name* lands under the section *title* rather than under its furniture. Rows
+ * go full-bleed below `sm`, where 52px of indent would be an eighth of the
+ * screen before the mark has been drawn.
  */
-const ROW = "border-t border-hairline py-4 pr-5 pl-5 sm:pl-25";
+const ROW = "flex items-start gap-4 border-t border-hairline py-4 pr-5 pl-5 sm:pl-13";
+
+/** Matches the mark's tile, so the first line and the glyph share a centre. */
+const ROW_HEAD = "flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1";
 
 /**
  * One skill.
@@ -103,18 +172,50 @@ function SkillRow({ skill }: { skill: OutlineSkill }) {
   const reachable = skill.state === "open" || skill.state === "proved";
 
   return (
-    <li className={cx("flex flex-wrap items-baseline gap-x-4 gap-y-1", ROW)}>
+    <li className={ROW}>
+      <Marker state={skill.state} className="size-8" iconClassName="size-4" />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className={ROW_HEAD}>
+          <span
+            className={cx(
+              "min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550]",
+              reachable ? "text-ink" : "text-ink-muted",
+            )}
+          >
+            {skill.name}
+          </span>
+          {skill.hours > 0 ? <Meta>{`${skill.hours}h`}</Meta> : null}
+          <Meta>{SKILL_STATE_WORD[skill.state]}</Meta>
+        </div>
+        <Meta className="leading-snug">{skill.note}</Meta>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * The hand-in is the point of the module (§2.2), so it gets a row of its own
+ * rather than a tag on the section header — and it keeps the mark column,
+ * because a row that starts 32px left of every other row in the card reads as
+ * a footnote rather than as the thing the module was for.
+ */
+function HandInRow({ handIn }: { handIn: string }) {
+  return (
+    <li className={cx(ROW, "bg-accent-weak")}>
       <span
-        className={cx(
-          "min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550]",
-          reachable ? "text-ink" : "text-ink-muted",
-        )}
+        aria-hidden="true"
+        className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-accent text-on-accent"
       >
-        {skill.name}
+        <ChecklistIcon className="size-4" />
       </span>
-      {skill.hours > 0 ? <Meta>{`${skill.hours}h`}</Meta> : null}
-      <Status tone={TONE[skill.state]}>{WORD[skill.state]}</Status>
-      <Meta className="basis-full">{skill.note}</Meta>
+
+      <div className={cx(ROW_HEAD, "min-w-0 flex-1")}>
+        <span className="min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550] text-ink">
+          {handIn}
+        </span>
+        <Status tone="verified">Graded</Status>
+      </div>
     </li>
   );
 }
@@ -138,28 +239,16 @@ function Section({ section, index }: { section: OutlineSection; index: number })
             {section.title}
           </span>
           <Meta>{factsOf(section)}</Meta>
-          <Status tone={TONE[section.state]}>{WORD[section.state]}</Status>
+          <Status tone={TONE[section.state]}>
+            {SKILL_STATE_WORD[section.state]}
+          </Status>
         </summary>
 
         <ul className="m-0 list-none p-0">
           {section.skills.map((skill) => (
             <SkillRow key={skill.skillId} skill={skill} />
           ))}
-          {section.handIn ? (
-            /* The hand-in is the point of the module (§2.2), so it gets a row
-               of its own rather than a tag on the section header. */
-            <li
-              className={cx(
-                "flex flex-wrap items-baseline gap-x-4 gap-y-1 bg-accent-weak",
-                ROW,
-              )}
-            >
-              <span className="min-w-0 flex-1 text-[length:var(--text-label-size)] font-[550] text-ink">
-                {section.handIn}
-              </span>
-              <Status tone="verified">Graded</Status>
-            </li>
-          ) : null}
+          {section.handIn ? <HandInRow handIn={section.handIn} /> : null}
         </ul>
       </details>
     </li>

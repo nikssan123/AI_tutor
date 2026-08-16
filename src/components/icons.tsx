@@ -247,6 +247,43 @@ export function TickIcon({ className }: IconProps) {
   );
 }
 
+/* ── Skill-state marks ──────────────────────────────────────────────────── */
+
+/**
+ * The four states a skill can be in on the path screen get a mark each, so a
+ * course outline can be *scanned* rather than read line by line. `MasteryIcon`
+ * covers "already yours" and `ArrowIcon` covers "open now"; these two are what
+ * the set was missing.
+ *
+ * Decorative, like everything else here — §8.5.5 bans an icon that needs
+ * explaining, so each one sits beside its own word *and* the sentence saying
+ * why the row reads that way. A lock with nothing next to it is exactly the
+ * grey rectangle this screen was built to replace.
+ */
+
+/** A shackle over a closed body: a skill whose prerequisites are not done. */
+export function LockIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="4.75" y="10.5" width="14.5" height="9.5" rx="2" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+    </Svg>
+  );
+}
+
+/**
+ * A plus: something the course is not asking for that you could take on
+ * anyway. Deliberately not a cross — that would read as "excluded", and an
+ * optional skill is offered rather than refused.
+ */
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 5.5v13M5.5 12h13" />
+    </Svg>
+  );
+}
+
 /* ── Subject icons ──────────────────────────────────────────────────────── */
 
 /** Writing and communication. */

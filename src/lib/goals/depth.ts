@@ -24,8 +24,15 @@ export interface DepthOption {
   /** The depth the goal is currently set to. */
   current: boolean;
   /**
-   * Skills this depth would stop asking for, that the current one requires.
+   * Skills this depth would stop asking for, that the current one requires —
+   * **by name**, in the order the learner would have met them.
    * Empty when the option is the current depth or is deeper than it.
+   *
+   * Names rather than ids, and that is the whole point of the field. The dial
+   * shipped saying "Drop 4 skills" on a button, which tells a learner the size
+   * of a decision and nothing about its content: four skills out of a
+   * photography course could be the colour work or it could be everything they
+   * signed up for. A count is not an informed choice.
    */
   dropped: string[];
   /** Skills this depth would add that the current one treats as optional. */
@@ -59,6 +66,11 @@ export function depthOptions(input: DepthOptionsInput): DepthOption[] {
       depth,
     });
 
+  // Total by construction: a projection only ever returns ids that came out of
+  // this graph.
+  const names = new Map(input.graph.skills.map((s) => [s.id, s.name]));
+  const nameOf = (ids: string[]) => ids.map((id) => names.get(id)!);
+
   const currentRequired = new Set(projectionFor(input.current).requiredSkillIds);
 
   return COURSE_DEPTHS.map((depth) => {
@@ -70,9 +82,9 @@ export function depthOptions(input: DepthOptionsInput): DepthOption[] {
       skillCount: projection.requiredSkillIds.length,
       estimatedHours: projection.estimatedHours,
       current: depth === input.current,
-      dropped: [...currentRequired].filter((id) => !required.has(id)),
-      added: projection.requiredSkillIds.filter(
-        (id) => !currentRequired.has(id),
+      dropped: nameOf([...currentRequired].filter((id) => !required.has(id))),
+      added: nameOf(
+        projection.requiredSkillIds.filter((id) => !currentRequired.has(id)),
       ),
     };
   });

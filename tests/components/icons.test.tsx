@@ -12,8 +12,10 @@ import {
   DatabaseIcon,
   GoogleIcon,
   GridIcon,
+  LockIcon,
   MasteryIcon,
   PenIcon,
+  PlusIcon,
   PriceIcon,
   ProgressIcon,
   QuestionIcon,
@@ -48,6 +50,8 @@ const ALL = [
   ["ArrowIcon", ArrowIcon],
   ["ChevronIcon", ChevronIcon],
   ["CraftIcon", CraftIcon],
+  ["LockIcon", LockIcon],
+  ["PlusIcon", PlusIcon],
 ] as const;
 
 describe("the icon set", () => {
@@ -140,6 +144,34 @@ describe("the navigation marks", () => {
       (Icon) => render(<Icon />).container.innerHTML,
     );
     expect(new Set(drawn).size).toBe(drawn.length);
+  });
+});
+
+/**
+ * The four states a skill can be in on the path screen. They are the one place
+ * in the product where four marks appear side by side in the same list, so two
+ * of them drawn alike would not read as "similar" — it would read as the same
+ * state twice, and the list would be lying about half its rows.
+ */
+describe("the skill-state marks", () => {
+  it("gives every state a mark of its own", () => {
+    const drawn = [ArrowIcon, LockIcon, MasteryIcon, PlusIcon].map(
+      (Icon) => render(<Icon />).container.innerHTML,
+    );
+    expect(new Set(drawn).size).toBe(drawn.length);
+  });
+
+  /**
+   * Optional is an offer, not a refusal. A cross rotated out of `CloseIcon`
+   * would be the same path drawn at 45°, and "you may also take this" is not
+   * the thing a cross says.
+   */
+  it("draws optional as a plus rather than a cross", () => {
+    const { container } = render(<PlusIcon />);
+    const d = container.querySelector("path")!.getAttribute("d")!;
+
+    expect(d).toContain("M12 5.5v13");
+    expect(d).toContain("M5.5 12h13");
   });
 });
 

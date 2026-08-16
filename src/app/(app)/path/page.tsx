@@ -12,9 +12,7 @@ import { depthOptions } from "@/lib/goals/depth";
 import { currentCurriculum } from "@/lib/curriculum/store";
 import { resolvePack } from "@/lib/content/resolve";
 import { toEngineGraph } from "@/lib/packs/validate";
-import { layoutGraph } from "@/lib/packs/layout";
-import { effectiveMastery } from "@/lib/engine/bkt";
-import { CURRICULUM_MASTERED_THRESHOLD } from "@/lib/curriculum/validate";
+import { buildSkillMap } from "@/lib/goals/skill-map";
 import {
   Button,
   ButtonLink,
@@ -25,8 +23,10 @@ import {
   Status,
   MaturityBadge,
 } from "@/components/ui";
+import { ChevronIcon } from "@/components/icons";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { CourseOutline, OutlineLegend } from "@/components/course-outline";
+import { SkillMap } from "@/components/skill-map";
 import { buildPathAction, setDepthAction } from "./actions";
 
 /**
@@ -56,6 +56,48 @@ function countSkills(n: number): string {
 }
 
 /**
+ * Above this many, the list of what a switch changes folds away.
+ *
+ * The disclosure is not a way of hiding the answer — it is what keeps three
+ * cards in a row the same height when one of them would otherwise be a
+ * twenty-item list, and it is `<details>`, so the names are in the HTML either
+ * way and open with no JavaScript. Under the threshold nothing folds, because a
+ * four-line list a learner has to click for is a decision made deliberately
+ * harder to inspect.
+ */
+const CHANGE_INLINE_MAX = 4;
+
+/**
+ * What switching to this depth would actually change, by name.
+ *
+ * The dial used to say this on the button — "Drop 4 skills", "Add 1 skill" —
+ * which is a size without a content. Four skills out of a photography course
+ * could be the colour work or it could be the reason the learner signed up, and
+ * the screen whose whole job is the honest expectation-set was asking them to
+ * choose blind. So the names are the answer, and the button goes back to being
+ * a button.
+ */
+function DepthChange({ verb, skills }: { verb: string; skills: string[] }) {
+  return (
+    <details open={skills.length <= CHANGE_INLINE_MAX} className="group w-full">
+      <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <ChevronIcon className="size-3.5 text-ink-faint transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-90" />
+        <span className="text-[length:var(--text-label-size)] font-[550] text-ink">
+          {verb} {countSkills(skills.length)}
+        </span>
+      </summary>
+      <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 pl-6">
+        {skills.map((name) => (
+          <li key={name}>
+            <Meta>{name}</Meta>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
  * §8 screen 5 — the generated learning path.
  *
  * "The 'wow', and the honest expectation-set." Both halves are still here; what
@@ -77,46 +119,27 @@ function countSkills(n: number): string {
  * §24 E6's criterion is unchanged and still met — the DAG renders, and what was
  * skipped is listed with its reason, now beside the module it was skipped from.
  *
+ * **All three bands were then redrawn, for the same fault said three ways: the
+ * screen knew things it was not telling anyone.**
+ *
+ * - The outline said all four states with the same furniture — a dot and a word
+ *   mid-row — so a locked skill and an open one had identical silhouettes and
+ *   the list could only be read a line at a time. Every row leads with a mark
+ *   now (`course-outline.tsx`), and a lock is a lock from across the room.
+ * - The graph cut its labels with `slice(0, 20)`, which made every name in it
+ *   look misspelt, drew three of the four states, left each layer hard against
+ *   the left margin and joined them with straight diagonals. It is
+ *   `SkillMap` now, laid out by `buildSkillMap`, and it reads off the same
+ *   outline the list does so the two cannot disagree.
+ * - The depth dial put its whole answer on a button: "Drop 4 skills" is a size
+ *   with no content. Each option names them.
+ *
  * There is no percentage anywhere on this page (§24 E9).
  */
 export const metadata: Metadata = {
   title: "Your path",
   robots: { index: false, follow: false },
 };
-
-const NODE_W = 150;
-const NODE_H = 34;
-const GAP_X = 22;
-const GAP_Y = 84;
-
-/**
- * §8 screen 5's states, drawn with the palette that exists (§8.5.4 — no colour
- * is invented at a call site).
- *
- * The accent outline goes on what is *next*, not on what is finished: the
- * question this page answers is "what am I doing", and a graph that shouts
- * loudest about completed work answers the wrong one.
- */
-const STATE = {
-  current: {
-    fill: "var(--color-raised)",
-    stroke: "var(--color-accent)",
-    width: 2,
-    label: "On your path",
-  },
-  mastered: {
-    fill: "var(--color-accent-weak)",
-    stroke: "var(--color-hairline)",
-    width: 1,
-    label: "Already yours",
-  },
-  optional: {
-    fill: "var(--color-surface)",
-    stroke: "var(--color-hairline)",
-    width: 1,
-    label: "Optional",
-  },
-} as const;
 
 export default async function PathPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -128,8 +151,8 @@ export default async function PathPage() {
   /*
    * No course running, and no ownership check needed to say so.
    *
-   * This screen used to live at `/goals/{id}/path` and opened by comparing the
-   * id in the URL against the learner's active goal — because reading someone
+   * This screen used to live at `/goals/{id}/path` and open by comparing the id
+   * in the URL against the learner's active goal — because reading someone
    * else's path by guessing a UUID is not a feature. The id is gone and the
    * guarantee is stronger for it: there is no id to guess, and `activeGoal`
    * only ever returns this learner's own.
@@ -184,28 +207,9 @@ export default async function PathPage() {
     modules: stored?.modules,
   });
 
-  const names = new Map(graph.skills.map((s) => [s.id, s.name]));
-  const effective = new Map(
-    mastery.map((m) => [m.skillId, effectiveMastery(m, now)]),
-  );
-  const optional = new Set(projection.optionalSkillIds);
-
-  const layout = layoutGraph(graph);
-  const positions = new Map(
-    layout.nodes.map((n) => [
-      n.id,
-      { x: n.index * (NODE_W + GAP_X) + GAP_X, y: n.depth * GAP_Y + GAP_Y / 2 },
-    ]),
-  );
-  const svgWidth = layout.width * (NODE_W + GAP_X) + GAP_X;
-  const svgHeight = layout.depth * GAP_Y + GAP_Y;
-
-  const stateOf = (skillId: string) => {
-    if ((effective.get(skillId) ?? 0) > CURRICULUM_MASTERED_THRESHOLD) {
-      return STATE.mastered;
-    }
-    return optional.has(skillId) ? STATE.optional : STATE.current;
-  };
+  // Built from the outline rather than re-derived, so the picture and the list
+  // cannot end up saying two different things about the same skill.
+  const map = buildSkillMap(graph, outline);
 
   return (
     <AppFrame>
@@ -289,116 +293,71 @@ export default async function PathPage() {
           label="The graph"
           title="How the subject holds together"
         />
-        <Meta>
-          The same skills, laid out by depth — every one sits below what it
-          needs first.
-        </Meta>
-        <Card className="overflow-x-auto">
-          <svg
-            width={svgWidth}
-            height={svgHeight}
-            role="img"
-            aria-label={`Skill graph for ${pack.name}`}
-          >
-            {graph.dependencies.map((edge) => {
-              // Total by construction: the validator rejects a pack whose edge
-              // names a skill that does not exist, and layoutGraph places every
-              // skill in the graph.
-              const from = positions.get(edge.fromSkillId)!;
-              const to = positions.get(edge.toSkillId)!;
-              return (
-                <line
-                  key={`${edge.fromSkillId}-${edge.toSkillId}`}
-                  x1={from.x + NODE_W / 2}
-                  y1={from.y + NODE_H}
-                  x2={to.x + NODE_W / 2}
-                  y2={to.y}
-                  stroke="var(--color-hairline)"
-                  strokeDasharray={edge.type === "soft" ? "4 4" : undefined}
-                />
-              );
-            })}
-            {layout.nodes.map((node) => {
-              const at = positions.get(node.id)!;
-              const state = stateOf(node.id);
-              return (
-                <g key={node.id}>
-                  <rect
-                    x={at.x}
-                    y={at.y}
-                    width={NODE_W}
-                    height={NODE_H}
-                    rx={8}
-                    fill={state.fill}
-                    stroke={state.stroke}
-                    strokeWidth={state.width}
-                  />
-                  <text
-                    x={at.x + 10}
-                    y={at.y + 22}
-                    fill="var(--color-ink)"
-                    fontSize="12"
-                  >
-                    {names.get(node.id)!.slice(0, 20)}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-          <div className="mt-5 flex flex-wrap gap-x-5 gap-y-3 border-t border-hairline pt-4">
-            {Object.values(STATE).map((s) => (
-              <span key={s.label} className="flex items-center gap-2">
-                <span
-                  className="inline-block size-3 rounded-[3px]"
-                  style={{
-                    background: s.fill,
-                    border: `${s.width}px solid ${s.stroke}`,
-                  }}
-                />
-                <Meta>{s.label}</Meta>
-              </span>
-            ))}
-          </div>
-        </Card>
+        <Lead>
+          Read it downwards: nothing sits above the things it needs first. The
+          same {countSkills(graph.skills.length)} as the list, in the shape the
+          subject actually has rather than the order we happen to teach it in.
+        </Lead>
+        <SkillMap
+          layout={map}
+          label={`How the skills in ${pack.name} build on each other`}
+        />
       </section>
 
       {/* ── How much of the subject you're taking on ───────────────────── */}
       <section className="rise flex flex-col gap-6" style={stagger(3)}>
         <SectionHead label="How deep" title="How much of this you're taking on" />
         <Lead>
-          Each is priced against what you&rsquo;ve already shown you can do, so
-          these are your hours, not a brochure&rsquo;s. Switching never takes
-          away a skill you&rsquo;ve already proved.
+          Three sizes of the same subject, each priced against what you&rsquo;ve
+          already shown you can do &mdash; so these are your hours, not a
+          brochure&rsquo;s. Every option names the skills it would add or stop
+          asking for, and switching never takes away a skill you&rsquo;ve
+          already proved.
         </Lead>
         <ul className="grid list-none grid-cols-1 gap-3 p-0 m-0 sm:grid-cols-3">
           {depths.map((option) => {
             const copy = DEPTH_COPY[option.depth];
             return (
               <li key={option.depth} className="flex">
-                <Card className="flex flex-1 flex-col items-start gap-3 p-5">
+                <Card className="flex flex-1 flex-col items-start gap-4 p-5">
                   <div className="flex flex-col gap-1">
                     <strong className="text-[length:var(--text-label-size)] font-[var(--text-label-weight)]">
                       {copy.name}
                     </strong>
                     <Meta>
-                      {option.skillCount} skills &middot; {option.estimatedHours}
-                      h
+                      {countSkills(option.skillCount)} &middot;{" "}
+                      {option.estimatedHours}h
                     </Meta>
                   </div>
                   <Meta>{copy.blurb}</Meta>
-                  {option.current ? (
-                    <Status tone="verified">Your course</Status>
-                  ) : (
-                    <form
-                      action={setDepthAction.bind(null, goal.id, option.depth)}
-                    >
-                      <Button type="submit" variant="text">
-                        {option.dropped.length > 0
-                          ? `Drop ${countSkills(option.dropped.length)}`
-                          : `Add ${countSkills(option.added.length)}`}
-                      </Button>
-                    </form>
-                  )}
+
+                  {/* Both, rather than whichever is bigger. A shallower course
+                      only ever drops and a deeper one only ever adds, but the
+                      card should not be the thing that knows that. */}
+                  {option.dropped.length > 0 ? (
+                    <DepthChange verb="Leaves out" skills={option.dropped} />
+                  ) : null}
+                  {option.added.length > 0 ? (
+                    <DepthChange verb="Adds" skills={option.added} />
+                  ) : null}
+
+                  {/* `mt-auto` so the three cards' actions line up along the
+                      bottom however long their lists are, and the touch height
+                      so the card you are already on does not sit its status a
+                      few pixels below its neighbours' buttons. */}
+                  <div className="mt-auto flex min-h-[var(--touch-min)] items-center pt-1">
+                    {option.current ? (
+                      <Status tone="verified">Your course</Status>
+                    ) : (
+                      <form
+                        action={setDepthAction.bind(null, goal.id, option.depth)}
+                      >
+                        <Button type="submit" variant="text" className="-ml-3">
+                          Switch to {copy.name}
+                        </Button>
+                      </form>
+                    )}
+                  </div>
                 </Card>
               </li>
             );

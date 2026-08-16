@@ -34,6 +34,32 @@ import { lowerFirst } from "./projection";
 /** §16.1's eligibility filter, as a word. */
 export type SkillState = "proved" | "open" | "locked" | "optional";
 
+/**
+ * The word each state is shown as, authored once.
+ *
+ * It lives here rather than in a component because two of them draw it now —
+ * the outline list and the graph's legend — and a subject whose rows say
+ * "Locked" over a graph whose key says "Not yet" is a screen contradicting
+ * itself about its own vocabulary.
+ */
+export const SKILL_STATE_WORD: Record<SkillState, string> = {
+  open: "Open now",
+  locked: "Locked",
+  proved: "Already yours",
+  optional: "Optional",
+};
+
+/**
+ * Legend and marker order: what you can do, then what is in the way, then what
+ * is behind you, then what nobody asked you for.
+ */
+export const SKILL_STATES: SkillState[] = [
+  "open",
+  "locked",
+  "proved",
+  "optional",
+];
+
 /** A section takes the state of the most actionable thing in it. */
 export type SectionState = SkillState;
 
@@ -140,7 +166,11 @@ function noteFor(
   if (state === "locked") {
     return `Unlocks once you've done ${andList(blockers)}.`;
   }
-  return `Open to you now — you'll be able to ${lowerFirst(skill.canDoStatement)}.`;
+  // No "Open to you now —" in front of it any more. The row already carries the
+  // mark and the word for that, and a sentence whose first four words repeat the
+  // label beside it is four words the learner has to read past to reach the one
+  // thing the row could not otherwise tell them.
+  return `You'll be able to ${lowerFirst(skill.canDoStatement)}.`;
 }
 
 /** A section takes the state of the most actionable thing in it. */

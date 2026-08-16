@@ -150,13 +150,16 @@ describe("buildOutline without a generated curriculum", () => {
     );
   });
 
-  it("says what an open skill will get you", () => {
+  /**
+   * The sentence says the thing the row could not otherwise say, and no more.
+   * It used to open "Open to you now —", which is four words repeating the
+   * label printed beside it.
+   */
+  it("says what an open skill will get you, without repeating its own label", () => {
     const basics = skillNamed(outlineFor(), "Basics");
 
     expect(basics.state).toBe("open");
-    expect(basics.note).toBe(
-      "Open to you now — you'll be able to read a table without guessing.",
-    );
+    expect(basics.note).toBe("You'll be able to read a table without guessing.");
   });
 
   /**

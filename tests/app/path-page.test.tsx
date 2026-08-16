@@ -16,9 +16,6 @@ import type { MasteryState } from "@/lib/engine";
 const redirectMock = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
-const notFoundMock = vi.fn(() => {
-  throw new Error("NEXT_NOT_FOUND");
-});
 const getSessionMock = vi.fn();
 const activeGoalMock = vi.fn();
 const packFromDbMock = vi.fn(async () => undefined as unknown);
@@ -28,7 +25,6 @@ const currentCurriculumMock = vi.fn(async (): Promise<StoredCurriculum | undefin
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
-  notFound: () => notFoundMock(),
 }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ api: { getSession: getSessionMock } }),
@@ -47,12 +43,23 @@ vi.mock("@/lib/goals/store", () => ({
 vi.mock("@/lib/curriculum/store", () => ({
   currentCurriculum: (...a: unknown[]) => currentCurriculumMock(...(a as [])),
 }));
-vi.mock("@/app/(app)/goals/[id]/path/actions", () => ({
+// The screen absorbed `/goals/{id}/path`'s two `notFound()` branches when it
+// moved to `/path`: a rail destination that 404s at somebody with no course is
+// worse than one that makes them the same offer every other destination does.
+const standingForMock = vi.fn(async () => ({
+  building: undefined,
+  resume: undefined,
+  again: [],
+}));
+vi.mock("@/lib/goals/standing", () => ({
+  standingFor: (...a: unknown[]) => standingForMock(...(a as [])),
+}));
+vi.mock("@/app/(app)/path/actions", () => ({
   buildPathAction: vi.fn(),
   setDepthAction: vi.fn(),
 }));
 
-const { default: PathPage } = await import("@/app/(app)/goals/[id]/path/page");
+const { default: PathPage } = await import("@/app/(app)/path/page");
 
 const pack = findPack("photography")!;
 const GOAL_ID = "goal-1";
@@ -77,7 +84,6 @@ const goal = {
   },
 };
 
-const params = (id = GOAL_ID) => Promise.resolve({ id });
 
 const held = (skillId: string): MasteryState => ({
   skillId,
@@ -103,62 +109,113 @@ afterEach(cleanup);
 describe("access", () => {
   it("sends an unauthenticated visitor to sign in", async () => {
     getSessionMock.mockResolvedValue(null);
-    await expect(PathPage({ params: params() })).rejects.toThrow(
-      "REDIRECT:/sign-in",
+    await expect(PathPage()).rejects.toThrow("REDIRECT:/sign-in");
+  });
+
+  /**
+   * There is no id to guess any more.
+   *
+   * The screen used to take one in the URL and `notFound()` when it did not
+   * match — reading another learner's path by guessing a UUID is not a feature.
+   * One active course at a time is a transactional invariant, so the id only
+   * ever had one value; dropping it makes the guarantee structural rather than
+   * checked, because `activeGoal` can only return this learner's own.
+   */
+  it("shows the course off the session, never off the URL", async () => {
+    render(await PathPage());
+
+    expect(activeGoalMock).toHaveBeenCalledWith({}, "u1");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(
+      pack.name,
     );
   });
 
-  it("will not show a path for someone else's goal", async () => {
-    // Reading another learner's path by guessing a UUID is not a feature.
-    await expect(PathPage({ params: params("someone-elses") })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
-  });
-
-  it("404s when the learner has no goal at all", async () => {
+  /**
+   * A rail destination cannot 404 at the state half its visitors are in. Both
+   * branches that used to `notFound()` now make the same offer every other
+   * destination makes — see `NothingRunning`.
+   */
+  it("meets a learner with no course in the words the rest of the product uses", async () => {
     activeGoalMock.mockResolvedValue(undefined);
-    await expect(PathPage({ params: params() })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
+
+    render(await PathPage());
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Your path",
+    );
+    expect(
+      screen.getByRole("link", { name: "Tell us what you want" }),
+    ).toBeDefined();
+  });
+
+  it("says the same when the goal's pack has left the build", async () => {
+    activeGoalMock.mockResolvedValue({ ...goal, packSlug: "deleted-pack" });
+
+    render(await PathPage());
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Your path",
     );
   });
 
-  it("404s when the goal's pack has left the build", async () => {
-    activeGoalMock.mockResolvedValue({ ...goal, packSlug: "deleted-pack" });
-    await expect(PathPage({ params: params() })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+  it("offers a course they put aside rather than only the catalogue", async () => {
+    activeGoalMock.mockResolvedValue(undefined);
+    standingForMock.mockResolvedValue({
+      building: undefined,
+      resume: undefined,
+      again: [
+        {
+          goalId: "g-old",
+          name: "Photography",
+          taxonomyParent: "arts",
+          status: "paused",
+        },
+      ],
+    } as never);
+
+    render(await PathPage());
+
+    expect(screen.getByText("Pick one back up")).toBeDefined();
   });
 
   it("is noindexed in its own right as well as by the layout", async () => {
-    const { metadata } = await import("@/app/(app)/goals/[id]/path/page");
+    const { metadata } = await import("@/app/(app)/path/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });
 
+/**
+ * §24 E6's first half. The graph is `SkillMap` now — how it wraps a label and
+ * where it puts a box are that component's tests — so what is asserted at this
+ * level is that the page hands it the whole subject and that the picture and
+ * the list are telling the same story.
+ */
 describe("the DAG", () => {
-  it("draws a node per skill and an edge per dependency", async () => {
-    const { container } = render(await PathPage({ params: params() }));
+  const boxes = (container: HTMLElement) =>
+    container.querySelectorAll('svg[role="img"] > g > rect');
 
-    expect(container.querySelectorAll("svg rect")).toHaveLength(
-      pack.skills.length,
-    );
-    expect(container.querySelectorAll("svg line")).toHaveLength(
+  it("draws a node per skill and an edge per dependency", async () => {
+    const { container } = render(await PathPage());
+
+    expect(boxes(container)).toHaveLength(pack.skills.length);
+    expect(container.querySelectorAll('svg[role="img"] > path')).toHaveLength(
       pack.dependencies.length,
     );
   });
 
   it("distinguishes soft prerequisites from hard ones", async () => {
-    const { container } = render(await PathPage({ params: params() }));
-    const dashed = [...container.querySelectorAll("svg line")].filter((l) =>
-      l.getAttribute("stroke-dasharray"),
-    );
+    const { container } = render(await PathPage());
+    const dashed = [
+      ...container.querySelectorAll('svg[role="img"] > path'),
+    ].filter((l) => l.getAttribute("stroke-dasharray"));
+
     expect(dashed).toHaveLength(
       pack.dependencies.filter((d) => d.type === "soft").length,
     );
   });
 
   it("states the deadline when there is one, and omits it when there isn't", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.getByText(/by 2026-11-01/)).toBeDefined();
     cleanup();
 
@@ -166,17 +223,72 @@ describe("the DAG", () => {
       ...goal,
       spec: { ...goal.spec, deadline: null },
     });
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.queryByText(/by 2026-11-01/)).toBeNull();
     expect(screen.getByText(/4h a week/)).toBeDefined();
   });
 
-  it("carries a legend for every state it can draw", async () => {
-    render(await PathPage({ params: params() }));
-    for (const label of ["On your path", "Already yours", "Optional"]) {
-      // `getAll`, because two of the three words are also the outline's — the
-      // same state should read the same on both halves of the page.
+  /**
+   * The graph used to have a vocabulary of its own — "On your path" against the
+   * list's "Open now" — and only three states in it, so *locked*, the one thing
+   * a picture of prerequisites is uniquely good at showing, was the one thing it
+   * could not show. Same four words on both halves now.
+   */
+  it("keys itself with the same four states the list uses", async () => {
+    render(await PathPage());
+
+    for (const label of ["Open now", "Locked", "Already yours", "Optional"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    // And they are the list's words, not a second set: every state this learner
+    // is actually in appears on both halves of the page. ("Already yours" is
+    // the exception here only because nothing is proved yet, so the list's
+    // legend drops it — "0 already yours" is a sentence about nothing.)
+    for (const label of ["Open now", "Locked", "Optional"]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(1);
+    }
+    expect(screen.queryByText("On your path")).toBeNull();
+  });
+
+  /** Two kinds of line, and nothing on the old screen said what either was. */
+  it("says what a dashed line means", async () => {
+    render(await PathPage());
+
+    expect(screen.getByText("Needed before it")).toBeDefined();
+    expect(screen.getByText("Helps, but not required")).toBeDefined();
+  });
+
+  /**
+   * The fault that started the redesign: labels were cut with `slice(0, 20)`,
+   * so "The exposure triangle" was drawn as "The exposure triangl" and every
+   * name on the screen looked misspelt.
+   */
+  it("never cuts a skill name mid-word", async () => {
+    const { container } = render(await PathPage());
+    const drawn = [...container.querySelectorAll('svg[role="img"] text')].map(
+      (t) => t.textContent!,
+    );
+
+    // Every drawn fragment is a run of whole words from some skill's name.
+    const words = new Set(pack.skills.flatMap((s) => s.name.split(" ")));
+    for (const line of drawn) {
+      for (const word of line.split(" ")) {
+        expect(words.has(word), `${word} in "${line}"`).toBe(true);
+      }
+    }
+    // And the shortest name in the pack is still whole somewhere on it.
+    expect(drawn.join(" ")).toContain("The exposure triangle");
+  });
+
+  /** A wrapped label is readable; the full name has to survive for the tooltip. */
+  it("keeps every full name on the picture", async () => {
+    const { container } = render(await PathPage());
+    const titles = [...container.querySelectorAll('svg[role="img"] title')].map(
+      (t) => t.textContent!,
+    );
+
+    for (const s of pack.skills) {
+      expect(titles.some((t) => t.startsWith(`${s.name} —`))).toBe(true);
     }
   });
 });
@@ -188,7 +300,7 @@ describe("the DAG", () => {
  */
 describe("the outline", () => {
   it("lays out the whole subject before a path has been built", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
 
     // The pack's own areas, which is what the graph orders them by.
     expect(screen.getByText("Exposure")).toBeDefined();
@@ -198,7 +310,7 @@ describe("the outline", () => {
   it("names what a locked skill is waiting for", async () => {
     // The state the DAG could never draw: an untouched skill and an
     // unreachable one were the same rectangle.
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
 
     expect(screen.getAllByText("Locked").length).toBeGreaterThan(0);
     expect(
@@ -210,7 +322,7 @@ describe("the outline", () => {
     // §24 E6's acceptance criterion, and §8's "don't waste my time" promise
     // made visible.
     masteryForMock.mockResolvedValue([held(pack.skills[0]!.slug)]);
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
 
     expect(
       screen.getByText(/You already showed you can/),
@@ -218,12 +330,12 @@ describe("the outline", () => {
   });
 
   it("says nothing about skipping when nothing was skipped", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.queryByText(/You already showed you can/)).toBeNull();
   });
 
   it("counts the states above the list", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
 
     // Photography: 6 skills need nothing first, 8 are behind one of those, and
     // the single specialist sits outside a standard course.
@@ -235,7 +347,7 @@ describe("the outline", () => {
 
 describe("the modules", () => {
   it("offers to build a path when there isn't one yet", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.getByText("Build my path")).toBeDefined();
   });
 
@@ -296,7 +408,7 @@ describe("the modules", () => {
       ],
     });
 
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
 
     expect(screen.getByText("Getting the exposure right")).toBeDefined();
     expect(screen.getByText("Shoot it")).toBeDefined();
@@ -329,7 +441,7 @@ describe("the modules", () => {
       report: null,
       modules: [],
     });
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(
       screen.queryByText("What we checked before showing you this"),
     ).toBeNull();
@@ -339,7 +451,7 @@ describe("the modules", () => {
 describe("§24 E9's rule", () => {
   it("shows no percentage anywhere", async () => {
     masteryForMock.mockResolvedValue([held(pack.skills[0]!.slug)]);
-    const { container } = render(await PathPage({ params: params() }));
+    const { container } = render(await PathPage());
     // Measuring progress and measuring consumption are different things.
     expect(container.textContent).not.toMatch(/\d\s?%|percent/i);
   });
@@ -347,7 +459,7 @@ describe("§24 E9's rule", () => {
 
 describe("what the pack is", () => {
   it("says nothing extra about a pack a person wrote and checked", async () => {
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.queryByText(/Experimental/)).toBeNull();
   });
 
@@ -357,7 +469,7 @@ describe("what the pack is", () => {
     activeGoalMock.mockResolvedValue({ ...goal, packSlug: "rust-programming" });
     packFromDbMock.mockResolvedValue({ ...pack, slug: "rust-programming", maturity: "generated" });
 
-    render(await PathPage({ params: params() }));
+    render(await PathPage());
     expect(screen.getByText(/Experimental/)).toBeDefined();
   });
 });
@@ -369,7 +481,7 @@ describe("what the pack is", () => {
  */
 describe("the depth dial", () => {
   it("offers all three sizes and marks the one in force", async () => {
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+    render(await PathPage());
 
     expect(screen.getByText("Sprint")).toBeTruthy();
     expect(screen.getByText("Standard")).toBeTruthy();
@@ -378,7 +490,7 @@ describe("the depth dial", () => {
   });
 
   it("prices each size in skills and hours", async () => {
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+    render(await PathPage());
 
     // Photography: 10 skills at sprint, 14 at standard, 15 at mastery.
     expect(screen.getByText(/10 skills · 17h/)).toBeTruthy();
@@ -386,16 +498,60 @@ describe("the depth dial", () => {
     expect(screen.getByText(/15 skills · 27\.5h/)).toBeTruthy();
   });
 
-  it("says what switching costs, by number", async () => {
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+  /**
+   * The dial used to put its whole answer on the button — "Drop 4 skills" —
+   * which is the size of a decision with none of its content. Four skills out
+   * of a photography course could be the colour work or it could be the reason
+   * the learner signed up.
+   */
+  it("names the skills a switch would drop, not just how many", async () => {
+    render(await PathPage());
 
-    // Sprint drops the four advanced skills; mastery adds the one specialist.
-    expect(screen.getByRole("button", { name: /Drop 4 skills/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Add 1 skill$/ })).toBeTruthy();
+    const { container } = render(await PathPage());
+    const sprint = [...container.querySelectorAll("details.group.w-full")].find(
+      (d) => d.textContent?.startsWith("Leaves out 4 skills"),
+    )!;
+
+    // Sprint drops the four advanced skills, by name.
+    expect(sprint).toBeDefined();
+    for (const name of [
+      "Working within dynamic range",
+      "Focal length and perspective",
+      "Separating subject from background",
+      "Tonal correction",
+    ]) {
+      expect(sprint.textContent).toContain(name);
+    }
+    // Four is under the threshold, so it is simply there: a four-line list a
+    // learner has to click for is a decision made harder to inspect.
+    expect(sprint.hasAttribute("open")).toBe(true);
+  });
+
+  it("names the skill a deeper course would take on", async () => {
+    const { container } = render(await PathPage());
+    const mastery = [...container.querySelectorAll("details.group.w-full")].find(
+      (d) => d.textContent?.startsWith("Adds 1 skill"),
+    )!;
+
+    // Mastery adds the one specialist.
+    expect(mastery).toBeDefined();
+    expect(mastery.textContent).toContain("Consistency across a set");
+  });
+
+  it("puts the action on the button and the answer above it", async () => {
+    render(await PathPage());
+
+    expect(
+      screen.getByRole("button", { name: "Switch to Sprint" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Switch to Mastery" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Drop 4 skills/ })).toBeNull();
   });
 
   it("promises that a switch cannot cost a proved skill", async () => {
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+    render(await PathPage());
 
     expect(
       screen.getByText(/never takes away a skill you.{0,3}ve already proved/i),
@@ -403,7 +559,7 @@ describe("the depth dial", () => {
   });
 
   it("describes each size by what the learner gets, not how it is computed", async () => {
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+    render(await PathPage());
 
     // §8's honesty rule cuts both ways: the copy must not leak the mechanism.
     expect(screen.queryByText(/prerequisite closure/i)).toBeNull();
@@ -415,10 +571,34 @@ describe("the depth dial", () => {
       ...goal,
       spec: { ...goal.spec, depth: "sprint" },
     });
-    render(await PathPage({ params: Promise.resolve({ id: GOAL_ID }) }));
+    render(await PathPage());
 
-    // Nothing to drop from the shortest course; both others only add.
-    expect(screen.queryByRole("button", { name: /Drop/ })).toBeNull();
-    expect(screen.getAllByRole("button", { name: /Add/ }).length).toBe(2);
+    // Nothing to leave out of the shortest course; both others only add.
+    expect(screen.queryByText(/Leaves out/)).toBeNull();
+    expect(screen.getAllByText(/^Adds /).length).toBe(2);
+    expect(
+      screen.getAllByRole("button", { name: /^Switch to / }).length,
+    ).toBe(2);
+  });
+
+  /**
+   * A long list folds so that three cards in a row stay the same height. It is
+   * `<details>`, so the names are in the HTML either way — the disclosure is a
+   * layout decision, never a way of not answering.
+   */
+  it("folds a long list of changes rather than stretching the card", async () => {
+    activeGoalMock.mockResolvedValue({
+      ...goal,
+      spec: { ...goal.spec, depth: "mastery" },
+    });
+    const { container } = render(await PathPage());
+
+    // Sprint leaves out five skills from a mastery course, standard one.
+    const sprint = [...container.querySelectorAll("details.group.w-full")].find(
+      (d) => d.textContent?.startsWith("Leaves out 5 skills"),
+    )!;
+
+    expect(sprint.hasAttribute("open")).toBe(false);
+    expect(sprint.textContent).toContain("Consistency across a set");
   });
 });
