@@ -35,6 +35,43 @@ export const curriculum = pgTable("curriculum", {
   status: text("status").notNull().default("draft"),
 });
 
+/**
+ * A path build in flight, for the screen that has to wait for it.
+ *
+ * Cutting a goal into modules is up to two model calls and a validator, and it
+ * used to run inside the server action the button posted to — so the learner
+ * pressed "Build my path" and got a page that sat there, silent, for as long as
+ * that took. §14.9.3 allows a synchronous action "only where a human is
+ * waiting", and the human waiting was exactly the problem: nothing could tell
+ * them anything, because the only record of the work was a promise on the
+ * request.
+ *
+ * So the work went to the queue and this is what the queue writes down for the
+ * learner to read. Same shape as `pack_build` and for the same reasons — a
+ * status, a phase, and a `started_at` the screen can call stopped when it has
+ * outlived the timeout — minus everything about quotas and sharing, which are
+ * `pack_build`'s problems and not this one's: a curriculum belongs to a single
+ * goal and is no use to anybody else.
+ *
+ * The goal is the primary key rather than a column, which makes the insert the
+ * lock: a learner who double-presses the button starts one build, not two.
+ */
+export const curriculumBuild = pgTable("curriculum_build", {
+  goalId: uuid("goal_id")
+    .primaryKey()
+    .references(() => learningGoal.id, { onDelete: "cascade" }),
+  /** building | ready | failed | skipped — see `PathBuildStatus`. */
+  status: text("status").notNull().default("building"),
+  /** Null until the worker picks the row up: queued, not yet started. */
+  stage: text("stage"),
+  /** Why it stopped, or why there turned out to be nothing to build. */
+  detail: text("detail"),
+  startedAt: timestamp("started_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
 export const curriculumModule = pgTable(
   "curriculum_module",
   {

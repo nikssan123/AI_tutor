@@ -7,6 +7,7 @@ import { activeGoal, masteryFor } from "@/lib/goals/store";
 import { projectSkills } from "@/lib/goals/projection";
 import { entitlementsForUser } from "@/lib/billing/store";
 import { generateValidatedCurriculum, type CurriculumSource } from "./generate";
+import type { PathBuildStage } from "./build-state";
 import { saveCurriculum } from "./store";
 
 /**
@@ -42,6 +43,14 @@ export type BuildOutcome =
 export interface BuildDeps {
   db: Db;
   client: Anthropic;
+  /**
+   * Where the run has got to, for the learner watching `/path`.
+   *
+   * Optional, and the shape of that option matters: this is fire-and-report, so
+   * a caller that passes one is asking to be told, not adding a dependency the
+   * build now needs. Nothing downstream reads a stage.
+   */
+  onStage?: (stage: PathBuildStage) => Promise<void>;
 }
 
 export interface BuildInput {
@@ -87,6 +96,7 @@ export async function buildCurriculumFor(
     {
       client: deps.client,
       db: deps.db,
+      onStage: deps.onStage,
       userId: input.userId,
       plan: resolved.planId,
       aiCurriculum: resolved.entitlements.aiCurriculum,
@@ -116,6 +126,8 @@ export async function buildCurriculumFor(
   );
 
   if (outcome.draft === null) return { built: false, reason: "nothing-to-teach" };
+
+  await deps.onStage?.("saving");
 
   await saveCurriculum(deps.db, {
     goalId: goal.id,

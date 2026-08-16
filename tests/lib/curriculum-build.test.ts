@@ -175,4 +175,42 @@ describe("buildCurriculumFor", () => {
     expect(outcome).toEqual({ built: false, reason: "nothing-to-teach" });
     expect(saveMock).not.toHaveBeenCalled();
   });
+
+  /**
+   * The wire between the run and the screen watching it. Passed straight down
+   * to the generator, which knows the phases this layer cannot see, and fired
+   * here for the one it can.
+   */
+  it("reports the phase it owns, and hands the rest to the generator", async () => {
+    const stages: string[] = [];
+
+    await buildCurriculumFor(
+      { ...deps, onStage: async (stage) => void stages.push(stage) },
+      input,
+    );
+
+    const [generateDeps] = generateMock.mock.calls[0] as [
+      { onStage?: (s: string) => Promise<void> },
+    ];
+    expect(generateDeps.onStage).toBeDefined();
+    // `saving` is the only phase this layer is in a position to report: it is
+    // the one that happens after the generator has handed back a draft.
+    expect(stages).toEqual(["saving"]);
+  });
+
+  it("says nothing about a run nobody is watching", async () => {
+    generateMock.mockResolvedValue({
+      draft: null,
+      report: null,
+      source: "none",
+      repairs: [],
+      attempts: 2,
+    });
+
+    // No `onStage`, no throw: a build the queue is not reporting on is the
+    // ordinary case for a script or a test.
+    await expect(buildCurriculumFor(deps, input)).resolves.toMatchObject({
+      built: false,
+    });
+  });
 });

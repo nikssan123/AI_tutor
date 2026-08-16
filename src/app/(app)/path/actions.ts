@@ -5,23 +5,31 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { getAuth } from "@/lib/auth";
-import { getAnthropic } from "@/lib/ai/client";
-import { setGoalDepth } from "@/lib/goals/store";
+import { activeGoal, setGoalDepth } from "@/lib/goals/store";
 import { CourseDepthSpec } from "@/lib/contracts/goal";
-import { buildCurriculumFor } from "@/lib/curriculum/build";
+import { claimPathBuild, finishPathBuild } from "@/lib/curriculum/build-state";
+import { EVENTS, inngest } from "@/lib/inngest/client";
 
 /**
  * Rebuilding the curriculum for a goal, on request.
  *
- * §14.9.3 — "sync only where a human is waiting" — is why this stayed a server
- * action rather than moving wholesale to the queue. It is no longer the *only*
- * way a path gets built: creating a goal now asks for one (`start/actions.ts`),
- * and this is what remains once that is true — the door for a goal that predates
- * the automatic build, and for a learner who changed depth and wants the modules
- * re-cut around the change.
+ * The door for a goal that predates the automatic build — creating a goal asks
+ * the queue for a path (`start/actions.ts`) — and for a learner who changed
+ * depth and wants the modules re-cut around the change.
  *
- * The work itself is `buildCurriculumFor`, shared with the queue, so the two
- * cannot drift into building subtly different courses.
+ * **It used to do the work here, and §14.9.3's "sync only where a human is
+ * waiting" was the argument for it.** The argument was backwards. A human
+ * waiting is the reason to get the work *off* the request: a server action
+ * posts over `fetch`, so there is no navigation for the browser to spin, and
+ * the learner pressed a button and watched an unchanged page for up to two
+ * model calls and a validator. Nothing could tell them otherwise, because the
+ * only record that anything was happening was the pending request itself —
+ * reload it and the evidence was gone while the work carried on invisibly.
+ *
+ * So this claims `curriculum_build`, hands the event to the queue and returns.
+ * The row is what the screen reads, and `buildCurriculumFor` — the same
+ * function, still shared, so the two doors cannot build subtly different
+ * courses — now runs where it can take as long as it takes.
  */
 /**
  * Move the goal to another depth (PLAN-ADAPTATION).
@@ -58,17 +66,50 @@ export async function buildPathAction(goalId: string): Promise<void> {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
 
-  const outcome = await buildCurriculumFor(
-    { db: getDb(), client: getAnthropic() },
-    { userId: session.user.id, goalId },
-  );
+  const db = getDb();
 
-  // Two of the three failures mean there is no path screen to come back to: the
-  // goal is not this learner's active one, or the pack it was created against
-  // is gone. Both used to be an ownership check and a `resolvePack` here, and
-  // both still land on `/today`. The third — nothing left to teach — is a state
-  // the screen itself has something to say about, so it re-renders.
-  if (!outcome.built && outcome.reason !== "nothing-to-teach") redirect("/today");
+  /*
+   * The ownership check the build used to do on our behalf.
+   *
+   * `buildCurriculumFor` still refuses a goal that is not this learner's active
+   * one — it has to, because an event can arrive after they have moved on — but
+   * that check now happens in a worker, minutes later, where it can only be
+   * written into a row. Somebody posting another learner's goal id at this
+   * endpoint would get a claimed build and a wait screen for a course they
+   * cannot see, so it is refused here too, before anything is written.
+   */
+  const goal = await activeGoal(db, session.user.id);
+  if (!goal || goal.id !== goalId) redirect("/today");
+
+  // A second press while one is running joins it rather than starting another
+  // — the row is the lock. Either way the screen below renders the wait.
+  await claimPathBuild(db, goal.id);
+
+  try {
+    await inngest.send({
+      name: EVENTS.buildPath,
+      data: { userId: session.user.id, goalId: goal.id },
+    });
+  } catch (error) {
+    /*
+     * The learner is standing in front of this one, which is what makes it
+     * different from `/start`'s dispatch of the same event: there, nobody is
+     * waiting and a failure is logged and swallowed. Here, a swallowed failure
+     * is a wait screen counting up to a ten-minute timeout for a run that was
+     * never queued.
+     *
+     * So it is written into the row it claimed, and the screen says so on the
+     * next refresh. In development the usual cause is the Inngest dev server
+     * not running — `pnpm inngest:dev`, or the `inngest` service in
+     * `docker-compose.yml`.
+     */
+    console.error("[path] could not queue a path build for", goal.id, error);
+    await finishPathBuild(db, goal.id, {
+      status: "failed",
+      detail:
+        "We could not hand the build over to be run. Nothing was started, and nothing was charged for.",
+    });
+  }
 
   revalidatePath("/path");
 }

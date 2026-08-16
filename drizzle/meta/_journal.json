@@ -169,6 +169,13 @@
       "when": 1786839593214,
       "tag": "0023_magenta_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786878193595,
+      "tag": "0024_bitter_lockheed",
+      "breakpoints": true
     }
   ]
 }

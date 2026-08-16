@@ -656,6 +656,65 @@ describe("generateValidatedCurriculum", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * The phases a wait screen reads, reported as they are reached.
+   *
+   * `/path` used to show nothing at all while this ran, because the build
+   * happened inside a server action and left no record of itself anywhere a
+   * page could read. These are what replaced the guessing: a step is running
+   * because the pipeline said so.
+   */
+  it("reports each phase it reaches to whoever is watching", async () => {
+    const good = draftOf([mod(0, ["alpha"]), mod(1, ["beta"]), mod(2, ["gamma"])]);
+    const { client } = modelReturning([good]);
+    const stages: string[] = [];
+
+    await generateValidatedCurriculum(
+      {
+        client,
+        db,
+        userId: null,
+        spotCheck: clean,
+        onStage: async (stage) => void stages.push(stage),
+      },
+      architectInput,
+    );
+
+    expect(stages).toEqual(["planning", "checking"]);
+  });
+
+  /**
+   * A second draft after a failed first one is what happened, and the screen is
+   * meant to see it go back. A progress list that only ever moves forwards has
+   * been asked to flatter the run rather than report it.
+   */
+  it("goes back to planning when it falls back, rather than looking finished", async () => {
+    const broken = draftOf([mod(0, ["ghost"]), mod(1, ["ghoul"]), mod(2, ["wraith"])]);
+    const { client } = modelReturning([broken, broken]);
+    const stages: string[] = [];
+
+    const outcome = await generateValidatedCurriculum(
+      {
+        client,
+        db,
+        userId: null,
+        spotCheck: clean,
+        onStage: async (stage) => void stages.push(stage),
+      },
+      architectInput,
+    );
+
+    expect(outcome.source).toBe("canonical");
+    expect(stages).toEqual([
+      "planning",
+      "checking",
+      "planning",
+      "checking",
+      "planning",
+      "checking",
+    ]);
+  });
+
   it("repairs a fixable curriculum rather than regenerating it", async () => {
     // Missing prerequisite — mechanical, so it is patched on the first attempt
     // instead of spending a second generation on it.

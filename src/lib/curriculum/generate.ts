@@ -6,6 +6,7 @@ import type {
   CurriculumDraft,
   ValidatorReport,
 } from "@/lib/contracts/curriculum";
+import type { PathBuildStage } from "./build-state";
 import { factualSpotChecker, generateCurriculum, type ArchitectInput } from "./architect";
 import { canonicalCurriculum, type CanonicalProject } from "./canonical";
 import { applyRepairs, isRepairable } from "./repair";
@@ -70,6 +71,19 @@ export interface GenerateDeps {
    * now gets its citations checked rather than assumed.
    */
   resources?: CitedResource[];
+  /**
+   * Where the run has got to, for whoever is waiting on it.
+   *
+   * Optional because most callers are not being watched — a test, a script, the
+   * validator's own fixtures — and a run nobody is waiting on owes nobody a
+   * progress report. The queue passes one, and it writes the phase to the row
+   * `/path` reads.
+   *
+   * Reported rather than derived: the alternative is a screen that guesses from
+   * elapsed time, which is a bar that fills on a timer knowing nothing about
+   * the run underneath it.
+   */
+  onStage?: (stage: PathBuildStage) => Promise<void>;
 }
 
 export async function generateValidatedCurriculum(
@@ -77,6 +91,11 @@ export async function generateValidatedCurriculum(
   input: ArchitectInput,
 ): Promise<GenerateOutcome> {
   const spotCheck = deps.spotCheck ?? factualSpotChecker(deps.client);
+
+  /** One place for "nobody is watching", rather than a `?.` at every phase. */
+  const stage = async (reached: PathBuildStage): Promise<void> => {
+    await deps.onStage?.(reached);
+  };
 
   const validationFor = (draft: CurriculumDraft): ValidationInput => ({
     draft,
@@ -126,6 +145,8 @@ export async function generateValidatedCurriculum(
   while (mayGenerate && attempts < MAX_GENERATION_ATTEMPTS) {
     attempts += 1;
 
+    await stage("planning");
+
     const result = await logCall(
       deps.db,
       deps.userId,
@@ -134,6 +155,8 @@ export async function generateValidatedCurriculum(
 
     // A refusal or an unparseable draft is not something a repair can fix.
     if (result.status !== "ok") continue;
+
+    await stage("checking");
 
     const report = await runValidator(validationFor(result.value), spotCheck);
     if (report.passed) {
@@ -158,6 +181,12 @@ export async function generateValidatedCurriculum(
 
   /* ── Fall back (§14.9.5) ──────────────────────────────────────────────── */
 
+  // Back to `planning`, and the screen watching this is meant to see it go
+  // back. A second draft after a failed first one is what happened, and a
+  // progress list that only ever moves forwards is one that has been asked to
+  // flatter the run rather than report it.
+  await stage("planning");
+
   const canonical = canonicalCurriculum({
     graph: input.graph,
     requiredSkillIds: input.goalSkillIds,
@@ -170,6 +199,8 @@ export async function generateValidatedCurriculum(
   if (canonical === null) {
     return { draft: null, report: null, source: "none", repairs: [], attempts };
   }
+
+  await stage("checking");
 
   return {
     draft: canonical,
