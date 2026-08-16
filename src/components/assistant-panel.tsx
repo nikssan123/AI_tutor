@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AheadList } from "@/components/ahead-list";
 import { CalendarMonth } from "@/components/calendar-month";
+import { GeneratedProse } from "@/components/generated-prose";
 import type {
   AheadListPayload,
   CalendarMonthPayload,
@@ -388,9 +389,33 @@ export function AssistantPanel() {
                     ) : (
                       turn.segments.map((segment, s) =>
                         segment.kind === "text" ? (
-                          <span key={s} className="whitespace-pre-wrap">
-                            {segment.text}
-                          </span>
+                          /*
+                           * A model writes markdown whether or not anything
+                           * asked it to, and this thread was printing the
+                           * characters: `**Step 1**` and fenced blocks, read by
+                           * a learner as asterisks and backticks.
+                           * `GeneratedProse` is the renderer the session screen
+                           * already uses for exactly this — the same rule the
+                           * widgets follow, applied to prose.
+                           *
+                           * The assistant's turns only. What the learner typed
+                           * is not model output, and running it through a
+                           * markdown renderer would restyle their own question
+                           * back at them — which is what happened the first
+                           * time this was written, and what the test below
+                           * catches.
+                           */
+                          turn.role === "assistant" ? (
+                            <GeneratedProse
+                              key={s}
+                              text={segment.text}
+                              variant="compact"
+                            />
+                          ) : (
+                            <span key={s} className="whitespace-pre-wrap">
+                              {segment.text}
+                            </span>
+                          )
                         ) : (
                           /* Capped and scrolling inside itself, so a month grid
                              cannot push the composer off the bottom of the

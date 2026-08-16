@@ -330,6 +330,52 @@ describe("AssistantPanel", () => {
     expect(screen.getByRole("button", { name: "Show me my calendar" })).toBeDefined();
   });
 
+  /**
+   * A model writes markdown whether or not anything asked it to, and this
+   * thread was printing the characters. The renderer is the session screen's,
+   * not a second one — so the assertion is that the marks are *gone* from the
+   * text and the structure arrived instead.
+   */
+  it("renders the markdown a model writes, rather than printing it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming(
+        `${JSON.stringify({
+          t: "text",
+          v: "**Two things** are due:\n\n- Window functions\n- A hand-in\n\nRun `pnpm start` first.",
+        })}\n{"t":"done"}\n`,
+      ) as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "What should I do next?" }));
+
+    await waitFor(() => expect(screen.getByText("Two things")).toBeDefined());
+
+    // The marks themselves never reach the learner.
+    expect(screen.queryByText(/\*\*Two things\*\*/)).toBeNull();
+    expect(screen.getByText("Window functions")).toBeDefined();
+    expect(screen.getByText("pnpm start")).toBeDefined();
+  });
+
+  /** The learner's own words are not model output — running them through a
+      markdown renderer would restyle their question back at them. */
+  it("leaves what the learner typed exactly as they typed it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      streaming('{"t":"text","v":"ok"}\n{"t":"done"}\n') as unknown as Response,
+    );
+
+    render(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    const input = screen.getByLabelText("Ask the assistant") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "what does **this** mean?" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => expect(screen.getByText("ok")).toBeDefined());
+    expect(screen.getByText("what does **this** mean?")).toBeDefined();
+  });
+
   it("streams an answer, reassembling objects split across chunks", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
