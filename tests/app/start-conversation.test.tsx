@@ -109,8 +109,12 @@ vi.mock("@/lib/goals/intake-store", async (importOriginal) => ({
     saveIntakeMock(db, userId, next),
   clearIntake: (...a: unknown[]) => clearIntakeMock(...(a as [])),
 }));
+const goalsForMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 vi.mock("@/lib/goals/store", () => ({
   createGoal: (...a: unknown[]) => createGoalMock(...(a as [])),
+  // Read by the adopt action to stay idempotent, and by the closed-intake
+  // screen to point at the course it is telling them they already have.
+  goalsFor: (...a: unknown[]) => goalsForMock(...(a as [])),
 }));
 /**
  * How many packs this account has ever commissioned — the free tier's lifetime
@@ -230,6 +234,9 @@ beforeEach(() => {
   findBuildMock.mockResolvedValue(undefined);
   // Nobody owns anything until a test says so, for the same reason.
   commissionedMock.mockResolvedValue(0);
+  // Same again: a learner who has already adopted a course leaks into every
+  // later case as an unexpected redirect if this is not put back.
+  goalsForMock.mockResolvedValue([]);
   ownsBuildMock.mockResolvedValue(false);
   packMock.mockImplementation(async (_db: unknown, slug: unknown) =>
     slug === "photography"
@@ -922,6 +929,42 @@ describe("the screen", () => {
     ).toBe("/pricing");
   });
 
+  it("points at the course it just told them they already have", async () => {
+    /*
+     * The screen named the course — "we built you a course for a subject
+     * nobody had curated" — and then offered the catalogue and a price list,
+     * with no way into the thing it had just described. That reads as a wall to
+     * somebody who is standing here *because* they succeeded, and it is where
+     * a second press of "See my plan" used to land them.
+     */
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    goalsForMock.mockResolvedValue([
+      { id: "g-9", packSlug: "photography", spec: {}, status: "active" },
+    ]);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    render(await StartPage({ searchParams: search() }));
+
+    const open = screen.getByRole("link", { name: "Open my course" });
+    expect(open.getAttribute("href")).toBe("/goals/g-9/path");
+    // Named by the pack rather than by its slug: the course is called
+    // "Photography", not "photography".
+    expect(screen.getByText("Photography")).toBeDefined();
+  });
+
+  it("says nothing about a course when there is no goal to point at", async () => {
+    // A learner can reach this wall with the build still running, or with the
+    // pack discarded by an operator. An "Open my course" link to nothing would
+    // be worse than the wall it was meant to soften.
+    onFreePlan();
+    commissionedMock.mockResolvedValue(1);
+    intake = { ...EMPTY_INTAKE, captured: captured(), done: true };
+
+    render(await StartPage({ searchParams: search() }));
+    expect(screen.queryByRole("link", { name: "Open my course" })).toBeNull();
+  });
+
   it("does not offer to retry the build at any price", async () => {
     // A stopped build is not theirs to retry however much they pay — it is the
     // team's. Selling a fix that money does not buy is what §4.2 law 3 is for.
@@ -1273,7 +1316,7 @@ describe("turning the conversation into a goal", () => {
     };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/today",
+      "REDIRECT:/goals/goal-1/path",
     );
     expect(createGoalMock).toHaveBeenCalledOnce();
     expect(startBuildMock).not.toHaveBeenCalled();
@@ -1446,12 +1489,69 @@ describe("turning the conversation into a goal", () => {
     };
 
     await expect(buildFromConversationAction()).rejects.toThrow(
-      "REDIRECT:/today",
+      "REDIRECT:/goals/goal-1/path",
     );
     expect(startBuildMock).not.toHaveBeenCalled();
     expect(createGoalMock.mock.calls[0]![1]).toMatchObject({
       packSlug: "photography",
     });
+  });
+
+  /**
+   * Every new goal asks the queue to cut it into modules.
+   *
+   * `EVENTS.buildPath` had no sender for the whole life of the product, so a
+   * curriculum only ever existed if its owner found the button on the path
+   * screen — and a goal without one has no checkpoints, which is why
+   * `/calendar` opened empty on a course that had only just been built.
+   */
+  it("asks the queue for a path for the goal it just created", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      captured: captured({ matchedPack: "photography" }),
+      done: true,
+    };
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/goals/goal-1/path",
+    );
+
+    expect(sendMock).toHaveBeenCalledWith({
+      name: "goal/path.requested",
+      data: { userId: "u1", goalId: "goal-1" },
+    });
+  });
+
+  /**
+   * And a queue that cannot be reached does not cost them the goal.
+   *
+   * Unlike a pack build there is no quota to protect and no row to mark: the
+   * goal is written, the path screen still lays the whole subject out from the
+   * pack's areas, and "Build my path" is the recovery. Failing the action here
+   * would throw away a finished conversation over a dev server nobody started.
+   */
+  it("still lands the learner on their path when the queue is unreachable", async () => {
+    intake = {
+      ...EMPTY_INTAKE,
+      captured: captured({ matchedPack: "photography" }),
+      done: true,
+    };
+    sendMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(buildFromConversationAction()).rejects.toThrow(
+      "REDIRECT:/goals/goal-1/path",
+    );
+
+    // Swallowed for the learner, reported to whoever is running the server —
+    // the same split `dispatchBuild` draws, and the half that was missing when
+    // an unreachable queue first showed up as a bare `fetch failed`.
+    expect(logged).toHaveBeenCalledWith(
+      "[goals] could not queue a path build for",
+      "goal-1",
+      expect.any(TypeError),
+    );
+    logged.mockRestore();
   });
 
   it("falls back to the conversation when the chosen course is gone", async () => {
@@ -1764,7 +1864,7 @@ describe("adopting a pack that finished building", () => {
 
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
-    ).rejects.toThrow("REDIRECT:/today");
+    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
     expect(createGoalMock).toHaveBeenCalledOnce();
   });
 
@@ -1779,6 +1879,31 @@ describe("adopting a pack that finished building", () => {
     await expect(
       adoptBuiltPackAction(form({ slug: "photography" })),
     ).rejects.toThrow("REDIRECT:/start");
+  });
+
+  it("opens the course they already adopted rather than bouncing them", async () => {
+    /*
+     * The bug, reported from the wait screen: "See my plan" pressed twice.
+     *
+     * `finish` clears the intake on its way out, so the second press found no
+     * captured answers and fell through to `/start` — which, on a free account
+     * that has spent its one custom subject, is the closed-intake wall. It says
+     * "we built you a course for a subject nobody had curated" and then offers
+     * the catalogue and a price list: bounced off their own finished course by
+     * the button that exists to open it. The wait screen is a URL people leave
+     * open and reload, so this is an ordinary path, not an exotic one.
+     */
+    intake = { ...EMPTY_INTAKE };
+    goalsForMock.mockResolvedValue([
+      { id: "g-9", packSlug: "photography", spec: {}, status: "active" },
+    ]);
+
+    await expect(
+      adoptBuiltPackAction(form({ slug: "photography" })),
+    ).rejects.toThrow("REDIRECT:/goals/g-9/path");
+    // Idempotent, not merely redirected: a second goal for the same pack would
+    // be a duplicate course with the same name in the learner's list.
+    expect(createGoalMock).not.toHaveBeenCalled();
   });
 });
 

@@ -26,7 +26,7 @@ import {
   parseGoalForm,
 } from "@/lib/goals/intake";
 import { slugify } from "@/lib/packs/generate/derive";
-import { createGoal } from "@/lib/goals/store";
+import { createGoal, goalsFor } from "@/lib/goals/store";
 import { PACK_FIELD, projectStartHref } from "@/lib/goals/project-start";
 import type { DomainPack } from "@/lib/packs/types";
 import { finishBuild, startBuild } from "@/lib/packs/build";
@@ -165,6 +165,42 @@ async function dispatchBuild(
 }
 
 /**
+ * Asks the queue to cut the new goal into modules.
+ *
+ * Every goal has always needed this and no goal ever got it: `EVENTS.buildPath`
+ * had no sender, so the only way to a curriculum was a button on
+ * `/goals/[id]/path` that nothing in the product linked to. A learner without
+ * one has no checkpoints, which is why `/calendar` opened empty on a course that
+ * had only just been built, and their outline stays grouped by the pack's own
+ * areas rather than by modules that each end in something they hand in.
+ *
+ * Queued rather than awaited, for §14.9.3's reason and not merely for speed:
+ * generation is up to two model calls and tens of seconds, and the learner is
+ * on their way to `/today`, which does not read the curriculum. Nothing they are
+ * about to look at is waiting on this.
+ *
+ * **A dispatch failure is not allowed to cost them the goal.** Unlike a pack
+ * build there is no quota to protect and no row to mark — the goal is already
+ * written, `/today` already works, and the path screen still lays the whole
+ * subject out from the pack's areas. So this is logged for whoever is running
+ * the server (in development the usual cause is the Inngest dev server not
+ * running — `pnpm inngest:dev`, or the `inngest` service in
+ * `docker-compose.yml`) and swallowed. "Build my path" on the path screen is
+ * what the learner is left with, which is exactly what every learner had before
+ * this function existed.
+ */
+async function dispatchPathBuild(userId: string, goalId: string): Promise<void> {
+  try {
+    await inngest.send({
+      name: EVENTS.buildPath,
+      data: { userId, goalId },
+    });
+  } catch (error) {
+    console.error("[goals] could not queue a path build for", goalId, error);
+  }
+}
+
+/**
  * §7.1's Generated tier, and the quota that lets the free tier have one.
  *
  * Authoring a pack costs ~78¢ — six times what is left of a free month's
@@ -283,15 +319,31 @@ async function finish(
     now,
   });
 
+  // Before the redirect, so the work is already queued by the time the path
+  // screen renders — and after `createGoal`, because the goal id is what the
+  // worker is being asked about.
+  await dispatchPathBuild(userId, goalId);
+
   // The conversation has done its job; leaving it behind would greet them with
   // their old answers the next time they set a goal.
   await clearIntake(db, userId);
 
-  // `/today` rather than the path screen, which is where the form has always
-  // landed. Both intakes end in the same place on purpose — the conversation is
-  // a different way to fill the same spec, not a different product.
-  void goalId;
-  redirect("/today");
+  /*
+   * The path screen, which is the next thing that has to happen.
+   *
+   * Both intakes still end in the same place — that was always the point, and
+   * it holds — but the place was wrong. `createGoal` does not build a path;
+   * `buildPathAction` does, and it lives on `/goals/[id]/path` behind a button.
+   * So a learner who had just waited six minutes for a course landed on
+   * `/today`, which has no session to offer because nothing has been planned
+   * yet, and no obvious way to say so. `/calendar` already handles the same
+   * state by pointing at this screen — "your path hasn't been built yet" —
+   * which is the tell that it, and not `/today`, is where a new goal begins.
+   *
+   * `goalId` was already being computed and thrown away with `void goalId` to
+   * satisfy the linter. It is the answer.
+   */
+  redirect(`/goals/${goalId}/path`);
 }
 
 /* ── The conversation ─────────────────────────────────────────────────────── */
@@ -625,6 +677,26 @@ export async function adoptBuiltPackAction(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "");
   const pack = await resolvePack(db, slug);
   if (!pack) redirect("/start?error=subject");
+
+  /*
+   * Already adopted — which is to say, the button pressed twice.
+   *
+   * `finish` clears the intake on its way out, so the second press found no
+   * captured answers and fell through to `/start`. On a free account that is
+   * the closed-intake wall, which says "we built you a course for a subject
+   * nobody had curated" and then offers the catalogue and a price list — a
+   * learner bounced off their own finished course by the button that exists to
+   * take them to it. The wait screen is a URL people keep open and reload, so
+   * this is not an exotic path.
+   *
+   * Idempotent instead: the goal already exists, so go to it. Read from
+   * `goalsFor` rather than the intake because the goal is the durable fact —
+   * the intake is scratch that is *meant* to be gone by now.
+   */
+  const adopted = (await goalsFor(db, userId)).find(
+    (goal) => goal.packSlug === pack.slug,
+  );
+  if (adopted) redirect(`/goals/${adopted.id}/path`);
 
   const intake = await loadIntake(db, userId);
   if (!intake.captured) redirect("/start");

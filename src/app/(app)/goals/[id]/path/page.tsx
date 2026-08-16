@@ -228,11 +228,25 @@ export default async function PathPage({ params }: Props) {
              grouped by area; building the path is what re-cuts it into modules
              that end in something you hand in. */
           <Card className="flex flex-col items-start gap-4">
+            {/*
+              No duration in it, and that is deliberate.
+
+              It said "about a minute", which is not true for a free account:
+              `aiCurriculum` is false there, so the path is arithmetic over the
+              graph and comes back at once. Quoting a wait to somebody who will
+              not have one is the same fault the build screen had when it
+              promised three minutes for a build that takes three to eight —
+              and this screen has no idea which plan is reading it, so any
+              single figure is wrong for somebody.
+
+              What is true for everyone is what the step is *for*, so that is
+              what it says. If a plan ever needs a wait explained, the honest
+              place is a screen that knows which plan it is talking to.
+            */}
             <Meta>
               These are the pack&rsquo;s own areas. Build your path and we
-              regroup them into modules that each end in a piece of work &mdash;
-              about a minute, and we check it against the graph before you see
-              it.
+              regroup them into modules that each end in a piece of work,
+              checked against the graph before you see it.
             </Meta>
             <form action={buildPathAction.bind(null, goal.id)}>
               <Button type="submit">Build my path</Button>

@@ -23,6 +23,7 @@ import { resolvePack } from "@/lib/content/resolve";
 import { slugify } from "@/lib/packs/generate/derive";
 import { withDestination } from "@/lib/account/next-url";
 import { loadIntake } from "@/lib/goals/intake-store";
+import { goalsFor } from "@/lib/goals/store";
 import {
   Button,
   ButtonLink,
@@ -150,7 +151,7 @@ const ERRORS: Record<string, React.ReactNode> = {
  * any price; it is the team's, and telling somebody money would fix a thing
  * money will not fix is the kind of sentence §4.2 law 3 exists to prevent.
  */
-function IntakeClosed() {
+function IntakeClosed({ built }: { built: { id: string; name: string } | null }) {
   return (
     <AppFrame width="narrow">
       <AppHeader
@@ -158,6 +159,25 @@ function IntakeClosed() {
         title="You&rsquo;ve had the custom subject your plan builds"
         lead="We built you a course for a subject nobody had curated. That is the one your plan includes, so this conversation is closed — but the catalogue is not."
       />
+      {/*
+        The course the sentence above is about, with a way into it.
+        
+        This screen named it and then offered the catalogue and a price list,
+        which reads as a wall for somebody who has just been told they already
+        have the thing. It is also where the "See my plan" button used to land
+        anyone who pressed it twice — bounced off their own finished course by
+        the control that exists to open it — so it is worth being the first
+        thing here rather than a footnote.
+      */}
+      {built ? (
+        <Card className="flex flex-col items-start gap-4">
+          <Title>{built.name}</Title>
+          <Meta>
+            The one we built for you. Everything you answered went into it.
+          </Meta>
+          <ButtonLink href={`/goals/${built.id}/path`}>Open my course</ButtonLink>
+        </Card>
+      ) : null}
       <Card className="flex flex-col items-start gap-4">
         <Title>Start on something we already cover</Title>
         <Meta>
@@ -308,7 +328,25 @@ export default async function StartPage({ searchParams }: Props) {
    */
   const access = await intakeAccessFor(getDb(), session.user.id);
   if (!access.open) {
-    return <IntakeClosed />;
+    /*
+     * The course they were told they have, so the screen can point at it.
+     *
+     * Newest first out of `goalsFor`, and the newest is the one this wall is
+     * about — a free account reaches here precisely because it spent its one
+     * custom subject, so the most recent goal is that build. One indexed read,
+     * and only on the closed path.
+     */
+    const [newest] = await goalsFor(getDb(), session.user.id);
+    // The pack's own name rather than the spec's slug: `domain` is
+    // `net-c`, and the course is called ".NET / C#".
+    const builtPack = newest ? await resolvePack(getDb(), newest.packSlug) : null;
+    return (
+      <IntakeClosed
+        built={
+          newest && builtPack ? { id: newest.id, name: builtPack.name } : null
+        }
+      />
+    );
   }
 
   const intake = await loadIntake(getDb(), session.user.id);

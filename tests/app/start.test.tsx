@@ -42,8 +42,12 @@ vi.mock("@/db", () => ({
 // database half has nothing to find and no stub db to find it with, so a miss
 // on disk is a miss outright — which is what "not a real pack" means here.
 vi.mock("@/lib/packs/read", () => ({ packFromDb: async () => undefined }));
+const goalsForMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 vi.mock("@/lib/goals/store", () => ({
   createGoal: (...args: unknown[]) => createGoalMock(...(args as [])),
+  // Read by the adopt action to stay idempotent, and by the closed-intake
+  // screen to point at the course it is telling them they already have.
+  goalsFor: (...a: unknown[]) => goalsForMock(...(a as [])),
 }));
 /*
  * The other half of the form: a subject nothing covers goes to §7.1's
@@ -266,9 +270,9 @@ describe("creating the goal", () => {
     expect(createGoalMock).not.toHaveBeenCalled();
   });
 
-  it("stores the goal and lands on /today", async () => {
+  it("stores the goal and lands on the path screen, where it can be built", async () => {
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/today",
+      "REDIRECT:/goals/goal-1/path",
     );
 
     expect(createGoalMock).toHaveBeenCalledTimes(1);
@@ -289,7 +293,7 @@ describe("creating the goal", () => {
     jar.set("check_photography", encode({ a: [{ i: closed.slug, c: 1 }] }));
 
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/today",
+      "REDIRECT:/goals/goal-1/path",
     );
 
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -303,7 +307,7 @@ describe("creating the goal", () => {
   it("does not pick up a check taken in a different subject", async () => {
     jar.set("check_sql-data-analysis", encode({ a: [{ i: "any", c: 1 }] }));
     await expect(createGoalAction(form(valid))).rejects.toThrow(
-      "REDIRECT:/today",
+      "REDIRECT:/goals/goal-1/path",
     );
 
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -369,7 +373,7 @@ describe("a subject we do not have", () => {
     // pack for it would be a worse answer to a better-spelled question.
     await expect(
       createGoalAction(custom({ customSubject: "Photography" })),
-    ).rejects.toThrow("REDIRECT:/today");
+    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
 
     expect(startBuildMock).not.toHaveBeenCalled();
     const [, input] = createGoalMock.mock.calls[0] as unknown as [
@@ -384,7 +388,7 @@ describe("a subject we do not have", () => {
     // mind still submits what was typed first.
     await expect(
       createGoalAction(form({ ...valid, customSubject: "Rust" })),
-    ).rejects.toThrow("REDIRECT:/today");
+    ).rejects.toThrow("REDIRECT:/goals/goal-1/path");
 
     expect(startBuildMock).not.toHaveBeenCalled();
   });
