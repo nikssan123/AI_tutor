@@ -441,7 +441,34 @@ Three changes, in the order they matter:
    committed before it answers a single question, and it is the number that
    should be looked at.
 
-None of this is implemented. It is a pricing decision, not a code one.
+### 10.2 Locked
+
+(1) and (3) are in. (2) is still open, on quality rather than cost.
+
+**The reserve is `assistantAllowance` in `gate.ts`.** The assistant is refused
+against `cap − (this month's remaining evaluations × 45¢ + remaining sessions ×
+17¢)`, computed per request. `aiAccess` is untouched, so sessions and
+evaluations behave exactly as before — this is a narrower gate in front of one
+caller, not a change to how the product spends.
+
+It is **dynamic, and that is the point**: the reserve shrinks as the month is
+actually used, so a learner who has taken their sessions gets the rest of the
+budget for questions, while one who has taken none keeps every penny those
+sessions will need. A static per-plan number cannot express that. A plan with
+`sessionsPerMonth: null` reserves `SESSIONS_RESERVED` (12) — three a week, what
+somebody keeping their commitment actually runs — because reserving infinity
+would refuse the assistant to every paid account.
+
+**The daily caps are now 5 / 10 / 15 / 30**, and they mean something different
+from what §10 first wrote. They are no longer sized to the month — the reserve
+does that — so they are set where a limit stops being felt by somebody using the
+thing reasonably. For anyone who keeps it up, the reserve bites first.
+
+**Still open: the tier.** Haiku is 3× cheaper and the work is tool routing plus
+two sentences, but nothing has yet checked its tool-call quality across six
+tools. Cost is no longer the argument for demoting — the reserve makes Sonnet
+affordable — so this should be decided on whether Haiku picks the right tool,
+and measured before it lands.
 
 ---
 

@@ -1,7 +1,13 @@
 import { spentThisPeriod } from "@/lib/ai/runlog";
 import type { Db } from "@/db";
 import { sessionsThisPeriod } from "@/lib/session/store";
-import { degradesGeneration, PLANS, type PlanId } from "./catalog";
+import {
+  degradesGeneration,
+  EVALUATION_COST_CENTS,
+  PLANS,
+  SESSION_COST_CENTS,
+  type PlanId,
+} from "./catalog";
 import { nudgeFor, type Nudge, type NudgeReason } from "./nudge";
 import { evaluationsUsed } from "./quota";
 import { entitlementsForUser, hasUsedTrial } from "./store";
@@ -135,6 +141,92 @@ export async function nudgeAt(
     evaluationsUsed: evaluations,
     sessionsUsed: sessions,
   });
+}
+
+/**
+ * Sessions reserved for a plan with no monthly session count.
+ *
+ * `sessionsPerMonth: null` means "as many as the spend cap allows", which is a
+ * fine entitlement and a useless number to reserve against — reserving infinity
+ * would refuse the assistant to everybody on a paid plan. Twelve is the figure
+ * `ASSISTANT-PLAN.md` §10.1 priced those plans at: three a week, which is what
+ * somebody keeping their commitment actually runs.
+ */
+export const SESSIONS_RESERVED = 12;
+
+export interface AssistantAllowance {
+  /** Whether this message must not happen. */
+  blocked: boolean;
+  /** The month's ceiling, less what the rest of the month is owed. */
+  allowanceCents: number;
+  reserveCents: number;
+  spentCents: number;
+}
+
+/**
+ * What the Assistant may spend, which is **not** what is left of the cap.
+ *
+ * `aiAccess` asks one question — is there budget — and answers it
+ * first-come-first-served. That is right for a session and wrong here, because
+ * the assistant and the session draw from the same `spendLedger`: a chatty
+ * afternoon would otherwise leave a learner unable to start the session they
+ * are paying for, which is the support surface starving the product.
+ *
+ * So the assistant is refused early, against a ceiling with the month's
+ * remaining sessions and evaluations already subtracted at §20.2's measured
+ * rates. It yields to the product rather than racing it.
+ *
+ * **Dynamic rather than a static allowance**, and that is the whole point: the
+ * reserve shrinks as the month is actually used, so a learner who has taken
+ * their sessions gets the rest of the budget for questions, while one who has
+ * taken none keeps every penny those sessions will need. A per-plan message cap
+ * cannot express that — it bounds the assistant against itself, not against
+ * what the month still owes.
+ *
+ * `aiAccess` is deliberately left alone. Sessions and evaluations behave exactly
+ * as before; this is a narrower gate in front of one caller.
+ */
+export async function assistantAllowance(
+  db: Db,
+  userId: string,
+  planId: PlanId,
+  now: Date = new Date(),
+): Promise<AssistantAllowance> {
+  const plan = PLANS[planId];
+  const capCents = plan.spendCapCents;
+
+  const [spentCents, evaluations, sessions] = await Promise.all([
+    spentThisPeriod(db, userId, now),
+    evaluationsUsed(db, userId, now),
+    sessionsThisPeriod(db, userId, now),
+  ]);
+
+  // Floored at zero on both counts: somebody who has been granted extra
+  // evaluations, or who ran more sessions than a nominal twelve, is owed
+  // nothing further — and a negative reserve would hand the assistant a
+  // ceiling *above* the cap.
+  const evaluationsLeft = Math.max(
+    0,
+    plan.entitlements.evaluationsPerMonth - evaluations,
+  );
+  const sessionsLeft = Math.max(
+    0,
+    (plan.entitlements.sessionsPerMonth ?? SESSIONS_RESERVED) - sessions,
+  );
+
+  const reserveCents =
+    evaluationsLeft * EVALUATION_COST_CENTS + sessionsLeft * SESSION_COST_CENTS;
+
+  // Never below zero: a plan whose promises already exceed its ceiling would
+  // otherwise produce a negative allowance, which reads as "spend anything".
+  const allowanceCents = Math.max(0, capCents - reserveCents);
+
+  return {
+    blocked: spentCents >= allowanceCents,
+    allowanceCents,
+    reserveCents,
+    spentCents,
+  };
 }
 
 /**

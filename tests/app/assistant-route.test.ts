@@ -18,12 +18,11 @@ const historyMock = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 const logTurnMock = vi.fn();
 const recordRunMock = vi.fn();
 const streamAgentMock = vi.fn();
-const aiAccessMock = vi.fn(async (..._a: unknown[]) => ({
-  overCap: false,
-  degraded: false,
+const allowanceMock = vi.fn(async (..._a: unknown[]) => ({
   blocked: false,
+  allowanceCents: 100,
+  reserveCents: 50,
   spentCents: 0,
-  capCents: 150,
 }));
 
 vi.mock("@/db", () => ({ getDb: () => ({}) }));
@@ -44,7 +43,7 @@ vi.mock("@/lib/ai/runlog", () => ({
   recordAgentRun: (...a: unknown[]) => recordRunMock(...(a as [])),
 }));
 vi.mock("@/lib/billing/gate", () => ({
-  aiAccess: (...a: unknown[]) => aiAccessMock(...(a as [])),
+  assistantAllowance: (...a: unknown[]) => allowanceMock(...(a as [])),
   overCapMessage: () => "over cap",
 }));
 
@@ -110,12 +109,11 @@ beforeEach(() => {
   });
   messagesTodayMock.mockResolvedValue(0);
   historyMock.mockResolvedValue([]);
-  aiAccessMock.mockResolvedValue({
-    overCap: false,
-    degraded: false,
+  allowanceMock.mockResolvedValue({
     blocked: false,
+    allowanceCents: 100,
+    reserveCents: 50,
     spentCents: 0,
-    capCents: 150,
   });
   streamAgentMock.mockImplementation(() =>
     answering([{ t: "text", v: "Billing does that." }]),
@@ -197,15 +195,17 @@ describe("POST", () => {
     expect((await POST(post({ message: "hi" }))).status).toBe(429);
   });
 
-  /** §14.9.7 limit 1 — the assistant runs on standard, so over the cap there
-      is no cheaper tier to fall to and it refuses rather than degrades. */
-  it("refuses over the monthly ceiling, before spending anything", async () => {
-    aiAccessMock.mockResolvedValue({
-      overCap: true,
-      degraded: true,
+  /**
+   * The ceiling with the month's remaining sessions held back, not the cap.
+   * The assistant spends from the same ledger the sessions do, so racing them
+   * would let a chatty afternoon take the budget a session needed.
+   */
+  it("refuses once the month's reserved work would be at risk", async () => {
+    allowanceMock.mockResolvedValue({
       blocked: true,
-      spentCents: 200,
-      capCents: 150,
+      allowanceCents: 58,
+      reserveCents: 62,
+      spentCents: 60,
     });
 
     const response = await POST(post({ message: "hi" }));

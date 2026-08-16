@@ -154,15 +154,20 @@ export interface Entitlements {
    * so the failure it has to bound is a runaway afternoon rather than a
    * generous month, and a monthly figure would let one bad hour eat all of it.
    *
-   * It is not the cost control. `aiAccess` is — the monthly ceiling is checked
-   * before every message and refuses rather than degrades, because the assistant
-   * runs on standard and there is no cheaper tier to fall to. This is the
-   * narrower guard in front of it (`ASSISTANT-PLAN.md` §10).
+   * **It is not the cost control, and the first version of this comment was
+   * wrong about what is.** `aiAccess` bounds the month, but it does so
+   * first-come-first-served against a ledger the sessions share — so a chatty
+   * afternoon could spend the budget the learner's session needed.
+   * `assistantAllowance` is what actually protects the product: it refuses the
+   * assistant against the cap *less* the month's remaining sessions and
+   * evaluations, so this surface yields to the one being paid for.
    *
-   * Free gets three. Not zero: somebody deciding whether to trust this product
-   * asks where things are, and answering that is worth more than the three
-   * lookups cost. Not more: a free month's whole ceiling is 120¢, and most of it
-   * is already promised to the session and the evaluation they came for.
+   * That leaves this number one job, which is the one §10 named for it in the
+   * first place: bounding a runaway afternoon. It is not sized to the month —
+   * the reserve is — so it is set where a limit stops being felt by somebody
+   * using the thing reasonably. Measured against §10.1's numbers, a day at each
+   * of these costs well under what the reserve would allow anyway; the reserve
+   * is what bites first for anybody who keeps it up.
    */
   assistantMessagesPerDay: number;
 }
@@ -275,7 +280,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: 1,
       restartIntake: false,
       premiumModels: false,
-      assistantMessagesPerDay: 3,
+      assistantMessagesPerDay: 5,
     },
     spendCapCents: 120,
   },
@@ -291,7 +296,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: true,
-      assistantMessagesPerDay: 20,
+      assistantMessagesPerDay: 10,
     },
     spendCapCents: 450,
   },
@@ -307,7 +312,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: false,
-      assistantMessagesPerDay: 20,
+      assistantMessagesPerDay: 15,
     },
     spendCapCents: 600,
   },
@@ -323,7 +328,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       packBuildsLifetime: null,
       restartIntake: true,
       premiumModels: true,
-      assistantMessagesPerDay: 40,
+      assistantMessagesPerDay: 30,
     },
     spendCapCents: 1_500,
   },

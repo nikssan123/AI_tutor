@@ -1,9 +1,15 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { createClient } from "@/db";
 import { agentRun, spendLedger, subscription, user } from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
-import { aiAccess, nudgeAt, overCapMessage } from "@/lib/billing/gate";
+import {
+  aiAccess,
+  assistantAllowance,
+  nudgeAt,
+  overCapMessage,
+  SESSIONS_RESERVED,
+} from "@/lib/billing/gate";
 
 /**
  * §14.9.7 limit 1, for the six call sites that never checked it.
@@ -258,6 +264,86 @@ live("against a real database", () => {
         expect(nudge).toBeDefined();
         expect(nudge!.cta).toBe("See what Pro includes");
       });
+    });
+  });
+
+  /**
+   * The reserve — `ASSISTANT-PLAN.md` §10.1.
+   *
+   * `aiAccess` answers "is there budget" first-come-first-served, which is
+   * right for a session and wrong for the assistant: both spend from this same
+   * ledger, so a chatty afternoon could take the budget the session needed.
+   * These assert the ordering that fixes it — the support surface is refused
+   * while the product still has work owed to it.
+   */
+  describe("assistantAllowance", () => {
+    it("holds back what the month's sessions and evaluations will need", async () => {
+      const allowance = await assistantAllowance(db, LEARNER, "free", NOW);
+
+      // Free: one evaluation at 45¢ and one session at 17¢, of a 120¢ ceiling.
+      expect(allowance.reserveCents).toBe(62);
+      expect(allowance.allowanceCents).toBe(58);
+      expect(allowance.blocked).toBe(false);
+    });
+
+    it("refuses the assistant while the cap itself still has room", async () => {
+      await spend(60);
+
+      // 60¢ of 120¢ — `aiAccess` would wave this through, and the learner's
+      // session would then be the thing that could not run.
+      expect(await aiAccess(db, LEARNER, "free", "standard", NOW)).toMatchObject({
+        blocked: false,
+      });
+      expect(await assistantAllowance(db, LEARNER, "free", NOW)).toMatchObject({
+        blocked: true,
+      });
+    });
+
+    /**
+     * The reserve shrinks as the month is actually used, which is the whole
+     * reason it is computed rather than fixed: a learner who has taken their
+     * sessions gets the rest of the budget for questions.
+     */
+    it("gives back the budget of work already done", async () => {
+      // A ledger row has to exist before the month can record work against it.
+      await spend(0);
+      const before = await assistantAllowance(db, LEARNER, "free", NOW);
+
+      await db
+        .update(spendLedger)
+        .set({ evaluationsUsed: 1 })
+        .where(eq(spendLedger.userId, LEARNER));
+
+      const after = await assistantAllowance(db, LEARNER, "free", NOW);
+      expect(after.reserveCents).toBe(before.reserveCents - 45);
+      expect(after.allowanceCents).toBeGreaterThan(before.allowanceCents);
+    });
+
+    /** A plan with no session count cannot reserve infinity. */
+    it("reserves a realistic month for a plan with unlimited sessions", async () => {
+      const allowance = await assistantAllowance(db, LEARNER, "pro", NOW);
+
+      // 10 evaluations at 45¢, plus twelve reserved sessions at 17¢.
+      expect(allowance.reserveCents).toBe(450 + SESSIONS_RESERVED * 17);
+      expect(allowance.allowanceCents).toBe(
+        PLANS.pro.spendCapCents - allowance.reserveCents,
+      );
+    });
+
+    /** Nothing further is owed to somebody who has used more than the nominal
+        allowance, and a negative reserve would raise the ceiling above the cap. */
+    it("never reserves less than nothing", async () => {
+      await spend(0);
+      await db
+        .update(spendLedger)
+        .set({ evaluationsUsed: 99 })
+        .where(eq(spendLedger.userId, LEARNER));
+
+      const allowance = await assistantAllowance(db, LEARNER, "free", NOW);
+      expect(allowance.reserveCents).toBeGreaterThanOrEqual(0);
+      expect(allowance.allowanceCents).toBeLessThanOrEqual(
+        PLANS.free.spendCapCents,
+      );
     });
   });
 });

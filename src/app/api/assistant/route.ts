@@ -3,7 +3,7 @@ import { currentSession } from "@/lib/account/session";
 import { streamAgent, type AgentFrame } from "@/lib/ai/agent";
 import { getAnthropic } from "@/lib/ai/client";
 import { recordAgentRun } from "@/lib/ai/runlog";
-import { aiAccess, overCapMessage } from "@/lib/billing/gate";
+import { assistantAllowance, overCapMessage } from "@/lib/billing/gate";
 import { PLANS, resolvePlanId } from "@/lib/billing/catalog";
 import { ASSISTANT_PROMPT } from "@/lib/assistant/prompt";
 import {
@@ -92,15 +92,21 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   /*
-   * §14.9.7 limit 1 — checked *before* every call.
+   * §14.9.7 limit 1, with the month's remaining sessions and evaluations held
+   * back — see `assistantAllowance`.
    *
-   * `standard` because that is the tier the assistant runs on, which means
-   * there is no cheaper tier to fall to: over the cap this refuses rather than
-   * degrades. Every page it would have pointed at is still there to be opened,
-   * which is what makes refusing honest rather than merely cheaper.
+   * Not `aiAccess`. That answers "is there budget" first-come-first-served,
+   * which is right for a session and wrong here: the assistant spends from the
+   * same ledger, so racing it would let a chatty afternoon take the budget the
+   * learner's session needed. The support surface yields to the product.
+   *
+   * It refuses rather than degrades, because the assistant already runs on the
+   * standard tier and there is no cheaper one to fall to. Every page it would
+   * have pointed at is still there to open, which is what makes refusing honest
+   * rather than merely cheaper.
    */
-  const access = await aiAccess(db, auth.user.id, planId, "standard");
-  if (access.blocked) {
+  const allowance = await assistantAllowance(db, auth.user.id, planId, now);
+  if (allowance.blocked) {
     return new Response(overCapMessage(planId), { status: 402 });
   }
 
