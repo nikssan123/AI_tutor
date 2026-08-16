@@ -108,6 +108,7 @@ const stored = (over: Partial<SubmissionDetail> = {}): SubmissionDetail => ({
   artefact: "the horizon sits on the lower third",
   truncated: false,
   submittedAt: new Date("2026-08-13T12:00:00.000Z"),
+  failureCause: null,
   ...over,
 });
 
@@ -383,6 +384,73 @@ describe("the result screen", () => {
     // Nothing to wait for, so it stops looking.
     expect(screen.queryByTestId("poll-while-marking")).toBeNull();
     expect(document.querySelector("noscript")).toBeNull();
+  });
+
+  /*
+   * Every failure used to read the same, because `fail` threw away the reason
+   * it was given: "We couldn't mark this one. Nothing has been added to your
+   * record. You can hand it in again" — whether the page was empty, the brief
+   * had been withdrawn mid-queue, or our own marker had fallen over.
+   */
+  it("says which thing went wrong", async () => {
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(
+      stored({ status: "failed", failureCause: "empty" }),
+    );
+
+    render(await SubmissionPage({ params: params() }));
+    expect(screen.getByText("There was nothing to mark")).toBeDefined();
+    expect(screen.getByText(/Hand in the work itself/)).toBeDefined();
+  });
+
+  it("stops offering a retry that cannot work", async () => {
+    // A withdrawn brief has no rubric left to mark against, so the old closing
+    // line was an instruction to spend a second evaluation on a certain repeat.
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(
+      stored({ status: "failed", failureCause: "brief_gone" }),
+    );
+
+    render(await SubmissionPage({ params: params() }));
+    expect(
+      screen.getByText("This brief is no longer part of the course"),
+    ).toBeDefined();
+    expect(screen.getByText(/Nothing has been added to your record/)).toBeDefined();
+    expect(screen.queryByText(/You can hand it in again/)).toBeNull();
+  });
+
+  it("still offers a retry where one is worth making", async () => {
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(
+      stored({ status: "failed", failureCause: "marker_unavailable" }),
+    );
+
+    render(await SubmissionPage({ params: params() }));
+    expect(screen.getByText(/You can hand it in again/)).toBeDefined();
+  });
+
+  it("reads an unrecognised cause as the generic apology", async () => {
+    // Every row that failed before the column existed holds null, and a row
+    // written by a newer deployment can hold a word this build never heard of.
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(
+      stored({ status: "failed", failureCause: "from-the-future" }),
+    );
+
+    render(await SubmissionPage({ params: params() }));
+    expect(screen.getByText("We couldn’t mark this one")).toBeDefined();
+    expect(screen.getByText(/You can hand it in again/)).toBeDefined();
+  });
+
+  it("says none of it while the work is still being marked", async () => {
+    // The consequence line belongs to the failed branch only; on the waiting
+    // screen it would be telling somebody their marking had cost them nothing
+    // while it was still running.
+    evaluationMock.mockResolvedValue(undefined);
+    submissionMock.mockResolvedValue(stored({ status: "grading" }));
+
+    render(await SubmissionPage({ params: params() }));
+    expect(screen.queryByText(/Nothing has been added to your record/)).toBeNull();
   });
 
   it("leaves out the sections it has nothing for", async () => {

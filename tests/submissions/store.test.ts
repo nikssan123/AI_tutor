@@ -17,6 +17,7 @@ import {
   createSubmission,
   evaluationFor,
   recordEvaluation,
+  setFailed,
   setStatus,
   submissionById,
 } from "@/lib/submissions/store";
@@ -126,6 +127,47 @@ live("submissions", () => {
     const id = await create();
     await setStatus(db, id, "grading");
     expect((await submissionById(db, id, IDS[0]!))!.status).toBe("grading");
+  });
+
+  describe("setFailed", () => {
+    /*
+     * The status and the reason in one write, which is why this is not an
+     * optional argument on `setStatus`. A row that says `failed` and cannot say
+     * why is a row the screen would render as the generic apology, and for the
+     * moment between two writes that is exactly what a learner reloading would
+     * have seen.
+     */
+    it("records the cause with the status", async () => {
+      const id = await create();
+      await setFailed(db, id, "brief_gone", "missing for photography: project p1");
+
+      const stored = (await submissionById(db, id, IDS[0]!))!;
+      expect(stored.status).toBe("failed");
+      expect(stored.failureCause).toBe("brief_gone");
+    });
+
+    it("is null on everything that has not failed", async () => {
+      // Every row written before the column existed reads this way too, which
+      // is the case `failureCopy` treats as ordinary rather than as an error.
+      const id = await create();
+      expect((await submissionById(db, id, IDS[0]!))!.failureCause).toBeNull();
+    });
+
+    it("keeps the detail off the shape the screen reads", async () => {
+      // `failure_detail` is ours. It is stored, and it is deliberately not on
+      // `SubmissionDetail`, so no screen can render it by reaching for it.
+      const id = await create();
+      await setFailed(db, id, "marker_unavailable", "gaps: Too big");
+
+      const stored = (await submissionById(db, id, IDS[0]!))!;
+      expect(stored).not.toHaveProperty("failureDetail");
+
+      const [row] = await db
+        .select({ detail: submission.failureDetail })
+        .from(submission)
+        .where(eq(submission.id, id));
+      expect(row!.detail).toBe("gaps: Too big");
+    });
   });
 
   describe("recording an evaluation", () => {

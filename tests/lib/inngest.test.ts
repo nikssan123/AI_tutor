@@ -152,9 +152,20 @@ vi.mock("@/lib/evaluation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/evaluation")>()),
   evaluateSubmission: vi.fn(async () => evaluationOutcome),
 }));
+// What `fail` wrote, so the cause and the detail can be asserted rather than
+// inferred from a status. Nothing recorded either before this.
+const failedWrites: Array<{
+  id: string;
+  cause: string;
+  detail: string | null;
+}> = [];
+
 vi.mock("@/lib/submissions/store", () => ({
   submissionById: async () => storedSubmission,
   setStatus: vi.fn(async () => undefined),
+  setFailed: vi.fn(async (_db, id: string, cause: string, detail: string | null) => {
+    failedWrites.push({ id, cause, detail });
+  }),
   recordEvaluation: vi.fn(async () => ({
     evaluationId: "ev-1",
     masteryDelta: 0.1,
@@ -735,6 +746,7 @@ describe("the registered evaluate function", () => {
   beforeEach(() => {
     heldMastery = [];
     spendUpdates.length = 0;
+    failedWrites.length = 0;
     submissionRows = [{ userId: "u1", submittedAt: new Date("2026-08-16T12:00:00Z") }];
     storedSubmission = {
       id: "s1",
@@ -849,6 +861,53 @@ describe("the registered evaluate function", () => {
     expect(spendUpdates).toHaveLength(0);
   });
 
+  /*
+   * `fail` used to end in `void reason`. The status went to the row and the
+   * reason went nowhere, so every failure rendered the same sentence and we
+   * could not answer "why did this one fail" from the database at all.
+   */
+  it("writes down why it failed, not only that it did", async () => {
+    evaluationOutcome = {
+      result: null,
+      reason: "nothing to quote",
+      cause: "unverifiable",
+      detail: "every criterion was invalidated: grain (quote not found)",
+    };
+    await run();
+
+    expect(failedWrites).toEqual([
+      {
+        id: "s1",
+        cause: "unverifiable",
+        // Never rendered; this is the half that makes the next one debuggable
+        // without matching an `agent_run` on a user and a timestamp.
+        detail: "every criterion was invalidated: grain (quote not found)",
+      },
+    ]);
+  });
+
+  it("calls a withdrawn brief its own cause, so the screen can stop offering a retry", async () => {
+    // Handing the same work in again cannot work — there is no rubric left to
+    // mark it against — and the failed screen used to invite exactly that.
+    storedSubmission = { ...(storedSubmission as object), projectSlug: "gone" };
+    await run();
+
+    expect(failedWrites[0]!.cause).toBe("brief_gone");
+    // Which parts went missing, and which were still there — the project and
+    // the rubric hanging off it, with the pack and the skill still resolving.
+    expect(failedWrites[0]!.detail).toContain("no project, rubric");
+    expect(failedWrites[0]!.detail).toContain("project gone");
+  });
+
+  it("falls back to the marker when the pipeline names no cause", async () => {
+    // An outcome from an older path, or one that forgot. Something has to be
+    // stored, and "ours, try again" is the safe way to be wrong.
+    evaluationOutcome = { result: null, reason: "unexplained" };
+    await run();
+
+    expect(failedWrites[0]!.cause).toBe("marker_unavailable");
+  });
+
   it("marks a submission failed rather than leaving it in grading", async () => {
     // §24 E8 — "never a silent loss". The fail closure is the half of that
     // which runs after the marker has already given up.
@@ -885,14 +944,22 @@ describe("evaluateHandler", () => {
   };
 
   const deps = (over: Partial<Parameters<typeof evaluateHandler>[0]> = {}) => {
-    const failed: Array<{ id: string; reason: string }> = [];
+    // `cause` and `detail` ride alongside `reason` now: the reason is the queue's
+    // and the log's, the cause is what the screen turns into copy, and the
+    // detail is the machinery that used to be discarded.
+    const failed: Array<{
+      id: string;
+      reason: string;
+      cause: string;
+      detail: string | null;
+    }> = [];
     return {
       failed,
       handler: evaluateHandler({
         load: async () => ({ userId: "u1", ok: true, reason: null }),
         mark: async () => ({ status: "complete" as const, reason: null }),
-        fail: async (id, reason) => {
-          failed.push({ id, reason });
+        fail: async (id, reason, cause, detail) => {
+          failed.push({ id, reason, cause, detail });
         },
         ...over,
       }),
@@ -923,14 +990,28 @@ describe("evaluateHandler", () => {
   it("records a failure rather than leaving it stuck in grading", async () => {
     // §24 E8 — "never a silent loss".
     const { failed, handler } = deps({
-      mark: async () => ({ status: "failed" as const, reason: "nothing to quote" }),
+      mark: async () => ({
+        status: "failed" as const,
+        reason: "nothing to quote",
+        cause: "unverifiable" as const,
+        detail: "every criterion was invalidated",
+      }),
     });
     const { ran, step } = recordingStep();
 
     const result = await handler({ event: { data: { submissionId: "s1" } }, step });
 
     expect(result).toMatchObject({ status: "failed", reason: "nothing to quote" });
-    expect(failed).toEqual([{ id: "s1", reason: "nothing to quote" }]);
+    // The cause and the detail reach `fail` intact. Nothing stored the reason
+    // before this, so every failure rendered the same sentence.
+    expect(failed).toEqual([
+      {
+        id: "s1",
+        reason: "nothing to quote",
+        cause: "unverifiable",
+        detail: "every criterion was invalidated",
+      },
+    ]);
     expect(ran).toEqual(["load-submission", "mark", "record-failure"]);
   });
 

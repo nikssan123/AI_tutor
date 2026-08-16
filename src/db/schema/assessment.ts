@@ -153,6 +153,27 @@ export const submission = pgTable(
       .defaultNow(),
     /** queued | ingesting | grading | verifying | complete | failed | human_review */
     status: text("status").notNull().default("queued"),
+    /**
+     * Why it failed, as one of `FAILURE_CAUSES` — a code, never a sentence.
+     *
+     * `status: "failed"` on its own told the learner nothing and told us
+     * nothing: an empty hand-in, a withdrawn brief and a marker that fell over
+     * were the same row. The copy lives in `lib/submissions/failure.ts` so it
+     * can be rewritten for rows already written, and so nothing reaches a
+     * learner that is not in that table.
+     */
+    failureCause: text("failure_cause"),
+    /**
+     * The machinery behind that code, for us. **Never rendered.**
+     *
+     * `CallResult` carries a `detail` — "gaps: Too big: expected array to have
+     * <=6 items" is the string that explained the failure this column was added
+     * after — and the pipeline was discarding it, keeping only the status. It
+     * survives in `agent_run.error`, but nothing joins an `agent_run` to a
+     * submission, so answering "why did *this* one fail" meant matching on a
+     * user and a timestamp.
+     */
+    failureDetail: text("failure_detail"),
   },
   (t) => [index("submission_user_idx").on(t.userId)],
 );

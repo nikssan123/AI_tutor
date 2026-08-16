@@ -4,6 +4,7 @@ import { logCall, shouldDegrade, type RunOrigin } from "@/lib/ai/runlog";
 import type { PlanId } from "@/lib/billing/catalog";
 import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
+import type { FailureCause } from "@/lib/submissions/failure";
 import { gradeSubmission, type GradeInput } from "./grade";
 import { tierFor } from "./tier";
 import {
@@ -34,9 +35,27 @@ import {
 export const MAX_ARTEFACT_CHARS = 60_000;
 
 export interface EvaluationOutcome {
-  /** Null when nothing could be graded; `reason` says why. */
+  /** Null when nothing could be graded; `cause` says why. */
   result: GradedResult | null;
   reason: string | null;
+  /**
+   * Which of `FAILURE_CAUSES` this was, for the row and thence the screen.
+   *
+   * Alongside `reason` rather than instead of it: `reason` is what the handler
+   * returns to the queue and what the logs read, and it says more than four
+   * codes can. The code is the half a learner is shown copy for, and keeping
+   * them separate is what stopped a `CallResult.status` reaching a screen.
+   */
+  cause: FailureCause | null;
+  /**
+   * What actually went wrong, for `submission.failure_detail`. Never rendered.
+   *
+   * This is the string the pipeline used to discard. `The marker could not run
+   * (invalid)` kept the status and threw away the `detail` beside it, which was
+   * the only part that said *which* invalid — "gaps: Too big: expected array to
+   * have <=6 items", in the failure this column was added after.
+   */
+  detail: string | null;
 }
 
 export interface GradedResult {
@@ -142,7 +161,12 @@ export async function evaluateSubmission(
   if (text.length === 0) {
     // Nothing to quote means nothing to grade. Caught here rather than by a
     // model politely inventing something to say about an empty page.
-    return { result: null, reason: "There was nothing in what you handed in." };
+    return {
+      result: null,
+      reason: "There was nothing in what you handed in.",
+      cause: "empty",
+      detail: null,
+    };
   }
 
   // The month's ceiling only — deliberately **not** `degradesGeneration`.
@@ -172,9 +196,22 @@ export async function evaluateSubmission(
   );
 
   if (first.status !== "ok") {
+    /*
+     * `first.status` used to be spliced into this sentence and shown to the
+     * learner: "The marker could not run (invalid)." A `CallResult` status is
+     * machinery, and `invalid` in particular is a lie by connotation — it reads
+     * as a judgement on what they handed in, when it means our own schema
+     * rejected our own model's reply.
+     *
+     * The status picks the code, the detail beside it goes to the row, and the
+     * learner gets the copy `marker_unavailable` maps to. `reason` keeps the
+     * status because the queue's return value and the logs are ours.
+     */
     return {
       result: null,
       reason: `The marker could not run (${first.status}).`,
+      cause: "marker_unavailable",
+      detail: first.detail,
     };
   }
 
@@ -215,6 +252,10 @@ export async function evaluateSubmission(
       result: null,
       reason:
         "We could not mark this one: nothing the marker said could be traced back to what you handed in.",
+      cause: "unverifiable",
+      detail: `every criterion was invalidated: ${verification.invalidated
+        .map((i) => `${i.criterionId} (${i.reason})`)
+        .join("; ")}`,
     };
   }
 
@@ -254,5 +295,7 @@ export async function evaluateSubmission(
       observation: observationFrom(scored.overall, confidence, tier),
     },
     reason: null,
+    cause: null,
+    detail: null,
   };
 }

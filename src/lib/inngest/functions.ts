@@ -25,9 +25,11 @@ import { markAchievedIfComplete } from "@/lib/goals/achievement";
 import { initialMastery } from "@/lib/engine/bkt";
 import {
   recordEvaluation,
+  setFailed,
   setStatus,
   submissionById,
 } from "@/lib/submissions/store";
+import type { FailureCause } from "@/lib/submissions/failure";
 import { MODELS } from "@/lib/ai/models";
 import type { BuildStage } from "@/lib/packs/build";
 import type { DomainPack } from "@/lib/packs/types";
@@ -282,8 +284,18 @@ export function evaluateHandler(deps: {
   mark: (submissionId: string, userId: string) => Promise<{
     status: "complete" | "human_review";
     reason: null;
-  } | { status: "failed"; reason: string }>;
-  fail: (submissionId: string, reason: string) => Promise<void>;
+  } | {
+    status: "failed";
+    reason: string;
+    cause: FailureCause;
+    detail: string | null;
+  }>;
+  fail: (
+    submissionId: string,
+    reason: string,
+    cause: FailureCause,
+    detail: string | null,
+  ) => Promise<void>;
 }) {
   return async ({ event, step }: EvaluateEvent): Promise<EvaluateResult> => {
     const submissionId = event.data?.submissionId ?? "";
@@ -294,7 +306,16 @@ export function evaluateHandler(deps: {
 
     if (!loaded.ok) {
       const reason = loaded.reason ?? "That submission could not be found.";
-      await step.run("record-missing", () => deps.fail(submissionId, reason));
+      /*
+       * `marker_unavailable`, not a cause of its own. This branch is a
+       * submission that cannot be read back at all, and the screen that would
+       * show the copy needs the same row to render — so a learner never reaches
+       * it, and inventing a fifth code for a screen nobody can open would be a
+       * line the tests could only reach by pretending.
+       */
+      await step.run("record-missing", () =>
+        deps.fail(submissionId, reason, "marker_unavailable", reason),
+      );
       return { submissionId, status: "failed", reason };
     }
 
@@ -306,7 +327,7 @@ export function evaluateHandler(deps: {
 
     if (marked.status === "failed") {
       await step.run("record-failure", () =>
-        deps.fail(submissionId, marked.reason),
+        deps.fail(submissionId, marked.reason, marked.cause, marked.detail),
       );
       return { submissionId, status: "failed", reason: marked.reason };
     }
@@ -342,7 +363,15 @@ export const evaluate = inngest.createFunction(
     mark: async (submissionId, userId) => {
       const db = getDb();
       const stored = await submissionById(db, submissionId, userId);
-      if (!stored) return { status: "failed", reason: "The submission vanished." };
+      if (!stored) {
+        return {
+          status: "failed",
+          reason: "The submission vanished.",
+          // Same argument as `record-missing`: no row, no screen to read it.
+          cause: "marker_unavailable",
+          detail: "the submission row was gone by the time marking started",
+        };
+      }
 
       const pack = await resolvePack(db, stored.packSlug);
       const project = pack?.projects.find((p) => p.slug === stored.projectSlug);
@@ -352,9 +381,23 @@ export const evaluate = inngest.createFunction(
       if (!pack || !project || !rubric || !skill) {
         // The pack changed under a queued submission — a deployment event, not
         // a corrupt row, and the learner is told rather than left waiting.
+        //
+        // Named by lookup rather than by four `&&`s: which of the four went
+        // missing is the whole value of the detail, and writing it as a
+        // conditional per part is eight branches that only ever fire in the
+        // combinations a test happens to construct. One predicate over the
+        // four says the same thing and is exercised both ways by any of them.
+        const missing = Object.entries({ pack, project, rubric, skill })
+          .filter(([, found]) => !found)
+          .map(([part]) => part);
+
         return {
           status: "failed",
           reason: "The brief this was handed in against is no longer available.",
+          cause: "brief_gone",
+          detail: `${stored.packSlug} no longer resolves: no ${missing.join(
+            ", ",
+          )} (project ${stored.projectSlug}, skill ${stored.skillSlug})`,
         };
       }
 
@@ -382,6 +425,8 @@ export const evaluate = inngest.createFunction(
         return {
           status: "failed",
           reason: outcome.reason ?? "This could not be marked.",
+          cause: outcome.cause ?? "marker_unavailable",
+          detail: outcome.detail,
         };
       }
 
@@ -417,9 +462,16 @@ export const evaluate = inngest.createFunction(
       };
     },
 
-    fail: async (submissionId, reason) => {
+    fail: async (submissionId, reason, cause, detail) => {
       const db = getDb();
-      await setStatus(db, submissionId, "failed");
+      /*
+       * The status and the reason in one write. `reason` is not stored: it is
+       * the sentence the pipeline composed for the queue's return value and the
+       * logs, and it is where `The marker could not run (invalid)` came from.
+       * The row gets the code, which the screen turns into copy, and the detail,
+       * which is ours.
+       */
+      await setFailed(db, submissionId, cause, detail);
 
       /*
        * The meter was claimed at the button — before the queue, so a learner
@@ -440,6 +492,7 @@ export const evaluate = inngest.createFunction(
 
       if (row) await refundEvaluation(db, row.userId, row.submittedAt);
 
+      // Deliberately unstored — see above.
       void reason;
     },
   }),

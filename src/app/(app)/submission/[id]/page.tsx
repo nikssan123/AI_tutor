@@ -24,6 +24,11 @@ import {
   Title,
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
+import {
+  FAILURE_CONSEQUENCE,
+  FAILURE_RETRY,
+  failureCopy,
+} from "@/lib/submissions/failure";
 import { PollWhileMarking } from "./poll-while-marking";
 
 /**
@@ -76,6 +81,15 @@ export default async function SubmissionPage({ params }: Props) {
 
   if (!evaluation) {
     const failed = stored.status === "failed";
+    /*
+     * Every failure used to render one sentence — "We couldn't mark this one.
+     * Nothing has been added to your record. You can hand it in again." — no
+     * matter what had happened, because `fail` discarded the reason it was
+     * handed. An empty hand-in, a brief withdrawn mid-queue and a marker that
+     * fell over were indistinguishable, and one of the three made that closing
+     * offer an instruction to waste a second evaluation.
+     */
+    const failure = failureCopy(stored.failureCause);
 
     return (
       /* The same frame the graded screen below uses. This waiting branch
@@ -101,10 +115,10 @@ export default async function SubmissionPage({ params }: Props) {
 
         <AppHeader
           eyebrow={failed ? "Not marked" : "Marking"}
-          title={failed ? "We couldn’t mark this one" : "Marking your work"}
+          title={failed ? failure.title : "Marking your work"}
           lead={
             failed
-              ? "Nothing has been added to your record. You can hand it in again."
+              ? failure.lead
               : "Two passes over what you handed in, against the rubric you read before you started. About a minute."
           }
           action={
@@ -115,6 +129,16 @@ export default async function SubmissionPage({ params }: Props) {
             ) : null
           }
         />
+
+        {failed ? (
+          /* What it means for their account, which is the same whatever went
+             wrong, and the invitation to retry only where retrying is not a
+             waste of an evaluation. */
+          <Meta tone="muted">
+            {FAILURE_CONSEQUENCE}
+            {failure.canRetry ? ` ${FAILURE_RETRY}` : ""}
+          </Meta>
+        ) : null}
 
         {failed ? null : (
           <Card className="rise flex flex-col gap-4" style={stagger(1)}>

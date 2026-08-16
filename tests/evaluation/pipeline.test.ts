@@ -21,6 +21,7 @@ import {
   ADVICE_SHOWN,
   EvaluationDraft,
 } from "@/lib/contracts/evaluation";
+import { failureCopy } from "@/lib/submissions/failure";
 import type { EvalTier, RubricCriterion } from "@/lib/packs/types";
 
 /** §14.5 end to end, with the model stubbed. */
@@ -340,6 +341,9 @@ describe("evaluateSubmission", () => {
 
     expect(outcome.result).toBeNull();
     expect(outcome.reason).toContain("nothing in what you handed in");
+    // The cause is what the screen turns into copy, and this one is the only
+    // failure of the four that is the learner's to fix.
+    expect(outcome.cause).toBe("empty");
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -374,6 +378,10 @@ describe("evaluateSubmission", () => {
 
     expect(outcome.result).toBeNull();
     expect(outcome.reason).toContain("could be traced back");
+    expect(outcome.cause).toBe("unverifiable");
+    // The detail names the criteria, so the next one is answerable from the
+    // row rather than from guessing which `agent_run` belonged to it.
+    expect(outcome.detail).toContain("grain");
   });
 
   it("flags two passes more than a band apart for a person", async () => {
@@ -402,6 +410,30 @@ describe("evaluateSubmission", () => {
     const outcome = await evaluate([{ nonsense: true }, { nonsense: true }]);
     expect(outcome.result).toBeNull();
     expect(outcome.reason).toContain("could not run");
+    expect(outcome.cause).toBe("marker_unavailable");
+  });
+
+  it("keeps the marker's own words for us and off the screen", async () => {
+    /*
+     * `The marker could not run (${first.status})` was shown to the learner,
+     * and the `detail` beside the status — the only part saying *which* kind of
+     * invalid — was discarded. "gaps: Too big: expected array to have <=6
+     * items" is that string, in the failure this column was added after.
+     *
+     * `reason` still carries the status: it is the queue's return value and the
+     * logs, both ours. What a learner sees comes from `cause` alone.
+     */
+    const outcome = await evaluate([{ nonsense: true }, { nonsense: true }]);
+
+    expect(outcome.detail).toBeTruthy();
+    expect(outcome.detail).not.toBe(outcome.reason);
+    expect(failureCopy(outcome.cause).lead).not.toContain("invalid");
+  });
+
+  it("names no cause at all when the marking worked", async () => {
+    const outcome = await evaluate([GOOD, GOOD]);
+    expect(outcome.cause).toBeNull();
+    expect(outcome.detail).toBeNull();
   });
 
   it("marks tier-5 work as engagement with no confidence (§7.2)", async () => {

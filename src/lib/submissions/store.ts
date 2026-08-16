@@ -11,6 +11,7 @@ import { rubricId as rubricUuid, skillId as skillUuid } from "@/lib/packs/ids";
 import { applyObservation } from "@/lib/engine/bkt";
 import type { MasteryState } from "@/lib/engine";
 import type { GradedResult } from "@/lib/evaluation";
+import type { FailureCause } from "./failure";
 import type { PackSkill } from "@/lib/packs/types";
 
 /**
@@ -40,6 +41,16 @@ export interface StoredSubmission {
   artefact: string;
   truncated: boolean;
   submittedAt: Date;
+  /**
+   * Which of `FAILURE_CAUSES` this failed for, or null.
+   *
+   * Null on everything that has not failed, and on everything that failed
+   * before the column existed — `failureCopy` treats both the same way, which
+   * is why it is read as a bare string here rather than narrowed to the union.
+   * Narrowing at the boundary would mean a row written by a future deployment
+   * throwing on read.
+   */
+  failureCause: string | null;
 }
 
 function statusOf(value: string): SubmissionStatus {
@@ -160,6 +171,7 @@ export async function submissionById(
     artefact: row.artifact.storageRef,
     truncated: row.artifact.truncated,
     submittedAt: row.submission.submittedAt,
+    failureCause: row.submission.failureCause,
   };
 }
 
@@ -169,6 +181,29 @@ export async function setStatus(
   status: SubmissionStatus,
 ): Promise<void> {
   await db.update(submission).set({ status }).where(eq(submission.id, id));
+}
+
+/**
+ * Fail a submission *with its reason*, in one write.
+ *
+ * Separate from `setStatus` rather than an optional argument on it, because the
+ * two are not the same operation: every other status is a phase this passed
+ * through, and `failed` is the only one that owes an explanation. Writing them
+ * together is what stops a row existing, however briefly, that says `failed`
+ * and cannot say why — which is the state the screen would then render.
+ *
+ * `detail` is for us and is never shown; see the column's docblock.
+ */
+export async function setFailed(
+  db: Db,
+  id: string,
+  cause: FailureCause,
+  detail: string | null,
+): Promise<void> {
+  await db
+    .update(submission)
+    .set({ status: "failed", failureCause: cause, failureDetail: detail })
+    .where(eq(submission.id, id));
 }
 
 /* ── The evaluation, and what it moves ────────────────────────────────────── */
