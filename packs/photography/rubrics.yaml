@@ -15,6 +15,7 @@ rubrics:
         name: Exposure matches the stated intent
         description: The frame is exposed the way the submission says it meant to be — not merely "correct".
         weight: 0.3
+        marks: both
         bands:
           absent: Exposure does not match the stated intent and no reason is given.
           developing: Close, but more than a stop from what was described.
@@ -24,6 +25,7 @@ rubrics:
         name: Nothing is clipped by accident
         description: Highlights and shadows retain detail unless the submission says they were sacrificed on purpose.
         weight: 0.3
+        marks: both
         bands:
           absent: Significant clipping at one or both ends, unacknowledged.
           developing: Minor clipping, unacknowledged.
@@ -33,6 +35,7 @@ rubrics:
         name: Settings support the claim
         description: EXIF or reported settings are consistent with what the submission says was done.
         weight: 0.2
+        marks: text
         bands:
           absent: Settings contradict the description.
           developing: Settings partially reported or partially consistent.
@@ -42,6 +45,7 @@ rubrics:
         name: The result was controlled, not lucky
         description: Across the submitted frames, the effect is consistent enough to look deliberate.
         weight: 0.2
+        marks: both
         bands:
           absent: One frame works; the others do not.
           developing: Inconsistent across frames.
@@ -56,6 +60,7 @@ rubrics:
         name: Focus lands where intended
         description: The stated subject is the sharpest thing in the frame.
         weight: 0.3
+        marks: both
         bands:
           absent: Focus is on something other than the stated subject.
           developing: Slightly off — a lash rather than an eye, a shoulder rather than a face.
@@ -65,6 +70,7 @@ rubrics:
         name: The lighting does what was claimed
         description: The described direction and quality of light are visible in the shadows.
         weight: 0.3
+        marks: both
         bands:
           absent: Shadows contradict the description.
           developing: Direction visible, quality misdescribed, or vice versa.
@@ -74,6 +80,7 @@ rubrics:
         name: The subject is unmistakable
         description: Measurable separation from the background — tonal, colour, or focus.
         weight: 0.25
+        marks: both
         bands:
           absent: The subject competes with the background for attention.
           developing: Separated by one weak means only.
@@ -83,6 +90,7 @@ rubrics:
         name: The edges were a decision
         description: No mergers, half-objects or bright distractions at the frame edge that go unmentioned.
         weight: 0.15
+        marks: both
         bands:
           absent: Several unaddressed edge problems.
           developing: One unaddressed edge problem.
@@ -97,6 +105,7 @@ rubrics:
         name: Colour reads as one set
         description: White balance is consistent across frames, or varies for a stated reason.
         weight: 0.3
+        marks: both
         bands:
           absent: Visible temperature drift between frames.
           developing: Mostly consistent, one frame adrift.
@@ -106,6 +115,7 @@ rubrics:
         name: Contrast and black point are consistent
         description: Frames share a tonal treatment rather than being edited one at a time.
         weight: 0.3
+        marks: both
         bands:
           absent: Each frame has its own contrast character.
           developing: Broadly similar, with one or two outliers.
@@ -115,6 +125,7 @@ rubrics:
         name: Every frame clears the technical floor
         description: No frame in the set has accidental clipping, missed focus, or an unaddressed edge problem.
         weight: 0.25
+        marks: both
         bands:
           absent: Two or more frames fall below the floor.
           developing: One frame falls below.
@@ -124,6 +135,7 @@ rubrics:
         name: The approach is stated
         description: The submission says what it standardised on, so the result can be judged as deliberate.
         weight: 0.15
+        marks: text
         bands:
           absent: No description of the approach.
           developing: Vague description.

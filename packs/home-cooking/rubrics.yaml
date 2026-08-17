@@ -21,6 +21,7 @@ rubrics:
         name: The pieces match each other
         description: Cut sizes are close enough that they would finish cooking together.
         weight: 0.35
+        marks: both
         bands:
           absent: Sizes vary enough that some pieces would burn before others soften.
           developing: Broadly similar with several obvious outliers.
@@ -30,6 +31,7 @@ rubrics:
         name: The cut suits the job
         description: The shape and size match what the dish does with them.
         weight: 0.25
+        marks: both
         bands:
           absent: A cut that will not work for the stated dish.
           developing: Workable but not the obvious choice, unexplained.
@@ -39,6 +41,7 @@ rubrics:
         name: The technique is safe at speed
         description: Guiding hand, blade contact and board setup are visible and correct.
         weight: 0.25
+        marks: both
         bands:
           absent: Fingers extended, or a board that slides.
           developing: Safe but hesitant, or safe in the photograph only.
@@ -48,6 +51,7 @@ rubrics:
         name: The method is legible
         description: The write-up says what was done, in an order someone could follow.
         weight: 0.15
+        marks: text
         bands:
           absent: No method, or a list of ingredients only.
           developing: Steps present but out of order or incomplete.
@@ -62,6 +66,7 @@ rubrics:
         name: The surface is what was intended
         description: Browning is even and matches the outcome the submission said it wanted.
         weight: 0.3
+        marks: both
         bands:
           absent: Grey where a crust was intended, or burnt where colour was.
           developing: Browned unevenly, or patchy across the surface.
@@ -71,6 +76,7 @@ rubrics:
         name: Doneness is shown, not asserted
         description: A cross-section, a probe reading, or both — something a reader can check.
         weight: 0.3
+        marks: both
         bands:
           absent: Only a claim that it was cooked.
           developing: A photograph that does not show the interior.
@@ -80,6 +86,7 @@ rubrics:
         name: Heat was chosen, not accepted
         description: The method names the heat level at each stage and what it was for.
         weight: 0.25
+        marks: text
         bands:
           absent: No mention of heat beyond "cook".
           developing: Heat mentioned once, for the whole dish.
@@ -89,6 +96,7 @@ rubrics:
         name: Carry-over is accounted for
         description: Where it applies, the submission says what it pulled at and what it rested to.
         weight: 0.15
+        marks: text
         bands:
           absent: Cut immediately, unremarked, where resting mattered.
           developing: Rested, with no target stated.
@@ -105,6 +113,7 @@ rubrics:
           A base, a main element, an acid and a seasoning — the submission can
           say what plays each role, rather than having combined what was there.
         weight: 0.3
+        marks: both
         bands:
           absent: Ingredients combined with no stated structure.
           developing: A structure is visible but not articulated.
@@ -114,6 +123,7 @@ rubrics:
         name: Things went in in the right order
         description: The method shows an order driven by cooking times rather than by the order they were found.
         weight: 0.25
+        marks: text
         bands:
           absent: Everything added at once.
           developing: Roughly ordered with an obvious misstep.
@@ -123,6 +133,7 @@ rubrics:
         name: Seasoning happened more than once
         description: The write-up names each point salt or acid went in, and why then.
         weight: 0.25
+        marks: text
         bands:
           absent: Seasoned once at the end, or not mentioned.
           developing: Two points named, without reasons.
@@ -134,6 +145,7 @@ rubrics:
           Cooking without a recipe is a sequence of judgements. The submission
           records them, including the ones that did not work.
         weight: 0.2
+        marks: text
         bands:
           absent: Reads as a recipe written afterwards.
           developing: One decision mentioned.

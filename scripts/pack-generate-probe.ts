@@ -3,6 +3,7 @@ import { getAnthropic } from "@/lib/ai/client";
 import { generatePack } from "@/lib/packs/generate";
 import { agentRun } from "@/db/schema";
 import { desc } from "drizzle-orm";
+import { handInLabel } from "@/lib/content/evidence";
 
 /**
  * A real pack generation against the real API.
@@ -66,7 +67,7 @@ async function main() {
       }
       console.log("\nprojects:");
       for (const pr of p.projects) {
-        console.log(`  ${pr.title} (${pr.evidenceType}, ${pr.estimatedMinutes}min) -> ${pr.rubric}`);
+        console.log(`  ${pr.title} (${handInLabel(pr.evidence)}, ${pr.estimatedMinutes}min) -> ${pr.rubric}`);
       }
       console.log("\nrubric criteria weights:");
       for (const r of p.rubrics) {

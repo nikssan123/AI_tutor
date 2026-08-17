@@ -1,6 +1,6 @@
 import { Button, Meta, stagger, Status, Title } from "@/components/ui";
 import { MAX_ANSWER, needsSelfMark, type Marked } from "@/lib/check/session";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/check/photo";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/ai/images";
 import { gradingModeFor, type DiagnosticItem } from "@/lib/engine/diagnostic";
 
 /**

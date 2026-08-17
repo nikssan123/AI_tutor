@@ -1,12 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
-import {
-  gradePhoto,
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-  PHOTO_GRADER_PROMPT,
-} from "@/lib/check/photo";
+import { gradePhoto, PHOTO_GRADER_PROMPT } from "@/lib/check/photo";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/ai/images";
 import { MODELS } from "@/lib/ai/models";
 
 /**
@@ -41,7 +37,7 @@ function stub(input: unknown) {
 const request = {
   question: "Photograph three objects so exactly the middle one is sharp.",
   expected: "place the zone of sharpness where you intended",
-  mediaType: "image/jpeg",
+  mediaType: "image/jpeg" as const,
   data: "AAAA",
   note: "f/1.8, 50mm, about a metre.",
 };

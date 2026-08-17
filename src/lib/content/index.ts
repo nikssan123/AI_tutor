@@ -219,7 +219,16 @@ export function projectDetails(pack: DomainPack): ProjectDetail[] {
       ...project,
       topicSlug: pack.slug,
       topicName: pack.name,
-      evalTier: tierFor(pack.evalTier),
+      /*
+       * The tier *this brief* can honour, not the pack's.
+       *
+       * §7.2 tier 3 is media review, and a brief that asks for nothing but a
+       * write-up will not be doing any — so a media pack's prose-only project
+       * would otherwise print "We check the technical side" over a page whose
+       * hand-in contains nothing to look at. The pack-level claims a few lines
+       * up cannot ask this question, because a pack is not one hand-in.
+       */
+      evalTier: tierFor(pack.evalTier, project.evidence.image !== "none"),
       rubricDetail,
       skills: project.targetSkills.flatMap((slug) => {
         const skill = byName.get(slug);

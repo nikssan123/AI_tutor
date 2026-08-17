@@ -12,7 +12,7 @@ projects:
   - slug: expired-items-bug
     title: Fix a bug, and prove it stays fixed
     rubric: bug-fix-with-test
-    evidenceType: code
+    evidence: { image: none, images: 1 }
     difficulty: 0.5
     estimatedMinutes: 75
     isPublic: true
@@ -36,7 +36,7 @@ projects:
   - slug: orders-summary-script
     title: Summarise a file that is not clean
     rubric: data-summary
-    evidenceType: code
+    evidence: { image: none, images: 1 }
     difficulty: 0.65
     estimatedMinutes: 120
     isPublic: true
@@ -61,7 +61,7 @@ projects:
   - slug: report-formatter
     title: A small tool someone else could extend
     rubric: small-tool
-    evidenceType: code
+    evidence: { image: none, images: 1 }
     difficulty: 0.55
     estimatedMinutes: 90
     isPublic: true

@@ -145,11 +145,38 @@ export const RubricBands = z.object({
   strong: z.string().min(1),
 });
 
+/**
+ * Which half of the hand-in a criterion is judged from.
+ *
+ * §7.3's workspace says what surface the learner works in; this says something
+ * the workspace cannot, because it varies *within* a pack. A sewing project
+ * wants a photograph for "sew a French seam and show both sides" and wants
+ * nothing but prose for "plan a fabric layout and justify the grainline" — same
+ * pack, same workspace, different evidence.
+ *
+ * **`text` is the default, and it is the only value the verifier can check.**
+ * §14.5's non-negotiable rule is that every criterion quotes the artefact, and
+ * `verify.ts` checks that by string match. An image has no text spans. So this
+ * field does not yet change what the grader must return — every criterion still
+ * quotes the written method — it says which criteria the photograph is *evidence
+ * for*, so the grader is told to look at it and the learner is told it was
+ * looked at. Giving image criteria their own band under a separately labelled
+ * evidence contract is phase 2; see §24 E8.5.
+ */
+export const CriterionMarks = z.enum(["text", "image", "both"]);
+export type CriterionMarks = z.infer<typeof CriterionMarks>;
+
 export const RubricCriterion = z.object({
   id: slug,
   name: z.string().min(1),
   description: z.string().min(1),
   weight: z.number().positive().max(1),
+  /**
+   * Defaults to `text`, which is what a rubric written before this field says
+   * by saying nothing — and what every criterion in a pack with no photographs
+   * means anyway.
+   */
+  marks: CriterionMarks.default("text"),
   bands: RubricBands,
 });
 export type RubricCriterion = z.infer<typeof RubricCriterion>;
@@ -163,12 +190,55 @@ export const PackRubric = z.object({
 });
 export type PackRubric = z.infer<typeof PackRubric>;
 
+/**
+ * The most photographs one brief may ask for.
+ *
+ * Six, because `six-frame-set` in the photography pack asks for exactly that
+ * and it is the largest honest ask in the catalogue — a set is the unit of work
+ * there, not a frame. It is a ceiling on what the ingest step will *accept*, not
+ * a quota the learner has to fill: whether six frames actually arrived is a
+ * question for the rubric, which is where the pack already asks it.
+ */
+export const MAX_PROJECT_IMAGES = 6;
+
+/**
+ * §7.3 — what a hand-in is made of, declared per project by the pack author.
+ *
+ * This replaces `evidenceType`, a free string ("document", "image", "query")
+ * that a model was already being asked to write and that nothing in the product
+ * read: it reached two marketing metadata rows and stopped. Meanwhile three
+ * packs declared `workspace: media` and asked for photographs the submission
+ * surface could not take.
+ *
+ * **There is no `text` field, deliberately.** Every project requires a written
+ * method — that is not a variable, so it is not a setting. The written half is
+ * where the temperatures, the order, the tension setting and the thing that
+ * went wrong live, a photograph of a finished seam says none of it, and it is
+ * the only half `verify.ts` can check a quote against. A field that could only
+ * ever say "required" and that nothing branched on would repeat exactly the
+ * defect this type exists to fix.
+ */
+export const ProjectEvidence = z.object({
+  /**
+   * Whether the brief asks for photographs, and whether it insists.
+   *
+   * `optional` is a real third value rather than hedging: a cooking method is
+   * markable without a picture, and a picture makes several criteria markable
+   * that otherwise rest on the learner's own word for it.
+   */
+  image: z.enum(["required", "optional", "none"]).default("none"),
+  /** The most photographs this brief could need. See `MAX_PROJECT_IMAGES`. */
+  images: z.number().int().min(1).max(MAX_PROJECT_IMAGES).default(1),
+});
+export type ProjectEvidence = z.infer<typeof ProjectEvidence>;
+
 export const PackProject = z.object({
   slug,
   title: z.string().min(1),
   brief: z.string().min(40),
   rubric: slug,
-  evidenceType: z.string().min(1),
+  /** Defaults to prose only, which is what every pack said before it existed. */
+  evidence: ProjectEvidence.default({ image: "none", images: 1 }),
   difficulty: z.number().min(0).max(1),
   estimatedMinutes: z.number().int().positive(),
   isPublic: z.boolean().default(false),

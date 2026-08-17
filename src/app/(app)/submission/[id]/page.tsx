@@ -79,6 +79,25 @@ export default async function SubmissionPage({ params }: Props) {
   const pack = await resolvePack(db, stored.packSlug);
   const project = pack?.projects.find((p) => p.slug === stored.projectSlug);
 
+  /*
+   * §24 E8.5 — which criteria the photographs informed.
+   *
+   * Read off the rubric rather than off the verdict, because it is a property
+   * of the criterion the learner could see before they started (§4.2 law 2) and
+   * not something the grader reports about itself. And gated on a photograph
+   * having actually arrived: a criterion the rubric marks from an image, on a
+   * hand-in that carried none, was judged from the write-up like everything
+   * else, and saying otherwise would claim we looked at something we never had.
+   */
+  const rubric = pack?.rubrics.find((r) => r.slug === project?.rubric);
+  const fromPhotograph = new Set(
+    stored.images.length === 0
+      ? []
+      : (rubric?.criteria ?? [])
+          .filter((c) => c.marks !== "text")
+          .map((c) => c.id),
+  );
+
   if (!evaluation) {
     const failed = stored.status === "failed";
     /*
@@ -270,6 +289,24 @@ export default async function SubmissionPage({ params }: Props) {
                 <blockquote className="m-0 border-l-2 border-accent bg-raised px-5 py-4 whitespace-pre-wrap text-[length:var(--text-label-size)] text-ink">
                   {criterion.evidence}
                 </blockquote>
+
+                {/*
+                  Under the quote, not beside the band, because it qualifies
+                  what the judgement rests on rather than what it was. The quote
+                  is still from the written method — §14.5's check is an exact
+                  string match and a photograph has no text spans — so this says
+                  the picture was *also* read, which is the true and weaker
+                  claim (§4.2 law 3).
+                */}
+                {fromPhotograph.has(criterion.criterionId) ? (
+                  <Meta tone="muted">
+                    Read against{" "}
+                    {stored.images.length === 1
+                      ? "your photograph"
+                      : "your photographs"}{" "}
+                    as well as your words.
+                  </Meta>
+                ) : null}
 
                 <Lead>{criterion.reasoning}</Lead>
               </Card>

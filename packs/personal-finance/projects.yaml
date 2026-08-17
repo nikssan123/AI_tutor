@@ -10,7 +10,7 @@ projects:
   - slug: where-you-actually-stand
     title: A position statement that reconciles
     rubric: financial-position
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.4
     estimatedMinutes: 90
     isPublic: true
@@ -34,7 +34,7 @@ projects:
   - slug: thirty-year-projection
     title: A projection that states what it rests on
     rubric: projection-quality
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.6
     estimatedMinutes: 120
     isPublic: true
@@ -60,7 +60,7 @@ projects:
   - slug: break-your-own-plan
     title: Break your own plan on purpose
     rubric: plan-under-stress
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.7
     estimatedMinutes: 105
     isPublic: true

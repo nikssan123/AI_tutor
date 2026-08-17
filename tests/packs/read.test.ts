@@ -293,7 +293,7 @@ live("packFromDb (integration)", () => {
       title: "Stray",
       brief: "A project pointing at a rubric that is not in this pack at all.",
       rubricId: rubricId(other.slug, other.rubrics[0]!.slug),
-      evidenceType: "text",
+      evidence: { image: "none", images: 1 },
       difficulty: 0.5,
       targetSkillIds: [skillId(pack.slug, pack.skills[0]!.slug)],
       acceptanceCriteria: ["something"],

@@ -27,6 +27,7 @@ import { ROADMAP_TOOL_PATH } from "@/lib/roadmap/plan";
 import { supportAddress } from "@/lib/site";
 import { THEME_COOKIE, toThemeChoice } from "@/lib/theme-script";
 import type { RubricCriterion } from "@/lib/packs/types";
+import { handInLabel } from "@/lib/content/evidence";
 
 /**
  * Marketing-only chrome.
@@ -1020,7 +1021,7 @@ export function BriefCard({ project }: { project: ProjectDetail }) {
       <span className="mt-auto flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-hairline pt-4">
         <Meta>{project.rubricDetail.criteria.length} criteria</Meta>
         <Meta>{project.estimatedMinutes} min</Meta>
-        <Meta>Hand in: {project.evidenceType}</Meta>
+        <Meta>Hand in: {handInLabel(project.evidence)}</Meta>
       </span>
     </LinkCard>
   );

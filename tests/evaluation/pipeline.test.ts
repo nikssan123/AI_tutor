@@ -12,6 +12,7 @@ import {
   GRADER_PROMPT,
   GRADER_TOOL_SCHEMA,
   buildGradeContext,
+  buildGradeTurn,
   gradeSubmission,
   renderRubric,
 } from "@/lib/evaluation/grade";
@@ -63,6 +64,7 @@ const criterion = (id: string, weight: number): RubricCriterion => ({
   name: `Criterion ${id}`,
   description: "What this one judges, at length.",
   weight,
+  marks: "text",
   bands: {
     absent: "nothing of the sort",
     developing: "started but incomplete",
@@ -244,6 +246,78 @@ describe("renderRubric", () => {
     }
     expect(rendered).toContain("weight 0.6");
   });
+
+  it("says what each criterion is judged from", () => {
+    // The grader cannot know a criterion is about the photograph unless the
+    // rubric it is handed says so — `marks` lives on the criterion, not on the
+    // pack, precisely because it varies inside one.
+    const rendered = renderRubric([
+      { ...CRITERIA[0]!, marks: "image" },
+      { ...CRITERIA[1]!, marks: "both" },
+    ]);
+
+    expect(rendered).toContain("judged from the photographs");
+    expect(rendered).toContain("judged from the photographs and the write-up");
+    expect(renderRubric(CRITERIA)).toContain("judged from the write-up");
+  });
+});
+
+/**
+ * §24 E8.5 phase 1 — the photograph reaches the grader and the verifier is
+ * untouched.
+ *
+ * The rule the whole phase rests on is in `GRADER_PROMPT`: an image criterion
+ * still quotes the write-up, because §14.5's quote check is an exact string
+ * match and a description of a photograph is not in the submitted text. A
+ * grader told to quote the frame would have every criterion invalidated, and
+ * the evaluation would collapse rather than degrade.
+ */
+describe("buildGradeTurn", () => {
+  const base = { project: PROJECT, criteria: CRITERIA, artefact: ARTEFACT };
+  const image = { mediaType: "image/jpeg" as const, data: "AAAA", bytes: 4 };
+
+  it("sends plain text when there are no photographs", () => {
+    expect(buildGradeTurn(base)).toBe(buildGradeContext(base));
+    expect(buildGradeTurn({ ...base, images: [] })).toBe(buildGradeContext(base));
+  });
+
+  it("puts the photograph in front of the brief", () => {
+    const turn = buildGradeTurn({ ...base, images: [image] });
+    expect(Array.isArray(turn)).toBe(true);
+
+    const blocks = turn as Array<{ type: string; text?: string }>;
+    expect(blocks.map((b) => b.type)).toEqual(["text", "image", "text"]);
+    expect(blocks[0]!.text).toContain("The photograph");
+  });
+
+  it("numbers a set, so a verdict can refer to the third one", () => {
+    const blocks = buildGradeTurn({
+      ...base,
+      images: [image, image, image],
+    }) as Array<{ type: string; text?: string }>;
+
+    expect(blocks.filter((b) => b.type === "image")).toHaveLength(3);
+    expect(blocks[0]!.text).toContain("Photograph 1 of 3");
+    expect(blocks[4]!.text).toContain("Photograph 3 of 3");
+  });
+
+  it("tells the grader when a criterion's photograph never arrived", () => {
+    // Otherwise the only honest reading of a missing frame — "you have not been
+    // shown this" — is indistinguishable from a frame that showed nothing.
+    const context = buildGradeContext({
+      ...base,
+      criteria: [{ ...CRITERIA[0]!, marks: "image" }, CRITERIA[1]!],
+      images: [],
+    });
+    expect(context).toContain("no photographs");
+
+    expect(buildGradeContext(base)).not.toContain("no photographs");
+  });
+
+  it("still demands a verbatim quote on every criterion", () => {
+    expect(GRADER_PROMPT.text).toContain("you still quote the write-up");
+    expect(GRADER_PROMPT.text).toContain("exact match");
+  });
 });
 
 describe("buildGradeContext", () => {
@@ -299,6 +373,29 @@ describe("tierFor", () => {
   it("leaves weaker tiers where they are", () => {
     expect(tierFor(3)).toBe(3);
     expect(tierFor(5)).toBe(5);
+  });
+
+  /*
+   * §7.2 tier 3 is "media review", and the only tier whose claim the hand-in
+   * itself can falsify. A written method marked against a rubric is tier 2 —
+   * which carries a *higher* confidence band, because reading prose is the
+   * more reliable read. What would be dishonest is the label.
+   */
+  it("does not call it media review when no photograph arrived", () => {
+    expect(tierFor(3, false)).toBe(MAX_TIER_WITHOUT_EXECUTION);
+    expect(tierFor(3, true)).toBe(3);
+  });
+
+  it("assumes the evidence arrives when nobody has handed anything in yet", () => {
+    // The default is what a brief page means: this is the claim, if the work
+    // asked for shows up. Only the pipeline knows better, and only afterwards.
+    expect(tierFor(3)).toBe(tierFor(3, true));
+  });
+
+  it("changes nothing for a tier that does not rest on a photograph", () => {
+    expect(tierFor(1, false)).toBe(MAX_TIER_WITHOUT_EXECUTION);
+    expect(tierFor(4, false)).toBe(4);
+    expect(tierFor(5, false)).toBe(5);
   });
 });
 

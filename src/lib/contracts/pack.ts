@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CriterionMarks } from "@/lib/packs/types";
 
 /**
  * §7.1's Generated tier — what the model is asked for when a learner's goal
@@ -151,6 +152,17 @@ export const DraftCriterion = z.object({
    * `validatePack` blocks on a sum that is off by 0.001.
    */
   weight: z.number().positive().max(100),
+  /**
+   * Which half of the hand-in this criterion is judged from — the author's
+   * decision, because the author is the one who knows.
+   *
+   * Asked for rather than inferred from the workspace, for the reason
+   * `CriterionMarks` gives: it varies inside one pack. Checked afterwards
+   * against the project's own `evidence`, because a model asked what it may
+   * judge from will over-claim — the same reason `MAX_GENERATED_TIER` caps a
+   * tier rather than trusting a prompt not to reach for one.
+   */
+  marks: CriterionMarks.default("text"),
   bands: z.object({
     absent: z.string().min(1).max(400),
     developing: z.string().min(1).max(400),
@@ -166,6 +178,22 @@ export const DraftRubric = z.object({
 });
 export type DraftRubric = z.infer<typeof DraftRubric>;
 
+/**
+ * `ProjectEvidence` with the count left loose, and clamped in `derive.ts`.
+ *
+ * The ceiling is real — `MAX_PROJECT_IMAGES` is what the ingest step will take —
+ * but enforcing it *here* would fail the whole call, and the whole call is four
+ * model requests and about a pound. A model asked "how many photographs at most"
+ * and answering eight has written a usable pack with one number to bring down;
+ * that is arithmetic, not a regeneration. Same argument as the weights two
+ * fields up.
+ */
+export const DraftEvidence = z.object({
+  image: z.enum(["required", "optional", "none"]).default("none"),
+  images: z.number().int().min(1).max(50).default(1),
+});
+export type DraftEvidence = z.infer<typeof DraftEvidence>;
+
 export const DraftProject = z.object({
   title: z.string().min(2).max(160),
   brief: z.string().min(40).max(4000),
@@ -173,7 +201,15 @@ export const DraftProject = z.object({
   rubric: z.string().min(1),
   /** Skill names from the graph that this project produces evidence for. */
   targetSkills: z.array(z.string().min(1)).min(1).max(6),
-  evidenceType: z.string().min(2).max(60),
+  /**
+   * What the hand-in is made of. The written method is not in here because it
+   * is not optional — see `ProjectEvidence`.
+   *
+   * This is the field that opens the whole `craft` branch: sewing, woodwork,
+   * cooking and drawing are otherwise a text box asking somebody to describe a
+   * thing they made.
+   */
+  evidence: DraftEvidence.default({ image: "none", images: 1 }),
   difficulty: z.number().min(0).max(1),
   estimatedMinutes: z.number().int().positive().max(2400),
   acceptanceCriteria: z.array(z.string().min(1).max(400)).min(1).max(10),

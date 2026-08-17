@@ -2,7 +2,7 @@ projects:
   - slug: unbudgeted-spend-memo
     title: Get £8,000 of unbudgeted spend approved
     rubric: recommendation-memo
-    evidenceType: document
+    evidence: { image: none, images: 1 }
     difficulty: 0.55
     estimatedMinutes: 60
     isPublic: true
@@ -25,7 +25,7 @@ projects:
   - slug: the-slip-message
     title: Tell them the deadline is slipping
     rubric: difficult-message
-    evidenceType: document
+    evidence: { image: none, images: 1 }
     difficulty: 0.7
     estimatedMinutes: 40
     isPublic: true
@@ -47,7 +47,7 @@ projects:
   - slug: summary-of-something-long
     title: Summarise something long, without losing the bad news
     rubric: summary-that-stands-alone
-    evidenceType: document
+    evidence: { image: none, images: 1 }
     difficulty: 0.75
     estimatedMinutes: 75
     isPublic: true

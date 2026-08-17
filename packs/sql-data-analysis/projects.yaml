@@ -11,7 +11,7 @@ projects:
   - slug: sales-funnel-analysis
     title: Revenue by channel, without double-counting
     rubric: funnel-analysis
-    evidenceType: query
+    evidence: { image: none, images: 1 }
     difficulty: 0.6
     estimatedMinutes: 90
     isPublic: true
@@ -33,7 +33,7 @@ projects:
   - slug: cohort-retention-table
     title: Monthly cohort retention from a raw event log
     rubric: cohort-retention
-    evidenceType: query
+    evidence: { image: none, images: 1 }
     difficulty: 0.8
     estimatedMinutes: 120
     isPublic: true
@@ -56,7 +56,7 @@ projects:
   - slug: data-quality-audit
     title: Audit a table you have been told to trust
     rubric: data-quality-audit
-    evidenceType: query
+    evidence: { image: none, images: 1 }
     difficulty: 0.55
     estimatedMinutes: 75
     isPublic: true
@@ -83,7 +83,7 @@ projects:
   - slug: slow-query-rescue
     title: Make a slow query fast without changing its answer
     rubric: query-rescue
-    evidenceType: query
+    evidence: { image: none, images: 1 }
     difficulty: 0.85
     estimatedMinutes: 120
     isPublic: true

@@ -3434,3 +3434,106 @@ Two things this deliberately does not claim:
 
 Unchanged: E4's 229 items, E12 at ten pages of fifty, §2.6's week-1 keyword
 verification, Lighthouse and GSC/Bing behind a deployed origin.
+
+---
+
+# Delivery record — pass 33: the photograph reaches the marker
+
+§24 E8.5 phase 1. Three packs had declared `workspace: media`, `evidenceType:
+image` and `evaluatorConfig.tools: [read_image]` since they were written, and
+`store.ts` accepted pasted text only and said so in a comment. `home-cooking`
+and `photography` were asking for work the product could not take.
+
+## The field that was authored by a model and read by nobody
+
+`evidenceType` was a free string — "document", "repo", "image", "query" — and
+the generated-pack rubrics call already asked a model for it. **So the AI had
+been making this decision for four passes and nothing downstream read the
+answer.** It reached two marketing metadata rows and stopped.
+
+It is now `evidence: { image, images }` on the project and `marks` on each
+criterion, and both are load-bearing in the same change that adds them: the
+session's file input, the ingest caps, the rubric the grader is handed, the
+tier the verdict may claim, and the sentence on the evaluation screen. That was
+the acceptance test I held the design to — if a field could have been added and
+parked for phase 2, it would have been `evidenceType` again under a better name.
+
+## What the spec got wrong, and the plan now records
+
+Six, in §24 E8.5's own block. The two worth repeating here because they are
+judgements rather than mechanics:
+
+**Rule 2 as written would have failed honest rubrics.** "Every rubric keeps at
+least one `text` criterion" protects one thing: §14.5's deterministic quote
+check having real text to run against. A `both` criterion quotes the write-up
+like any other, so it satisfies that purpose exactly. Enforced literally, the
+rule would reject `light-and-separation`, whose four criteria all rest on the
+frame and all quote the sentence describing it — a correct rubric failing a rule
+that exists to catch unmarkable ones.
+
+**`tierFor`'s correction runs the opposite way to the intuition, and it is still
+right.** A media pack graded from prose alone is doing §7.2 tier 2, and tier 2's
+confidence band is *higher* than tier 3's. A learner who hands in less is
+therefore not flattered by a weaker tier and is not punished by one either. The
+tiers are kinds of evidence, not grades of it; reading a written method against a
+rubric genuinely is the more reliable read. What would have been dishonest is
+the label — "Tier 3 evidence" over a verdict that never saw a photograph.
+
+## The bucket that is not there, and why the reason is not storage
+
+The spec says "Images need a bucket." They are stored inline in `storageRef`
+instead, base64 beside the text, and the constraint that actually decided the
+shape is upstream of the database: **Server Actions hold the whole multipart
+body in memory.** Six frames at `MAX_IMAGE_BYTES` is a 27MB request on a box
+sharing 7.6GB with another project, and no amount of object storage changes
+that.
+
+So the bound is `MAX_SUBMISSION_IMAGE_BYTES`, a budget across the entire
+hand-in rather than per file, and `next.config.ts`'s `bodySizeLimit` carries the
+same number plus the wrapper. The two move together or the platform refuses the
+upload before any of our own copy runs and the learner gets a framework error.
+There is a test asserting the ordering of the pair, because they live in
+different files and the failure is silent from the code's point of view.
+
+A correctly exported set fits inside it comfortably — the API downscales
+anything over about 1568px on the long edge, and a JPEG at that size is
+300–450KB. What it refuses is six untouched camera exports, and the only thing
+lost by exporting them smaller is upload time.
+
+`GRADER_PROMPT.version` goes to 2 with it. `promptVersion` is stamped on every
+`evaluation` row and §21's calibration set is only interpretable if two different
+prompts cannot share a number — which is the entire reason the column exists.
+
+## Two things found on the way that were not about images
+
+- **`check/photo.ts` was in the client bundle's import graph.** `IMAGE_TYPES`
+  and `MAX_IMAGE_BYTES` were read by `check-screens.tsx`, a client component, out
+  of a module that imports the SDK. They are facts about Anthropic's request
+  format rather than product policy, so they moved to `src/lib/ai/images.ts`,
+  which imports nothing. The submission path needed them too, and a second copy
+  of a MIME allowlist is the copy that starts accepting a format the API refuses.
+- **`submissionById` was `limit(1)` on an inner join.** Correct exactly while a
+  submission could only ever be one row, and silently wrong the moment one
+  carried a photograph — it would have returned whichever row Postgres felt like.
+
+## Still open
+
+**The two files another session held for the duration.** `session/[id]/page.tsx`
+needs the file input where `block.evidence.image !== "none"` and copy for the
+five new `?error=` codes; `validate.ts` needs the three rules stated as
+`blocking` issues rather than only satisfied by assembly. Both were another
+session's during this pass and come back immediately after it. Until the file
+input lands, a learner cannot hand a photograph in — the pipeline behind it is
+complete and reachable only by the action.
+
+**Phase 2 is untouched and its shape is unchanged.** An image criterion returning
+a locator rather than a quote, `verifierPassed` narrowed to a statement about
+text criteria, and the surface saying which criteria were judged under the weaker
+contract. Rule 2 is what guarantees the deterministic check always has something
+to run against, and it now has a reading that honest rubrics can satisfy.
+
+**Nobody has run a photograph through the real API yet.** The loop is verified in
+tests with the model stubbed; §24 E8's own precedent is that the interesting
+failures only show up against the real one. Unchanged from pass 32: E8's κ is 20
+bands and an evening, E4's 229 items, E12 at ten pages of fifty, §2.6's week-1
+keyword verification, Lighthouse and GSC/Bing behind a deployed origin.

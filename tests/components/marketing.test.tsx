@@ -789,6 +789,7 @@ describe("RubricLadder", () => {
     name: "The news comes first",
     description: "The difficult part is in the opening.",
     weight: 0.35,
+    marks: "text",
     bands: {
       absent: "The reader must reach the third paragraph.",
       developing: "Present in the first paragraph but softened.",

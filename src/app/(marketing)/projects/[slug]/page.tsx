@@ -13,6 +13,7 @@ import {
 } from "@/components/marketing";
 import { LinkCard, Meta, revealAt } from "@/components/ui";
 import { allProjects, findProject } from "@/lib/content";
+import { handInLabel } from "@/lib/content/evidence";
 import { breadcrumbs, howTo } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
 
@@ -104,7 +105,7 @@ export default async function ProjectPage({
                 course
               </Meta>
               <Meta>~{project.estimatedMinutes} minutes</Meta>
-              <Meta>Evidence: {project.evidenceType}</Meta>
+              <Meta>Evidence: {handInLabel(project.evidence)}</Meta>
               <EvalTierNote tier={project.evalTier} />
             </>
           }

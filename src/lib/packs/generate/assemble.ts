@@ -7,7 +7,11 @@ import {
   type RubricsDraft,
 } from "@/lib/contracts/pack";
 import { MIN_PRODUCTION_TO_MCQ_RATIO, validatePack } from "../validate";
-import { PRODUCTION_ITEM_TYPES, type DomainPack } from "../types";
+import {
+  MAX_PROJECT_IMAGES,
+  PRODUCTION_ITEM_TYPES,
+  type DomainPack,
+} from "../types";
 import { DomainPackSchema } from "../types";
 import type { CheckedResource } from "../resources";
 import {
@@ -15,6 +19,7 @@ import {
   nameResolver,
   normaliseWeights,
   numberedSlug,
+  reconcileEvidence,
   skillRef,
   slugify,
   tierFor,
@@ -425,9 +430,19 @@ export function assemblePack(input: AssembleInput): AssembleResult {
 
   /* ── Rubrics ────────────────────────────────────────────────────────────── */
 
+  /*
+   * §24 E8.5's three evidence rules, settled before either list is built —
+   * `marks` is a property of a criterion and depends on what the *project* asks
+   * for, so neither can be assembled without the other having been read.
+   * Anything it changed is recorded in `dropped`, which is the pack's own
+   * account of what assembly did to what the model returned.
+   */
+  const reconciled = reconcileEvidence(input.rubrics, MAX_PROJECT_IMAGES);
+  dropped.push(...reconciled.notes);
+
   const rubricSlugs = uniqueSlugs(input.rubrics.rubrics.map((r) => r.name));
   const resolveRubric = nameResolver(rubricSlugs);
-  const rubrics: DomainPack["rubrics"] = input.rubrics.rubrics.map((r) => {
+  const rubrics: DomainPack["rubrics"] = input.rubrics.rubrics.map((r, ri) => {
     const weights = normaliseWeights(r.criteria);
     const criterionSlugs = uniqueSlugs(r.criteria.map((c) => c.name));
 
@@ -440,6 +455,7 @@ export function assemblePack(input: AssembleInput): AssembleResult {
         name: c.name,
         description: c.description,
         weight: weights[i]!,
+        marks: reconciled.marks[ri]![i]!,
         bands: c.bands,
       })),
     };
@@ -447,7 +463,7 @@ export function assemblePack(input: AssembleInput): AssembleResult {
 
   const projectSlugs = uniqueSlugs(input.rubrics.projects.map((p) => p.title));
   const projects: DomainPack["projects"] = input.rubrics.projects.flatMap(
-    (p) => {
+    (p, pi) => {
       const rubric = resolveRubric(p.rubric);
       if (!rubric) {
         dropped.push(
@@ -480,7 +496,7 @@ export function assemblePack(input: AssembleInput): AssembleResult {
           title: p.title,
           brief: p.brief,
           rubric,
-          evidenceType: p.evidenceType,
+          evidence: reconciled.evidence[pi]!,
           difficulty: p.difficulty,
           estimatedMinutes: p.estimatedMinutes,
           // §12.1 — a generated pack is never an SEO surface, so its briefs are

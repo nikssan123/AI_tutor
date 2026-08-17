@@ -26,8 +26,38 @@ import type { EvalTier } from "@/lib/packs/types";
  */
 export const MAX_TIER_WITHOUT_EXECUTION: EvalTier = 2;
 
-export function tierFor(declaredTier: EvalTier): EvalTier {
-  return declaredTier < MAX_TIER_WITHOUT_EXECUTION
+/**
+ * §7.2 tier 3 is "media review" — the verdict rests on looking at something.
+ *
+ * It is the one tier in this build whose claim can be falsified by the hand-in
+ * itself rather than by the pipeline's own limits, which is why it needs the
+ * second argument below.
+ */
+export const MEDIA_TIER: EvalTier = 3;
+
+/**
+ * @param imageSubmitted whether a photograph actually arrived with the work.
+ *
+ * Defaults to true, which is what a page describing a brief nobody has answered
+ * yet means: *this* is the claim, if the work asked for arrives. Only the
+ * pipeline knows better, and only after the fact — a tier-3 skill graded from a
+ * written method alone was not media review, it was §7.2 tier 2, and saying
+ * "Tier 3 evidence" on that verdict claims we looked at a photograph that was
+ * never handed in.
+ *
+ * Note which way that moves: tier 2 carries a *higher* confidence band than
+ * tier 3, so a learner who submits less is not flattered by a lower tier and is
+ * not punished by it either. The tiers are kinds of evidence, not grades of it,
+ * and reading a written method against a rubric is genuinely the more reliable
+ * read. What would be dishonest is the label, not the number.
+ */
+export function tierFor(declaredTier: EvalTier, imageSubmitted = true): EvalTier {
+  const rested =
+    declaredTier === MEDIA_TIER && !imageSubmitted
+      ? MAX_TIER_WITHOUT_EXECUTION
+      : declaredTier;
+
+  return rested < MAX_TIER_WITHOUT_EXECUTION
     ? MAX_TIER_WITHOUT_EXECUTION
-    : declaredTier;
+    : rested;
 }

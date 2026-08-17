@@ -197,6 +197,13 @@
       "when": 1786923145331,
       "tag": "0027_unknown_marauders",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786959499442,
+      "tag": "0028_wandering_shooting_star",
+      "breakpoints": true
     }
   ]
 }

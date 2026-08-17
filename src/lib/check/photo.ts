@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { callStructured, type CallResult } from "@/lib/ai/call";
+import type { ImageType } from "@/lib/ai/images";
 
 /**
  * §7.2 tier 3 — "multimodal rubric grading against technical criteria only;
@@ -69,33 +70,13 @@ export const PhotoGrade = z.object({
 });
 export type PhotoGrade = z.infer<typeof PhotoGrade>;
 
-/** What Anthropic accepts, which is also what a phone or a camera produces. */
-export const IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-] as const;
-
-/**
- * The largest photograph we will take, in bytes.
- *
- * The API's own ceiling is 5MB per image and it downscales anything over its
- * working resolution, so this is about the request rather than about quality: a
- * 4.5MB JPEG off a phone arrives intact, a 20MB raw export is refused with a
- * sentence that says what to do instead. Nothing is resized here — adding an
- * image pipeline to a marketing route to save a fraction of a cent would be the
- * wrong trade.
- */
-export const MAX_IMAGE_BYTES = 4_500_000;
-
 export interface PhotoRequest {
   /** The task, as the learner saw it. */
   question: string;
   /** The skill's can-do statement — the bar the frame is held against. */
   expected: string;
-  /** One of `IMAGE_TYPES`. */
-  mediaType: string;
+  /** Checked against `IMAGE_TYPES` by the caller. */
+  mediaType: ImageType;
   /** The image itself, base64, no data-URL prefix. */
   data: string;
   /** Anything they typed alongside it. Often empty. */
@@ -115,9 +96,7 @@ export async function gradePhoto(
         type: "image",
         source: {
           type: "base64",
-          // The union of media types the SDK accepts is narrower than `string`;
-          // the caller has already checked membership of `IMAGE_TYPES`.
-          media_type: request.mediaType as "image/jpeg",
+          media_type: request.mediaType,
           data: request.data,
         },
       },

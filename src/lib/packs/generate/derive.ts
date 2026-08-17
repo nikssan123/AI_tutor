@@ -1,4 +1,8 @@
-import type { DraftCriterion, DraftSkill } from "@/lib/contracts/pack";
+import type {
+  DraftCriterion,
+  DraftEvidence,
+  DraftSkill,
+} from "@/lib/contracts/pack";
 import { MAX_SLUG_LENGTH, type EvalTier, type PackSkill, type Workspace } from "../types";
 
 type Priors = PackSkill["bktPriors"];
@@ -229,4 +233,135 @@ export function normaliseWeights(criteria: DraftCriterion[]): number[] {
   weights[weights.length - 1] = +(weights[weights.length - 1]! + drift).toFixed(6);
 
   return weights;
+}
+
+/* ── Evidence ─────────────────────────────────────────────────────────────── */
+
+/**
+ * §24 E8.5's three rules, applied to the draft before it becomes a pack.
+ *
+ * `validatePack` states them and blocks on them; this is where a generated pack
+ * comes to satisfy them, which is what keeps `meetsQualityFloor`'s claim true —
+ * assembly produces packs that pass every blocking rule rather than packs that
+ * happen to. The model is asked what it knows (does this work need a
+ * photograph, and does this criterion judge one) and its answer is then made
+ * consistent, exactly as `normaliseWeights` does above.
+ *
+ * Every repair is recorded. A silently demoted brief is a brief that stopped
+ * asking for the photograph its rubric was written around, and nobody would
+ * know which pass did it.
+ */
+export interface EvidenceReconciliation {
+  /**
+   * By rubric index, then criterion index — **positions, not names.**
+   *
+   * `uniqueSlugs` exists in this file because two rubrics, two projects or two
+   * criteria in one draft can share a display name; a map keyed by name would
+   * silently merge them and settle both from whichever came last.
+   */
+  marks: DraftCriterion["marks"][][];
+  /** By project index. `image` demoted where rule 3 bites, `images` clamped. */
+  evidence: DraftEvidence[];
+  notes: string[];
+}
+
+interface ReconcileInput {
+  projects: Array<{ title: string; rubric: string; evidence: DraftEvidence }>;
+  rubrics: Array<{
+    name: string;
+    criteria: Array<{
+      name: string;
+      weight: number;
+      marks: DraftCriterion["marks"];
+    }>;
+  }>;
+}
+
+export function reconcileEvidence(
+  input: ReconcileInput,
+  maxImages: number,
+): EvidenceReconciliation {
+  const notes: string[] = [];
+
+  /*
+   * Rule 1 asks whether "its project" accepts images, and a rubric can be named
+   * by more than one project. The strict reading is the only one with a single
+   * answer: a rubric may judge a photograph only if *every* project handing work
+   * in against it asks for one. A rubric named by no project judges none,
+   * because nothing will ever be submitted against it.
+   */
+  const takesImages = (name: string): boolean => {
+    const users = input.projects.filter((p) => p.rubric === name);
+    return users.length > 0 && users.every((p) => p.evidence.image !== "none");
+  };
+
+  const marks = input.rubrics.map((rubric) => {
+    const allowed = takesImages(rubric.name);
+
+    const settled = rubric.criteria.map((c) => {
+      // Rule 1 — nothing to look at, so nothing may claim to have looked.
+      if (!allowed && c.marks !== "text") {
+        notes.push(
+          `criterion "${c.name}" in rubric "${rubric.name}" judged a photograph its project does not ask for; it reads the write-up instead`,
+        );
+        return "text" as const;
+      }
+      return c.marks;
+    });
+
+    /*
+     * Rule 2 — every rubric keeps something the verifier can anchor to.
+     *
+     * `both` counts, and that is a reading of the rule rather than a softening
+     * of it. What rule 2 protects is §14.5's deterministic quote check having
+     * real text to run against, and a `both` criterion quotes the write-up like
+     * any other. The unmarkable rubric is the one where *nothing* reads the
+     * write-up, and the repair is the smallest that fixes it: the criterion
+     * carrying the most weight starts reading both.
+     */
+    // `some`, not `!every`: TypeScript infers a type predicate from the arrow
+    // and `every` would narrow `settled` to `"image"[]`, making the repair
+    // below unassignable to the array it is repairing.
+    const anchored = settled.some((m) => m !== "image");
+
+    if (settled.length > 0 && !anchored) {
+      const heaviest = rubric.criteria.reduce(
+        (best, c, i) => (c.weight > rubric.criteria[best]!.weight ? i : best),
+        0,
+      );
+      settled[heaviest] = "both";
+      notes.push(
+        `rubric "${rubric.name}" read nothing from the write-up, leaving no quote to check; "${rubric.criteria[heaviest]!.name}" now reads both`,
+      );
+    }
+
+    return settled;
+  });
+
+  const evidence = input.projects.map((project) => {
+    const index = input.rubrics.findIndex((r) => r.name === project.rubric);
+    const looksAtImage = (marks[index] ?? []).some((m) => m !== "text");
+
+    let image = project.evidence.image;
+
+    // Rule 3 — a brief may not demand a photograph that changes no band. The
+    // same defect as a targeted skill no criterion assesses, in other clothes.
+    if (image === "required" && !looksAtImage) {
+      notes.push(
+        `project "${project.title}" required a photograph no criterion in "${project.rubric}" judges; asked for as optional instead`,
+      );
+      image = "optional";
+    }
+
+    const images = Math.min(project.evidence.images, maxImages);
+    if (images !== project.evidence.images) {
+      notes.push(
+        `project "${project.title}" asked for ${project.evidence.images} photographs; capped at ${maxImages}`,
+      );
+    }
+
+    return { image, images };
+  });
+
+  return { marks, evidence, notes };
 }

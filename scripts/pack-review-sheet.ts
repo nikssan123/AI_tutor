@@ -4,6 +4,7 @@ import { allPacks, findPack } from "@/lib/content";
 import { buildIndex, prerequisitesOf } from "@/lib/engine/graph";
 import { toEngineGraph } from "@/lib/packs/validate";
 import type { DomainPack } from "@/lib/packs/types";
+import { handInLabel } from "@/lib/content/evidence";
 
 /**
  * The pack read-through of §23's Phase 0, as one document per pack.
@@ -194,7 +195,7 @@ function briefs(pack: DomainPack): string[] {
 
   for (const project of pack.projects) {
     lines.push(
-      `- [ ] **${project.title}** \`${project.slug}\` · ~${project.estimatedMinutes} min · rubric \`${project.rubric}\` · ${project.evidenceType}`,
+      `- [ ] **${project.title}** \`${project.slug}\` · ~${project.estimatedMinutes} min · rubric \`${project.rubric}\` · ${handInLabel(project.evidence)}`,
     );
     lines.push(
       `  - targets: ${project.targetSkills.map((s) => byName.get(s) ?? s).join(", ")}`,

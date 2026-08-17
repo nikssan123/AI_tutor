@@ -188,7 +188,7 @@ export async function packFromDb(
             title: p.title,
             brief: p.brief,
             rubric: rubricRef,
-            evidenceType: p.evidenceType,
+            evidence: p.evidence,
             difficulty: p.difficulty,
             estimatedMinutes: p.estimatedMinutes,
             isPublic: p.isPublic,

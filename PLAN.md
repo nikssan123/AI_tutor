@@ -2231,6 +2231,7 @@ before picking the next thing up.**
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
 | **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ needs 20 bands from Nikolay against `calibration/recommendation-memo.yaml` — five memos, no subject expertise |
+| **E8.5** Image evidence | 🟡 **Phase 1 built; the file input and the validator rules are the remainder** | `src/lib/ai/images.ts`, `src/lib/submissions/images.ts`, `src/lib/content/evidence.ts`, `evidence` on `PackProject` and `marks` on `RubricCriterion` — the photograph reaches the grader, the verifier is untouched (§14.5), and `tierFor` stops calling a prose-only hand-in media review. See below for the six things building it changed |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
@@ -2684,6 +2685,161 @@ grant exists before `firstPaymentAt`; a refund revokes both sides. **All four
 met.** Not built, deliberately: referral tiers (the brief says start simplest)
 and shareable learning paths (§22.2's gate cannot be cleared until learners have
 evidence). See PLAN-MONETIZATION §9.4 and §9.5.
+
+### E8.5 — Image evidence, and the author deciding when it counts
+
+**Why:** three packs already claim evidence the product cannot accept.
+`home-cooking` and `photography` declare `workspace: media`, `evidenceType:
+image` and `evaluatorConfig.tools: [read_image]`; `store.ts` accepts pasted text
+only and says so in a comment. The generated-pack rubrics call already asks a
+model for `evidenceType` as a free string ("document, repo, image, recording,
+spreadsheet, query") — so **the AI is already making this decision, and nothing
+reads it.** `evidenceType` reaches two marketing metadata rows and stops.
+
+That is the gap to close, and closing it opens the whole `craft` branch — sewing,
+woodwork, cooking, drawing — which is otherwise a text box asking people to
+describe a thing they made.
+
+**The decision belongs to the pack author, per project, not to the workspace.**
+A sewing pack wants a photograph for "sew a French seam and show both sides" and
+wants nothing but prose for "plan a fabric layout and justify the grainline".
+Same pack, same workspace. The model writing the brief is the one that knows
+which it is, so it says so — and code checks the claim, the same way
+`MAX_GENERATED_TIER` caps a tier rather than trusting a prompt not to overreach.
+
+#### What the author returns
+
+`evidenceType` (free string, display-only) is replaced on `PackProject` by a
+typed declaration, and `RubricCriterion` gains the half that makes it mean
+something:
+
+```ts
+evidence: { text: "required", image: "required" | "optional" | "none", images?: number }
+// on each criterion:
+marks: "text" | "image" | "both"
+```
+
+`text` is not a variable. **Every project requires a written method**, because
+the written half is where the temperatures, the order, the tension setting and
+the thing that went wrong live — and, as below, because it is the only half the
+verifier can check. A photograph of a finished seam does not say what you did.
+
+#### Three rules `validate.ts` enforces, because the model will over-claim
+
+1. A criterion may `marks: "image"` only if its project accepts images.
+2. **Every rubric keeps at least one `text` criterion.** This is the rule that
+   stops a pack from becoming unmarkable — see the verifier below.
+3. `image: "required"` needs a criterion that actually marks the image.
+   Otherwise the brief demands a photograph that changes no band, which is the
+   `one-vegetable-four-cuts` defect (a targeted skill no criterion assessed)
+   wearing different clothes.
+
+#### The verifier is the hard part, and it is why this is two phases
+
+§14.5's non-negotiable rule is that every criterion quotes the artefact, and
+`verify.ts` checks it by string match — deliberately not by a second model,
+because "asking a second model to check the first model's quotes introduces
+exactly the failure it is supposed to catch". **An image has no text spans.** A
+grader told to quote a photograph will describe it, the match will fail, and
+every criterion gets invalidated — the evaluation collapses rather than degrades.
+
+So:
+
+**Phase 1 — the image reaches the grader; the verifier is untouched.** Every
+criterion still marks text and still quotes verbatim. The photograph is context:
+it lets the grader see that the seam the learner described as "pressed open" is
+not pressed open, and mark the *written claim* down accordingly. `evidence`
+drives the submission surface and storage, and nothing about §14.5 changes. This
+is most of the value — it is what `sear-rest-and-prove-it` already asks for in
+prose ("a photograph of a cooked thing is not evidence that it was cooked to a
+target; a cross-section and a temperature reading are") — and it ships without
+touching the crown jewel.
+
+**Phase 2 — image criteria get their own band, under a weaker and separately
+labelled evidence contract.** An image criterion returns a locator (what, and
+where in the frame) rather than a quote. That cannot be string-matched, so it
+must never be reported as if it were: `verifierPassed` stays a statement about
+text criteria only, and the surface says which criteria were judged from a
+photograph. Rule 2 above is what guarantees the deterministic check always has
+something real to run against.
+
+#### The rest of the work
+
+- **Storage.** `store.ts` inlines the artefact in `storageRef` because the build
+  accepts 60KB of prose. Images need a bucket. The `artifact` table already
+  documents `repo | file | image | audio | text | url` and takes one row per
+  artefact, so the schema anticipated this; the submission becomes two rows.
+- **Ingest.** `normaliseArtefact` caps text. Images need their own cap, a MIME
+  allowlist, and a count limit from `evidence.images`.
+- **The grader call.** `CallSpec.user` is already
+  `string | Anthropic.ContentBlockParam[]`, so an image block needs no change in
+  `call.ts` — this is the one place the existing design pays off unmodified.
+- **`tierFor`.** `evaluation/tier.ts` caps the claimable tier at what the
+  product can actually do. A media pack graded from prose alone is not doing
+  what tier 3 says; the cap has to know whether an image was submitted, not just
+  whether the pack declared one.
+
+**Accept:** a generated sewing pack returns per-project `evidence` and per-criterion
+`marks`; a project claiming `image: "required"` with no image-marking criterion
+fails validation; the session offers a file input only where the project accepts
+one; a submission with a photograph and a method is marked, and the evaluation
+page says which criteria the photograph informed.
+
+**Not in this epic:** audio and video evidence (the `audio` workspace exists in
+`Workspace` and has no pack), and human review of any image.
+
+> **Phase 1 is built.** Six things it changed, each of which the spec above got
+> wrong or left open:
+>
+> - **There is no `text` key on `evidence`.** The spec writes
+>   `{ text: "required", image: …, images? }` and then explains that `text` is
+>   not a variable — which is the argument for leaving it out. A field that can
+>   only hold one value and that nothing branches on is exactly `evidenceType`
+>   again: authored, stored, read by nobody. The written method is unconditional
+>   in code, and `ProjectEvidence` says so in prose instead.
+> - **Rule 2 counts `both`, not only `text`.** What the rule protects is §14.5's
+>   deterministic quote check having real text to run against, and a `both`
+>   criterion quotes the write-up like any other. The unmarkable rubric is the
+>   one where *nothing* reads the write-up. Enforced as written would have
+>   failed honest rubrics — `light-and-separation`'s four criteria all rest on
+>   the frame and all quote the sentence describing it.
+> - **Rule 1 needed a strict reading, because a rubric can be shared.** "Its
+>   project" has one answer only if it is *every* project handing work in against
+>   that rubric. Otherwise a criterion judges a photograph half its submissions
+>   cannot contain.
+> - **`marks` is read in phase 1, not merely stored.** It goes into the rubric
+>   the grader is handed — a criterion is about the photograph only if the rubric
+>   in the prompt says so — and onto the evaluation screen. Had it only been
+>   validated and parked for phase 2 it would have been another authored field
+>   nobody reads.
+> - **`tierFor`'s correction runs the opposite way to the intuition.** A tier-3
+>   pack graded from prose alone is doing §7.2 tier 2, and tier 2's confidence
+>   band is *higher* than tier 3's. That is right: the tiers are kinds of
+>   evidence, not grades of it, and reading a written method against a rubric is
+>   the more reliable read. What would have been dishonest is the label, not the
+>   number. The second argument defaults to `true`, because a page describing a
+>   brief nobody has answered means "this is the claim, if the work asked for
+>   arrives" — only the pipeline knows better, and only afterwards.
+> - **No bucket, and the reason is the request body rather than the disk.**
+>   Images are stored inline in `storageRef` like the text beside them. What
+>   bounds it is `MAX_SUBMISSION_IMAGE_BYTES` — a budget across the *whole*
+>   hand-in, which exists because Server Actions hold the multipart body in
+>   memory and six frames at the per-file cap is a 27MB request on a box sharing
+>   7.6GB with another project. It and `next.config.ts`'s `bodySizeLimit` move
+>   together or the platform refuses the upload before any of our own copy runs.
+>   A correctly exported set fits inside it with room to spare; what it refuses
+>   is six untouched camera exports, which the API downscales anyway.
+>
+> **The marketing surfaces got better by losing the free string.** "Hand in:
+> image" named the photograph and never mentioned the write-up — the half that
+> is always required and the half most of the rubric is marked from.
+> `handInLabel` derives the sentence from the declaration, so a brief cannot
+> describe a hand-in it does not take.
+>
+> **The evaluation page does not show the photograph back**, and that is
+> deliberate rather than pending: the Accept criterion asks which criteria it
+> informed, the learner already has the file, and rendering the bytes needs an
+> auth-scoped route that phase 1 does not otherwise want.
 
 ---
 

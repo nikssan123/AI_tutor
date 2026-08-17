@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { callStructured, type CallResult } from "@/lib/ai/call";
 import { EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { PackProject, RubricCriterion } from "@/lib/packs/types";
+import type { SubmittedImage } from "@/lib/submissions/images";
 
 /**
  * §14.5 step 3 — rubric grading. "The most important component."
@@ -22,8 +23,15 @@ import type { PackProject, RubricCriterion } from "@/lib/packs/types";
  */
 
 export const GRADER_PROMPT = {
+  /*
+   * Version 2 as of §24 E8.5: the prompt now tells the grader that some
+   * hand-ins carry photographs and which criteria they inform. Bumped rather
+   * than edited in place because `promptVersion` is stamped on every
+   * `evaluation` row, and §21's calibration set is only interpretable if two
+   * different prompts cannot share a number — the whole point of recording it.
+   */
   name: "rubric_grader",
-  version: 1,
+  version: 2,
   text: `You mark a piece of work against a rubric the learner read before they started.
 
 You are given the brief they were set, the rubric, and what they handed in. You return a band for every criterion, and for each one a quote from their work that shows why.
@@ -38,7 +46,13 @@ Report every problem you find, with the band it affects. Do not decide something
 
 Judge the work, never the person, and never what you imagine they understand. If it is not in what they handed in, it did not happen.
 
-Write \`reasoning\` to the learner. One or two sentences saying why this band and not the one above it, in plain language, about their work.`,
+Write \`reasoning\` to the learner. One or two sentences saying why this band and not the one above it, in plain language, about their work.
+
+**Some hand-ins come with photographs.** Where they do, the rubric says which criteria are judged from them: *the write-up*, *the photograph*, or *both*.
+
+Look at the photographs for those criteria and let what you see decide the band. A seam described as pressed open that is visibly not pressed open is not a competent seam, whatever the method says.
+
+**But you still quote the write-up, on every criterion, including those.** A quote is checked against the submitted text by an exact match, and a description of an image is not in it — so a criterion whose evidence describes a photograph is thrown out and stops counting at all. Quote the sentence the photograph confirms or contradicts. If the write-up claims nothing about it, quote the place the claim should have been, exactly as you would for anything else that is missing, and say in \`reasoning\` what the photograph showed.`,
 } as const;
 
 export const GRADER_TOOL_SCHEMA = {
@@ -107,18 +121,33 @@ export interface GradeInput {
   /** The submitted work, already normalised and size-capped by the ingest step. */
   artefact: string;
   /**
+   * The photographs handed in with it, already checked by `acceptImages`.
+   *
+   * Optional rather than an empty array by default because most briefs take
+   * none, and `CallSpec.user` already accepts content blocks — this is the one
+   * place in E8.5 where the existing design paid off with no change at all.
+   */
+  images?: SubmittedImage[];
+  /**
    * §14.5 step 4 — the second pass is the same rubric under a different
    * framing, so a band that only survives one framing shows up as spread.
    */
   framing?: "primary" | "second-pass";
 }
 
+/** How each `marks` value reads to the grader, in the rubric it is given. */
+const JUDGED_FROM: Record<RubricCriterion["marks"], string> = {
+  text: "judged from the write-up",
+  image: "judged from the photographs",
+  both: "judged from the photographs and the write-up",
+};
+
 /** The rubric, rendered so every band descriptor is in front of the model. */
 export function renderRubric(criteria: RubricCriterion[]): string {
   return criteria
     .map((c) =>
       [
-        `${c.id} — ${c.name} (weight ${c.weight})`,
+        `${c.id} — ${c.name} (weight ${c.weight}, ${JUDGED_FROM[c.marks]})`,
         `  ${c.description}`,
         `  absent: ${c.bands.absent}`,
         `  developing: ${c.bands.developing}`,
@@ -130,6 +159,8 @@ export function renderRubric(criteria: RubricCriterion[]): string {
 }
 
 export function buildGradeContext(input: GradeInput): string {
+  const count = input.images?.length ?? 0;
+
   return [
     `The brief they were set: ${input.project.title}`,
     input.project.brief,
@@ -143,6 +174,12 @@ export function buildGradeContext(input: GradeInput): string {
     input.framing === "second-pass"
       ? "Work through the criteria in reverse order, and settle each band from its descriptor before you look at the others."
       : "",
+    // Said even when there are none, and only when the rubric expects some: a
+    // criterion judged from a photograph that did not arrive has to be marked
+    // as unevidenced rather than guessed at from the prose around it.
+    count === 0 && input.criteria.some((c) => c.marks !== "text")
+      ? "They handed in no photographs, so anything judged from one has not been shown to you."
+      : "",
     "What they handed in:",
     "---",
     input.artefact,
@@ -150,6 +187,41 @@ export function buildGradeContext(input: GradeInput): string {
   ]
     .filter((line) => line !== "")
     .join("\n");
+}
+
+/**
+ * The user turn: the photographs, each announced, then everything else.
+ *
+ * Images first and numbered, which is what the API's own guidance asks for with
+ * more than one — an unlabelled run of frames cannot be referred to in
+ * `reasoning`, and "the third one" is most of what there is to say about a set.
+ */
+export function buildGradeTurn(
+  input: GradeInput,
+): Anthropic.ContentBlockParam[] | string {
+  const images = input.images ?? [];
+  if (images.length === 0) return buildGradeContext(input);
+
+  return [
+    ...images.flatMap((image, i): Anthropic.ContentBlockParam[] => [
+      {
+        type: "text",
+        text:
+          images.length === 1
+            ? "The photograph they handed in:"
+            : `Photograph ${i + 1} of ${images.length}:`,
+      },
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: image.mediaType,
+          data: image.data,
+        },
+      },
+    ]),
+    { type: "text", text: buildGradeContext(input) },
+  ];
 }
 
 export async function gradeSubmission(
@@ -163,7 +235,7 @@ export async function gradeSubmission(
     step: "rubricGrader",
     prompt: GRADER_PROMPT,
     system: GRADER_PROMPT.text,
-    user: buildGradeContext(input),
+    user: buildGradeTurn(input),
     tool: {
       name: "submit_marks",
       description: "Submit a band and quoted evidence for every criterion.",

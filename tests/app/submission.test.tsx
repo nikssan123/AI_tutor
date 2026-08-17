@@ -108,6 +108,7 @@ const stored = (over: Partial<SubmissionDetail> = {}): SubmissionDetail => ({
   artefact: "the horizon sits on the lower third",
   truncated: false,
   submittedAt: new Date("2026-08-13T12:00:00.000Z"),
+  images: [],
   failureCause: null,
   ...over,
 });
@@ -136,9 +137,25 @@ const evaluated = (over: Partial<EvaluationView> = {}): EvaluationView => ({
   ...over,
 });
 
-const form = (entries: Record<string, string>) => {
+/**
+ * A photograph, as the browser would send one.
+ *
+ * Every project in `photography` declares `evidence.image: "required"` since
+ * §24 E8.5, so a hand-in without one is refused — which is why almost every
+ * case below carries one. That is the feature rather than test scaffolding: the
+ * brief asks for frames and a criterion marks them.
+ */
+const photo = (over: { type?: string; size?: number } = {}) => {
+  const file = new File(["\u0000".repeat(over.size ?? 32)], "frame.jpg", {
+    type: over.type ?? "image/jpeg",
+  });
+  return file;
+};
+
+const form = (entries: Record<string, string>, photos: File[] = [photo()]) => {
   const fd = new FormData();
   for (const [k, v] of Object.entries(entries)) fd.set(k, v);
+  for (const file of photos) fd.append("photos", file);
   return fd;
 };
 
@@ -248,6 +265,86 @@ describe("handing work in", () => {
     ).rejects.toThrow("REDIRECT:/today");
   });
 
+  describe("the photographs (§24 E8.5)", () => {
+    it("hands the images to the row alongside the write-up", async () => {
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }, [photo()]),
+        ),
+      ).rejects.toThrow("REDIRECT:/submission/sub-1");
+
+      const [, input] = createSubmissionMock.mock.calls[0] as unknown as [
+        unknown,
+        { images: Array<{ mediaType: string; bytes: number }> },
+      ];
+      expect(input.images).toHaveLength(1);
+      expect(input.images[0]!.mediaType).toBe("image/jpeg");
+    });
+
+    it("refuses a brief that requires a photograph and got none", async () => {
+      await expect(
+        submitWorkAction(
+          form(
+            { skill: skill.slug, work: "the horizon sits low", returnTo: "/session/s1" },
+            [],
+          ),
+        ),
+      ).rejects.toThrow("REDIRECT:/session/s1?error=missing");
+    });
+
+    /*
+     * The order that matters most in this action. A refused hand-in must not
+     * cost an evaluation, so the images are checked before `consumeEvaluation`
+     * — the same argument that puts the quota claim ahead of the row.
+     */
+    it("costs nothing when the photographs are refused", async () => {
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }, []),
+        ),
+      ).rejects.toThrow("REDIRECT:/today?error=missing");
+
+      expect(consumeMock).not.toHaveBeenCalled();
+      expect(createSubmissionMock).not.toHaveBeenCalled();
+      expect(sendMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a file the model API would not take", async () => {
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }, [
+            photo({ type: "image/heic" }),
+          ]),
+        ),
+      ).rejects.toThrow("REDIRECT:/today?error=wrong-type");
+    });
+
+    it("refuses more frames than the brief asks for", async () => {
+      // `exposure-under-control` asks for four; five is a different piece of
+      // work and five times the bytes.
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }, [
+            photo(), photo(), photo(), photo(), photo(),
+          ]),
+        ),
+      ).rejects.toThrow("REDIRECT:/today?error=too-many");
+    });
+
+    it("ignores an empty file input rather than reading it as a frame", async () => {
+      // A browser posts an empty part for a file input nobody touched. Counting
+      // it would refuse a hand-in for a photograph that does not exist.
+      await expect(
+        submitWorkAction(
+          form({ skill: skill.slug, work: "the horizon sits low" }, [
+            photo(),
+            new File([], "", { type: "application/octet-stream" }),
+          ]),
+        ),
+      ).rejects.toThrow("REDIRECT:/submission/sub-1");
+    });
+  });
+
   describe("the evaluation quota (§14.9.7 limit 2)", () => {
     it("claims one against the plan's monthly allowance", async () => {
       await expect(
@@ -330,6 +427,84 @@ describe("the result screen", () => {
     ).toBeDefined();
     expect(screen.getByText(/placed it deliberately/)).toBeDefined();
     expect(screen.getByText("72%")).toBeDefined();
+  });
+
+  /**
+   * §24 E8.5 — "the evaluation page says which criteria the photograph
+   * informed."
+   *
+   * Read off the rubric the learner could see before they started, not off the
+   * verdict: it is a property of the criterion, not a claim the grader makes
+   * about itself. And gated on a photograph having actually arrived, because a
+   * criterion the rubric marks from an image, on a hand-in that carried none,
+   * was judged from the write-up like everything else.
+   */
+  describe("the photographs it was read against", () => {
+    const rubric = pack.rubrics.find((r) => r.slug === project.rubric)!;
+    const fromImage = rubric.criteria.find((c) => c.marks !== "text")!;
+    const fromText = rubric.criteria.find((c) => c.marks === "text")!;
+
+    const marked = (id: string) =>
+      evaluated({
+        criteria: [
+          {
+            criterionId: id,
+            name: "The criterion",
+            band: "competent",
+            evidence: "the horizon sits on the lower third",
+            reasoning: "deliberate rather than lucky",
+            weight: 1,
+          },
+        ],
+      });
+
+    const frame = { mediaType: "image/jpeg" as const, data: "AAAA", bytes: 4 };
+
+    it("says so on a criterion the rubric judges from one", async () => {
+      submissionMock.mockResolvedValue(stored({ images: [frame] }));
+      evaluationMock.mockResolvedValue(marked(fromImage.id));
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.getByText(/your photograph as well as your words/)).toBeDefined();
+    });
+
+    it("counts them when there was more than one", async () => {
+      submissionMock.mockResolvedValue(stored({ images: [frame, frame] }));
+      evaluationMock.mockResolvedValue(marked(fromImage.id));
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.getByText(/your photographs as well as your words/)).toBeDefined();
+    });
+
+    it("says nothing on a criterion judged from the write-up", async () => {
+      submissionMock.mockResolvedValue(stored({ images: [frame] }));
+      evaluationMock.mockResolvedValue(marked(fromText.id));
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.queryByText(/as well as your words/)).toBeNull();
+    });
+
+    it("claims nothing when no photograph was handed in", async () => {
+      // The criterion is one the rubric marks from an image. Nothing arrived,
+      // so the verdict rests on the write-up and must not say otherwise.
+      submissionMock.mockResolvedValue(stored({ images: [] }));
+      evaluationMock.mockResolvedValue(marked(fromImage.id));
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.queryByText(/as well as your words/)).toBeNull();
+    });
+
+    it("claims nothing when the brief's pack no longer resolves", async () => {
+      // A deployment event: with no rubric there is no `marks` to read, and the
+      // honest reading of an unknown is that nothing was judged from a picture.
+      submissionMock.mockResolvedValue(
+        stored({ packSlug: "a-pack-that-went-away", images: [frame] }),
+      );
+      evaluationMock.mockResolvedValue(marked(fromImage.id));
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.queryByText(/as well as your words/)).toBeNull();
+    });
   });
 
   it("never shows the number without what it is worth (§7.2)", async () => {

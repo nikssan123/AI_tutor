@@ -2,7 +2,8 @@ projects:
   - slug: exposure-under-control
     title: Take control of exposure
     rubric: exposure-control
-    evidenceType: image
+    # one frame per exposure decision
+    evidence: { image: required, images: 4 }
     difficulty: 0.45
     estimatedMinutes: 90
     isPublic: true
@@ -23,7 +24,8 @@ projects:
   - slug: one-light-portrait
     title: A portrait with one light you chose
     rubric: light-and-separation
-    evidenceType: image
+    # the frame and the 100% crop
+    evidence: { image: required, images: 2 }
     difficulty: 0.6
     estimatedMinutes: 120
     isPublic: true
@@ -43,7 +45,8 @@ projects:
   - slug: six-frame-set
     title: Six frames that belong together
     rubric: coherent-set
-    evidenceType: image
+    # the set
+    evidence: { image: required, images: 6 }
     difficulty: 0.8
     estimatedMinutes: 180
     isPublic: true

@@ -43,15 +43,21 @@ const config: NextConfig = {
      */
     staleTimes: { dynamic: 30 },
     /*
-     * §7.3's photograph, uploaded to the Skill Check.
+     * §7.3's photograph, uploaded to the Skill Check — and, since §24 E8.5, up
+     * to six of them handed in with a graded submission.
      *
      * Server Actions default to a 1MB body, which every photo off a phone
      * exceeds — the upload would fail before any of our own validation ran, and
      * the learner would see a platform error rather than a sentence. This is
-     * `MAX_IMAGE_BYTES` plus room for the multipart wrapper; anything larger is
-     * refused by `markPhotoAnswer` with something worth reading.
+     * `MAX_SUBMISSION_IMAGE_BYTES` plus room for the multipart wrapper and the
+     * written method beside it; anything larger is refused by `acceptImages`
+     * (or, on the check, by `markPhotoAnswer`) with something worth reading.
+     *
+     * Raising it is not free: the body is held in memory, and the box this
+     * deploys to shares 7.6GB with another project. See the budget's own
+     * docblock for why it is 12MB rather than six times the per-file cap.
      */
-    serverActions: { bodySizeLimit: "5mb" },
+    serverActions: { bodySizeLimit: "13mb" },
   },
   // §13.2 — `/skills/{skill}` is a permanent redirect to the check page.
   async redirects() {

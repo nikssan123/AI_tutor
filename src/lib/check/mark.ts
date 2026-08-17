@@ -2,7 +2,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { anonymousBudgetSpent, logCall } from "@/lib/ai/runlog";
 import { gradeCheck } from "@/lib/session/grade";
-import { gradePhoto, IMAGE_TYPES, MAX_IMAGE_BYTES } from "./photo";
+import { gradePhoto } from "./photo";
+import { isImageType, MAX_IMAGE_BYTES } from "@/lib/ai/images";
 
 /**
  * Whether an open answer in the anonymous Skill Check gets marked, and by whom.
@@ -151,7 +152,7 @@ export async function markPhotoAnswer(
   deps: MarkDeps,
   answer: PhotoAnswer,
 ): Promise<PhotoOutcome> {
-  if (!IMAGE_TYPES.includes(answer.file.type as (typeof IMAGE_TYPES)[number])) {
+  if (!isImageType(answer.file.type)) {
     return { marking: null, refused: "wrong-type" };
   }
   if (answer.file.size > MAX_IMAGE_BYTES) {

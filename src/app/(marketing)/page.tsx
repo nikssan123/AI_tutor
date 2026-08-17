@@ -51,6 +51,7 @@ import {
 } from "@/lib/contracts/pack";
 import { faqPage, organisation, priceOffers, website } from "@/lib/seo/jsonld";
 import { groupByCategory } from "@/lib/content/categories";
+import { handInLabel } from "@/lib/content/evidence";
 import { marketingMetadata } from "@/lib/seo/metadata";
 import { supportAddress } from "@/lib/site";
 
@@ -573,7 +574,7 @@ export default async function HomePage() {
                 <span className="mt-auto flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-hairline pt-5">
                   <Meta>{featured.topicName}</Meta>
                   <Meta>{featured.estimatedMinutes} min</Meta>
-                  <Meta>Hand in: {featured.evidenceType}</Meta>
+                  <Meta>Hand in: {handInLabel(featured.evidence)}</Meta>
                 </span>
               </div>
 

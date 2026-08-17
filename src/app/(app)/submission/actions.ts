@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
 import { activeGoal } from "@/lib/goals/store";
 import { normaliseArtefact } from "@/lib/evaluation";
+import { acceptImages } from "@/lib/submissions/images";
 import { createSubmission } from "@/lib/submissions/store";
 import { projectForBlock } from "@/lib/submissions/project";
 import { EVENTS, inngest } from "@/lib/inngest/client";
@@ -54,6 +55,21 @@ export async function submitWorkAction(formData: FormData): Promise<void> {
   if (text.length === 0) redirect(`${returnTo}?error=empty`);
 
   /*
+   * §24 E8.5 — the photographs, checked before anything is charged for.
+   *
+   * Ahead of the quota claim on purpose, and for the same reason the quota
+   * claim is ahead of the row: a hand-in that will be refused must not cost an
+   * evaluation. `acceptImages` decides against the *project's* declaration, so
+   * a brief that takes none quietly ignores files rather than failing on them.
+   */
+  const files = formData
+    .getAll("photos")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+  const { images, refused } = await acceptImages(files, project.evidence);
+  if (refused) redirect(`${returnTo}?error=${refused}`);
+
+  /*
    * §14.9.7 limit 2 — "blocked with an upgrade prompt. This is the product's
    * meter (§20.1)."
    *
@@ -89,6 +105,7 @@ export async function submitWorkAction(formData: FormData): Promise<void> {
     projectSlug: project.slug,
     artefact: text,
     truncated,
+    images,
     skillSlug: skill.slug,
     now: new Date(),
   });

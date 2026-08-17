@@ -22,6 +22,7 @@ import {
   submissionById,
 } from "@/lib/submissions/store";
 import type { GradedResult } from "@/lib/evaluation";
+import type { SubmittedImage } from "@/lib/submissions/images";
 
 /**
  * §15's audit trail: "every mastery change is traceable to evidence".
@@ -87,16 +88,23 @@ live("submissions", () => {
     await seedPack(db, pack);
   });
 
-  const create = () =>
+  const create = (images?: SubmittedImage[]) =>
     createSubmission(db, {
       userId: IDS[0]!,
       packSlug: PACK,
       projectSlug: project.slug,
       artefact: "the horizon sits on the lower third of the frame",
       truncated: false,
+      ...(images ? { images } : {}),
       skillSlug: skill.slug,
       now: NOW,
     });
+
+  const frame = (data: string): SubmittedImage => ({
+    mediaType: "image/jpeg",
+    data,
+    bytes: data.length,
+  });
 
   it("stores the work and what it was handed in against", async () => {
     const id = await create();
@@ -110,6 +118,79 @@ live("submissions", () => {
       truncated: false,
     });
     expect(stored!.artefact).toContain("lower third");
+  });
+
+  /**
+   * §24 E8.5 — a hand-in is several `artifact` rows now: one written method and
+   * up to six photographs. `submissionById` used to `limit(1)` an inner join,
+   * which was right exactly while a submission could only ever be one row.
+   */
+  describe("the photographs stored with it", () => {
+    it("round-trips them in the order they were handed in", async () => {
+      const id = await create([frame("QUFB"), frame("QkJC"), frame("Q0ND")]);
+      const stored = await submissionById(db, id, IDS[0]!);
+
+      expect(stored!.images.map((i) => i.data)).toEqual(["QUFB", "QkJC", "Q0ND"]);
+      expect(stored!.images[0]!.mediaType).toBe("image/jpeg");
+      expect(stored!.images[0]!.bytes).toBe(4);
+    });
+
+    it("still finds the write-up, which is the row the metadata rides on", async () => {
+      const id = await create([frame("QUFB")]);
+      const stored = await submissionById(db, id, IDS[0]!);
+
+      expect(stored!.artefact).toContain("lower third");
+      expect(stored!.projectSlug).toBe(project.slug);
+    });
+
+    it("is empty for a written-only hand-in", async () => {
+      const stored = await submissionById(db, await create(), IDS[0]!);
+      expect(stored!.images).toEqual([]);
+    });
+
+    it("drops an image row carrying no metadata at all", async () => {
+      // No media type means nothing to tell the API the bytes are a JPEG.
+      const id = await create([frame("QUFB")]);
+      await db
+        .update(artifact)
+        .set({ metadata: null })
+        .where(and(eq(artifact.submissionId, id), eq(artifact.type, "image")));
+
+      const stored = await submissionById(db, id, IDS[0]!);
+      expect(stored!.images).toEqual([]);
+    });
+
+    it("reads a row with no size or order as zero of both", async () => {
+      // `sizeBytes` is nullable and `index` is ours; a row written by a future
+      // deployment that omits either is still a photograph we can send.
+      const id = await create([frame("QUFB")]);
+      await db
+        .update(artifact)
+        .set({ sizeBytes: null, metadata: { mediaType: "image/png" } })
+        .where(and(eq(artifact.submissionId, id), eq(artifact.type, "image")));
+
+      const stored = await submissionById(db, id, IDS[0]!);
+      expect(stored!.images).toEqual([
+        { mediaType: "image/png", data: "QUFB", bytes: 0 },
+      ]);
+    });
+
+    it("drops an image row whose media type the API no longer takes", async () => {
+      // Sending it anyway fails the whole marking rather than one photograph,
+      // and the written method is still markable without it.
+      const id = await create([frame("QUFB")]);
+      await db
+        .update(artifact)
+        .set({ metadata: { mediaType: "image/heic", index: 0 } })
+        // Scoped to the image row: the write-up beside it carries the metadata
+        // that says which brief this answers, and overwriting that makes the
+        // whole submission unreadable rather than one photograph.
+        .where(and(eq(artifact.submissionId, id), eq(artifact.type, "image")));
+
+      const stored = await submissionById(db, id, IDS[0]!);
+      expect(stored!.images).toEqual([]);
+      expect(stored!.artefact).toContain("lower third");
+    });
   });
 
   it("will not hand someone else's marked work to a guessed UUID", async () => {

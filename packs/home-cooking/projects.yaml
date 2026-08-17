@@ -10,7 +10,8 @@ projects:
   - slug: one-vegetable-four-cuts
     title: Four cuts, one vegetable
     rubric: knife-and-prep
-    evidenceType: image
+    # four piles, plus the grip and board
+    evidence: { image: required, images: 5 }
     difficulty: 0.35
     estimatedMinutes: 60
     isPublic: true
@@ -40,7 +41,8 @@ projects:
   - slug: sear-rest-and-prove-it
     title: Cook something to a target and prove you hit it
     rubric: heat-and-doneness
-    evidenceType: image
+    # the cross-section and the probe reading
+    evidence: { image: required, images: 2 }
     difficulty: 0.55
     estimatedMinutes: 75
     isPublic: true
@@ -69,7 +71,8 @@ projects:
   - slug: wednesday-night
     title: Cook from what you have, with no recipe
     rubric: dish-from-inventory
-    evidenceType: image
+    # what you started with, and what you made
+    evidence: { image: required, images: 2 }
     difficulty: 0.7
     estimatedMinutes: 90
     isPublic: true

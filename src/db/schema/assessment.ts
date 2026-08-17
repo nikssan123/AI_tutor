@@ -128,7 +128,16 @@ export const project = pgTable(
     rubricId: uuid("rubric_id")
       .notNull()
       .references(() => rubric.id),
-    evidenceType: text("evidence_type").notNull(),
+    /**
+     * §24 E8.5 — `{ image: "required" | "optional" | "none", images: number }`.
+     *
+     * It replaces `evidence_type`, a free string the pack author wrote and
+     * nothing read: it reached two marketing metadata rows and stopped, while
+     * three packs declared `workspace: media` and asked for photographs the
+     * submission surface could not take. The written method is not in here
+     * because it is not optional — see `ProjectEvidence`.
+     */
+    evidence: jsonb("evidence").notNull(),
     difficulty: doublePrecision("difficulty").notNull(),
     targetSkillIds: jsonb("target_skill_ids").notNull(),
     acceptanceCriteria: jsonb("acceptance_criteria"),

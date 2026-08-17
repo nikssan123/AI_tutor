@@ -9,7 +9,7 @@ projects:
   - slug: audit-a-claim
     title: Take apart a number someone is about to act on
     rubric: claim-audit
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.6
     estimatedMinutes: 90
     isPublic: true
@@ -34,7 +34,7 @@ projects:
   - slug: summarise-without-misleading
     title: Report a messy number to someone who will act on it
     rubric: honest-summary
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.5
     estimatedMinutes: 75
     isPublic: true
@@ -58,7 +58,7 @@ projects:
   - slug: redraw-a-chart
     title: Redraw a chart that tells the truth and misleads anyway
     rubric: chart-redraw
-    evidenceType: text
+    evidence: { image: none, images: 1 }
     difficulty: 0.45
     estimatedMinutes: 60
     isPublic: true

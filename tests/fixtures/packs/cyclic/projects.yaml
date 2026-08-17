@@ -2,7 +2,7 @@ projects:
   - slug: minimal-project
     title: A minimal project
     rubric: minimal-rubric
-    evidenceType: document
+    evidence: { image: none, images: 1 }
     difficulty: 0.5
     estimatedMinutes: 30
     isPublic: false

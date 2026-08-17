@@ -1,5 +1,5 @@
 import { itemId, packId, projectId, resourceId, rubricId, skillId } from "./ids";
-import type { DomainPack } from "./types";
+import type { DomainPack, ProjectEvidence } from "./types";
 
 /**
  * Pure mapping from a pack to database rows.
@@ -74,7 +74,7 @@ export interface PackRows {
     title: string;
     brief: string;
     rubricId: string;
-    evidenceType: string;
+    evidence: ProjectEvidence;
     difficulty: number;
     targetSkillIds: string[];
     acceptanceCriteria: string[];
@@ -168,7 +168,7 @@ export function toRows(pack: DomainPack): PackRows {
       title: p.title,
       brief: p.brief,
       rubricId: rubricId(pack.slug, p.rubric),
-      evidenceType: p.evidenceType,
+      evidence: p.evidence,
       difficulty: p.difficulty,
       targetSkillIds: p.targetSkills.map(skill),
       acceptanceCriteria: p.acceptanceCriteria,

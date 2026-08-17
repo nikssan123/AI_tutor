@@ -12,6 +12,8 @@ import { applyObservation } from "@/lib/engine/bkt";
 import type { MasteryState } from "@/lib/engine";
 import type { GradedResult } from "@/lib/evaluation";
 import type { FailureCause } from "./failure";
+import { isImageType } from "@/lib/ai/images";
+import type { SubmittedImage } from "./images";
 import type { PackSkill } from "@/lib/packs/types";
 
 /**
@@ -69,19 +71,34 @@ export interface CreateSubmissionInput {
   /** The work itself. Stored on the artifact row, not on the submission. */
   artefact: string;
   truncated: boolean;
+  /** Photographs handed in with it, already checked by `acceptImages`. */
+  images?: SubmittedImage[];
   /** The skill this evidences, so the evaluation knows what to move. */
   skillSlug: string;
   now: Date;
 }
 
 /**
- * Records a hand-in.
+ * Records a hand-in: one `artifact` row for the written method, one per photo.
  *
- * The artefact is stored inline in `storageRef` rather than in object storage.
- * That is a deliberate limit rather than a shortcut: this build accepts pasted
- * text only, which is bounded by the ingest cap, and standing up a bucket to
- * hold 60KB of prose would be infrastructure with no user behind it yet. A repo
- * URL or a file upload changes that, and the column is named for the day it does.
+ * **Everything is stored inline in `storageRef` rather than in object storage**,
+ * images base64 like the text beside them. That is a deliberate, bounded limit
+ * rather than a shortcut, and §24 E8.5 names the bucket as the thing that lifts
+ * it. What holds it up today: the text is capped by `MAX_ARTEFACT_CHARS`, the
+ * images by `MAX_SUBMISSION_IMAGE_BYTES` across the whole hand-in, and Postgres
+ * moves a value that size out of line without being asked. Standing up a bucket
+ * — an account, credentials, a signing implementation and a second thing that
+ * can be down at grading time — buys nothing at this volume that the cap does
+ * not already buy.
+ *
+ * What it does cost is bytes in the database, and that is the number to watch:
+ * a photography hand-in is up to 16MB of base64 where a written one is 60KB.
+ * The day that matters, the read side is already shaped for it — nothing but
+ * the grader loads `storageRef` for an image row.
+ *
+ * The metadata that says *which* brief this answers rides on the text row only.
+ * It is one fact about the submission, not one per file, and duplicating it
+ * across seven rows is seven chances for them to disagree.
  */
 export async function createSubmission(
   db: Db,
@@ -112,12 +129,26 @@ export async function createSubmission(
         skillSlug: input.skillSlug,
       },
     });
+
+    for (const [index, image] of (input.images ?? []).entries()) {
+      await tx.insert(artifact).values({
+        submissionId: id,
+        type: "image",
+        storageRef: image.data,
+        sizeBytes: image.bytes,
+        truncated: false,
+        // `index` is the only reason this is here: the order the learner chose
+        // is what "the third one" in a verdict refers to, and a `select` with
+        // no `order by` is under no obligation to return them as inserted.
+        metadata: { mediaType: image.mediaType, index },
+      });
+    }
   });
 
   return id;
 }
 
-/** Metadata travels on the artifact row, so reading one means reading both. */
+/** Metadata travels on the text artifact row, so reading one means reading both. */
 interface ArtifactMeta {
   packSlug: string;
   projectSlug: string;
@@ -135,8 +166,29 @@ function metaFrom(value: unknown): ArtifactMeta | undefined {
     : undefined;
 }
 
+/** An image row, back in the shape the grader takes. */
+function imageFrom(row: {
+  storageRef: string;
+  sizeBytes: number | null;
+  metadata: unknown;
+}): { image: SubmittedImage; index: number } | undefined {
+  if (typeof row.metadata !== "object" || row.metadata === null) return undefined;
+  const { mediaType, index } = row.metadata as Record<string, unknown>;
+
+  // A media type the API no longer takes is a row we cannot send, and sending
+  // it anyway fails the whole marking rather than one photograph.
+  if (typeof mediaType !== "string" || !isImageType(mediaType)) return undefined;
+
+  return {
+    image: { mediaType, data: row.storageRef, bytes: row.sizeBytes ?? 0 },
+    index: typeof index === "number" ? index : 0,
+  };
+}
+
 export interface SubmissionDetail extends StoredSubmission {
   skillSlug: string;
+  /** In the order they were handed in. Empty for a written-only brief. */
+  images: SubmittedImage[];
 }
 
 /**
@@ -144,34 +196,50 @@ export interface SubmissionDetail extends StoredSubmission {
  *
  * Scoped rather than filtered afterwards: reading someone else's marked work by
  * guessing a UUID is not a feature, and the same rule the path screen follows.
+ *
+ * A hand-in is now several `artifact` rows — one written method and up to six
+ * photographs — so this reads them all and sorts the images by the index they
+ * were stored with. It used to `limit(1)` an inner join, which was correct
+ * exactly while a submission could only ever be one row.
  */
 export async function submissionById(
   db: Db,
   id: string,
   userId: string,
 ): Promise<SubmissionDetail | undefined> {
-  const [row] = await db
+  const rows = await db
     .select({ submission, artifact })
     .from(submission)
     .innerJoin(artifact, eq(artifact.submissionId, submission.id))
-    .where(and(eq(submission.id, id), eq(submission.userId, userId)))
-    .limit(1);
+    .where(and(eq(submission.id, id), eq(submission.userId, userId)));
 
-  if (!row) return undefined;
-  const meta = metaFrom(row.artifact.metadata);
+  const written = rows.find((r) => r.artifact.type === "text");
+  if (!written) return undefined;
+
+  const meta = metaFrom(written.artifact.metadata);
   if (!meta) return undefined;
 
+  const images = rows
+    .filter((r) => r.artifact.type === "image")
+    .flatMap((r) => {
+      const found = imageFrom(r.artifact);
+      return found ? [found] : [];
+    })
+    .sort((a, b) => a.index - b.index)
+    .map((f) => f.image);
+
   return {
-    id: row.submission.id,
-    userId: row.submission.userId,
+    id: written.submission.id,
+    userId: written.submission.userId,
     packSlug: meta.packSlug,
     projectSlug: meta.projectSlug,
     skillSlug: meta.skillSlug,
-    status: statusOf(row.submission.status),
-    artefact: row.artifact.storageRef,
-    truncated: row.artifact.truncated,
-    submittedAt: row.submission.submittedAt,
-    failureCause: row.submission.failureCause,
+    status: statusOf(written.submission.status),
+    artefact: written.artifact.storageRef,
+    truncated: written.artifact.truncated,
+    submittedAt: written.submission.submittedAt,
+    failureCause: written.submission.failureCause,
+    images,
   };
 }
 

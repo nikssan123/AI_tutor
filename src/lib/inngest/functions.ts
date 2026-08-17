@@ -418,6 +418,7 @@ export const evaluate = inngest.createFunction(
           criteria: rubric.criteria,
           skillTier: skill.evalTier,
           artefact: stored.artefact,
+          images: stored.images,
         },
       );
 

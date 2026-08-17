@@ -32,6 +32,7 @@ const criterion = (id: string, weight: number): RubricCriterion => ({
   name: `Criterion ${id}`,
   description: "What this one judges, at length.",
   weight,
+  marks: "text",
   bands: {
     absent: "absent",
     developing: "developing",

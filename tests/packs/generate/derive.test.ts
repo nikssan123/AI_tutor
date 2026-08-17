@@ -6,13 +6,14 @@ import {
   nameResolver,
   normaliseWeights,
   numberedSlug,
+  reconcileEvidence,
   skillRef,
   slugify,
   tierFor,
   uniqueSlugs,
 } from "@/lib/packs/generate/derive";
 import type { DraftCriterion } from "@/lib/contracts/pack";
-import { MAX_SLUG_LENGTH, Workspace } from "@/lib/packs/types";
+import { MAX_PROJECT_IMAGES, MAX_SLUG_LENGTH, Workspace } from "@/lib/packs/types";
 
 describe("slugify", () => {
   it("produces a slug the pack schema accepts", () => {
@@ -236,6 +237,7 @@ describe("normaliseWeights", () => {
     name: `c${weight}`,
     description: "long enough to pass",
     weight,
+    marks: "text",
     bands: {
       absent: "a",
       developing: "d",
@@ -273,5 +275,216 @@ describe("normaliseWeights", () => {
         0.0001,
       );
     }
+  });
+});
+
+/**
+ * §24 E8.5's three rules, settled before a draft becomes a pack.
+ *
+ * The same division as `normaliseWeights` above: the model is asked what it
+ * knows — does this work need a photograph, does this criterion judge one — and
+ * the answer is then made consistent here, because a model asked what it may
+ * judge from will over-claim. Every repair is recorded, because a brief that
+ * quietly stopped asking for the photograph its rubric was written around is a
+ * change nobody could trace to a pass.
+ */
+describe("reconcileEvidence", () => {
+  const criterion = (
+    name: string,
+    marks: DraftCriterion["marks"],
+    weight = 1,
+  ) => ({ name, weight, marks });
+
+  const draft = (
+    marks: DraftCriterion["marks"][],
+    image: "required" | "optional" | "none",
+    images = 1,
+  ) => ({
+    rubrics: [
+      {
+        name: "The rubric",
+        criteria: marks.map((m, i) => criterion(`c${i}`, m)),
+      },
+    ],
+    projects: [
+      { title: "The project", rubric: "The rubric", evidence: { image, images } },
+    ],
+  });
+
+  it("leaves a consistent draft exactly as it found it", () => {
+    const result = reconcileEvidence(
+      draft(["text", "both", "image", "text"], "required", 2),
+      MAX_PROJECT_IMAGES,
+    );
+
+    expect(result.marks[0]).toEqual(["text", "both", "image", "text"]);
+    expect(result.evidence[0]).toEqual({ image: "required", images: 2 });
+    expect(result.notes).toEqual([]);
+  });
+
+  describe("rule 1 — nothing may claim to have looked at what was not asked for", () => {
+    it("demotes image criteria on a written-only project", () => {
+      const result = reconcileEvidence(
+        draft(["image", "both", "text", "text"], "none"),
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.marks[0]).toEqual(["text", "text", "text", "text"]);
+      expect(result.notes).toHaveLength(2);
+      expect(result.notes[0]).toContain("does not ask for");
+    });
+
+    it("demotes a rubric no project hands work in against", () => {
+      // Nothing will ever be submitted against it, so it judges no photograph.
+      const result = reconcileEvidence(
+        {
+          rubrics: [{ name: "Orphan", criteria: [criterion("c0", "image")] }],
+          projects: [],
+        },
+        MAX_PROJECT_IMAGES,
+      );
+
+      // Rule 1 demotes it to `text`, and rule 2 then finds it already
+      // anchored — the repair rule 2 exists for never fires.
+      expect(result.marks[0]).toEqual(["text"]);
+    });
+
+    it("takes the strict reading when two projects share a rubric", () => {
+      // One of them takes no photographs, so a criterion judging one would be
+      // judging something half its submissions cannot contain.
+      const result = reconcileEvidence(
+        {
+          rubrics: [
+            { name: "Shared", criteria: [criterion("c0", "image"), criterion("c1", "text")] },
+          ],
+          projects: [
+            { title: "With", rubric: "Shared", evidence: { image: "required", images: 1 } },
+            { title: "Without", rubric: "Shared", evidence: { image: "none", images: 1 } },
+          ],
+        },
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.marks[0]).toEqual(["text", "text"]);
+    });
+  });
+
+  describe("rule 2 — every rubric keeps something the verifier can anchor to", () => {
+    it("promotes the heaviest criterion when nothing reads the write-up", () => {
+      const result = reconcileEvidence(
+        {
+          rubrics: [
+            {
+              name: "All pictures",
+              criteria: [
+                criterion("light", "image", 1),
+                criterion("focus", "image", 5),
+                criterion("edges", "image", 2),
+              ],
+            },
+          ],
+          projects: [
+            { title: "P", rubric: "All pictures", evidence: { image: "required", images: 1 } },
+          ],
+        },
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.marks[0]).toEqual(["image", "both", "image"]);
+      expect(result.notes[0]).toContain("no quote to check");
+    });
+
+    it("counts `both` as anchored, because it quotes the write-up too", () => {
+      const result = reconcileEvidence(
+        draft(["image", "both"], "required"),
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.marks[0]).toEqual(["image", "both"]);
+      expect(result.notes).toEqual([]);
+    });
+
+    it("has nothing to repair in an empty rubric", () => {
+      const result = reconcileEvidence(
+        {
+          rubrics: [{ name: "Empty", criteria: [] }],
+          projects: [
+            { title: "P", rubric: "Empty", evidence: { image: "required", images: 1 } },
+          ],
+        },
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.marks[0]).toEqual([]);
+    });
+  });
+
+  describe("rule 3 — a brief may not demand a photograph that changes no band", () => {
+    it("asks for it as optional instead", () => {
+      const result = reconcileEvidence(
+        draft(["text", "text", "text", "text"], "required", 3),
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.evidence[0]).toEqual({ image: "optional", images: 3 });
+      expect(result.notes[0]).toContain("no criterion");
+    });
+
+    it("leaves an optional photograph optional", () => {
+      const result = reconcileEvidence(
+        draft(["text", "text"], "optional"),
+        MAX_PROJECT_IMAGES,
+      );
+
+      expect(result.evidence[0]!.image).toBe("optional");
+      expect(result.notes).toEqual([]);
+    });
+
+    it("says nothing about a project whose rubric was never written", () => {
+      const result = reconcileEvidence(
+        {
+          rubrics: [],
+          projects: [
+            { title: "P", rubric: "Missing", evidence: { image: "required", images: 1 } },
+          ],
+        },
+        MAX_PROJECT_IMAGES,
+      );
+
+      // Demoted, because nothing judges the photograph. Assembly drops the
+      // project outright a few lines later; this must not throw before it does.
+      expect(result.evidence[0]!.image).toBe("optional");
+    });
+  });
+
+  it("clamps a count past what the ingest step will take", () => {
+    const result = reconcileEvidence(
+      draft(["image", "text"], "required", 40),
+      MAX_PROJECT_IMAGES,
+    );
+
+    expect(result.evidence[0]!.images).toBe(MAX_PROJECT_IMAGES);
+    expect(result.notes[0]).toContain("capped at");
+  });
+
+  it("settles rubrics and projects by position, not by name", () => {
+    // Two rubrics can share a display name in one draft — `uniqueSlugs` exists
+    // for exactly that — and a map keyed by name would settle both from
+    // whichever came last.
+    const result = reconcileEvidence(
+      {
+        rubrics: [
+          { name: "Same", criteria: [criterion("c0", "image")] },
+          { name: "Same", criteria: [criterion("c0", "text")] },
+        ],
+        projects: [
+          { title: "P", rubric: "Same", evidence: { image: "required", images: 1 } },
+        ],
+      },
+      MAX_PROJECT_IMAGES,
+    );
+
+    expect(result.marks).toHaveLength(2);
+    expect(result.marks[1]).toEqual(["text"]);
   });
 });

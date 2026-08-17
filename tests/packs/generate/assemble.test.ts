@@ -79,6 +79,7 @@ const RUBRICS: RubricsDraft = {
         name: `Criterion ${n}`,
         description: `What criterion ${n} judges, at length.`,
         weight: n,
+        marks: "text" as const,
         bands: {
           absent: "absent",
           developing: "developing",
@@ -94,7 +95,7 @@ const RUBRICS: RubricsDraft = {
       brief: "A brief comfortably past the forty character minimum for briefs.",
       rubric: "The rubric",
       targetSkills: [skillRef(0)],
-      evidenceType: "repo",
+      evidence: { image: "none" as const, images: 1 },
       difficulty: 0.5,
       estimatedMinutes: 120,
       acceptanceCriteria: ["it runs"],

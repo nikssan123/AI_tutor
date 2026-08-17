@@ -5,6 +5,7 @@ import {
   RubricsDraft,
   type DraftSkill,
 } from "@/lib/contracts/pack";
+import { MAX_PROJECT_IMAGES } from "@/lib/packs/types";
 
 /**
  * Rubrics and the project briefs they grade.
@@ -37,7 +38,21 @@ The rubric is published to the learner *before* they start, so it has to be some
 
 Acceptance criteria on the project are the checklist the learner ticks off themselves. They are not the rubric; they are the "have I finished" list.
 
-Only claim what the evidence can show. If the artefact is a document, the rubric can judge the document — it cannot judge whether the person understood something they did not write down.`,
+Only claim what the evidence can show. If the artefact is a document, the rubric can judge the document — it cannot judge whether the person understood something they did not write down.
+
+**Every project is handed in as a written method, and some of them also as photographs.** You decide which, per project, and it is a decision about the work rather than about the subject: a project can want a photograph while the one beside it in the same pack does not.
+
+- The written method is always required and you never say so — it is where the temperatures, the order, the settings and the thing that went wrong live, and a photograph of a finished result says none of it.
+- Ask for photographs where the outcome is *visible* and the write-up could not stand in for seeing it. A seam, a plated dish, a frame, a joint, a drawing. Do not ask for one to prove effort.
+- Say how many the brief could need at most. One is the usual answer; ask for more only where the work is a set.
+
+Then, for every criterion, say what it is judged from: \`text\` for something checkable in the write-up, \`image\` for something only visible in a photograph, \`both\` where the picture shows it and the write-up explains it.
+
+Three rules, and a pack that breaks one is rejected rather than repaired:
+
+- A criterion may be judged from an image only if its project asks for photographs.
+- Every rubric keeps at least one \`text\` criterion. Marking is anchored by quoting the learner's own words, so a rubric with nothing to quote cannot be marked at all.
+- If a project *requires* photographs, at least one criterion must actually be judged from them. A brief that demands a photograph no criterion looks at has asked for work that changes no band.`,
 } as const;
 
 export const PACK_RUBRICS_TOOL_SCHEMA = {
@@ -61,6 +76,12 @@ export const PACK_RUBRICS_TOOL_SCHEMA = {
                   description:
                     "Relative importance, any positive number. Not a fraction.",
                 },
+                marks: {
+                  type: "string",
+                  enum: ["text", "image", "both"],
+                  description:
+                    "What this criterion is judged from: the written method, a photograph, or both.",
+                },
                 bands: {
                   type: "object",
                   properties: {
@@ -73,7 +94,7 @@ export const PACK_RUBRICS_TOOL_SCHEMA = {
                   additionalProperties: false,
                 },
               },
-              required: ["name", "description", "weight", "bands"],
+              required: ["name", "description", "weight", "marks", "bands"],
               additionalProperties: false,
             },
           },
@@ -99,10 +120,24 @@ export const PACK_RUBRICS_TOOL_SCHEMA = {
             description:
               "References of the skills this produces evidence for, e.g. [\"s2\", \"s5\"]. Not names.",
           },
-          evidenceType: {
-            type: "string",
+          evidence: {
+            type: "object",
             description:
-              "What the learner submits: document, repo, image, recording, spreadsheet, query.",
+              "What the hand-in is made of. The written method is always required and is not listed here.",
+            properties: {
+              image: {
+                type: "string",
+                enum: ["required", "optional", "none"],
+                description:
+                  "Whether the brief asks for photographs, and whether it insists.",
+              },
+              images: {
+                type: "integer",
+                description: `The most photographs this brief could need, 1 to ${MAX_PROJECT_IMAGES}. One unless the work is a set.`,
+              },
+            },
+            required: ["image", "images"],
+            additionalProperties: false,
           },
           difficulty: { type: "number", description: "0 to 1." },
           estimatedMinutes: { type: "integer" },
@@ -117,7 +152,7 @@ export const PACK_RUBRICS_TOOL_SCHEMA = {
           "brief",
           "rubric",
           "targetSkills",
-          "evidenceType",
+          "evidence",
           "difficulty",
           "estimatedMinutes",
           "acceptanceCriteria",

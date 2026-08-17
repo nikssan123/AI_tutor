@@ -5,6 +5,7 @@ import type { PlanId } from "@/lib/billing/catalog";
 import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
 import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
 import type { FailureCause } from "@/lib/submissions/failure";
+import type { SubmittedImage } from "@/lib/submissions/images";
 import { gradeSubmission, type GradeInput } from "./grade";
 import { tierFor } from "./tier";
 import {
@@ -151,6 +152,14 @@ export interface EvaluateInput {
   /** The tier of the skill this evidences, before this pipeline's own cap. */
   skillTier: EvalTier;
   artefact: string;
+  /**
+   * The photographs stored with the hand-in, if any.
+   *
+   * What actually arrived, never what the brief asked for. `tierFor` reads it
+   * to decide whether the verdict may call itself media review, and that
+   * question is about the submission rather than about the pack.
+   */
+  images?: SubmittedImage[];
 }
 
 export async function evaluateSubmission(
@@ -181,10 +190,13 @@ export async function evaluateSubmission(
       ? await shouldDegrade(deps.db, deps.userId, deps.plan)
       : false;
 
+  const images = input.images ?? [];
+
   const gradeArgs: GradeInput = {
     project: input.project,
     criteria: input.criteria,
     artefact: text,
+    images,
   };
 
   const first = await logCall(
@@ -215,7 +227,8 @@ export async function evaluateSubmission(
     };
   }
 
-  const tier = tierFor(input.skillTier);
+  // The tier the evidence *in hand* supports, not the one the pack declares.
+  const tier = tierFor(input.skillTier, images.length > 0);
 
   /*
    * §14.5 step 4 — self-consistency, "Tier 2/3/4 only". Tier 1 is excluded in
