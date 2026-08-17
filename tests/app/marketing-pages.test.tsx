@@ -668,7 +668,10 @@ describe("the landing page's price band (§8 screen 1, band 05)", () => {
     expect(band.textContent).toContain(formatMoney(0, "usd"));
     // Computed and rounded down, so the page can never overstate its own
     // discount — the one number on a price list that gets quoted back at you.
-    expect(band.textContent).toContain(`${annualSavingPercent("usd")}%`);
+    // Pro's, named, because the sentence names Pro: Learner sells a year too
+    // and saves less on it, so the smaller figure the price list's switch
+    // quotes over both cards would understate the claim this sentence makes.
+    expect(band.textContent).toContain(`${annualSavingPercent("pro", "usd")}%`);
   });
 
   /**

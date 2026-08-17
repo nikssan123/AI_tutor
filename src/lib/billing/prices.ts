@@ -33,6 +33,21 @@ import type { Interval, PlanId } from "./catalog";
  * is worth about 23% more than the EU one — and was already worth about 10% more
  * back when both columns read 24.99. The gap is a willingness-to-pay decision,
  * which is a fine thing to make; it is just not the FX correction it looks like.
+ *
+ * **Both subscriptions are sold by the year** since 2026-08-17. Learner was
+ * monthly-only, which made the yearly view of `/pricing` a switch that changed
+ * one card of three and had to explain itself on the other two. §20.1's "annual
+ * is pushed hard: it fixes the AI-app churn problem by construction" is an
+ * argument about *subscribers*, not about the expensive tier — the plan chosen
+ * by somebody who describes their own pace as steady rather than intense is if
+ * anything the one where a year up front is the easier yes.
+ *
+ * €109 and $119 are charm steps at the same ~1.10 the monthly columns were set
+ * at, and they are **not** the same discount as Pro's: 30% and 33% against
+ * Pro's 33% and 34%. Nothing here forces the four to agree, and contorting a
+ * price so that one label can quote a single figure would be §6.1's "round
+ * local numbers beat FX-derived ones" abandoned to make a pill shorter.
+ * `annualSavingPercent` takes a plan for exactly that reason.
  */
 
 export const CURRENCIES = ["usd", "eur"] as const;
@@ -94,6 +109,18 @@ export const PRICES: readonly Price[] = [
     interval: "month",
     currency: "eur",
     amountCents: 1_299,
+  },
+  {
+    planId: "learner",
+    interval: "year",
+    currency: "usd",
+    amountCents: 11_900,
+  },
+  {
+    planId: "learner",
+    interval: "year",
+    currency: "eur",
+    amountCents: 10_900,
   },
   {
     planId: "pro",
@@ -202,20 +229,67 @@ export function resolveCurrency(
 export const CURRENCY_COOKIE = "mk_currency";
 
 /**
+ * The plans sold by the year, read off the table rather than listed again.
+ *
+ * Derived so that a `year` row is the *only* edit a new annual plan needs. A
+ * second, hand-kept list is how a page ends up offering a billing period
+ * checkout cannot charge, or — the direction that actually happened — how a row
+ * added to the table goes unsold because nobody remembered the list.
+ */
+export const ANNUAL_PLAN_IDS: readonly PaidPlanId[] = [
+  ...new Set(PRICES.filter((p) => p.interval === "year").map((p) => p.planId)),
+];
+
+/**
  * How much cheaper a year is than twelve months, as a whole percent.
  *
- * Computed rather than written down, and computed **per currency**, which is
- * the whole reason it takes an argument. §20.1 claimed 37% for $190 against
- * $25/mo; €199 against €24.99/mo is 33% and $219 against $27.99/mo is 34%, so a
- * single hard-coded figure would now be wrong on one of the two pages it
- * appeared on. A pricing page that overstates its own discount is the kind of
+ * Computed rather than written down, and computed **per plan and per currency**,
+ * which is the whole reason it takes both. §20.1 claimed 37% for $190 against
+ * $25/mo; there are now four true answers — Pro is 33% in euros and 34% in
+ * dollars, Learner 30% and 33% — and any hard-coded figure would be wrong
+ * somewhere. A pricing page that overstates its own discount is the kind of
  * error that gets quoted back at you. Rounding is *down* so the number on the
  * page is never larger than the saving.
  */
-export function annualSavingPercent(currency: Currency): number {
-  const monthly = requirePrice("pro", "month", currency).amountCents * 12;
-  const yearly = requirePrice("pro", "year", currency).amountCents;
+export function annualSavingPercent(
+  planId: PaidPlanId,
+  currency: Currency,
+): number {
+  const monthly = requirePrice(planId, "month", currency).amountCents * 12;
+  const yearly = requirePrice(planId, "year", currency).amountCents;
   return Math.floor(((monthly - yearly) / monthly) * 100);
+}
+
+/**
+ * The smallest annual saving on offer, which is the only figure a control
+ * sitting above *every* card may claim.
+ *
+ * The switch on `/pricing` quoted Pro's saving while Pro was the only plan sold
+ * by the year. With two, "save 33%" over a column that saves 30% is the same
+ * overstatement `annualSavingPercent`'s rounding exists to prevent, one level
+ * up — so the switch quotes the floor and each card proves its own number.
+ */
+export function smallestAnnualSavingPercent(currency: Currency): number {
+  return Math.min(
+    ...ANNUAL_PLAN_IDS.map((id) => annualSavingPercent(id, currency)),
+  );
+}
+
+/**
+ * What a year works out to a month — the number a reader is actually comparing,
+ * because it is the one they just read on the monthly view.
+ *
+ * Rounded **up**, for the same reason `annualSavingPercent` rounds down: the
+ * safe direction is the one that never advertises a better deal than the one on
+ * offer. €199/12 is €16.583…, so €16.59 × 12 comes to €199.08 — a whisker more
+ * than the year costs, where €16.58 would have quoted a year at €198.96 and
+ * undercut our own price.
+ */
+export function annualPerMonthCents(
+  planId: PaidPlanId,
+  currency: Currency,
+): number {
+  return Math.ceil(requirePrice(planId, "year", currency).amountCents / 12);
 }
 
 /**

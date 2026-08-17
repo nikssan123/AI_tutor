@@ -2,10 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { PLANS } from "@/lib/billing/catalog";
+import { PLAN_COPY } from "@/lib/billing/plan-copy";
 import {
+  annualPerMonthCents,
   annualSavingPercent,
   formatMoney,
   requirePrice,
+  smallestAnnualSavingPercent,
 } from "@/lib/billing/prices";
 
 /**
@@ -173,35 +176,62 @@ describe("the price list", () => {
     expect(screen.getByText(/1 graded project a month/)).toBeTruthy();
   });
 
-  it("states the annual saving it can actually prove, on the switch", async () => {
+  it("states the smallest annual saving on the switch, not the best one", async () => {
     await renderPage();
-    const saving = annualSavingPercent("usd");
+    const saving = smallestAnnualSavingPercent("usd");
 
-    // 34 in dollars, 33 in euros — the two columns no longer round to the same
-    // discount, which is why the page reads it per currency instead of
-    // printing a constant.
-    expect(saving).toBe(34);
-    expect(annualSavingPercent("eur")).toBe(33);
+    // The switch sits above both cards, and they no longer save the same
+    // percentage: Pro discounts 34% in dollars and Learner 33%. A label reading
+    // Pro's number would promise more than the card beside it delivers, so it
+    // carries the floor and the "+" does the rest.
+    expect(saving).toBe(33);
+    expect(saving).toBeLessThanOrEqual(annualSavingPercent("pro", "usd"));
     expect(
-      screen.getByRole("link", { name: `Yearly · save ${saving}%` }),
+      screen.getByRole("link", { name: `Yearly · save ${saving}%+` }),
     ).toBeTruthy();
   });
 
-  it("switches the prices rather than describing the switch", async () => {
-    const annual = requirePrice("pro", "year", "usd");
+  it("switches every card it charges for, not just Pro's", async () => {
+    // Learner sold only by the month until 2026-08-17, so this switch changed
+    // one card of three and had to tell the other two why not.
     await renderPage({ interval: "year" });
 
-    // Pro now leads with the year, and says what that works out to a month —
-    // the number the reader was just comparing on the monthly view.
-    expect(screen.getByText(formatMoney(annual.amountCents, "usd"))).toBeTruthy();
-    expect(screen.getByText(/a month, paid once a year/)).toBeTruthy();
+    for (const planId of ["learner", "pro"] as const) {
+      const year = requirePrice(planId, "year", "usd");
+      expect(
+        screen.getByText(formatMoney(year.amountCents, "usd")),
+        planId,
+      ).toBeTruthy();
 
-    const choose = screen.getByRole("button", { name: "Choose annual" });
-    const form = choose.closest("form")!;
-    expect(form.querySelector('input[name="plan"]')!.getAttribute("value")).toBe("pro");
-    expect(form.querySelector('input[name="interval"]')!.getAttribute("value")).toBe(
-      "year",
-    );
+      const form = screen
+        .getByRole("button", { name: PLAN_COPY[planId].cta })
+        .closest("form")!;
+      expect(form.querySelector('input[name="plan"]')!.getAttribute("value")).toBe(
+        planId,
+      );
+      expect(
+        form.querySelector('input[name="interval"]')!.getAttribute("value"),
+      ).toBe("year");
+    }
+
+    expect(screen.getAllByText(/a month, paid once a year/)).toHaveLength(2);
+  });
+
+  it("proves each card's own saving under its own price", async () => {
+    // The switch can only carry the floor, so a reader looking at the steeper
+    // discount has to be able to read it on the card that gives it.
+    await renderPage({ interval: "year" });
+
+    for (const planId of ["learner", "pro"] as const) {
+      const perMonth = formatMoney(annualPerMonthCents(planId, "usd"), "usd");
+      const saving = annualSavingPercent(planId, "usd");
+      expect(
+        screen.getByText(
+          `That is ${perMonth} a month, paid once a year — ${saving}% off.`,
+        ),
+        planId,
+      ).toBeTruthy();
+    }
   });
 
   it("does not offer four days of a yearly subscription", async () => {
@@ -227,14 +257,42 @@ describe("the price list", () => {
     expect(screen.getByText(/renews automatically at/)).toBeTruthy();
   });
 
-  it("does not quote Learner a billing period it cannot be sold on", async () => {
-    // Only Pro has an annual row in `prices.ts`. Redrawing all three as
-    // "yearly" would price Learner on a period that does not exist.
-    const monthly = requirePrice("learner", "month", "usd");
+  it("leaves the free card alone on the yearly view", async () => {
+    // Free is the only card with no year, because it is the only one with no
+    // price — and "$0 a year" would be a billing period nobody is on.
     await renderPage({ interval: "year" });
 
-    expect(screen.getByText(formatMoney(monthly.amountCents, "usd"))).toBeTruthy();
-    expect(screen.getByText("Billed monthly. Cancel any time.")).toBeTruthy();
+    expect(screen.getByText("forever")).toBeTruthy();
+    expect(screen.getByText("No card. It does not expire.")).toBeTruthy();
+  });
+
+  it("numbers its sections from the ones it draws", async () => {
+    /*
+     * The trial band is section 01 and the yearly view does not draw it, so the
+     * literals underneath left that view starting at "02 · Whatever you pay" —
+     * a numbered sequence missing its first number, which reads as a section
+     * that failed to render rather than one that was never offered.
+     */
+    await renderPage();
+    expect(screen.getByText(/^01 ·/).textContent).toBe("01 · The way into Pro");
+    expect(screen.getByText(/^02 ·/).textContent).toBe("02 · Whatever you pay");
+    expect(screen.getByText(/^03 ·/).textContent).toBe("03 · Questions");
+
+    cleanup();
+    await renderPage({ interval: "year" });
+
+    // The same two bands that survive, numbered one and two, nothing skipped.
+    expect(screen.getByText(/^01 ·/).textContent).toBe("01 · Whatever you pay");
+    expect(screen.getByText(/^02 ·/).textContent).toBe("02 · Questions");
+    expect(document.body.textContent).not.toMatch(/03 ·/);
+  });
+
+  it("no longer explains an exception it does not have", async () => {
+    // Learner's card said "Billed monthly. Cancel any time." on the yearly view,
+    // because it was the card the switch could not change. It can now.
+    await renderPage({ interval: "year" });
+
+    expect(document.body.textContent).not.toMatch(/Billed monthly/);
   });
 
   it("keeps recommending the same plan in both views", async () => {
@@ -249,13 +307,16 @@ describe("the price list", () => {
   });
 
   it("still offers exactly one filled button on the yearly view", async () => {
+    // Two cards sell a year now, so keying the fill off the view alone put two
+    // filled buttons side by side — §8.5.5 broken, and the page recommending
+    // two things at once. It follows the recommended plan instead.
     await renderPage({ interval: "year" });
 
     const primary = screen
       .getAllByRole("button")
       .filter((b) => b.className.includes("text-on-accent"));
     expect(primary).toHaveLength(1);
-    expect(primary[0]!.textContent).toBe("Choose annual");
+    expect(primary[0]!.textContent).toBe(PLAN_COPY.pro.cta);
   });
 
   it("offers both views as links, so the choice can be sent to somebody", async () => {

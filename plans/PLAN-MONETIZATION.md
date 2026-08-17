@@ -161,6 +161,49 @@ EUR prices display **VAT-inclusive**, as EU consumer law requires and `PLAN-LOCA
 > dollar sum in the same sentence — in the one paragraph on the site written to
 > be argued against during a chargeback. Both amounts are placeholders now.
 
+> **Learner is sold by the year too, from 2026-08-17.** Nikolay: *"put annual
+> plan for the learner subscription as well."*
+>
+> | | USD | EUR |
+> |---|---|---|
+> | Learner annual | **$119.00** | **€109.00** |
+>
+> Charm steps at the same ~1.10 the monthly columns were set at ($119/€109 is
+> 1.09), and **not the same discount as Pro's**: 30% in euros and 33% in
+> dollars, against Pro's 33% and 34%. There is no charm price at 33% off
+> €12.99×12 — €104.44 is the arithmetic and €103.99 is what would have hit the
+> number — so making the four figures agree would have meant pricing a plan to
+> suit a label. §6.1's *"round local numbers beat FX-derived ones"* decides
+> that: `annualSavingPercent()` takes a plan as well as a currency, and the four
+> answers are all read.
+>
+> **The label above the cards became the floor.** It quoted Pro's saving while
+> Pro was the only annual plan; over a column that saves 30% that is the same
+> overstatement the function's rounding exists to prevent, one level up. It now
+> reads `save 30%+` from `smallestAnnualSavingPercent()`, and each card proves
+> its own percentage under its own price — which is the more useful place for it
+> anyway, because a reader comparing two cards is choosing between two discounts.
+>
+> **Two smaller things fell out of it.** The yearly view no longer has to
+> explain an exception: Learner's card used to read *"Billed monthly. Cancel any
+> time."* on a view that had changed the two cards beside it. And the single
+> filled button (§8.5.5) now follows the *recommended* plan rather than the
+> view — keyed off "is this card showing a year", two cards showing a year meant
+> two filled buttons and a page recommending two things at once.
+>
+> **§20.1's argument for annual was never about the expensive tier.** *"Annual is
+> pushed hard: it fixes the AI-app churn problem by construction"* is a claim
+> about subscribers, and the plan chosen by somebody who describes their own
+> pace as steady rather than intense is if anything the easier yes to a year up
+> front. Watch §14's *annual share of new paid subscriptions* per plan rather
+> than in aggregate; if Learner's share runs well below Pro's, 30% is the number
+> to move, not the plan.
+>
+> **The trial still has no annual row, deliberately.** `checkoutBody` holds off a
+> *monthly* price for four days, so a four-day trial of a year is a period that
+> does not exist. `tests/billing/prices.test.ts` asserts the absence, because the
+> failure it prevents is a future call site finding an amount to charge for it.
+
 ### The rule that prevents the P0
 
 `PLAN-LOCALIZATION` §6.3 rule 1: *"The displayed price must equal the charged price. If the pricing page shows €25 and checkout charges $25, that is a P0 bug, not a rounding difference."*
@@ -475,7 +518,7 @@ Ordered by dependency, in the style of `PLAN.md` §24.
 | Area | Test |
 |---|---|
 | Catalog | Every plan resolves; no plan is missing an entitlement key |
-| Prices | Every `(plan, interval, currency)` has an amount and a price-ID env name; annual is 33% off monthly in both currencies |
+| Prices | Every `(plan, interval, currency)` has an amount; every subscription sells a year and the trial sells none; each year is cheaper than twelve of its months, and the saving is asserted per plan and per currency rather than as one figure |
 | Currency | `en`→USD, `de`/`es`/`bg`→EUR; the cookie overrides; a subscription's locked currency beats both |
 | Entitlements | The full §5 precedence matrix as a fixture table — grant, active, `cancelAtPeriodEnd`, `past_due` in and out of window, none |
 | **Quota** | **Two concurrent `consumeEvaluation` calls at limit 1 → exactly one success** · rollover at a month boundary · limit 0 refuses immediately |
@@ -553,4 +596,4 @@ Four, and only the first blocks anything.
 1. **Does the free tier keep its 1 evaluation/month?** This plan assumes **yes**, unchanged from §20.1, because §19.3's single activation metric is *"first graded submission within 7 days of signup"* and §17.3's day-60 kill criteria are measured against it. Putting graded work behind the €3 trial would make a low activation number ambiguous — wrong product, or €3 of friction? It is one row in the catalog if the answer is no.
 2. **Does Learner get premium models?** This plan says standard, making the Learner→Pro gap *depth and intensity* as the brief's §7 asks. If Learner feels visibly worse rather than merely smaller, the gap is in the wrong place — it is one boolean in the catalog.
 3. **When does multi-goal get built?** §2 explains why no plan can currently claim it. The brief sells 3 goals on Learner and unlimited on Pro, and both are engine work rather than billing work. Until it exists, `/pricing` has one fewer axis to differentiate on than the brief assumed.
-4. **What is the annual discount claim?** €199 against €24.99×12 is **33%**, not §20.1's 37%. `annualSavingPercent()` computes it and rounds down, so the page cannot overstate it — but the marketing copy elsewhere must agree.
+4. **What is the annual discount claim?** €199 against €24.99×12 is **33%**, not §20.1's 37%. `annualSavingPercent()` computes it and rounds down, so the page cannot overstate it — but the marketing copy elsewhere must agree. **Answered, and then it stopped being one number:** there are four (Pro 33%/34%, Learner 30%/33%), the function takes a plan as well as a currency, and any copy sitting above more than one card takes `smallestAnnualSavingPercent()`.

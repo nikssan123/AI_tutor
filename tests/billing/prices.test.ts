@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PLAN_IDS } from "@/lib/billing/catalog";
 import {
+  ANNUAL_PLAN_IDS,
+  annualPerMonthCents,
   annualSavingPercent,
   CURRENCIES,
   CURRENCY_COOKIE,
@@ -11,6 +13,7 @@ import {
   PRICES,
   requirePrice,
   resolveCurrency,
+  smallestAnnualSavingPercent,
   taxBehavior,
 } from "@/lib/billing/prices";
 import { LOCALES } from "@/lib/i18n/locales";
@@ -31,10 +34,33 @@ describe("PRICES", () => {
   it("covers every paid plan in every currency", () => {
     for (const currency of CURRENCIES) {
       for (const planId of PAID) {
-        // `trial` and `learner` are monthly only; `pro` also sells a year.
         expect(findPrice(planId, "month", currency)).toBeDefined();
       }
-      expect(findPrice("pro", "year", currency)).toBeDefined();
+    }
+  });
+
+  it("sells every subscription by the year, in every currency", () => {
+    /*
+     * The invariant `/pricing` renders against rather than guards. Its yearly
+     * view redraws every card it charges for, so a subscription with no annual
+     * row would throw through `requirePrice` — which is the correct failure and
+     * a bad way to find out. Learner was monthly-only until 2026-08-17 and the
+     * page carried a "billed monthly" exception for it; this test is what
+     * replaced that exception.
+     */
+    for (const currency of CURRENCIES) {
+      for (const planId of ["learner", "pro"] as const) {
+        expect(findPrice(planId, "year", currency)).toBeDefined();
+      }
+    }
+  });
+
+  it("does not sell the trial by the year", () => {
+    // `checkoutBody` holds off a *monthly* price for four days. A four-day
+    // trial of a year is a period that does not exist, and a row here would be
+    // an amount some future call site could charge for it.
+    for (const currency of CURRENCIES) {
+      expect(findPrice("trial", "year", currency)).toBeUndefined();
     }
   });
 
@@ -67,11 +93,25 @@ describe("PRICES", () => {
     }
   });
 
-  it("prices learner below pro in both currencies", () => {
+  it("prices learner below pro in both currencies, by the month and by the year", () => {
     for (const currency of CURRENCIES) {
-      expect(
-        requirePrice("learner", "month", currency).amountCents,
-      ).toBeLessThan(requirePrice("pro", "month", currency).amountCents);
+      for (const interval of ["month", "year"] as const) {
+        expect(
+          requirePrice("learner", interval, currency).amountCents,
+        ).toBeLessThan(requirePrice("pro", interval, currency).amountCents);
+      }
+    }
+  });
+
+  it("prices a year below twelve months of the same plan", () => {
+    // Otherwise the switch on `/pricing` is a control that offers a reader a
+    // worse deal and calls it a saving.
+    for (const currency of CURRENCIES) {
+      for (const planId of ANNUAL_PLAN_IDS) {
+        expect(
+          requirePrice(planId, "year", currency).amountCents,
+        ).toBeLessThan(requirePrice(planId, "month", currency).amountCents * 12);
+      }
     }
   });
 
@@ -125,9 +165,10 @@ describe("requirePrice", () => {
 
   it("throws rather than guessing an amount", () => {
     // There is no safe number to charge when the table does not know what the
-    // customer is buying.
-    expect(() => requirePrice("learner", "year", "usd")).toThrow(
-      /No price for learner\/year\/usd/,
+    // customer is buying. This read `learner/year` until Learner started
+    // selling one; the trial is the row that must never exist.
+    expect(() => requirePrice("trial", "year", "usd")).toThrow(
+      /No price for trial\/year\/usd/,
     );
   });
 });
@@ -183,23 +224,83 @@ describe("resolveCurrency", () => {
   });
 });
 
+describe("ANNUAL_PLAN_IDS", () => {
+  it("is read off the table rather than listed again", () => {
+    // The point of deriving it: a plan that gains a `year` row is offered one,
+    // without anybody remembering a second list. Learner arrived that way.
+    expect([...ANNUAL_PLAN_IDS].sort()).toEqual(["learner", "pro"]);
+  });
+
+  it("names each plan once, however many currencies it is priced in", () => {
+    // Two rows per plan in the table; one entry per plan here, or every caller
+    // that maps over it does its arithmetic twice.
+    expect(new Set(ANNUAL_PLAN_IDS).size).toBe(ANNUAL_PLAN_IDS.length);
+  });
+});
+
 describe("annualSavingPercent", () => {
-  it("is 33% in euros and 34% in dollars, not §20.1's 37%", () => {
-    // The plan document's 37% belonged to $190 against $25. The two currencies
-    // no longer agree either, which is the reason this function takes one:
-    // €199 against €24.99 x 12 is 33%, $219 against $27.99 x 12 is 34%, and a
-    // single hard-coded figure would now be wrong on one of the two pages it
-    // appeared on.
-    expect(annualSavingPercent("eur")).toBe(33);
-    expect(annualSavingPercent("usd")).toBe(34);
+  it("gives four true answers where §20.1 wrote one", () => {
+    // The plan document's 37% belonged to $190 against $25. Neither the two
+    // currencies nor the two plans agree, which is why this takes both: €199
+    // against €24.99 x 12 is 33%, $219 against $27.99 x 12 is 34%, €109
+    // against €12.99 x 12 is 30% and $119 against $14.99 x 12 is 33%.
+    expect(annualSavingPercent("pro", "eur")).toBe(33);
+    expect(annualSavingPercent("pro", "usd")).toBe(34);
+    expect(annualSavingPercent("learner", "eur")).toBe(30);
+    expect(annualSavingPercent("learner", "usd")).toBe(33);
   });
 
   it("never rounds up", () => {
     for (const currency of CURRENCIES) {
-      const monthly = requirePrice("pro", "month", currency).amountCents * 12;
-      const yearly = requirePrice("pro", "year", currency).amountCents;
-      const exact = ((monthly - yearly) / monthly) * 100;
-      expect(annualSavingPercent(currency)).toBeLessThanOrEqual(exact);
+      for (const planId of ANNUAL_PLAN_IDS) {
+        const monthly = requirePrice(planId, "month", currency).amountCents * 12;
+        const yearly = requirePrice(planId, "year", currency).amountCents;
+        const exact = ((monthly - yearly) / monthly) * 100;
+        expect(annualSavingPercent(planId, currency)).toBeLessThanOrEqual(exact);
+      }
+    }
+  });
+});
+
+describe("smallestAnnualSavingPercent", () => {
+  it("is the floor of the savings on offer, per currency", () => {
+    // Learner discounts less steeply than Pro in both columns, so the figure a
+    // control sitting above both cards may carry is Learner's.
+    expect(smallestAnnualSavingPercent("eur")).toBe(30);
+    expect(smallestAnnualSavingPercent("usd")).toBe(33);
+  });
+
+  it("understates no plan's saving in either currency", () => {
+    // The assertion that matters: a switch labelled with this number can never
+    // promise more than a card underneath it delivers.
+    for (const currency of CURRENCIES) {
+      for (const planId of ANNUAL_PLAN_IDS) {
+        expect(smallestAnnualSavingPercent(currency)).toBeLessThanOrEqual(
+          annualSavingPercent(planId, currency),
+        );
+      }
+    }
+  });
+});
+
+describe("annualPerMonthCents", () => {
+  it("is the year divided by twelve", () => {
+    // €199/12 is €16.583…; $219/12 is $18.25 exactly.
+    expect(annualPerMonthCents("pro", "eur")).toBe(1_659);
+    expect(annualPerMonthCents("pro", "usd")).toBe(1_825);
+    expect(annualPerMonthCents("learner", "eur")).toBe(909);
+    expect(annualPerMonthCents("learner", "usd")).toBe(992);
+  });
+
+  it("never quotes a year cheaper than the year costs", () => {
+    // Rounded up, the opposite direction to the saving and for the same reason:
+    // €16.58 x 12 is €198.96, which undercuts our own €199 on our own page.
+    for (const currency of CURRENCIES) {
+      for (const planId of ANNUAL_PLAN_IDS) {
+        expect(annualPerMonthCents(planId, currency) * 12).toBeGreaterThanOrEqual(
+          requirePrice(planId, "year", currency).amountCents,
+        );
+      }
     }
   });
 });

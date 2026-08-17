@@ -282,7 +282,10 @@ export default async function HomePage() {
 
   const trialCents = requirePrice("trial", "month", currency).amountCents;
   const proCents = monthlyCents("pro");
-  const saving = annualSavingPercent(currency);
+  // Named per plan since Learner started selling a year too: the sentence below
+  // says "Pro is N% cheaper", so it has to be Pro's discount and not the
+  // smaller one the price list's switch quotes over both cards.
+  const saving = annualSavingPercent("pro", currency);
 
   // Suggestions come from real pack content, so the autocomplete can never
   // promise a subject the product does not actually teach. Picking one goes

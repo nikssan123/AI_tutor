@@ -27,12 +27,15 @@ import {
 import { LISTED_PLAN_IDS, PLANS } from "@/lib/billing/catalog";
 import { PLAN_COPY, TRIAL_TERMS } from "@/lib/billing/plan-copy";
 import {
+  ANNUAL_PLAN_IDS,
+  annualPerMonthCents,
   annualSavingPercent,
   CURRENCIES,
   CURRENCY_COOKIE,
   formatMoney,
   requirePrice,
   resolveCurrency,
+  smallestAnnualSavingPercent,
 } from "@/lib/billing/prices";
 import { breadcrumbs, faqPage, priceOffers } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
@@ -252,20 +255,16 @@ export default async function PricingPage({
     requirePrice(planId, interval, currency);
 
   const proMonthly = price("pro");
-  const proAnnual = price("pro", "year");
-  const saving = annualSavingPercent(currency);
 
-  /**
-   * What the annual plan works out to a month — the number a reader is actually
-   * comparing, because it is the one they just read on Pro's card.
+  /*
+   * The floor of the savings on offer, not Pro's.
    *
-   * Rounded **up**, for the same reason `annualSavingPercent` rounds down: the
-   * safe direction is the one that never advertises a better deal than the one
-   * on offer. €199/12 is €16.583…, so €16.59 × 12 comes to €199.08 — a whisker
-   * more than the year costs, where €16.58 would have quoted a year at €198.96
-   * and undercut our own price.
+   * This label sits above every card, so the one figure it may carry is the
+   * smallest one any of them can prove — and since Learner started selling a
+   * year at a shallower discount than Pro's, that is no longer the same number.
+   * Each card states its own saving underneath its own price.
    */
-  const monthlyEquivalent = Math.ceil(proAnnual.amountCents / 12);
+  const saving = smallestAnnualSavingPercent(currency);
 
   const amount = (planId: (typeof LISTED_PLAN_IDS)[number]) =>
     planId === "free" ? 0 : price(planId as "trial" | "learner" | "pro").amountCents;
@@ -293,6 +292,21 @@ export default async function PricingPage({
     },
   ];
 
+  /**
+   * The section numbers, counted rather than typed.
+   *
+   * The trial band is section one and belongs to the monthly view — there is no
+   * four-day version of a year, so the yearly view does not draw it — and the
+   * numbers below it were written as literals. That left the yearly view running
+   * "02 · Whatever you pay", "03 · Questions" with no 01, which reads as a
+   * section that failed to render rather than one that was never offered.
+   *
+   * An offset rather than a running counter: a counter would have to be mutated
+   * from inside the JSX to be read in document order, and the numbers here are a
+   * property of *which bands exist*, which is one boolean.
+   */
+  const step = (n: number) => String(yearly ? n - 1 : n).padStart(2, "0");
+
   return (
     <PageFrame crumbs={[{ name: "Pricing", path: "/pricing" }]}>
       <JsonLdScript
@@ -303,14 +317,16 @@ export default async function PricingPage({
             description: DESCRIPTION,
             path: "/pricing",
             currency,
-            // Every purchasable price the page renders, the annual one
-            // included — it is the dearest thing here, so leaving it out would
-            // make `highPrice` describe a page nobody sees.
+            // Every purchasable price the page renders, the annual ones
+            // included — the dearest thing here is a year, so leaving them out
+            // would make `highPrice` describe a page nobody sees. Read off
+            // `ANNUAL_PLAN_IDS` rather than named, so a plan that starts
+            // selling a year is marked up by having a row in the table.
             amountsCents: [
               ...LISTED_PLAN_IDS.filter((id) => id !== "free").map((id) =>
                 amount(id),
               ),
-              proAnnual.amountCents,
+              ...ANNUAL_PLAN_IDS.map((id) => price(id, "year").amountCents),
             ],
           }),
           faqPage(questions),
@@ -343,8 +359,11 @@ export default async function PricingPage({
              * URL and can be sent to somebody.
              *
              * The saving rides on the label, which is where every price list
-             * that has this control puts it — and it is read per currency,
-             * because the two columns no longer round to the same discount.
+             * that has this control puts it — and it is the *smallest* saving,
+             * read per currency, because neither the two columns nor the two
+             * plans round to the same discount. "30%+" over a card that saves
+             * 33% understates the offer; "33%" over one that saves 30% is a
+             * claim the page cannot prove.
              */}
             <span className="flex items-center gap-3">
               <Meta>Billed</Meta>
@@ -352,7 +371,7 @@ export default async function PricingPage({
                 {[
                   { label: "Monthly", href: "/pricing", on: !yearly },
                   {
-                    label: `Yearly · save ${saving}%`,
+                    label: `Yearly · save ${saving}%+`,
                     href: "/pricing?interval=year",
                     on: yearly,
                   },
@@ -444,17 +463,32 @@ export default async function PricingPage({
           const copy = PLAN_COPY[planId];
           const cents = amount(planId);
           /*
-           * Whether this card is showing a yearly price, which is **not** the
-           * same question as whether the reader asked for one.
+           * The year on this card, when the reader asked for one and there is
+           * one to show.
            *
-           * Only Pro has an annual row in `prices.ts`; Learner is monthly-only
-           * and Free costs nothing. A switch that redrew all three as "yearly"
-           * would be quoting Learner a billing period it cannot be sold on —
-           * the exact class of lie this page's opening rule exists to stop — so
-           * the switch changes the cards it can change and each of the others
-           * says plainly what it does instead.
+           * Free is the only card without a year, because it is the only card
+           * without a price. Both subscriptions have an annual row, so this
+           * switch no longer changes one card of three and explains itself on
+           * the other two — and the amounts, the monthly equivalent and the
+           * discount all come out of `prices.ts` rather than being reasoned
+           * about here.
+           *
+           * There is no guard for a paid plan that has no annual row: it is an
+           * unreachable branch on this page (`tests/billing/prices.test.ts`
+           * asserts both cards can be sold by the year) and `requirePrice`
+           * throwing is the right failure anyway. A page that quietly showed a
+           * monthly amount on the yearly view would be §6.3 rule 1 broken by a
+           * fallback.
            */
-          const annual = yearly && planId === "pro";
+          const year =
+            yearly && planId !== "free"
+              ? {
+                  cents: price(planId, "year").amountCents,
+                  perMonth: annualPerMonthCents(planId, currency),
+                  saving: annualSavingPercent(planId, currency),
+                }
+              : undefined;
+          const annual = year !== undefined;
 
           /*
            * The €3 belongs to the monthly view, because that is what it buys:
@@ -482,25 +516,29 @@ export default async function PricingPage({
            */
           const headline = offered
             ? amount("trial")
-            : annual
-              ? proAnnual.amountCents
+            : year
+              ? year.cents
               : cents;
 
           const suffix = offered
             ? "for your first 4 days"
-            : annual
+            : year
               ? "a year"
               : planId === "free"
                 ? "forever"
                 : "a month";
 
+          /*
+           * The discount is stated on the card rather than left to the switch
+           * above, because the two cards no longer save the same percentage.
+           * The switch can only honestly carry the smaller of them, so a reader
+           * looking at the better one has to be able to read it here.
+           */
           const note = offered
             ? `then ${formatMoney(cents, currency)} a month. Cancel before day 4 and pay nothing more.`
-            : annual
-              ? `That is ${formatMoney(monthlyEquivalent, currency)} a month, paid once a year.`
-              : yearly && planId === "learner"
-                ? "Billed monthly. Cancel any time."
-                : UNDER_PRICE[planId];
+            : year
+              ? `That is ${formatMoney(year.perMonth, currency)} a month, paid once a year — ${year.saving}% off.`
+              : UNDER_PRICE[planId];
 
           return (
             <Card
@@ -655,11 +693,23 @@ export default async function PricingPage({
                       name="interval"
                       value={annual ? "year" : "month"}
                     />
-                    {/* The filled button follows whichever view the reader is
-                        in: the four days on monthly, the year on yearly. There
-                        is still only ever one of them on the page. */}
-                    <Button variant={annual ? "primary" : "text"}>
-                      {annual ? "Choose annual" : copy.cta}
+                    {/*
+                      The filled button follows whichever view the reader is in
+                      — the four days on monthly, the year on yearly — and there
+                      is still only ever one of them on the page (§8.5.5). Which
+                      is why it is `recommended` rather than `annual`: both
+                      subscriptions sell a year now, and keying the fill off the
+                      view alone put two filled buttons side by side and made
+                      the page recommend two things at once.
+
+                      The label stays the plan's own. "Choose annual" was
+                      unambiguous while one card could say it; on two it is the
+                      same words on both buttons, naming the billing period the
+                      switch above already set and not the thing being bought.
+                      The year is in the price directly above it.
+                    */}
+                    <Button variant={annual && recommended ? "primary" : "text"}>
+                      {copy.cta}
                     </Button>
                   </form>
                 )}
@@ -687,7 +737,7 @@ export default async function PricingPage({
             it is one fixed string in a search result, not a claim rendered next
             to a different currency. */}
         <SectionHead
-          step="01"
+          step={step(1)}
           label="The way into Pro"
           title={`What ${formatMoney(amount("trial"), currency)} buys, exactly`}
           icon={<StepsIcon />}
@@ -758,7 +808,7 @@ export default async function PricingPage({
 
       <section className="flex flex-col gap-6">
         <SectionHead
-          step="02"
+          step={step(2)}
           label="Whatever you pay"
           title="The parts that are not a plan"
           icon={<TickIcon />}
@@ -791,7 +841,7 @@ export default async function PricingPage({
 
       <section className="flex flex-col gap-6">
         <SectionHead
-          step="03"
+          step={step(3)}
           label="Questions"
           title="The things people ask"
           icon={<QuestionIcon />}
