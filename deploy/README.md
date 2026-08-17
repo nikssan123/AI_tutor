@@ -255,7 +255,24 @@ STRIPE_WEBHOOK_SECRET=
 # IndexNow (§13.3). Blank is fine — `pnpm indexnow` refuses to run without it
 # and nothing else reads it. `openssl rand -hex 16`.
 INDEXNOW_KEY=
+
+# Analytics (§25). Blank is fine and is the honest state until a PostHog
+# project exists: with no key there is no cookie banner, no consent control on
+# /privacy and no events, because there is nothing to ask permission for.
+# The name matters — nothing reads NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN, and a
+# token under that name looks identical to analytics being switched off.
+NEXT_PUBLIC_POSTHOG_KEY=
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
 ```
+
+Both PostHog values are read at **runtime**, not baked into the image, so
+rotating the key is a `./deploy.sh restart web` rather than a rebuild. That is
+only true because every read goes through `posthogKey()` / `posthogHost()`,
+which take the environment as a *parameter* — the one form Next does not inline
+at build time. A literal `process.env.NEXT_PUBLIC_POSTHOG_KEY` anywhere in
+server code would freeze to whatever was set during `next build`, and the
+symptom would be a consent withdrawal that stops collection while leaving the
+cookie on the device, in production only.
 
 Google sign-in is off until both `GOOGLE_*` halves are set; with one or neither,
 the button is not rendered. The authorised redirect URI to register with Google

@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { posthogKey } from "@/lib/observability/posthog";
 import {
   CONSENT_COOKIE,
   CONSENT_COOKIE_OPTIONS,
@@ -41,9 +42,24 @@ export async function setConsentAction(formData: FormData): Promise<void> {
    *
    * The key comes from the environment rather than from the client, because a
    * cookie name posted by a form is a cookie name anyone can post.
+   *
+   * Read through `posthogKey()` rather than as `process.env.NEXT_PUBLIC_…`
+   * here, and the difference is not stylistic. Next inlines the literal form at
+   * build time — "your app will no longer respond to changes to these
+   * environment variables" (`next/dist/docs/01-app/02-guides/
+   * environment-variables.md`) — and it inlines it on the server too, not just
+   * in the browser bundle. An image built without the key would freeze this
+   * line to `undefined` while the banner, which reads the same variable through
+   * a parameter, kept working from the runtime environment. The result would be
+   * a "No thanks" that stops collection and silently leaves the cookie on the
+   * device, in production only, with `/privacy` promising otherwise.
+   *
+   * `posthogKey(env = process.env)` reads it off a *variable*, which the same
+   * document lists as the form Next does not inline. That is what keeps this a
+   * runtime value.
    */
   if (choice === "denied") {
-    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    const key = posthogKey();
     if (key) jar.delete(posthogCookieName(key));
   }
 }

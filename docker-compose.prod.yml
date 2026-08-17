@@ -76,6 +76,22 @@ services:
       # live is a key swap and nothing else.
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Analytics (§25). Blank is a supported state and the honest one until a
+      # project exists: with no key there is no cookie banner, no consent
+      # control on /privacy, and no events — because there is nothing to ask
+      # permission for.
+      #
+      # Runtime only, and unlike NEXT_PUBLIC_SITE_URL there is deliberately no
+      # matching build ARG. Nothing in the browser bundle reads these: the
+      # server resolves both and hands them to `PostHogClient` as props. On the
+      # server they are read through a parameter (`posthogKey(env = process.env)`),
+      # which is the one form Next does not inline at build time. So the key can
+      # be rotated with a restart instead of a rebuild — and a `.env.prod` that
+      # sets it actually takes effect, which is the failure this block fixes:
+      # the variables were in `.env.prod` and compose never passed them on, so
+      # the container saw none and the banner never rendered.
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
     networks:
       - meritkeep-net
     depends_on:
