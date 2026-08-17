@@ -106,6 +106,32 @@ export async function aiAccess(
  * is never sold a way past one — so a caller can render the result without
  * asking whether it should.
  */
+/**
+ * Whether starting a new session would be refused right now.
+ *
+ * Asked by the screens that offer the button, so the wall is *drawn* rather
+ * than walked into: `startSessionAction` has always refused past the month's
+ * allowance and redirected with `?error=sessions`, which meant the only way to
+ * find out was to press the product's biggest button and be bounced back.
+ *
+ * `null` is "as many as the spend ceiling allows" — no wall to draw. Resuming
+ * an unfinished session is not a new one and is never locked; that exception
+ * belongs to the caller, which is the only thing that knows whether one is
+ * open.
+ */
+export async function sessionsLocked(
+  db: Db,
+  userId: string,
+  plan: unknown,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const { entitlements } = await entitlementsForUser(db, userId, plan, now);
+  const limit = entitlements.sessionsPerMonth;
+  if (limit === null) return false;
+
+  return (await sessionsThisPeriod(db, userId, now)) >= limit;
+}
+
 export async function nudgeAt(
   db: Db,
   userId: string,

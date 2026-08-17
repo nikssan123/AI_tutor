@@ -6,6 +6,7 @@ import {
 import { StepList } from "@/components/step-list";
 import { SubmitButton } from "@/components/submit-button";
 import {
+  Button,
   ButtonLink,
   Card,
   HeroBand,
@@ -13,6 +14,7 @@ import {
   Status,
   Title,
 } from "@/components/ui";
+import Link from "next/link";
 import { elapsedWords } from "../start/building/progress";
 import { buildPathAction } from "./actions";
 import { currentStep, PATH_BUILD_STEPS, pathStepStates } from "./progress";
@@ -48,6 +50,7 @@ export function PathBuildState({
   build,
   hasPath,
   goalId,
+  locked = false,
   now = new Date(),
 }: {
   /** Undefined when this goal has never been through the queue. */
@@ -55,6 +58,13 @@ export function PathBuildState({
   /** Whether a curriculum is already stored — a rebuild is not a first build. */
   hasPath: boolean;
   goalId: string;
+  /**
+   * Whether the month's sessions are spent. This screen's button is a link to
+   * `/today`, so it could never *start* anything it should not — but it offered
+   * "Start today's session" to a learner who had none left, which is a door
+   * with nothing behind it. See `sessionsLocked`.
+   */
+  locked?: boolean;
   now?: Date;
 }) {
   if (build && isRunning(build, now)) {
@@ -163,7 +173,27 @@ export function PathBuildState({
   }
 
   if (hasPath) {
-    return (
+    return locked ? (
+      /* Shown locked rather than hidden, exactly as `/today` shows it: a
+         button that disappears reads as a fault, one that is greyed reads as a
+         price. This screen carries no upgrade card, so the one link here is the
+         whole ask rather than a second one. */
+      <div className="flex flex-col items-start gap-2">
+        <Button type="button" disabled>
+          Start today&rsquo;s session
+        </Button>
+        <Meta>
+          That&rsquo;s this month&rsquo;s session. It comes back on the 1st —{" "}
+          <Link
+            href="/pricing"
+            className="text-accent font-[550] underline-offset-4 hover:underline"
+          >
+            or now, on a paid plan
+          </Link>
+          .
+        </Meta>
+      </div>
+    ) : (
       <div>
         <ButtonLink href="/today">Start today&rsquo;s session</ButtonLink>
       </div>

@@ -53,6 +53,19 @@ function proved(skillId: string): MasteryState {
   };
 }
 
+/** Worked on, nothing shown yet — a wrong answer, or a hand-in that scored. */
+function started(skillId: string): MasteryState {
+  return {
+    skillId,
+    mastery: 0.22,
+    confidence: 0.45,
+    evidenceCount: 1,
+    lastSuccessAt: null,
+    lastPracticedAt: NOW,
+    decayHalfLifeDays: 7,
+  };
+}
+
 /**
  * A shape with one of everything: a skill with no prerequisites, a chain, a
  * skill gated on *two* things at once, and a specialist that is both out of
@@ -216,8 +229,60 @@ describe("buildOutline without a generated curriculum", () => {
     );
   });
 
+  /**
+   * §8 asks for four states and this screen drew three of them.
+   *
+   * A learner who spent half an hour on a skill came back to a row identical to
+   * the thirteen they had never opened — same mark, same word, same sentence.
+   * The evidence was on the record and the path could not see it.
+   */
+  it("tells a skill you have started from one you have never opened", () => {
+    const untouched = skillNamed(outlineFor(), "Basics");
+    expect(untouched.state).toBe("open");
+
+    const worked = skillNamed(outlineFor([started("basics")]), "Basics");
+    expect(worked.state).toBe("started");
+    expect(worked.note).toBe(
+      "You've started this one. It becomes yours when you show you can read a table without guessing.",
+    );
+  });
+
+  /**
+   * Off `evidenceCount`, never off mastery. Every skill starts at the pack's
+   * `pInit` prior, so a mastery-based test would paint the whole course as
+   * started on the learner's first day.
+   */
+  it("does not call a skill started just because its prior is not zero", () => {
+    const outline = outlineFor();
+    expect(outline.sections.flatMap((s) => s.skills).map((s) => s.state)).not.toContain(
+      "started",
+    );
+  });
+
+  it("gives the section, and the open one, to what is under way", () => {
+    // "Most actionable" now has one more rung: something you are in the middle
+    // of outranks something you could begin.
+    const outline = outlineFor([started("basics")]);
+
+    expect(outline.sections[0]!.state).toBe("started");
+    expect(outline.sections.filter((s) => s.current).map((s) => s.title)).toEqual(
+      ["Foundations"],
+    );
+  });
+
+  it("counts a started skill as started and nothing else", () => {
+    expect(outlineFor([started("basics")]).counts).toEqual({
+      started: 1,
+      open: 0,
+      locked: 3,
+      proved: 0,
+      optional: 1,
+    });
+  });
+
   it("counts every skill under one state", () => {
     expect(outlineFor().counts).toEqual({
+      started: 0,
       open: 1,
       locked: 3,
       proved: 0,

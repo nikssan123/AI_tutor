@@ -32,6 +32,9 @@ const buildInFlightForMock = vi.fn();
 const jar = new Map<string, string>();
 
 const nudgeMock = vi.fn(async (..._a: unknown[]) => undefined as unknown);
+// Whether a new session would be refused. Read on every visit now, so the wall
+// is drawn before the press rather than walked into.
+const lockedMock = vi.fn(async (..._a: unknown[]) => false);
 
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
@@ -74,6 +77,7 @@ vi.mock("@/lib/calendar/upcoming", () => ({
 }));
 vi.mock("@/lib/billing/gate", () => ({
   nudgeAt: (...a: unknown[]) => nudgeMock(...(a as [])),
+  sessionsLocked: (...a: unknown[]) => lockedMock(...(a as [])),
 }));
 vi.mock("@/lib/goals/today", () => ({
   todayFor: (...args: unknown[]) => todayForMock(...(args as [])),
@@ -170,6 +174,9 @@ beforeEach(() => {
   buildInFlightForMock.mockResolvedValue(undefined);
   apiKey.mockReturnValue(true);
   upcomingMock.mockResolvedValue([]);
+  // `clearAllMocks` clears calls, not implementations, so this has to be put
+  // back or one test's spent month leaks into the next one's.
+  lockedMock.mockResolvedValue(false);
 });
 
 afterEach(cleanup);
@@ -428,8 +435,10 @@ describe("with a plan", () => {
     expect(screen.getByText("14 min")).toBeDefined();
     expect(screen.getByText("Recall")).toBeDefined();
     expect(screen.getByText("Read")).toBeDefined();
-    // Blocks are named by skill, not by slug.
-    expect(screen.getByText(`${pack.skills[1]!.name}`)).toBeDefined();
+    // A block says what it asks for, not what it is about. Printing the skill
+    // on every line made two different sessions preview identically — the same
+    // three lines, so the next session read as the one just finished.
+    expect(screen.getByText(`A lesson on ${pack.skills[1]!.name}`)).toBeDefined();
   });
 
   /**
@@ -793,8 +802,9 @@ describe("with a plan", () => {
 
     expect(screen.getByText("Your last edit")).toBeDefined();
     expect(screen.getByText("What surprised you?")).toBeDefined();
-    expect(screen.getByText(pack.skills[2]!.name)).toBeDefined();
-    expect(screen.getByText(pack.skills[3]!.name)).toBeDefined();
+    // The brief and the question, not the skill name twice over.
+    expect(screen.getByText("b")).toBeDefined();
+    expect(screen.getByText("p")).toBeDefined();
   });
 
   it("falls back to the slug for a skill the pack no longer names", async () => {
@@ -966,6 +976,65 @@ describe("asking for money", () => {
     expect(screen.queryByRole("heading", { name: LOCKED.headline })).toBeNull();
     // Asked once. The standing question is never put when a wall answered.
     expect(nudgeMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The wall a learner could only find by walking into it.
+   *
+   * `startSessionAction` has always refused past the month's allowance and sent
+   * them back with `?error=sessions` — so until they pressed the product's
+   * biggest button, the screen showed a full plan and a live Start button. It
+   * read as "go ahead" right up to the moment it did not, and a free account
+   * that never pressed twice was never told there was anything to buy.
+   */
+  it("locks the button, and says so, before the press", async () => {
+    todayForMock.mockResolvedValue(view());
+    lockedMock.mockResolvedValue(true);
+    nudgeMock.mockResolvedValue(SESSIONS);
+
+    render(await TodayPage({ searchParams: search() }));
+
+    const button = screen.getByRole("button", { name: "Start session" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    // Shown locked rather than hidden: a control that vanishes reads as a bug,
+    // one that is greyed reads as a price.
+    expect(screen.getByText(/That’s this month’s session/)).toBeDefined();
+    // And the ask is on screen without having to be walked into.
+    expect(screen.getByRole("heading", { name: SESSIONS.headline })).toBeTruthy();
+  });
+
+  it("never locks somebody out of a session they are in the middle of", async () => {
+    // The one exception `startSessionAction` makes, for the reason it makes it:
+    // an unfinished session is not a new one, and stranding a learner mid-way
+    // behind a paywall is worse than not letting them begin.
+    lockedMock.mockResolvedValue(true);
+    todayForMock.mockResolvedValue({ ...view(), openSessionId: "s-1" });
+
+    render(await TodayPage({ searchParams: search() }));
+
+    const button = screen.getByRole("button", { name: "Carry on" });
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("leaves a plan with no session cap alone", async () => {
+    todayForMock.mockResolvedValue(view());
+    lockedMock.mockResolvedValue(false);
+    nudgeMock.mockResolvedValue(undefined);
+
+    render(await TodayPage({ searchParams: search() }));
+
+    expect(
+      screen.getByRole("button", { name: "Start session" }).hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("does not ask whether a session is locked when one is already open", async () => {
+    // Resuming is not starting. The action makes the same exception, and asking
+    // buys a query whose answer cannot change what this screen renders.
+    todayForMock.mockResolvedValue({ ...view(), openSessionId: "s-1" });
+
+    render(await TodayPage({ searchParams: search() }));
+    expect(lockedMock).not.toHaveBeenCalled();
   });
 
   it("says nothing when the resolver declines to sell", async () => {

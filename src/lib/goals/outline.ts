@@ -32,7 +32,7 @@ import { lowerFirst } from "./projection";
  */
 
 /** §16.1's eligibility filter, as a word. */
-export type SkillState = "proved" | "open" | "locked" | "optional";
+export type SkillState = "proved" | "started" | "open" | "locked" | "optional";
 
 /**
  * The word each state is shown as, authored once.
@@ -43,6 +43,7 @@ export type SkillState = "proved" | "open" | "locked" | "optional";
  * itself about its own vocabulary.
  */
 export const SKILL_STATE_WORD: Record<SkillState, string> = {
+  started: "In progress",
   open: "Open now",
   locked: "Locked",
   proved: "Already yours",
@@ -50,10 +51,12 @@ export const SKILL_STATE_WORD: Record<SkillState, string> = {
 };
 
 /**
- * Legend and marker order: what you can do, then what is in the way, then what
- * is behind you, then what nobody asked you for.
+ * Legend and marker order: what you are in the middle of, then what you can
+ * start, then what is in the way, then what is behind you, then what nobody
+ * asked you for.
  */
 export const SKILL_STATES: SkillState[] = [
+  "started",
   "open",
   "locked",
   "proved",
@@ -136,10 +139,12 @@ function skillStateOf(
   proved: Set<string>,
   optional: Set<string>,
   blockers: string[],
+  started: Set<string>,
 ): SkillState {
   if (proved.has(skillId)) return "proved";
   if (optional.has(skillId)) return "optional";
-  return blockers.length > 0 ? "locked" : "open";
+  if (blockers.length > 0) return "locked";
+  return started.has(skillId) ? "started" : "open";
 }
 
 /**
@@ -160,6 +165,13 @@ function noteFor(
   if (state === "locked") {
     return `Unlocks once you've done ${andList(blockers)}.`;
   }
+  if (state === "started") {
+    // §8 asks for four states and this screen drew three of them: a skill a
+    // learner had spent a session on was the same row as one they had never
+    // opened — same mark, same word, same sentence. Somebody who worked for
+    // half an hour came back to a path that could not tell them apart.
+    return `You've started this one. It becomes yours when you show you can ${lowerFirst(skill.canDoStatement)}.`;
+  }
   // No "Open to you now —" in front of it any more. The row already carries the
   // mark and the word for that, and a sentence whose first four words repeat the
   // label beside it is four words the learner has to read past to reach the one
@@ -172,6 +184,7 @@ function sectionStateOf(skills: OutlineSkill[]): SectionState {
   const has = (state: SkillState) =>
     skills.some((skill) => skill.state === state);
 
+  if (has("started")) return "started";
   if (has("open")) return "open";
   if (has("locked")) return "locked";
   return has("proved") ? "proved" : "optional";
@@ -250,7 +263,7 @@ const TRAILING: Array<{
   {
     key: "trailing-rest",
     title: "Also on your path",
-    states: ["open", "locked"],
+    states: ["started", "open", "locked"],
   },
   {
     key: "trailing-optional",
@@ -270,6 +283,18 @@ export function buildOutline(input: OutlineInput): Outline {
   const proved = new Set(input.projection.excludedSkillIds);
   const optional = new Set(input.projection.optionalSkillIds);
 
+  /*
+   * Skills with something on the record — a marked answer, a graded hand-in.
+   *
+   * Off `evidenceCount` rather than off mastery, because mastery is never zero:
+   * an untouched skill sits at the pack's `pInit` prior, so "mastery > 0" would
+   * paint the whole course as started on the learner's first day. The count is
+   * the honest one — it is the number of things that actually happened.
+   */
+  const started = new Set(
+    input.mastery.filter((m) => m.evidenceCount > 0).map((m) => m.skillId),
+  );
+
   const toOutlineSkill = (skill: EngineSkill): OutlineSkill => {
     // Total by construction: the pack validator rejects an edge naming a skill
     // that does not exist, so every prerequisite id is in the graph.
@@ -277,7 +302,7 @@ export function buildOutline(input: OutlineInput): Outline {
       .filter((edge) => masteryOf(edge.fromSkillId) < HARD_PREREQ_THRESHOLD)
       .map((edge) => skills.get(edge.fromSkillId)!.name);
 
-    const state = skillStateOf(skill.id, proved, optional, blockers);
+    const state = skillStateOf(skill.id, proved, optional, blockers, started);
 
     return {
       skillId: skill.id,
@@ -341,11 +366,15 @@ export function buildOutline(input: OutlineInput): Outline {
   // Exactly one section arrives expanded, and it is the one with work in it.
   // A finished course expands nothing, which is the correct amount of noise to
   // make at someone who is done.
-  const current = sections.find((section) => section.state === "open");
+  // The section you are in the middle of, before the one you could begin.
+  const current =
+    sections.find((section) => section.state === "started") ??
+    sections.find((section) => section.state === "open");
   if (current) current.current = true;
 
   const counts: Record<SkillState, number> = {
     proved: 0,
+    started: 0,
     open: 0,
     locked: 0,
     optional: 0,

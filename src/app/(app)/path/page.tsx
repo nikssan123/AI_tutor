@@ -30,6 +30,7 @@ import { SkillMap } from "@/components/skill-map";
 import { findPathBuild } from "@/lib/curriculum/build-state";
 import { nudgeAt } from "@/lib/billing/gate";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
+import { sessionsLocked } from "@/lib/billing/gate";
 import { PathBuildState } from "./building";
 import { setDepthAction } from "./actions";
 
@@ -189,6 +190,15 @@ export default async function PathPage() {
   const now = new Date().toISOString();
   const graph = toEngineGraph(pack);
   const mastery = await masteryFor(db, session.user.id, goal.packSlug);
+
+  // This screen offers the same button `/today` does, so it owes the same
+  // answer: an offer to start something the month has no room for is a door
+  // with nothing behind it.
+  const sessionsAreLocked = await sessionsLocked(
+    db,
+    session.user.id,
+    session.user.plan,
+  );
   const projection = projectSkills({
     graph,
     mastery,
@@ -290,6 +300,7 @@ export default async function PathPage() {
         {/* The offer, the wait, or what stopped it — one question, answered in
             one place. See `building.tsx`. */}
         <PathBuildState
+          locked={sessionsAreLocked}
           build={pathBuild}
           hasPath={stored !== undefined}
           goalId={goal.id}

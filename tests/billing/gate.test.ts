@@ -1,13 +1,21 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { createClient } from "@/db";
-import { agentRun, spendLedger, subscription, user } from "@/db/schema";
+import {
+  agentRun,
+  learningGoal,
+  learningSession,
+  spendLedger,
+  subscription,
+  user,
+} from "@/db/schema";
 import { PLANS } from "@/lib/billing/catalog";
 import {
   aiAccess,
   assistantAllowance,
   nudgeAt,
   overCapMessage,
+  sessionsLocked,
   SESSIONS_RESERVED,
 } from "@/lib/billing/gate";
 
@@ -166,6 +174,59 @@ live("against a real database", () => {
       expect((await aiAccess(db, LEARNER, "free", "standard")).blocked).toBe(
         false,
       );
+    });
+  });
+
+  /**
+   * The wall, asked for *before* the button rather than after it.
+   *
+   * `startSessionAction` has always refused past the month's allowance and sent
+   * the learner back with `?error=sessions`. That made the only route to
+   * finding out "press the product's biggest button and be bounced", so a free
+   * account that never pressed twice was never told there was anything to buy —
+   * and `/path` went on offering "Start today's session" either way.
+   */
+  describe("sessionsLocked", () => {
+    const startSession = async (at: Date) => {
+      const [goal] = await db
+        .insert(learningGoal)
+        .values({ userId: LEARNER, rawGoalText: "learn something" })
+        .returning({ id: learningGoal.id });
+
+      await db.insert(learningSession).values({
+        userId: LEARNER,
+        goalId: goal!.id,
+        blocks: [],
+        responses: [],
+        startedAt: at,
+      });
+    };
+
+    it("is open while the month still has one in it", async () => {
+      expect(await sessionsLocked(db, LEARNER, "free", NOW)).toBe(false);
+    });
+
+    it("shuts once the month's allowance is gone", async () => {
+      for (let i = 0; i < PLANS.free.entitlements.sessionsPerMonth!; i += 1) {
+        await startSession(NOW);
+      }
+
+      expect(await sessionsLocked(db, LEARNER, "free", NOW)).toBe(true);
+    });
+
+    it("opens again on the 1st", async () => {
+      await startSession(new Date("2026-07-20T12:00:00.000Z"));
+      expect(await sessionsLocked(db, LEARNER, "free", NOW)).toBe(false);
+    });
+
+    it("never shuts on a plan with no session count", async () => {
+      // `null` is "as many as the spend ceiling allows" — a different limit,
+      // enforced somewhere else, and not a wall this draws.
+      expect(PLANS.pro.entitlements.sessionsPerMonth).toBeNull();
+      await startSession(NOW);
+      await startSession(NOW);
+
+      expect(await sessionsLocked(db, LEARNER, "pro", NOW)).toBe(false);
     });
   });
 

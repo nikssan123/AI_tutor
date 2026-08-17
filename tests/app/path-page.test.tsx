@@ -61,8 +61,12 @@ vi.mock("@/lib/curriculum/build-state", async (actual) => ({
  * that the screen asks at the right moment and renders the answer.
  */
 const nudgeAtMock = vi.fn(async () => undefined as unknown);
+const sessionsLockedMock = vi.fn(async (..._a: unknown[]) => false);
 vi.mock("@/lib/billing/gate", () => ({
   nudgeAt: (...a: unknown[]) => nudgeAtMock(...(a as [])),
+  // This screen offers the same button `/today` does, so it asks the same
+  // question: would starting a session be refused right now?
+  sessionsLocked: (...a: unknown[]) => sessionsLockedMock(...(a as [])),
 }));
 // The screen absorbed `/goals/{id}/path`'s two `notFound()` branches when it
 // moved to `/path`: a rail destination that 404s at somebody with no course is

@@ -13,6 +13,7 @@ import { SubjectList } from "@/components/subject-list";
 import { SubmitButton } from "@/components/submit-button";
 import { NothingRunning, PickBackUp } from "@/components/nothing-running";
 import {
+  Button,
   ButtonLink,
   EmptyState,
   HeroBand,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui";
 import { AppFrame, AppHeader, SectionHead } from "@/components/app-shell";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
-import { nudgeAt } from "@/lib/billing/gate";
+import { nudgeAt, sessionsLocked } from "@/lib/billing/gate";
 import { buildInFlightFor } from "@/lib/packs/build";
 import { hasApiKey } from "@/lib/ai/client";
 import { upcomingFor } from "@/lib/calendar/upcoming";
@@ -72,16 +73,33 @@ const BLOCK_LABEL: Record<SessionBlock["type"], string> = {
   reflect: "Reflect",
 };
 
+/**
+ * What each block on the plan actually asks for.
+ *
+ * It used to print the skill's name on all three of `explain`, `check` and
+ * `apply`, so a session read as its own title repeated three times — Read /
+ * Recall / Do, each followed by the same sentence. A learner who finished a
+ * session and was offered the next one saw a preview identical to the one they
+ * had just done and reasonably concluded it *was* the same session, when the
+ * recall question underneath had changed completely.
+ *
+ * The skill is already named twice above this list, in the header and in the
+ * planner's reason. What it could not tell you is what the blocks contain, so
+ * that is what they say now.
+ */
 function blockDetail(block: SessionBlock, names: Map<string, string>): string {
+  const skill = (id: string) => names.get(id) ?? id;
+
   switch (block.type) {
     case "explain":
-      return names.get(block.skillId) ?? block.skillId;
+      return `A lesson on ${skill(block.skillId)}`;
     case "check":
-      return block.isRetrieval
-        ? `${names.get(block.skillId) ?? block.skillId} — from memory`
-        : (names.get(block.skillId) ?? block.skillId);
+      // The question itself. Since the composer draws these from the pack's
+      // item bank, two sessions on one skill ask different things — and this
+      // is the only line on the screen where that is visible.
+      return block.isRetrieval ? `From memory: ${block.prompt}` : block.prompt;
     case "apply":
-      return names.get(block.skillId) ?? block.skillId;
+      return block.brief;
     case "review":
       return block.focus;
     case "reflect":
@@ -202,8 +220,25 @@ export default async function TodayPage({ searchParams }: Props) {
    * spending their allowance, rather than waiting for them to be stopped —
    * which for a learner who never presses anything twice is never.
    */
+  /*
+   * Whether the month's sessions are gone — asked *before* the press, not after.
+   *
+   * `startSessionAction` has always refused past the limit and sent them back
+   * with `?error=sessions`, so the only way to discover a free account is out of
+   * sessions was to press the product's biggest button and be bounced. Until
+   * then the screen showed a full plan and a live Start button, which is a
+   * screen that reads as "go ahead" right up to the moment it does not.
+   *
+   * `openSessionId` is the exception, and the same one the action makes: an
+   * unfinished session is not a new one, and stranding somebody mid-session
+   * behind a paywall is the one outcome worse than not letting them begin.
+   */
+  const locked =
+    !openSessionId &&
+    (await sessionsLocked(getDb(), session.user.id, session.user.plan, now));
+
   const wall =
-    error === "sessions"
+    error === "sessions" || locked
       ? await nudgeAt(getDb(), session.user.id, session.user.plan, "sessions_spent")
       : undefined;
 
@@ -358,20 +393,43 @@ export default async function TodayPage({ searchParams }: Props) {
                 which is long enough that the report was the same one the path
                 build got: "I pressed it and nothing happened." */}
             {planned.blocks.length > 0 ? (
-              <form action={startSessionAction}>
-                <SubmitButton
-                  pendingLabel={
-                    openSessionId ? "Opening your session" : "Setting up your session"
-                  }
-                  note={
-                    openSessionId
-                      ? "Finding the block you stopped at."
-                      : "Getting today’s first block ready."
-                  }
-                >
-                  {openSessionId ? "Carry on" : "Start session"}
-                </SubmitButton>
-              </form>
+              locked ? (
+                /*
+                 * Locked, and *shown* locked — the button stays where it was
+                 * rather than disappearing, because a control that vanishes
+                 * reads as a bug and a control that is greyed reads as a price.
+                 * The card above says what lifts it; this says only that it is
+                 * shut and when it opens, so the screen still asks for money
+                 * once (§20.1) rather than twice.
+                 *
+                 * Presentation only. `startSessionAction` does the refusing —
+                 * a disabled button is a courtesy, never a control.
+                 */
+                <div className="flex flex-col items-start gap-2">
+                  <Button type="button" disabled>
+                    Start session
+                  </Button>
+                  <Meta>
+                    That’s this month’s session. It comes back on the 1st — or
+                    now, on a paid plan.
+                  </Meta>
+                </div>
+              ) : (
+                <form action={startSessionAction}>
+                  <SubmitButton
+                    pendingLabel={
+                      openSessionId ? "Opening your session" : "Setting up your session"
+                    }
+                    note={
+                      openSessionId
+                        ? "Finding the block you stopped at."
+                        : "Getting today’s first block ready."
+                    }
+                  >
+                    {openSessionId ? "Carry on" : "Start session"}
+                  </SubmitButton>
+                </form>
+              )
             ) : (
               <Meta>Nothing to start today.</Meta>
             )}
@@ -402,7 +460,10 @@ export default async function TodayPage({ searchParams }: Props) {
                   <span className="inline-flex min-w-14 justify-center rounded-[var(--radius-pill)] bg-accent-weak px-2.5 py-1 text-[length:var(--text-meta-size)] font-[650] text-accent">
                     {BLOCK_LABEL[block.type]}
                   </span>
-                  <span className="min-w-0">
+                  {/* Two lines at most: a real question runs to a couple of
+                      hundred characters, and the plan is a summary of the
+                      session rather than the session itself. */}
+                  <span className="min-w-0 line-clamp-2">
                     {blockDetail(block, skillNames)}
                   </span>
                 </span>

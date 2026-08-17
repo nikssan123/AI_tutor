@@ -235,6 +235,25 @@ describe("a path that is already built", () => {
     expect(screen.getByRole("link", { name: /Start today/ })).toBeDefined();
   });
 
+  /**
+   * The same wall `/today` draws, on the other screen that offers the button.
+   *
+   * This one is only a link, so it could never start a session it should not —
+   * but "Start today's session" offered to a learner with none left is a door
+   * with nothing behind it, and they find that out by walking through it.
+   */
+  it("shows the button locked when the month's sessions are gone", () => {
+    render(<PathBuildState build={undefined} hasPath goalId="g" locked now={NOW} />);
+
+    const button = screen.getByRole("button", { name: /Start today/ });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("link", { name: /Start today/ })).toBeNull();
+    // And the way past it, since this screen carries no upgrade card.
+    expect(
+      screen.getByRole("link", { name: /paid plan/ }).getAttribute("href"),
+    ).toBe("/pricing");
+  });
+
   it("defaults its clock to now, so the page need not pass one", () => {
     render(<PathBuildState build={build({ status: "ready" })} hasPath goalId="g" />);
     expect(screen.getByRole("link", { name: /Start today/ })).toBeDefined();

@@ -41,7 +41,7 @@ function section(overrides: Partial<OutlineSection> = {}): OutlineSection {
 
 const outline = (overrides: Partial<Outline> = {}): Outline => ({
   sections: [section()],
-  counts: { open: 1, locked: 0, proved: 0, optional: 0 },
+  counts: { started: 0, open: 1, locked: 0, proved: 0, optional: 0 },
   ...overrides,
 });
 
@@ -49,7 +49,7 @@ describe("OutlineLegend", () => {
   it("says what the whole list adds up to", () => {
     render(
       <OutlineLegend
-        counts={{ open: 2, locked: 7, proved: 3, optional: 1 }}
+        counts={{ started: 0, open: 2, locked: 7, proved: 3, optional: 1 }}
       />,
     );
 
@@ -63,7 +63,7 @@ describe("OutlineLegend", () => {
   it("drops a state nothing is in", () => {
     render(
       <OutlineLegend
-        counts={{ open: 2, locked: 0, proved: 0, optional: 0 }}
+        counts={{ started: 0, open: 2, locked: 0, proved: 0, optional: 0 }}
       />,
     );
 
@@ -283,7 +283,7 @@ describe("the state marks", () => {
   /** The legend draws the same tiles, or it is a second thing to learn. */
   it("keys the list with the marks the rows use", () => {
     const { container } = render(
-      <OutlineLegend counts={{ open: 2, locked: 7, proved: 3, optional: 1 }} />,
+      <OutlineLegend counts={{ started: 0, open: 2, locked: 7, proved: 3, optional: 1 }} />,
     );
 
     expect(container.querySelectorAll("li svg")).toHaveLength(4);

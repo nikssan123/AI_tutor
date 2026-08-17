@@ -54,8 +54,16 @@ const NODE: Record<
   SkillState,
   { fill: string; stroke: string; dash: string | null; ink: string }
 > = {
-  // The one solid fill, for the same reason the list gives it the one solid
-  // tile: the accent goes on what is next, never on what is finished.
+  // The two solid fills, for the same reason the list gives them solid tiles:
+  // the accent goes on what is next, never on what is finished. `started` is
+  // ringed as well, so the node you are in the middle of is findable in a graph
+  // where several are open.
+  started: {
+    fill: "var(--color-accent)",
+    stroke: "var(--color-ink)",
+    dash: null,
+    ink: "var(--color-on-accent)",
+  },
   open: {
     fill: "var(--color-accent)",
     stroke: "var(--color-accent)",

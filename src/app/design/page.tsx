@@ -85,7 +85,7 @@ function Section({
  * missing one of them cannot show whether it does.
  */
 const OUTLINE: Outline = {
-  counts: { open: 1, locked: 1, proved: 1, optional: 1 },
+  counts: { started: 0, open: 1, locked: 1, proved: 1, optional: 1 },
   sections: [
     {
       key: "module-0",

@@ -1,5 +1,6 @@
 import {
   ArrowIcon,
+  ProgressIcon,
   ChecklistIcon,
   ChevronIcon,
   LockIcon,
@@ -62,6 +63,13 @@ const MARK: Record<
   SkillState,
   { Icon: (props: { className?: string }) => React.ReactElement; tile: string }
 > = {
+  /*
+   * Solid, like `open`, because a skill you are in the middle of is at least as
+   * much "what next" as one you have not opened — and told apart from it by
+   * shape rather than by colour (§8.5.5): an arrow is an invitation to begin, a
+   * rising line is something already under way.
+   */
+  started: { Icon: ProgressIcon, tile: "bg-accent text-on-accent" },
   open: { Icon: ArrowIcon, tile: "bg-accent text-on-accent" },
   locked: {
     Icon: LockIcon,
@@ -78,6 +86,7 @@ const MARK: Record<
 
 /** The section header keeps `Status`, because the mark column is its number. */
 const TONE: Record<SkillState, StatusTone> = {
+  started: "verified",
   open: "verified",
   locked: "neutral",
   proved: "neutral",
@@ -169,7 +178,10 @@ const ROW_HEAD = "flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1";
  * that: it is an icon with no tooltip at all.
  */
 function SkillRow({ skill }: { skill: OutlineSkill }) {
-  const reachable = skill.state === "open" || skill.state === "proved";
+  const reachable =
+    skill.state === "open" ||
+    skill.state === "started" ||
+    skill.state === "proved";
 
   return (
     <li className={ROW}>
