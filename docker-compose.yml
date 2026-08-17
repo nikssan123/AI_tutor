@@ -49,6 +49,20 @@ services:
     command: sh -c "pnpm db:migrate && pnpm packs:seed"
     environment:
       DATABASE_URL: postgres://online_uni:online_uni@db:5432/online_uni
+    volumes:
+      # The same bind mount as the app, and for a sharper reason. Compose does
+      # not rebuild an image that already exists, so without this the container
+      # runs whatever `src/` looked like on the day the image was built while
+      # the migrations it applies come from that same old tree. Drift between
+      # the two is silent until a column moves: a two-day-old image seeded
+      # `evidence_type` into a `project` that a migration — already applied by
+      # `pnpm verify` on the host, against this same database — had replaced
+      # with `evidence`, and the whole `up` died on it.
+      #
+      # Only node_modules is shadowed. `.next` is not: this container never
+      # builds and never reads it.
+      - .:/app
+      - /app/node_modules
     depends_on:
       db:
         condition: service_healthy
