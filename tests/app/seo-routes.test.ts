@@ -141,19 +141,34 @@ describe("sitemap.xml", () => {
     }
   });
 
-  it("lists a subject's check beside the subject, on the same gate", async () => {
-    // Both come from `topic.indexable`, so an unreviewed pack's check is no
-    // more submittable than its curriculum — which is why this asserts the
-    // pairing rather than a literal URL.
+  it("lists a subject's check on the wider gate, and its curriculum on the narrower one", async () => {
+    /*
+     * The two used to share `topic.indexable`, which asked about authorship and
+     * about review at once. A check is the working tool §12.1 rule 2 asks every
+     * indexable page to carry and does not care who authored the graph; a
+     * subject page is largely that graph rendered, so it keeps the Curated
+     * requirement. Asserted as the pairing rather than as literal URLs, so it
+     * keeps holding as packs are added.
+     */
     const { allTopics } = await import("@/lib/content");
     const { packPages } = await import("@/app/sitemap");
     const urls = packPages().map((e) => e.url);
 
     for (const topic of allTopics()) {
-      const listed = urls.includes(`https://example.com/learn/${topic.slug}`);
-      expect(urls.includes(`https://example.com/check/${topic.slug}`)).toBe(listed);
-      expect(listed, topic.slug).toBe(topic.indexable);
+      expect(
+        urls.includes(`https://example.com/learn/${topic.slug}`),
+        topic.slug,
+      ).toBe(topic.indexable);
+      expect(
+        urls.includes(`https://example.com/check/${topic.slug}`),
+        topic.slug,
+      ).toBe(topic.checkIndexable);
     }
+
+    // And the wider gate is genuinely wider on the real catalogue, or this test
+    // would pass while proving nothing.
+    expect(allTopics().filter((t) => t.checkIndexable && !t.indexable).length)
+      .toBeGreaterThan(0);
   });
 
   it("carries an accurate lastModified from the database", async () => {

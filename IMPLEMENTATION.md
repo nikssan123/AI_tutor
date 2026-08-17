@@ -3763,3 +3763,134 @@ paragraph asking for that is untested against a real model.
 Unchanged: E8's κ is 20 bands and an evening, E4's 229 items, E12 at ten pages of
 fifty, §2.6's week-1 keyword verification, Lighthouse and GSC/Bing behind a
 deployed origin.
+
+---
+
+# Delivery record — pass 35: the index, widened where it is a tool and not before
+
+The domain is bought and deploying, so the SEO work that was blocked on nothing
+but a live origin is worth doing now. Two changes, and the first is a decision
+rather than code.
+
+## The gate was asking about the pen, not the page
+
+`isTopicIndexable` required `maturity === "curated"` **and** a recorded review,
+and it drove both `/learn/{topic}` and `/check/{topic}`. Measured against the
+catalogue that meant **four of seven packs were invisible to Google entirely** —
+`python-fundamentals`, `statistics-data-literacy`, `personal-finance`,
+`home-cooking` — including the single highest-value page in §10 A. §2.6 calls
+the skill-assessment SERP "the crack in the wall" and `/check/python` is the page
+that goes through it, built, working, and `noindex`.
+
+**The first look at this was wrong and is worth recording as wrong.** It read as
+one YAML field standing between us and double the inventory. It is not:
+`python-fundamentals/pack.yaml` sets `maturity: standard` deliberately and spends
+a paragraph on why — Curated is a claim that *a person authored the graph*, and
+flipping it would make the "Deeply supported" badge false. The field is right.
+
+What was wrong is that one function answered two questions at once. `maturity` is
+a claim about **authorship**; `quality.reviewKind` is a claim about **review**;
+§12.1 rule 4 gates indexing on the quality gate *and* a recorded read — on
+review. And the packs held out have a review: 43 answer keys worked through by
+hand, a read against CS50P, Think Python and Automate the Boring Stuff, two
+defects fixed and named.
+
+So the line now runs between the two page types instead:
+
+- **`/check/{topic}` — `isCheckIndexable`, review only.** §12.1 rule 2 asks every
+  indexable page to carry "a working tool or unique data", and this page *is* the
+  tool. What it does for a visitor — ask real items from a real bank and report
+  where they actually are — does not change with who authored the graph those
+  items hang off. §9.1 makes it the priority-1 page type.
+- **`/learn/{topic}` — unchanged, Curated.** Largely the graph rendered as a
+  page, which is the shape §12 is careful about, and §9.1 ranks it priority 6
+  ("won't rank for 18 months"), so the stricter gate costs almost nothing.
+
+A Generated pack is excluded by `reviewKind` alone — `assemble.ts` writes `null`
+there — so there is no second condition to keep in step.
+
+**The per-skill checks deliberately did not follow, and that asymmetry is the
+part I would defend hardest.** Opening them for the four packs would have added
+58 URLs and taken the sitemap from 89 to 151, with 113 of the 151 being pages
+like `/check/sql-data-analysis/window-frames`. That is the thinnest inventory the
+site has, §12.2's own standing rule prunes anything with no clicks and under 50
+impressions at six months, and §9.1 says to publish, measure for 90 days, and
+scale only the templates that earned impressions. There are 55 of them live and
+not one has had an impression yet. They follow when there is a number.
+
+**One rule the tests now hold: the robots tag and the sitemap read the same
+function.** A URL submitted for crawling that greets the crawler with `noindex`
+is the worst of both — it spends crawl budget to say nothing — and the two lived
+in different files with the same expression copied into each.
+
+While in there: the check page's own doc comment pointed at a constant named
+`SKILL_CHECKS_ARE_NEVER_INDEXED` that stopped existing when the per-skill page
+was built and indexed. A comment describing a rule the code no longer holds is
+worse than none — it is *why* the subject check sat out of the index for two
+passes after E4 shipped.
+
+## IndexNow, and what it is honestly worth
+
+§13.3's last unbuilt row. `src/lib/seo/indexnow.ts`, a key file at
+`/indexnow/{key}.txt`, and `pnpm indexnow` after a deploy.
+
+**Google has never joined the protocol.** Bing, Yandex, Seznam and Naver share
+the endpoint; Google still finds pages by crawling the sitemap. So this does
+nothing for the engine §9's whole strategy is aimed at, and it is built anyway
+because §13.3 asks for Bing Webmaster Tools from day one and a new domain's first
+crawl is the slowest one it will ever get. Recording that here so nobody later
+reads a green line in a deploy log as a Google signal.
+
+Three decisions:
+
+- **Publish is a deploy.** The ranking pages come from files — packs, guides,
+  audience cuts — so there is no per-page publish event to hook, and the sitemap
+  is the right source: it already knows what is indexable, and a submission that
+  disagreed with it would be asking a crawler to fetch a URL that turns it away.
+- **The refusals happen before the request.** A mixed-host batch is rejected
+  *whole* by the endpoint, with a 422 that names no URL — so one preview-domain
+  URL that leaked into the sitemap silently kills every submission. `no-key`,
+  `no-urls`, `too-many-urls` and `foreign-host` are all decided locally and all
+  carry a sentence saying what to do. A non-hex key is caught the same way,
+  because a placeholder left in an env file earns a 403 that explains nothing.
+- **The key file must not reflect what it was asked for.** The route serves the
+  key iff the segment matches, and 404s otherwise. A handler that echoed its own
+  path parameter would validate every key anybody invented, which is the whole of
+  the protocol's ownership proof handed away.
+
+`202` counts as accepted. It means "received, key validation pending", which is
+exactly what a first submission from a domain with no history gets, and reading
+it as a failure would fail every launch.
+
+## Still open
+
+**Verified in a detached worktree, and that is worth writing down as a
+technique.** Another session is working in the same tree on PostHog and consent,
+so a `pnpm verify` here measured their mid-flight edits as well as this pass's —
+`typecheck` failing on their `tests/lib/posthog-sink.test.ts`, and their
+`account-pages` and `billing-actions` assertions failing against a `capture`
+signature they were in the middle of changing.
+
+Worse, and less obvious: **two vitest runs in one tree corrupt each other's
+coverage.** `Something removed the coverage directory ... Make sure you are not
+running multiple Vitests with the same "coverage.reportsDirectory"` — so every
+number from those runs was junk, and `tests/app/seo-routes.test.ts` timed out at
+10s twice on CPU contention while passing in 2.6s alone. Half an hour went into
+asking whether four extra sitemap URLs had done that. They had not.
+
+The fix is `git worktree add --detach` at HEAD, this pass's files copied in, and
+`node_modules` symlinked. That is a clean measurement of exactly what the commit
+contains — **HEAD plus this change and nothing else**, which is the right
+baseline anyway, rather than HEAD plus this change plus somebody's half-finished
+one. 231 files, 5,913 tests, 100% on all four thresholds. `seo-routes` passed
+there, which is what settles the timeout question.
+
+**§2.6's week-1 keyword verification is still the largest unknown**, and it now
+gates more than it did: 89 URLs are submitted for indexing against SERPs nobody
+has inspected, and §12.2 dimension 3 (search-intent match) is excluded from every
+page's score because it needs a SERP API. Every guide scores 100/100 without
+anyone having checked whether Google rewards an article for that query.
+
+Unchanged: E8's κ is 20 bands, E4's 229 items, E12 at ten pages of fifty (and
+zero of §10 B's fourteen project briefs — the page type §10 calls "content nobody
+else has"), Lighthouse and GSC/Bing behind the origin that is now deploying.
