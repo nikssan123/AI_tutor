@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PROJECT_IMAGES } from "@/lib/packs/types";
 
 /**
  * §14.5 — what the Evaluation Agent is asked for, and what comes back.
@@ -42,15 +43,34 @@ export const COMPETENT = BAND_SCORE.competent;
  */
 export const EvidenceLocator = z.object({
   /**
-   * Which photograph, 1-based.
+   * Which photographs, 1-based, every one the band rests on.
    *
    * The same numbering the grader was shown — `buildGradeTurn` labels the
-   * frames "Photograph 3 of 4" precisely so that this number and that label
-   * cannot come apart. The learner is shown it too, so it has to mean the order
-   * they chose the files in.
+   * frames "Photograph 3 of 4" precisely so that these numbers and that label
+   * cannot come apart. The learner is shown them too, so they have to mean the
+   * order they chose the files in.
+   *
+   * **A list rather than one number, because the first real run showed why.**
+   * This began as a single `photograph`, and the grader immediately started
+   * writing the rest into `where`: "the right-hand strip, and the same strip in
+   * photographs 1 and 4". It was not evading anything — `repeatability` is
+   * *"across the submitted frames, the effect is consistent enough to look
+   * deliberate"*, and most of the photography and cooking criteria are about a
+   * set rather than a frame, so one number could not say what the criterion
+   * asked. The consequence was the whole problem: the one number a computer
+   * checks was validated while the others rode along in unchecked prose. Every
+   * frame the band rests on belongs in here, where `verify` reaches it.
    */
-  photograph: z.number().int().positive(),
-  /** Where in that frame to look: "the seam allowance along the top edge". */
+  photographs: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(MAX_PROJECT_IMAGES),
+  /**
+   * Where in those frames to look: "the seam allowance along the top edge".
+   *
+   * The region, never the frame numbers — those are above, and a number here is
+   * a claim nothing checks.
+   */
   where: z.string().min(1).max(300),
   /** What is visible there. This is the observation the band rests on. */
   observed: z.string().min(1).max(600),

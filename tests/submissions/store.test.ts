@@ -353,7 +353,7 @@ live("submissions", () => {
           missing: ["exposure"],
           passed: false,
           quotedWeight: 1,
-          located: [{ criterionId: "framing", photograph: 2 }],
+          located: [{ criterionId: "framing", photographs: [2] }],
         },
       });
       expect(outcome.evaluationId).toBeDefined();

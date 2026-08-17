@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handInLabel } from "@/lib/content/evidence";
+import { framesCited, handInLabel } from "@/lib/content/evidence";
 import { allPacks } from "@/lib/content";
 
 /**
@@ -45,5 +45,39 @@ describe("handInLabel", () => {
         );
       }
     }
+  });
+});
+
+/**
+ * The other end of the same loop: the frames a verdict says it read.
+ *
+ * A list rather than one number because most criteria that read a photograph
+ * read a *set* — and because the first real run of §24 E8.5 phase 2 showed the
+ * grader writing the extra frame numbers into unchecked prose when the field
+ * could only hold one.
+ */
+describe("framesCited", () => {
+  it("names one frame in the singular", () => {
+    expect(framesCited([3])).toBe("Photograph 3");
+  });
+
+  it("joins two with an and", () => {
+    expect(framesCited([1, 4])).toBe("Photographs 1 and 4");
+  });
+
+  it("puts the and before the last of several", () => {
+    expect(framesCited([1, 2, 4])).toBe("Photographs 1, 2 and 4");
+  });
+
+  it("sorts them, because the learner is being asked to go and look", () => {
+    // The numbers come from a model and arrive in whatever order it compared
+    // them in. "Photographs 3, 1 and 4" makes a reader doubt the frames rather
+    // than the judgement.
+    expect(framesCited([3, 1, 4])).toBe("Photographs 1, 3 and 4");
+  });
+
+  it("says a frame once however often it was cited", () => {
+    expect(framesCited([2, 2])).toBe("Photograph 2");
+    expect(framesCited([4, 1, 4])).toBe("Photographs 1 and 4");
   });
 });

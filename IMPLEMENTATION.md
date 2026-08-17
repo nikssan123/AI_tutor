@@ -3619,16 +3619,48 @@ reinterpreting the corpus §21 measures κ against.
 ## A locator is not unfalsifiable, and that decided its shape
 
 The spec treats the image half as simply unverifiable. That is true of *where* in
-the frame and *what* was visible. It is not true of **which frame**: a locator
+the frame and *what* was visible. It is not true of **which frames**: a locator
 citing photograph 5 of a three-frame hand-in is a claim about a document nobody
 submitted, which is exactly the shape the verifier exists to catch, and a
 computer settles it for free.
 
-So `photograph` is an integer, numbered the way `buildGradeTurn` labels the
-frames it sends — the two cannot come apart, because the label is what the
-grader counts from and the number is what the learner is shown. The other two
-parts go on the screen as the thing *they* can check, which is the honest place
-to put an unverifiable claim about their own work.
+So the frames are integers, numbered the way `buildGradeTurn` labels the ones it
+sends — the two cannot come apart, because the label is what the grader counts
+from and the number is what the learner is shown. The other two parts go on the
+screen as the thing *they* can check, which is the honest place to put an
+unverifiable claim about their own work.
+
+### And it had to be a list, which the real API told us within one call
+
+This shipped as a single `photograph`. The first run of
+`scripts/photo-submission-probe.ts` against the real model came back with the
+locator working exactly as designed — and routing around the only check in it:
+
+```
+photo 2, the left-hand third of the frame, compared against the left-hand third of photograph 1
+photo 3, the right-hand strip, and the same strip in photographs 1 and 4
+photo 4, all three vertical bands, compared band-for-band with photographs 1, 2 and 3
+```
+
+`photographs: [2]` went through the gate. "1 and 4" rode along inside `where`,
+where nothing looks at it. **The grader was not evading anything** — this is the
+part worth keeping. `repeatability` reads *"across the submitted frames, the
+effect is consistent enough to look deliberate"*, and `colour-consistency`,
+`tonal-consistency` and `technical-floor` are the same: most criteria in
+`photography` and `home-cooking` are about a **set**. One number could not say
+what the criterion asked, so the model put the rest where it could.
+
+One validated number beside three unchecked ones is worse than no check at all,
+because it reads as a check having happened. `photographs` is a list, every entry
+goes through the same gate, and the prompt says in as many words that a frame
+number in `where` is a claim nobody can check. `framesCited` renders them sorted
+and de-duplicated, beside `photographPhrase` — the brief and the verdict have to
+call a photograph the same thing at both ends of the loop.
+
+**The probe's own output hid this for a minute**, which is its own small lesson:
+it printed `observed.slice(0, 90)` and cut off mid-word. A probe that exists to
+show what a real model did should not elide what it did, so it prints both fields
+whole now.
 
 ## Four things found on the way
 
@@ -3665,34 +3697,69 @@ to put an unverifiable claim about their own work.
   is invalidated by `quoteAppearsIn` as it always was, and the cost is one
   criterion rather than the hand-in.
 
-## What this costs E8's one met criterion
+## E8's met criterion, un-measured and re-measured the same day
 
-`GRADER_PROMPT.version` goes to 3. **Band stability was measured on version 2**
-— 100% within one band over 16 pairs, pass 28 — and version 3 changes what a
-verdict is made of. The system prompt is one string for every rubric, so even the
-text-only run that figure came from is not the run that happens now.
+`GRADER_PROMPT.version` goes to 3, and version 3 changes what a verdict is made
+of. The system prompt is one string for every rubric, so even the text-only run
+the version-2 figure came from is not the run that happens now. Re-measuring
+needed nobody — `--stability-only` was separated from the hand-grades in pass 28
+for this shape of problem — so it was re-run rather than written down as owed.
 
-Re-measuring needs nobody: `--stability-only` was separated from the hand-grades
-in pass 28 for this shape of problem. It should happen **before** the 20 κ bands
-rather than after, because a κ measured across a prompt boundary measures two
-graders at once, and the memo corpus would have to be re-graded to find out.
+Same corpus, `query-rescue.yaml`, ten deep-tier calls at 36–56s each:
+
+| | v2 (pass 28) | **v3** |
+|---|---|---|
+| Within one band | 100% | **100%** |
+| Same band exactly | 100% | **95%** |
+| Pairs compared | 16 of 20 | **20 of 20** |
+| Refusals | 1 call in 10 | **none** |
+
+**The four missing pairs were the interesting number last time, and they are
+gone.** `s4-solid-but-unproven` pass 2 — the exact call that returned "the marker
+could not run (invalid)", the verifier rejecting its own grade rather than an API
+failure — marked cleanly. The `nullish` change above is the mechanism: `evidence`
+was a required `min(1)` field this morning, so a reply that omitted it failed the
+whole draft. **One run is not proof the ~10% refusal rate is gone**, and the
+honest claim is narrower: the rate is still worth watching once there is volume,
+but it is no longer an unexplained number.
+
+Exact agreement fell from 100% on 16 pairs to 95% on 20 — one pair of twenty
+moving a band. That is the same measurement within noise on a third more evidence,
+and the criterion is the within-one-band figure, which held at 100%.
+
+κ is still the open one and still 20 bands. It can now be measured without a
+prompt boundary running through the corpus.
 
 ## Still open
 
-**Nobody has driven a locator through the real API.** The loop is verified with
-the model stubbed, and no shipped pack carries a `marks: image` criterion —
-every criterion in `photography` and `home-cooking` names the write-up somewhere
-in its bands, so they are all honestly `both`, and the image-only path is
-exercised by generated packs and by tests. Two questions only the real model can
-answer: whether it stops volunteering a quote when told not to, and whether
-`observed` comes back as an observation rather than a restatement of the band.
-The rubric-authoring prompt now says the bands decide which of the three a
-criterion is, which is the same question one layer up.
+**A locator has been driven through the real API, and both open questions came
+back yes.** Four frames, `exposure-control`, whose rubric is
+`both/both/text/both`:
 
-**Phase 1's own open item stands**: the four-frame HTTP run was on the v2
-contract. A rerun of `scripts/photo-submission-probe.ts` covers both it and the
-first question above.
+- **It stops volunteering a quote where told to.** Three locators on the three
+  `both` criteria, none on `settings-reported`, and every `both` criterion still
+  quoted the write-up. Verifier clean, four upheld, none thrown out, tier 3,
+  spread 1, confidence 0.68.
+- **`observed` is an observation, not the band restated.** "the left panel is a
+  medium grey rather than the near-white of photograph 1" — comparative and
+  checkable by looking, which is the whole point of handing it to the learner.
 
-Unchanged: E8's κ is 20 bands and an evening — now behind a stability re-run
-that costs no human time — E4's 229 items, E12 at ten pages of fifty, §2.6's
-week-1 keyword verification, Lighthouse and GSC/Bing behind a deployed origin.
+It also found the `photographs` defect above, which is what a probe is for.
+
+**Still not driven: the `image`-only path, and phase 1's HTTP leg on v3.** No
+shipped pack carries a `marks: image` criterion — every criterion in
+`photography` and `home-cooking` names the write-up somewhere in its bands, so
+they are all honestly `both`, and the image-only path is exercised by generated
+packs and by tests. Re-authoring one on subject-matter grounds is not this pass's
+business (`HUMAN-REVIEW.md` part A). The multipart POST through the Server Action
+was last run on the v2 contract; nothing in phase 2 touches ingest or storage, so
+this is a re-confirmation rather than an unknown.
+
+**The list fix has not been driven either.** The probe run that produced it was
+against the single-number contract. The next run of it should show every compared
+frame inside `photographs` and none inside `where`, and until it does, the prompt
+paragraph asking for that is untested against a real model.
+
+Unchanged: E8's κ is 20 bands and an evening, E4's 229 items, E12 at ten pages of
+fifty, §2.6's week-1 keyword verification, Lighthouse and GSC/Bing behind a
+deployed origin.

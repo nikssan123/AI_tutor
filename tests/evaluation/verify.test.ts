@@ -217,7 +217,7 @@ describe("verify, on evidence a string match cannot reach", () => {
     ({ ...criterion(id, weight), marks }) as RubricCriterion;
 
   const LOCATOR = {
-    photograph: 1,
+    photographs: [1],
     where: "the top edge of the seam",
     observed: "the fold stands up from about halfway across",
   };
@@ -250,14 +250,14 @@ describe("verify, on evidence a string match cannot reach", () => {
       "cut",
       "method",
     ]);
-    expect(result.located).toEqual([{ criterionId: "cut", photograph: 1 }]);
+    expect(result.located).toEqual([{ criterionId: "cut", photographs: [1] }]);
   });
 
   it("throws out a locator pointing at a photograph nobody handed in", () => {
     // The image-shaped fabrication, and the one thing about a locator a computer
-    // can settle. It is why the frame index is a number rather than prose.
+    // can settle. It is why the frames are numbers rather than prose.
     const result = verify(
-      draftOf([located("cut", { locator: { ...LOCATOR, photograph: 4 } })]),
+      draftOf([located("cut", { locator: { ...LOCATOR, photographs: [4] } })]),
       [marking("cut", "image", 1)],
       ARTEFACT,
       3,
@@ -268,6 +268,47 @@ describe("verify, on evidence a string match cannot reach", () => {
       criterionId: "cut",
       reason: "photograph 4 was not handed in",
     });
+  });
+
+  it("checks every frame a set-level band cites, not the first", () => {
+    /*
+     * The defect the first real run against the API found. `repeatability` is
+     * "across the submitted frames, the effect is consistent enough to look
+     * deliberate", and with one number to fill in the grader wrote the rest into
+     * `where`: "the right-hand strip, and the same strip in photographs 1 and 4".
+     *
+     * One validated number beside three unchecked ones is worse than no check at
+     * all, because it reads as a check having happened. So the field is a list
+     * and every entry goes through the same gate — the second frame here is real
+     * and the third is not.
+     */
+    const result = verify(
+      draftOf([
+        located("cut", { locator: { ...LOCATOR, photographs: [1, 2, 7] } }),
+      ]),
+      [marking("cut", "image", 1)],
+      ARTEFACT,
+      2,
+    );
+
+    expect(result.upheld).toEqual([]);
+    expect(result.invalidated[0]!.reason).toBe("photograph 7 was not handed in");
+  });
+
+  it("carries every cited frame through to the audit trail", () => {
+    const result = verify(
+      draftOf([
+        located("cut", { locator: { ...LOCATOR, photographs: [3, 1] } }),
+      ]),
+      [marking("cut", "image", 1)],
+      ARTEFACT,
+      4,
+    );
+
+    expect(result.located).toEqual([
+      { criterionId: "cut", photographs: [3, 1] },
+    ]);
+    expect(result.upheld[0]!.locator!.photographs).toEqual([3, 1]);
   });
 
   it("throws out an image criterion that pointed at nothing", () => {
@@ -416,8 +457,8 @@ describe("verify, on evidence a string match cannot reach", () => {
      */
     const result = verify(
       draftOf([
-        located("cut", { locator: { ...LOCATOR, photograph: 9 } }),
-        located("safety", { locator: { ...LOCATOR, photograph: 9 } }),
+        located("cut", { locator: { ...LOCATOR, photographs: [9] } }),
+        located("safety", { locator: { ...LOCATOR, photographs: [9] } }),
         verdict("method", "strong", "I aggregated the line items"),
       ]),
       [
@@ -635,7 +676,7 @@ describe("confidenceFor", () => {
           criterionId: "grain",
           band: "strong",
           reasoning: "what the frame shows",
-          locator: { photograph: 1, where: "the top edge", observed: "flat" },
+          locator: { photographs: [1], where: "the top edge", observed: "flat" },
         },
         verdict("checked", "competent", "I aggregated the line items"),
       ]),

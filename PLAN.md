@@ -2230,7 +2230,7 @@ before picking the next thing up.**
 | **E6** Curriculum + validator | ✅ Done | `src/lib/curriculum/` |
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
-| **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ needs 20 bands from Nikolay against `calibration/recommendation-memo.yaml` — five memos, no subject expertise |
+| **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability re-measured 2026-08-17 on prompt v3 at 100% within one band over 20 of 20 pairs, criterion met** (v2 was 100% over 16 of 20 — the four missing pairs were refusals and there were none this time); κ needs 20 bands from Nikolay against `calibration/recommendation-memo.yaml` — five memos, no subject expertise |
 | **E8.5** Image evidence | ✅ **Both phases done in code — phase 1 driven end to end against the real API, phase 2 not yet** | `src/lib/ai/images.ts`, `src/lib/submissions/images.ts`, `src/lib/content/evidence.ts`, `evidence` on `PackProject` and `marks` on `RubricCriterion` — the photograph reaches the grader, and since phase 2 an image criterion carries its own band on a **locator** the verifier checks against the frames in hand. `verifierPassed` is narrowed to a statement about quotes and `provenBy.quotedWeight` says how far it reaches. A four-frame hand-in has been driven through HTTP to a tier-3 mark on phase 1's contract; **the locator has only been driven against a stubbed model** |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
@@ -2849,14 +2849,26 @@ page says which criteria the photograph informed.
 > - **A locator is not unfalsifiable, and the one checkable part is what makes
 >   it structured.** The spec treats the image contract as simply weaker —
 >   "cannot be string-matched, so it must never be reported as if it were". True
->   of *where* in the frame and *what* was visible; not true of **which frame**.
+>   of *where* in the frame and *what* was visible; not true of **which frames**.
 >   A locator citing photograph 5 of a three-frame hand-in is a claim about a
 >   document nobody submitted, which is precisely the shape §14.5 exists to
->   catch, and a computer settles it for free. So the frame index is a number
->   rather than prose, and a locator that overreaches is thrown out for the same
->   reason as an invented quote. The remaining two parts are shown to the learner
->   as the thing *they* can check, which is the honest place to put an
->   unverifiable claim about their own work.
+>   catch, and a computer settles it for free. So the frames are numbers rather
+>   than prose, and a locator that overreaches is thrown out for the same reason
+>   as an invented quote. The remaining two parts are shown to the learner as the
+>   thing *they* can check, which is the honest place to put an unverifiable
+>   claim about their own work.
+> - **`photographs` is a list, and one number would have defeated the only
+>   check there is.** This shipped as a single `photograph` and the first run
+>   against the real API immediately routed around it: the grader wrote
+>   *"the right-hand strip, and the same strip in photographs 1 and 4"* into
+>   `where`. It was not evading anything. `repeatability` is "across the
+>   submitted frames, the effect is consistent enough to look deliberate", and
+>   most criteria in `photography` and `home-cooking` are about a **set** — one
+>   number could not say what the criterion asked, so the rest went into prose
+>   nothing validates. One checked number beside three unchecked ones is worse
+>   than no check, because it reads as a check having happened. Every cited frame
+>   goes through the same gate now, and the prompt says a frame number in `where`
+>   is a claim nobody can check.
 > - **`verifierPassed` had to be narrowed at both ends, not one.** "A statement
 >   about text criteria only" reads as: do not let an image failure make it
 >   false. It also has to mean: do not let a `true` imply the whole verdict was
@@ -2888,13 +2900,32 @@ page says which criteria the photograph informed.
 >   shown these", to give no locator at all and decide `both` on the write-up
 >   alone.
 >
-> **`GRADER_PROMPT.version` goes to 3, which un-measures E8's one met
-> criterion.** Band stability was 100% within one band over 16 pairs on version
-> 2. Version 3 changes what a verdict is *made of*, and the system prompt is one
-> string for every rubric, so the text-only run that figure was measured on is
-> not the run that happens now. Re-measuring needs no human — `--stability-only`
-> exists for exactly this — and it should happen before κ, not after, because a
-> κ measured across the boundary would be measuring two graders at once.
+> **`GRADER_PROMPT.version` goes to 3, and the stability figure was re-measured
+> on it the same day.** Version 3 changes what a verdict is *made of*, and the
+> system prompt is one string for every rubric, so the version-2 figure was not a
+> figure about the grader that runs now. Same corpus, `--stability-only`,
+> 2026-08-17:
+>
+> | | v2 | **v3** |
+> |---|---|---|
+> | Within one band | 100% | **100%** |
+> | Same band exactly | 100% | **95%** |
+> | Pairs compared | 16 of 20 | **20 of 20** |
+> | Refusals | 1 call in 10 | **none** |
+>
+> **E8's consistency criterion holds, on more evidence than it had before.** The
+> four missing pairs were the interesting number in the version-2 run and they
+> are gone: `s4-solid-but-unproven` pass 2, the exact call that had returned "the
+> marker could not run (invalid)", marked cleanly. That is the `nullish`
+> hardening below — `evidence` was a required `min(1)` field before this pass, so
+> a reply omitting it failed the whole draft. One run does not prove the ~10%
+> refusal rate is gone, but the mechanism is now identified rather than guessed.
+> Exact agreement fell from 100% on 16 pairs to 95% on 20, which is one pair of
+> twenty moving a band — the same measurement within noise, and the criterion is
+> the within-one-band figure.
+>
+> κ is still the open one, still 20 bands, and now measurable without a prompt
+> boundary running through it.
 
 ---
 

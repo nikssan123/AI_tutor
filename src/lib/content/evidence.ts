@@ -41,3 +41,27 @@ export function handInLabel(evidence: ProjectEvidence): string {
 export function photographPhrase(images: number): string {
   return images === 1 ? "a photograph" : `up to ${images} photographs`;
 }
+
+/**
+ * The frames a verdict cites, named the way the learner chose them.
+ *
+ * "Photograph 3", "Photographs 1 and 4", "Photographs 1, 2 and 4" — a list
+ * rather than a single number because most criteria that read a photograph read
+ * a *set*: whether the light is consistent, whether every frame clears a floor.
+ *
+ * Beside `photographPhrase` for the reason that one is shared: this is the same
+ * vocabulary at the other end of the loop, and a brief that asks for "up to 4
+ * photographs" and a verdict that calls them "images" or "files" have drifted.
+ *
+ * Sorted and de-duplicated, because the numbers come from a model and the
+ * learner is being asked to go and look: "Photographs 3, 1 and 3" is a sentence
+ * that makes them doubt the frames rather than the judgement.
+ */
+export function framesCited(photographs: number[]): string {
+  const frames = [...new Set(photographs)].sort((a, b) => a - b);
+  const noun = frames.length === 1 ? "Photograph" : "Photographs";
+
+  if (frames.length <= 2) return `${noun} ${frames.join(" and ")}`;
+
+  return `${noun} ${frames.slice(0, -1).join(", ")} and ${frames.at(-1)}`;
+}

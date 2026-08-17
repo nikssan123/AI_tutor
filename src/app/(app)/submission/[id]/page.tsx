@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/db";
 import { resolvePack } from "@/lib/content/resolve";
+import { framesCited } from "@/lib/content/evidence";
 import { evaluationFor, submissionById } from "@/lib/submissions/store";
 import { nudgeAt } from "@/lib/billing/gate";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
@@ -309,17 +310,16 @@ export default async function SubmissionPage({ params }: Props) {
                   it does, and giving the two identical treatment would let the
                   weaker half borrow the stronger one's authority (§4.2 law 3).
 
-                  The frame is numbered the way they chose the files, because
-                  that is the only numbering they can act on.
+                  The frames are numbered the way they chose the files, because
+                  that is the only numbering they can act on — and there is more
+                  than one of them because most criteria that read a photograph
+                  read a *set*, which is what the first real run of this showed.
                 */}
                 {criterion.locator ? (
                   <div className="flex flex-col gap-2 border-l-2 border-hairline bg-raised px-5 py-4">
                     <Meta tone="muted">
-                      Photograph {criterion.locator.photograph}
-                      {stored.images.length > 1
-                        ? ` of ${stored.images.length}`
-                        : ""}{" "}
-                      — {criterion.locator.where}
+                      {framesCited(criterion.locator.photographs)} —{" "}
+                      {criterion.locator.where}
                     </Meta>
                     <p className="m-0 text-[length:var(--text-label-size)] text-ink">
                       {criterion.locator.observed}

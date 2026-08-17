@@ -198,11 +198,20 @@ async function main() {
     if (criterion.evidence) {
       console.log(`    quoted: "${criterion.evidence.slice(0, 90)}…"`);
     }
-    // §24 E8.5 phase 2 — the half no string match can settle, printed so that a
-    // run of this probe shows whether the grader pointed at a real frame.
+    /*
+     * §24 E8.5 phase 2 — the half no string match can settle, printed so that a
+     * run of this probe shows whether the grader pointed at real frames.
+     *
+     * Untruncated, both fields, and that is not tidiness. The first run of this
+     * printed `observed.slice(0, 90)` and cut off mid-word, which is how it took
+     * a second look to notice the grader was writing extra frame numbers into
+     * `where` — the defect that turned `photograph` into `photographs`. A probe
+     * that exists to show what a real model does should not elide what it did.
+     */
     if (criterion.locator) {
-      const { photograph, where, observed } = criterion.locator;
-      console.log(`    photo ${photograph}, ${where}: ${observed.slice(0, 90)}`);
+      const { photographs, where, observed } = criterion.locator;
+      console.log(`    frames ${photographs.join(", ")} — ${where}`);
+      console.log(`    seen:   ${observed}`);
     }
     console.log(`    ${criterion.reasoning}`);
   }

@@ -97,7 +97,7 @@ async function main() {
       console.log(
         c.evidence
           ? `     quote: "${c.evidence.slice(0, 90).replace(/\n/g, " ")}…"`
-          : `     photo ${c.locator?.photograph}: ${c.locator?.observed.slice(0, 80)}`,
+          : `     frames ${c.locator?.photographs.join(", ")}: ${c.locator?.observed.slice(0, 80)}`,
       );
       console.log(`     why:   ${c.reasoning.slice(0, 140)}`);
     }

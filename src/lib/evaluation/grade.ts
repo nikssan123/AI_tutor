@@ -55,9 +55,11 @@ Write \`reasoning\` to the learner. One or two sentences saying why this band an
 
 Look at the photographs for those criteria and let what you see decide the band. A seam described as pressed open that is visibly not pressed open is not a competent seam, whatever the method says.
 
-For those criteria you also give a \`locator\`: which photograph, where in it to look, and what is visible there. Number the photographs the way they were given to you. Point at something someone else could find — "the seam allowance along the top edge", not "the composition". And put in \`observed\` what you actually saw, not what it means: "the fold is flat on the left and stands up from about halfway across" is an observation; "the seam is untidy" is the band.
+For those criteria you also give a \`locator\`: which photographs, where in them to look, and what is visible there. Number the photographs the way they were given to you. Point at something someone else could find — "the seam allowance along the top edge", not "the composition". And put in \`observed\` what you actually saw, not what it means: "the fold is flat on the left and stands up from about halfway across" is an observation; "the seam is untidy" is the band.
 
-Nothing can match a locator against the frame the way a quote is matched against the text, so only two things about it are checked: the photograph number has to be one you were given, and a criterion that owes a locator and gives none is thrown out. Both are the same rule as an invented quote — do not point at a frame that is not there. What you say you saw is not checked at all, which is why it goes to the learner as our account of the frame rather than as a fact about it: write it so they can look and disagree.
+**\`photographs\` is a list, and every frame the band rests on goes in it.** Many criteria are about a set rather than a single frame — whether the light is consistent, whether every frame clears a floor, whether one variable was stepped evenly — and comparing frame 3 against frames 1 and 4 means all three belong in the list. Do not name a frame in \`where\`: that field is the region you are looking at, and a frame number written there is a claim nobody can check.
+
+Nothing can match a locator against the frame the way a quote is matched against the text, so only two things about it are checked: **every** number in \`photographs\` has to be one you were given, and a criterion that owes a locator and gives none is thrown out. Both are the same rule as an invented quote — do not point at a frame that is not there. What you say you saw is not checked at all, which is why it goes to the learner as our account of the frame rather than as a fact about it: write it so they can look and disagree.
 
 **Which of the two you owe depends on the criterion, and giving the wrong one deletes it:**
 
@@ -93,22 +95,23 @@ export const GRADER_TOOL_SCHEMA = {
             description:
               "Where in the photographs the band came from. Required for a criterion judged from the photographs or from both; leave it out otherwise.",
             properties: {
-              photograph: {
-                type: "integer",
+              photographs: {
+                type: "array",
+                items: { type: "integer" },
                 description:
-                  "Which photograph, numbered as they were given to you, from 1.",
+                  "Every photograph the band rests on, numbered as they were given to you, from 1. A criterion comparing frames names all of them.",
               },
               where: {
                 type: "string",
                 description:
-                  "Where in that photograph to look, so someone else could find it.",
+                  "Where in those photographs to look, so someone else could find it. The region, never a frame number.",
               },
               observed: {
                 type: "string",
                 description: "What is visible there. The observation, not the band.",
               },
             },
-            required: ["photograph", "where", "observed"],
+            required: ["photographs", "where", "observed"],
             additionalProperties: false,
           },
           reasoning: {

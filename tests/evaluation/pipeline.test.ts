@@ -338,6 +338,22 @@ describe("buildGradeTurn", () => {
     // match, so a paraphrase is a deleted criterion rather than a soft one.
     expect(GRADER_PROMPT.text).toContain("exactly as it appears");
   });
+
+  it("asks for every compared frame in the field, not in the prose beside it", () => {
+    /*
+     * What the first real run did instead: "the right-hand strip, and the same
+     * strip in photographs 1 and 4" — one number in `photographs`, three in
+     * `where`, and only the first went through the check. The prompt has to name
+     * the failure rather than only describe the field, because the grader was
+     * not evading anything; the field was the wrong shape for the criterion.
+     */
+    expect(GRADER_PROMPT.text).toContain("Do not name a frame in `where`");
+    expect(GRADER_PROMPT.text).toContain("every frame the band rests on");
+
+    const locator = GRADER_TOOL_SCHEMA.properties.criteria.items.properties.locator;
+    expect(locator.required).toContain("photographs");
+    expect(locator.properties.photographs.type).toBe("array");
+  });
 });
 
 describe("buildGradeContext", () => {
@@ -449,12 +465,16 @@ describe("evaluateSubmission", () => {
     expect(result.bandSpread).toBe(0);
   });
 
-  it("marks a photograph criterion on its locator and says which frame", async () => {
+  it("marks a photograph criterion on its locator and says which frames", async () => {
     /*
      * §24 E8.5 phase 2 end to end. The criterion the rubric marks from the frame
      * alone comes out with no quote and a checked locator; the one beside it
      * comes out the other way round. Both are upheld, and the row can say which
      * is which without re-reading the pack.
+     *
+     * Two frames on the locator rather than one, which is the shape the first
+     * real run against the API asked for: the criterion compares a frame against
+     * another, and every number it compares belongs where `verify` can reach it.
      */
     const criteria: RubricCriterion[] = [
       { ...criterion("cut", 0.6), marks: "image" },
@@ -468,7 +488,7 @@ describe("evaluateSubmission", () => {
           band: "strong",
           reasoning: "the pieces are of a size",
           locator: {
-            photograph: 2,
+            photographs: [2, 1],
             where: "the board, left of centre",
             observed: "every piece is within a millimetre or two of the others",
           },
@@ -501,7 +521,7 @@ describe("evaluateSubmission", () => {
     const result = outcome.result!;
     expect(result.verification.passed).toBe(true);
     expect(result.verification.located).toEqual([
-      { criterionId: "cut", photograph: 2 },
+      { criterionId: "cut", photographs: [2, 1] },
     ]);
 
     const cut = result.criteria.find((c) => c.criterionId === "cut")!;
@@ -534,7 +554,7 @@ describe("evaluateSubmission", () => {
           criterionId: "cut",
           band: "strong",
           reasoning: "the third frame settles it",
-          locator: { photograph: 3, where: "the board", observed: "even" },
+          locator: { photographs: [3], where: "the board", observed: "even" },
         },
         {
           criterionId: "checked",

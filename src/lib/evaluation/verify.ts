@@ -99,11 +99,11 @@ export interface VerificationResult {
    */
   quotedWeight: number;
   /**
-   * Upheld criteria whose band came out of a photograph, and which frame each
+   * Upheld criteria whose band came out of a photograph, and which frames each
    * one cites. Goes to `provenBy` and to the screen; kept apart from `passed`
    * for the reason above.
    */
-  located: Array<{ criterionId: string; photograph: number }>;
+  located: Array<{ criterionId: string; photographs: number[] }>;
 }
 
 /**
@@ -193,19 +193,25 @@ export function verify(
         });
         continue;
       }
-      // The one thing about a locator a computer can settle, and the reason the
-      // frame index is structured rather than prose.
-      if (locator.photograph > imageCount) {
+      /*
+       * The one thing about a locator a computer can settle, and the reason the
+       * frames are structured rather than prose. **Every** cited frame is
+       * checked, not the first: a criterion about a set names several, and one
+       * validated number beside three unchecked ones is worse than no check —
+       * it reads as a check having happened.
+       */
+      const missingFrame = locator.photographs.find((n) => n > imageCount);
+      if (missingFrame !== undefined) {
         invalidated.push({
           criterionId: verdict.criterionId,
-          reason: `photograph ${locator.photograph} was not handed in`,
+          reason: `photograph ${missingFrame} was not handed in`,
         });
         continue;
       }
       checkedLocator = locator;
       located.push({
         criterionId: verdict.criterionId,
-        photograph: locator.photograph,
+        photographs: locator.photographs,
       });
     }
 

@@ -444,7 +444,7 @@ describe("the result screen", () => {
    */
   describe("a band that came out of a photograph", () => {
     const LOCATOR = {
-      photograph: 2,
+      photographs: [2],
       where: "the seam allowance along the top edge",
       observed: "the fold stands up from about halfway across",
     };
@@ -478,22 +478,29 @@ describe("the result screen", () => {
 
       render(await SubmissionPage({ params: params() }));
 
-      // "of 2", because a frame number a learner cannot place against the files
-      // they chose is not something they can check.
-      expect(screen.getByText(/Photograph 2 of 2/)).toBeDefined();
+      expect(screen.getByText(/Photograph 2 —/)).toBeDefined();
       expect(screen.getByText(/seam allowance along the top edge/)).toBeDefined();
       expect(screen.getByText(/stands up from about halfway/)).toBeDefined();
     });
 
-    it("drops the count when there was only one to look at", async () => {
-      submissionMock.mockResolvedValue(stored({ images: [frame] }));
+    it("names every frame a set-level band was read from", async () => {
+      /*
+       * The defect the first real run found. `repeatability` is "across the
+       * submitted frames, the effect is consistent enough to look deliberate",
+       * and with one frame number to fill in the grader wrote the rest into
+       * `where` — where nothing checks them. All of them are on the page because
+       * all of them are in the field the verifier reaches.
+       */
+      submissionMock.mockResolvedValue(
+        stored({ images: [frame, frame, frame, frame] }),
+      );
       evaluationMock.mockResolvedValue(
-        marked({ marks: "image", evidence: null, locator: { ...LOCATOR, photograph: 1 } }),
+        marked({ marks: "both", locator: { ...LOCATOR, photographs: [3, 1, 4] } }),
       );
 
       render(await SubmissionPage({ params: params() }));
-      expect(screen.getByText(/Photograph 1 —/)).toBeDefined();
-      expect(screen.queryByText(/Photograph 1 of 1/)).toBeNull();
+      // Sorted, because the learner is being asked to go and look.
+      expect(screen.getByText(/Photographs 1, 3 and 4 —/)).toBeDefined();
     });
 
     it("shows the quote and the frame together where both decided the band", async () => {
@@ -506,7 +513,7 @@ describe("the result screen", () => {
       expect(
         screen.getByText("the horizon sits on the lower third"),
       ).toBeDefined();
-      expect(screen.getByText(/Photograph 2 of 2/)).toBeDefined();
+      expect(screen.getByText(/Photograph 2 —/)).toBeDefined();
     });
 
     it("shows no empty quote where the photograph decided it alone", async () => {
@@ -520,7 +527,7 @@ describe("the result screen", () => {
         marked({
           marks: "image",
           evidence: null,
-          locator: { ...LOCATOR, photograph: 1 },
+          locator: { ...LOCATOR, photographs: [1] },
         }),
       );
 
@@ -533,7 +540,7 @@ describe("the result screen", () => {
       // band they cannot are not the same claim, and the page has to say which.
       submissionMock.mockResolvedValue(stored({ images: [frame] }));
       evaluationMock.mockResolvedValue(
-        marked({ marks: "both", locator: { ...LOCATOR, photograph: 1 } }),
+        marked({ marks: "both", locator: { ...LOCATOR, photographs: [1] } }),
       );
 
       render(await SubmissionPage({ params: params() }));
@@ -560,7 +567,7 @@ describe("the result screen", () => {
         stored({ packSlug: "a-pack-that-went-away", images: [frame] }),
       );
       evaluationMock.mockResolvedValue(
-        marked({ marks: "both", locator: { ...LOCATOR, photograph: 1 } }),
+        marked({ marks: "both", locator: { ...LOCATOR, photographs: [1] } }),
       );
 
       render(await SubmissionPage({ params: params() }));
