@@ -530,6 +530,137 @@ describe("the session screen", () => {
     expect(screen.queryByText(/nothing in the box/)).toBeNull();
   });
 
+  /**
+   * §24 E8.5 — the file input, and only where the brief asks for one.
+   *
+   * The decision is the *project's*, not the pack's workspace: a sewing brief
+   * wants a photograph of a finished seam and the one beside it in the same
+   * pack wants nothing but the reasoning behind a fabric layout. So the test
+   * that matters most is the negative one — a written-only brief must not grow
+   * a control for evidence it never asked for.
+   */
+  describe("the photographs a brief asks for", () => {
+    const applyBlock = (
+      evidence?: { image: "required" | "optional" | "none"; images: number },
+    ) =>
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Cook it and show me",
+            rubricId: "a-rubric",
+            ...(evidence ? { evidence } : {}),
+            estMinutes: 15,
+          },
+        ],
+      });
+
+    const fileInput = () =>
+      document.querySelector<HTMLInputElement>('input[type="file"]');
+
+    it("offers no file input on a written-only brief", async () => {
+      sessionViewMock.mockResolvedValue(applyBlock({ image: "none", images: 1 }));
+      await show(await SessionPage({ params, searchParams: search }));
+
+      expect(fileInput()).toBeNull();
+      expect(screen.getByPlaceholderText("Paste your work here…")).toBeDefined();
+    });
+
+    it("offers none on a session planned before the field existed", async () => {
+      /*
+       * The trap this exists for: `evidence?.image === "none"` is false when
+       * `evidence` is `undefined`, so the naive test would show a file input on
+       * every session in the database and then refuse the hand-in at the far
+       * end for a photograph the brief never wanted.
+       */
+      sessionViewMock.mockResolvedValue(applyBlock());
+      await show(await SessionPage({ params, searchParams: search }));
+
+      expect(fileInput()).toBeNull();
+    });
+
+    it("asks for one, and insists, where the brief requires it", async () => {
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "required", images: 1 }),
+      );
+      await show(await SessionPage({ params, searchParams: search }));
+
+      const input = fileInput()!;
+      expect(input.name).toBe("photos");
+      expect(input.required).toBe(true);
+      // One photograph, so no multiple: a control that invites four files for a
+      // brief that takes one is a refusal waiting to happen.
+      expect(input.multiple).toBe(false);
+      expect(screen.getByText("Add a photograph")).toBeDefined();
+    });
+
+    it("takes a set where the brief is a set, and says how many", async () => {
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "required", images: 6 }),
+      );
+      await show(await SessionPage({ params, searchParams: search }));
+
+      expect(fileInput()!.multiple).toBe(true);
+      expect(screen.getByText("Add up to 6 photographs")).toBeDefined();
+    });
+
+    it("invites rather than insists where the photograph is optional", async () => {
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "optional", images: 1 }),
+      );
+      await show(await SessionPage({ params, searchParams: search }));
+
+      expect(fileInput()!.required).toBe(false);
+      expect(screen.getByText(/if it helps show what you did/)).toBeDefined();
+    });
+
+    it("says what the model API can read, before the upload rather than after", async () => {
+      // A failed upload costs a phone user a real wait on a real connection.
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "required", images: 1 }),
+      );
+      await show(await SessionPage({ params, searchParams: search }));
+
+      expect(screen.getByText(/JPEG, PNG or WebP, up to 4.5MB each/)).toBeDefined();
+    });
+
+    it.each([
+      ["missing", /needs one as well as your write-up/],
+      ["too-many", /asks for up to 4 photographs/],
+      ["too-big", /over 4.5MB/],
+      ["total-too-big", /more than we can take in one go/],
+      ["wrong-type", /JPEG, PNG, WebP and GIF/],
+    ])("explains a %s refusal, with what to do about it", async (error, said) => {
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "required", images: 4 }),
+      );
+      await show(
+        await SessionPage({
+          params,
+          searchParams: Promise.resolve({ error }),
+        }),
+      );
+
+      expect(screen.getByText(said)).toBeDefined();
+    });
+
+    it("says nothing about photographs for an error that is not one", async () => {
+      // `?error=` is a query string and anything can be typed into one.
+      sessionViewMock.mockResolvedValue(
+        applyBlock({ image: "required", images: 4 }),
+      );
+      await show(
+        await SessionPage({
+          params,
+          searchParams: Promise.resolve({ error: "not-a-refusal" }),
+        }),
+      );
+
+      expect(screen.queryByText(/write-up/)).toBeNull();
+    });
+  });
+
   it("says why a hand-in of nothing but whitespace bounced", async () => {
     /*
      * `required` does not catch it: a box of spaces satisfies the browser, then

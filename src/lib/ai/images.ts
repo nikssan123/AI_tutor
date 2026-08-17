@@ -39,3 +39,19 @@ export function isImageType(value: string): value is ImageType {
  * trade in both places this is used.
  */
 export const MAX_IMAGE_BYTES = 4_500_000;
+
+/**
+ * The same number, as the learner is told it — "4.5MB", not "5MB".
+ *
+ * Both places that refuse an oversized file used to write
+ * `Math.round(MAX_IMAGE_BYTES / 1_000_000)`, which rounds 4.5 *up* and told
+ * somebody whose 4.7MB export had just been refused that the limit was 5MB.
+ * That is worse than saying nothing: the one job of a number in a refusal is to
+ * say how much smaller, and this one said the file they were holding was fine.
+ *
+ * A half is as precise as this ever needs to be, so a trailing `.0` is trimmed
+ * rather than printed.
+ */
+export const MAX_IMAGE_MB = (MAX_IMAGE_BYTES / 1_000_000)
+  .toFixed(1)
+  .replace(/\.0$/, "");

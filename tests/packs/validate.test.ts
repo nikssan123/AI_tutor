@@ -567,3 +567,163 @@ describe("the real SQL pack", () => {
     expect(areas.size).toBeGreaterThanOrEqual(5);
   });
 });
+
+/**
+ * §24 E8.5 — the fit between a rubric and the brief that publishes it.
+ *
+ * Every one of these is a defect no single criterion contains, which is why
+ * they are validator rules rather than schema constraints: each is only visible
+ * when you read a project and its rubric together. `reconcileEvidence`
+ * satisfies all three by construction for a generated pack; these make them
+ * true of a hand-authored one as well.
+ *
+ * The control fixture ships a written-only project and text-only criteria, so
+ * every case below is a mutation away from a pack that passes.
+ */
+describe("evidence and what judges it", () => {
+  const withImages = (pack: DomainPack) => {
+    pack.projects[0]!.evidence = { image: "required", images: 2 };
+    return pack;
+  };
+
+  it("passes a pack whose photographs are asked for and judged", () => {
+    const pack = withImages(fixture("valid-minimal"));
+    pack.rubrics[0]!.criteria[0]!.marks = "both";
+    expect(blockingChecks(pack)).toEqual([]);
+  });
+
+  describe("a criterion may only judge a photograph its project asks for", () => {
+    it("blocks one on a written-only brief", () => {
+      const pack = fixture("valid-minimal");
+      pack.rubrics[0]!.criteria[0]!.marks = "image";
+
+      const report = validatePack(pack);
+      expect(blockingChecks(pack)).toContain("criterion_evidence");
+      expect(
+        report.issues.find((i) => i.check === "criterion_evidence")?.message,
+      ).toContain("asks for none");
+    });
+
+    it("blocks `both` for the same reason as `image`", () => {
+      // Half of `both` is still a claim to have looked at something that will
+      // never be handed in.
+      const pack = fixture("valid-minimal");
+      pack.rubrics[0]!.criteria[0]!.marks = "both";
+      expect(blockingChecks(pack)).toContain("criterion_evidence");
+    });
+
+    it("blocks one in a rubric no project hands work in against", () => {
+      const pack = fixture("valid-minimal");
+      pack.rubrics.push({
+        ...pack.rubrics[0]!,
+        slug: "orphan-rubric",
+        criteria: pack.rubrics[0]!.criteria.map((c, i) =>
+          i === 0 ? { ...c, marks: "image" as const } : c,
+        ),
+      });
+
+      const report = validatePack(pack);
+      expect(
+        report.issues.find((i) => i.check === "criterion_evidence")?.message,
+      ).toContain("no project hands work in");
+    });
+
+    it("takes the strict reading when two projects share a rubric", () => {
+      /*
+       * One of them takes no photographs, so the criterion would be judging
+       * something half its submissions cannot contain. "Its project" has a
+       * single answer only if it means every project marked by that rubric.
+       */
+      const pack = withImages(fixture("valid-minimal"));
+      pack.rubrics[0]!.criteria[0]!.marks = "image";
+      pack.projects.push({
+        ...pack.projects[0]!,
+        slug: "prose-only-project",
+        evidence: { image: "none", images: 1 },
+      });
+
+      expect(blockingChecks(pack)).toContain("criterion_evidence");
+    });
+  });
+
+  describe("every rubric keeps something the verifier can anchor to", () => {
+    it("blocks a rubric that reads nothing from the write-up", () => {
+      /*
+       * §14.5's check asks whether a quote appears in the submitted text, and a
+       * photograph has no text spans. Every criterion would be invalidated and
+       * the evaluation would collapse rather than degrade — a 0% that is about
+       * us rather than about the learner's work.
+       */
+      const pack = withImages(fixture("valid-minimal"));
+      for (const criterion of pack.rubrics[0]!.criteria) criterion.marks = "image";
+
+      const report = validatePack(pack);
+      expect(blockingChecks(pack)).toContain("rubric_anchor");
+      expect(
+        report.issues.find((i) => i.check === "rubric_anchor")?.message,
+      ).toContain("no quote could be checked");
+    });
+
+    it("counts `both`, because it quotes the write-up like any other", () => {
+      // The rule protects the deterministic check having text to run against,
+      // not the presence of the word `text` in a field.
+      const pack = withImages(fixture("valid-minimal"));
+      for (const criterion of pack.rubrics[0]!.criteria) criterion.marks = "image";
+      pack.rubrics[0]!.criteria[0]!.marks = "both";
+
+      expect(blockingChecks(pack)).not.toContain("rubric_anchor");
+    });
+
+    it("says nothing about a rubric with no criteria", () => {
+      // Empty is caught by the schema's own minimum, not by this rule.
+      const pack = withImages(fixture("valid-minimal"));
+      pack.rubrics[0]!.criteria = [];
+      expect(blockingChecks(pack)).not.toContain("rubric_anchor");
+    });
+  });
+
+  describe("a required photograph must change some band", () => {
+    it("blocks a brief that demands one no criterion judges", () => {
+      /*
+       * The `one-vegetable-four-cuts` defect in different clothes: that project
+       * targeted `food-safety` and no criterion assessed it, so a learner's
+       * mastery of not poisoning anyone moved on how evenly they diced a
+       * carrot. A photograph nothing looks at is the same bargain — work
+       * demanded that cannot affect the verdict.
+       */
+      const pack = withImages(fixture("valid-minimal"));
+
+      const report = validatePack(pack);
+      expect(blockingChecks(pack)).toContain("required_image_unjudged");
+      expect(
+        report.issues.find((i) => i.check === "required_image_unjudged")?.message,
+      ).toContain("no criterion");
+    });
+
+    it("allows an optional photograph nothing judges", () => {
+      // Offered as context rather than demanded, so nothing was asked for that
+      // cannot count.
+      const pack = fixture("valid-minimal");
+      pack.projects[0]!.evidence = { image: "optional", images: 1 };
+      expect(blockingChecks(pack)).toEqual([]);
+    });
+
+    it("says nothing when the rubric is missing entirely", () => {
+      // `rubric_coverage` is the check for that, and reporting both would name
+      // one defect twice.
+      const pack = withImages(fixture("valid-minimal"));
+      pack.projects[0]!.rubric = "no-such-rubric";
+
+      expect(blockingChecks(pack)).toContain("rubric_coverage");
+      expect(blockingChecks(pack)).not.toContain("required_image_unjudged");
+    });
+  });
+
+  it("passes every pack in the repository", () => {
+    // The rules were written after the packs, so this is the assertion that
+    // says they describe what we already believed rather than a new opinion.
+    for (const pack of loadAllPacks()) {
+      expect(blockingChecks(pack), pack.slug).toEqual([]);
+    }
+  });
+});

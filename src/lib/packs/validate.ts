@@ -498,6 +498,82 @@ export function validatePack(pack: DomainPack): ValidationReport {
     );
   }
 
+  /* ── Evidence (§24 E8.5) ──────────────────────────────────────────────────
+   *
+   * Three rules, and each exists for a defect no single criterion contains —
+   * they are all about the fit between a rubric and the brief that publishes
+   * it. `reconcileEvidence` satisfies them by construction when a pack is
+   * generated, which is what keeps `meetsQualityFloor`'s claim true; stating
+   * them here is what makes them true of a hand-authored pack too.
+   */
+  for (const rubric of pack.rubrics) {
+    // A rubric can be named by more than one project, so "its project" has one
+    // answer only if it is *every* project handing work in against it.
+    // Otherwise a criterion judges a photograph half its submissions cannot
+    // contain. A rubric no project uses judges none: nothing will be submitted.
+    const users = pack.projects.filter((p) => p.rubric === rubric.slug);
+    const takesImages =
+      users.length > 0 && users.every((p) => p.evidence.image !== "none");
+
+    for (const criterion of rubric.criteria) {
+      if (criterion.marks !== "text" && !takesImages) {
+        issues.push(
+          issue(
+            "criterion_evidence",
+            "blocking",
+            `criterion "${criterion.id}" in rubric "${rubric.slug}" is judged from a photograph, but ${
+              users.length === 0
+                ? "no project hands work in against that rubric"
+                : "a project marked by it asks for none"
+            }`,
+          ),
+        );
+      }
+    }
+
+    /*
+     * Every rubric keeps something the verifier can anchor to. §14.5's
+     * deterministic check asks whether a quote appears in the submitted text,
+     * and an image has no text spans — a rubric where *nothing* reads the
+     * write-up cannot be marked at all, because every criterion would be
+     * invalidated and the evaluation would collapse rather than degrade.
+     *
+     * `both` counts. It quotes the write-up like any other criterion, so it
+     * gives the check something real to run against; the unmarkable rubric is
+     * the one with no `text` and no `both` anywhere in it.
+     */
+    if (
+      rubric.criteria.length > 0 &&
+      !rubric.criteria.some((c) => c.marks !== "image")
+    ) {
+      issues.push(
+        issue(
+          "rubric_anchor",
+          "blocking",
+          `rubric "${rubric.slug}" judges nothing from the write-up, so no quote could be checked against what was handed in`,
+        ),
+      );
+    }
+  }
+
+  for (const project of pack.projects) {
+    if (project.evidence.image !== "required") continue;
+
+    // A brief may not demand a photograph that changes no band. The same defect
+    // as a targeted skill no criterion assesses — `one-vegetable-four-cuts`
+    // targeted `food-safety` and nothing marked it — in different clothes.
+    const rubric = pack.rubrics.find((r) => r.slug === project.rubric);
+    if (rubric && !rubric.criteria.some((c) => c.marks !== "text")) {
+      issues.push(
+        issue(
+          "required_image_unjudged",
+          "blocking",
+          `project "${project.slug}" requires a photograph, but no criterion in rubric "${project.rubric}" judges one`,
+        ),
+      );
+    }
+  }
+
   // §7.2 — a pack whose tier claims machine verification needs something to
   // machine-verify against.
   if (pack.evalTier === 1 && pack.projects.length === 0) {

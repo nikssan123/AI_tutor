@@ -15,8 +15,7 @@ import type { ProjectEvidence } from "@/lib/packs/types";
  * dependencies into a static route. `content/index.ts` reads the filesystem.
  */
 export function handInLabel(evidence: ProjectEvidence): string {
-  const photographs =
-    evidence.images === 1 ? "a photograph" : `up to ${evidence.images} photographs`;
+  const photographs = photographPhrase(evidence.images);
 
   switch (evidence.image) {
     case "required":
@@ -29,4 +28,16 @@ export function handInLabel(evidence: ProjectEvidence): string {
     case "none":
       return "a write-up";
   }
+}
+
+/**
+ * "a photograph" or "up to 4 photographs".
+ *
+ * Shared rather than written twice because it appears on a marketing card and
+ * in a refusal the learner reads after being turned away — and those two
+ * disagreeing about how many a brief takes is the disagreement that matters
+ * most, since one of them is why they were refused.
+ */
+export function photographPhrase(images: number): string {
+  return images === 1 ? "a photograph" : `up to ${images} photographs`;
 }

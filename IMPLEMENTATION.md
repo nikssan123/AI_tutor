@@ -3516,15 +3516,51 @@ prompts cannot share a number — which is the entire reason the column exists.
   submission could only ever be one row, and silently wrong the moment one
   carried a photograph — it would have returned whichever row Postgres felt like.
 
+## Driven for real, twice, and the second one is the one that counts
+
+`scripts/photo-submission-probe.ts` runs the pipeline against the real API with
+four generated frames: ingest, storage, the round trip back out of the `artifact`
+rows, and two deep-tier passes. **The grader reads the pixels.** It came back
+quoting measured values — "frame 1's white panel reads about 233", "frame 3's
+light band measures as pure white (255)" — and marked the *written claim* down
+where the frames contradicted it, which is exactly what phase 1 is for. Verifier
+clean, four criteria upheld, none thrown out.
+
+Then the same thing through HTTP, as a browser with no JavaScript sends it: a
+multipart POST to the Server Action with four JPEGs, `303` to
+`/submission/{id}`, four `artifact` rows with valid JPEG base64 in the order they
+were chosen, and the queued job marking it **at tier 3** — media review, which
+`tierFor` only permits because the photographs actually arrived.
+
+Two things that only showed up by doing it:
+
+- **The evaluation meter caught the second hand-in.** `?error=quota` on a free
+  plan with its allowance spent, before the row and before the job. Correct, and
+  worth seeing rather than reading about.
+- **The frames failed the rubric on their merits.** 17%: the write-up claims one
+  stop either side and `sharp`'s `modulate({ brightness })` is not a stop, so
+  frame 3 clipped to pure white and the grader said so. A synthetic image proves
+  the loop closes; it proves nothing about whether the marking is *good*, and
+  this one is evidence for the first only.
+
 ## Still open
 
-**The two files another session held for the duration.** `session/[id]/page.tsx`
-needs the file input where `block.evidence.image !== "none"` and copy for the
-five new `?error=` codes; `validate.ts` needs the three rules stated as
-`blocking` issues rather than only satisfied by assembly. Both were another
-session's during this pass and come back immediately after it. Until the file
-input lands, a learner cannot hand a photograph in — the pipeline behind it is
-complete and reachable only by the action.
+**Both files came back and both are done.** The file input renders only where
+`block.evidence` says the brief asks for one — absent evidence reads as `none`,
+which is the trap: `evidence?.image === "none"` is false for `undefined`, so
+every session planned before this would have grown a control for evidence its
+brief never wanted and then been refused at the far end. `validate.ts` states
+the three rules as `blocking`, and all seven shipped packs pass them, which is
+the assertion that says the rules describe what we already believed rather than
+a new opinion.
+
+**A limit that is shown must be the limit that is enforced.** Both places that
+refuse an oversized image printed the cap as `Math.round(bytes / 1_000_000)`, and
+4.5 rounds *up* — so a learner whose 4.7MB export had just been refused was told
+the limit was 5MB, a number saying the file in their hand is fine. `MAX_IMAGE_MB`
+prints "4.5" and the Skill Check's two mentions were wrong the same way. Third
+defect of this shape in one day, with the apply block's eleven minutes against a
+seven-hour project and a paywall drawn after the press.
 
 **Phase 2 is untouched and its shape is unchanged.** An image criterion returning
 a locator rather than a quote, `verifierPassed` narrowed to a statement about

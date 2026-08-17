@@ -1,6 +1,6 @@
 import { Button, Meta, stagger, Status, Title } from "@/components/ui";
 import { MAX_ANSWER, needsSelfMark, type Marked } from "@/lib/check/session";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/ai/images";
+import { IMAGE_TYPES, MAX_IMAGE_MB } from "@/lib/ai/images";
 import { gradingModeFor, type DiagnosticItem } from "@/lib/engine/diagnostic";
 
 /**
@@ -78,7 +78,7 @@ export function QuestionScreen({
       {refusal ? (
         <Status tone="problem">
           {refusal === "too-big"
-            ? `That file is over ${Math.round(MAX_IMAGE_BYTES / 1_000_000)}MB. Export it smaller — a photo off a phone is usually fine as it is.`
+            ? `That file is over ${MAX_IMAGE_MB}MB. Export it smaller — a photo off a phone is usually fine as it is.`
             : "That file is not an image we can read. JPEG, PNG or WebP."}
         </Status>
       ) : null}
@@ -103,8 +103,7 @@ export function QuestionScreen({
             {/* Said before the upload rather than after it fails, because the
                 failure costs a phone user a real wait on a real connection. */}
             <Meta>
-              JPEG, PNG or WebP, up to{" "}
-              {Math.round(MAX_IMAGE_BYTES / 1_000_000)}MB. It is marked on what
+              JPEG, PNG or WebP, up to {MAX_IMAGE_MB}MB. It is marked on what
               the frame shows and then discarded — we do not keep it.
             </Meta>
             <label className="flex flex-col gap-2">

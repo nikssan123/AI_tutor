@@ -11,7 +11,15 @@ import type { Nudge } from "@/lib/billing/nudge";
 import { UpgradeNudge } from "@/components/upgrade-nudge";
 import { sessionView } from "@/lib/session/view";
 import { transcriptFor, turnsTaken } from "@/lib/session/tutor";
-import type { EngineSkill, MasteryState, SessionBlock } from "@/lib/engine";
+import type {
+  EngineEvidence,
+  EngineSkill,
+  MasteryState,
+  SessionBlock,
+} from "@/lib/engine";
+import { IMAGE_TYPES, MAX_IMAGE_MB } from "@/lib/ai/images";
+import { photographPhrase } from "@/lib/content/evidence";
+import { isRefusal, refusalCopy } from "@/lib/submissions/images";
 import type { BlockResponse } from "@/lib/contracts/session";
 import {
   Button,
@@ -829,6 +837,21 @@ function ApplyBlock(
 ) {
   const project = props.block.project;
 
+  /*
+   * What this brief takes, with absence read as "nothing but the write-up".
+   *
+   * Two separate optional fields on the block and two separate reasons for it:
+   * `project` is missing on sessions planned before the composer carried one,
+   * `evidence` on sessions planned before §24 E8.5. A block can have neither,
+   * and `evidence?.image === "none"` is *not* the test — `undefined` is not
+   * `"none"`, so an old session would have been offered a file input for a
+   * brief that never asked for one and then refused at the far end.
+   */
+  const accepts: EngineEvidence = props.block.evidence ?? {
+    image: "none",
+    images: 1,
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/*
@@ -899,6 +922,18 @@ function ApplyBlock(
       ) : null}
 
       {/*
+        §24 E8.5 — the photographs were turned away, and nothing was charged for
+        it. The same shape as the empty box above rather than the nudge below,
+        because these are all things the learner can fix in one go: the nudge is
+        reserved for the one thing on a screen allowed to ask for money.
+
+        The copy lives in `refusalCopy`, beside the rule that produced it.
+      */}
+      {props.error !== undefined && isRefusal(props.error) ? (
+        <Status tone="attention">{refusalCopy(props.error, accepts)}</Status>
+      ) : null}
+
+      {/*
         The month's marking is spent, so the box below will not do anything.
         Said as an offer rather than as an error, because unlike the empty-box
         case there is nothing for the learner to correct — the only thing that
@@ -927,6 +962,47 @@ function ApplyBlock(
           placeholder="Paste your work here…"
           className="w-full rounded-[var(--radius-control)] border border-hairline bg-ground px-4 py-3 font-mono text-[length:var(--text-meta-size)] text-ink placeholder:text-ink-faint focus:border-accent"
         />
+
+        {/*
+          §24 E8.5 — the file input, and *only* where this brief asks for one.
+          It is the project's own declaration rather than the pack's workspace,
+          because it varies inside one pack: a sewing brief wants a photograph
+          of a finished seam and the one beside it wants nothing but the
+          reasoning behind a fabric layout.
+
+          `required` here and not on the server's say-so alone: the browser can
+          say so before the upload rather than after it, and `acceptImages`
+          refuses it again regardless — a form control is a convenience, never
+          a check.
+        */}
+        {accepts.image === "none" ? null : (
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="photos"
+              className="text-[length:var(--text-label-size)] font-[550] text-ink"
+            >
+              {accepts.image === "required"
+                ? `Add ${photographPhrase(accepts.images)}`
+                : `Add ${photographPhrase(accepts.images)} if it helps show what you did`}
+            </label>
+            <input
+              id="photos"
+              type="file"
+              name="photos"
+              accept={IMAGE_TYPES.join(",")}
+              multiple={accepts.images > 1}
+              required={accepts.image === "required"}
+              className="text-[length:var(--text-label-size)] text-ink-muted file:mr-4 file:min-h-[var(--touch-min)] file:rounded-[var(--radius-control)] file:border-0 file:bg-accent file:px-5 file:font-[550] file:text-on-accent"
+            />
+            {/* Said before the upload rather than after it fails, because the
+                failure costs a phone user a real wait on a real connection —
+                the same reason the Skill Check says it in the same place. */}
+            <Meta tone="muted">
+              JPEG, PNG or WebP, up to {MAX_IMAGE_MB}MB each. Your written
+              method is marked either way.
+            </Meta>
+          </div>
+        )}
         {/* The longest wait in a session — a rubric read over a whole piece of
             work — and the one where a silent press costs the most: the learner
             who thinks it missed presses again, and hands the same work in

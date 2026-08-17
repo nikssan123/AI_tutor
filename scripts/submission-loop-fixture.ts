@@ -29,8 +29,15 @@ import type { PlannedSession } from "@/lib/engine";
 
 const USER_ID = "loop-probe-user";
 const EMAIL = "loop-probe@example.com";
-const PACK = "sql-data-analysis";
 const TOKEN = "loop-probe-session-token";
+
+/*
+ * Which pack to sit the learner in front of. Defaults to the one this script
+ * was written for; `--pack photography` reaches a brief that requires
+ * photographs, which is the only way to drive §24 E8.5's file input for real.
+ */
+const packArg = process.argv.indexOf("--pack");
+const PACK = packArg === -1 ? "sql-data-analysis" : process.argv[packArg + 1]!;
 
 async function main() {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -98,7 +105,12 @@ async function main() {
         skillId: skill.slug,
         brief: project.brief,
         rubricId: rubric.slug,
-        evidence: { image: "none" as const, images: 1 },
+        evidence: project.evidence,
+        project: {
+          title: project.title,
+          acceptanceCriteria: project.acceptanceCriteria,
+          projectMinutes: project.estimatedMinutes,
+        },
         estMinutes: 30,
       },
     ],
@@ -127,7 +139,9 @@ async function main() {
   const signature = createHmac("sha256", secret).update(TOKEN).digest("base64");
   const cookie = encodeURIComponent(`${TOKEN}.${signature}`);
 
+  console.log(`pack:    ${PACK}`);
   console.log(`brief:   ${project.title}`);
+  console.log(`hand in: ${project.evidence.image}, up to ${project.evidence.images} photographs`);
   console.log(`rubric:  ${rubric.slug} (${rubric.criteria.length} criteria)`);
   console.log(`skill:   ${skill.slug} (tier ${skill.evalTier})`);
   console.log(`goal:    ${goalId}`);
