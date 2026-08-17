@@ -314,9 +314,29 @@ describe("buildGradeTurn", () => {
     expect(buildGradeContext(base)).not.toContain("no photographs");
   });
 
-  it("still demands a verbatim quote on every criterion", () => {
-    expect(GRADER_PROMPT.text).toContain("you still quote the write-up");
-    expect(GRADER_PROMPT.text).toContain("exact match");
+  it("forbids a locator when there is no frame to point at", () => {
+    /*
+     * The collapse phase 2 could otherwise cause. `verify` checks a locator
+     * against the frames in hand, so one invented for a hand-in that carried
+     * none throws its criterion out — and on a rubric where every criterion
+     * reads both halves, that is the whole rubric.
+     */
+    const context = buildGradeContext({
+      ...base,
+      criteria: [{ ...CRITERIA[0]!, marks: "both" }, CRITERIA[1]!],
+      images: [],
+    });
+    expect(context).toContain("Give no locator at all");
+  });
+
+  it("names which of the two halves each kind of criterion owes", () => {
+    // A quote on an image criterion is worse than none — it passes the string
+    // check while supporting nothing — so the prompt has to say so, not imply it.
+    expect(GRADER_PROMPT.text).toContain("a locator, and no quote");
+    expect(GRADER_PROMPT.text).toContain("a quote, and no locator");
+    // The quote contract itself, unchanged since §14.5: the check is a string
+    // match, so a paraphrase is a deleted criterion rather than a soft one.
+    expect(GRADER_PROMPT.text).toContain("exactly as it appears");
   });
 });
 
@@ -427,6 +447,126 @@ describe("evaluateSubmission", () => {
     expect(result.overall).toBeCloseTo(0.6 * 1 + 0.4 * (2 / 3));
     expect(result.observation.correct).toBe(true);
     expect(result.bandSpread).toBe(0);
+  });
+
+  it("marks a photograph criterion on its locator and says which frame", async () => {
+    /*
+     * §24 E8.5 phase 2 end to end. The criterion the rubric marks from the frame
+     * alone comes out with no quote and a checked locator; the one beside it
+     * comes out the other way round. Both are upheld, and the row can say which
+     * is which without re-reading the pack.
+     */
+    const criteria: RubricCriterion[] = [
+      { ...criterion("cut", 0.6), marks: "image" },
+      criterion("checked", 0.4),
+    ];
+
+    const seen: EvaluationDraft = {
+      criteria: [
+        {
+          criterionId: "cut",
+          band: "strong",
+          reasoning: "the pieces are of a size",
+          locator: {
+            photograph: 2,
+            where: "the board, left of centre",
+            observed: "every piece is within a millimetre or two of the others",
+          },
+        },
+        {
+          criterionId: "checked",
+          band: "competent",
+          evidence: "I checked the totals against the source",
+          reasoning: "because of the quoted span",
+        },
+      ],
+      strengths: [],
+      gaps: [],
+      nextActions: [],
+    };
+
+    const image = { mediaType: "image/jpeg" as const, data: "AAAA", bytes: 4 };
+
+    const outcome = await evaluateSubmission(
+      { client: modelReturning([seen, seen]).client, db, userId: null },
+      {
+        project: PROJECT,
+        criteria,
+        skillTier: 3,
+        artefact: ARTEFACT,
+        images: [image, image],
+      },
+    );
+
+    const result = outcome.result!;
+    expect(result.verification.passed).toBe(true);
+    expect(result.verification.located).toEqual([
+      { criterionId: "cut", photograph: 2 },
+    ]);
+
+    const cut = result.criteria.find((c) => c.criterionId === "cut")!;
+    expect(cut.evidence).toBeNull();
+    expect(cut.locator?.where).toBe("the board, left of centre");
+    expect(cut.marks).toBe("image");
+
+    const checked = result.criteria.find((c) => c.criterionId === "checked")!;
+    expect(checked.evidence).toContain("checked the totals");
+    expect(checked.locator).toBeNull();
+
+    // Media review, and only because the frames actually arrived (§7.2 tier 3).
+    expect(result.evalTier).toBe(3);
+    // 60% of the score rests on something no string match reached, and the
+    // confidence has to know that (§4.2 law 3).
+    expect(result.verification.quotedWeight).toBeCloseTo(0.4);
+  });
+
+  it("checks a locator against the frames in hand, not the ones asked for", async () => {
+    // The image-shaped fabrication, all the way through the pipeline: the pack
+    // asks for four frames, one arrived, and the grader cited the third.
+    const criteria: RubricCriterion[] = [
+      { ...criterion("cut", 0.5), marks: "image" },
+      criterion("checked", 0.5),
+    ];
+
+    const overreaching: EvaluationDraft = {
+      criteria: [
+        {
+          criterionId: "cut",
+          band: "strong",
+          reasoning: "the third frame settles it",
+          locator: { photograph: 3, where: "the board", observed: "even" },
+        },
+        {
+          criterionId: "checked",
+          band: "competent",
+          evidence: "I checked the totals against the source",
+          reasoning: "because of the quoted span",
+        },
+      ],
+      strengths: [],
+      gaps: [],
+      nextActions: [],
+    };
+
+    const outcome = await evaluateSubmission(
+      { client: modelReturning([overreaching, overreaching]).client, db, userId: null },
+      {
+        project: PROJECT,
+        criteria,
+        skillTier: 3,
+        artefact: ARTEFACT,
+        images: [{ mediaType: "image/jpeg", data: "AAAA", bytes: 4 }],
+      },
+    );
+
+    const result = outcome.result!;
+    expect(result.criteria.map((c) => c.criterionId)).toEqual(["checked"]);
+    expect(result.verification.invalidated[0]!.reason).toBe(
+      "photograph 3 was not handed in",
+    );
+    // And the boolean stays a statement about quotes: every quote this rubric
+    // owns was returned and found, which is all it has ever claimed.
+    expect(result.verification.passed).toBe(true);
   });
 
   it("refuses an empty submission before spending anything", async () => {

@@ -79,25 +79,6 @@ export default async function SubmissionPage({ params }: Props) {
   const pack = await resolvePack(db, stored.packSlug);
   const project = pack?.projects.find((p) => p.slug === stored.projectSlug);
 
-  /*
-   * §24 E8.5 — which criteria the photographs informed.
-   *
-   * Read off the rubric rather than off the verdict, because it is a property
-   * of the criterion the learner could see before they started (§4.2 law 2) and
-   * not something the grader reports about itself. And gated on a photograph
-   * having actually arrived: a criterion the rubric marks from an image, on a
-   * hand-in that carried none, was judged from the write-up like everything
-   * else, and saying otherwise would claim we looked at something we never had.
-   */
-  const rubric = pack?.rubrics.find((r) => r.slug === project?.rubric);
-  const fromPhotograph = new Set(
-    stored.images.length === 0
-      ? []
-      : (rubric?.criteria ?? [])
-          .filter((c) => c.marks !== "text")
-          .map((c) => c.id),
-  );
-
   if (!evaluation) {
     const failed = stored.status === "failed";
     /*
@@ -262,6 +243,29 @@ export default async function SubmissionPage({ params }: Props) {
       <section className="rise flex flex-col gap-6" style={stagger(2)}>
         <SectionHead label="The marking" title="Criterion by criterion" />
 
+        {/*
+          §24 E8.5 phase 2 — the weaker contract, named once, above the cards it
+          applies to.
+
+          A band anchored in the learner's own sentence is one they can audit:
+          the words are theirs, and either the judgement follows from them or it
+          does not. A band that came out of a photograph cannot offer that, and
+          the difference is not a detail to leave implicit under a card — §4.2
+          law 3 is about what a verdict claims, and the claim is weaker here.
+
+          Said at the section rather than as a third `Signal`: this is provenance
+          rather than something unfinished, and the two Signals above are for
+          verdicts that are actually in doubt.
+        */}
+        {evaluation.criteria.some((c) => c.locator) ? (
+          <Meta tone="muted">
+            Where a band below quotes your own words, you can hold the judgement
+            against what you wrote. Where it came out of a photograph instead, we
+            say which frame we looked at and what we saw there — that is the one
+            you have to check yourself.
+          </Meta>
+        ) : null}
+
         <ol className="flex list-none flex-col gap-4 p-0 m-0">
           {evaluation.criteria.map((criterion, i) => (
             <li key={criterion.criterionId}>
@@ -277,35 +281,50 @@ export default async function SubmissionPage({ params }: Props) {
                 </div>
 
                 {/*
-                  The quote, first and set apart. Every score on this page is
-                  anchored in the learner's own words — a criterion whose quote
-                  could not be found in the work was thrown out before it got
-                  here.
+                  The quote, first and set apart. A criterion whose quote could
+                  not be found in the work was thrown out before it got here.
+
+                  Absent on a criterion the rubric marks from the photograph
+                  alone: there is no sentence of theirs that decided it, and the
+                  grader is told not to go looking for one. An empty rule with
+                  nothing in it would read as work we lost.
 
                   Set in the sans face: §8.5.5 bans monospace outside code
                   artefacts, and this quotes whatever the learner handed in,
                   which is as often a paragraph as a function.
                 */}
-                <blockquote className="m-0 border-l-2 border-accent bg-raised px-5 py-4 whitespace-pre-wrap text-[length:var(--text-label-size)] text-ink">
-                  {criterion.evidence}
-                </blockquote>
+                {criterion.evidence ? (
+                  <blockquote className="m-0 border-l-2 border-accent bg-raised px-5 py-4 whitespace-pre-wrap text-[length:var(--text-label-size)] text-ink">
+                    {criterion.evidence}
+                  </blockquote>
+                ) : null}
 
                 {/*
-                  Under the quote, not beside the band, because it qualifies
-                  what the judgement rests on rather than what it was. The quote
-                  is still from the written method — §14.5's check is an exact
-                  string match and a photograph has no text spans — so this says
-                  the picture was *also* read, which is the true and weaker
-                  claim (§4.2 law 3).
+                  The locator, in the quote's place or beneath it.
+
+                  Drawn in the same shape and deliberately not the same weight:
+                  a hairline rule where the quote gets the accent. The accent
+                  edge on this page means "these are your words and we checked
+                  they are"; nothing checked that the shadow falls where we say
+                  it does, and giving the two identical treatment would let the
+                  weaker half borrow the stronger one's authority (§4.2 law 3).
+
+                  The frame is numbered the way they chose the files, because
+                  that is the only numbering they can act on.
                 */}
-                {fromPhotograph.has(criterion.criterionId) ? (
-                  <Meta tone="muted">
-                    Read against{" "}
-                    {stored.images.length === 1
-                      ? "your photograph"
-                      : "your photographs"}{" "}
-                    as well as your words.
-                  </Meta>
+                {criterion.locator ? (
+                  <div className="flex flex-col gap-2 border-l-2 border-hairline bg-raised px-5 py-4">
+                    <Meta tone="muted">
+                      Photograph {criterion.locator.photograph}
+                      {stored.images.length > 1
+                        ? ` of ${stored.images.length}`
+                        : ""}{" "}
+                      — {criterion.locator.where}
+                    </Meta>
+                    <p className="m-0 text-[length:var(--text-label-size)] text-ink">
+                      {criterion.locator.observed}
+                    </p>
+                  </div>
                 ) : null}
 
                 <Lead>{criterion.reasoning}</Lead>

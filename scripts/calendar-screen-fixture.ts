@@ -58,13 +58,22 @@ const graded = (): GradedResult => ({
   overall: 0.82,
   confidence: 0.8,
   evalTier: 2,
-  verification: { upheld: [], invalidated: [], missing: [], passed: true },
+  verification: {
+    upheld: [],
+    invalidated: [],
+    missing: [],
+    passed: true,
+    quotedWeight: 1,
+    located: [],
+  },
   criteria: [
     {
       criterionId: "grain",
       name: "Grain",
       band: "strong",
       evidence: "GROUP BY customer_id, month",
+      locator: null,
+      marks: "text",
       reasoning: "the grain matches the question asked",
       weight: 1,
     },

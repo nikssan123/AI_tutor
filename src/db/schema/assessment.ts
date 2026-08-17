@@ -205,6 +205,13 @@ export const artifact = pgTable("artifact", {
  * §14.5 — the crown jewel's output. `criterionResults` carries the evidence
  * quote per criterion; `verifierPassed` records the deterministic string-match
  * check that every quote appears verbatim in the artefact.
+ *
+ * **`verifierPassed` is a statement about quotes only** (§24 E8.5 phase 2). A
+ * criterion the rubric marks from a photograph has no text span to match, so it
+ * is outside what this boolean can speak about; `provenBy.located` and
+ * `provenBy.quotedWeight` carry the image half, and the latter is how much of
+ * the score the boolean actually covers. Reading a `true` here as "the whole
+ * verdict was checked" would overclaim on any media hand-in.
  */
 export const evaluation = pgTable(
   "evaluation",

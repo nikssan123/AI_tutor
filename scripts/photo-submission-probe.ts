@@ -194,8 +194,16 @@ async function main() {
   );
 
   for (const criterion of result.criteria) {
-    console.log(`\n  ${criterion.criterionId} — ${criterion.band}`);
-    console.log(`    quoted: "${criterion.evidence.slice(0, 90)}…"`);
+    console.log(`\n  ${criterion.criterionId} — ${criterion.band} (${criterion.marks})`);
+    if (criterion.evidence) {
+      console.log(`    quoted: "${criterion.evidence.slice(0, 90)}…"`);
+    }
+    // §24 E8.5 phase 2 — the half no string match can settle, printed so that a
+    // run of this probe shows whether the grader pointed at a real frame.
+    if (criterion.locator) {
+      const { photograph, where, observed } = criterion.locator;
+      console.log(`    photo ${photograph}, ${where}: ${observed.slice(0, 90)}`);
+    }
     console.log(`    ${criterion.reasoning}`);
   }
 

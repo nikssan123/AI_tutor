@@ -24,17 +24,20 @@ import type { SubmittedImage } from "@/lib/submissions/images";
 
 export const GRADER_PROMPT = {
   /*
-   * Version 2 as of §24 E8.5: the prompt now tells the grader that some
-   * hand-ins carry photographs and which criteria they inform. Bumped rather
-   * than edited in place because `promptVersion` is stamped on every
-   * `evaluation` row, and §21's calibration set is only interpretable if two
-   * different prompts cannot share a number — the whole point of recording it.
+   * Version 3 as of §24 E8.5 phase 2: a criterion the rubric marks from the
+   * photograph now points into the frame instead of quoting the write-up.
+   *
+   * Bumped rather than edited in place — as version 2 was — because
+   * `promptVersion` is stamped on every `evaluation` row, and §21's calibration
+   * set is only interpretable if two different prompts cannot share a number.
+   * This one changes what a verdict is *made of*, so a κ measured across the
+   * boundary would be measuring two graders at once.
    */
   name: "rubric_grader",
-  version: 2,
+  version: 3,
   text: `You mark a piece of work against a rubric the learner read before they started.
 
-You are given the brief they were set, the rubric, and what they handed in. You return a band for every criterion, and for each one a quote from their work that shows why.
+You are given the brief they were set, the rubric, and what they handed in. You return a band for every criterion, and for each one the evidence it rests on — which for almost all of them is a quote from their own work, and the rubric says where the exceptions are.
 
 **Quote their actual words.** Copy the span you are judging out of the submission, exactly as it appears. Not a paraphrase, not a description of it, not something you would expect to find. A separate step checks every quote against the submission and throws out any that is not there, so an invented quote does not soften a judgement — it deletes it.
 
@@ -52,7 +55,15 @@ Write \`reasoning\` to the learner. One or two sentences saying why this band an
 
 Look at the photographs for those criteria and let what you see decide the band. A seam described as pressed open that is visibly not pressed open is not a competent seam, whatever the method says.
 
-**But you still quote the write-up, on every criterion, including those.** A quote is checked against the submitted text by an exact match, and a description of an image is not in it — so a criterion whose evidence describes a photograph is thrown out and stops counting at all. Quote the sentence the photograph confirms or contradicts. If the write-up claims nothing about it, quote the place the claim should have been, exactly as you would for anything else that is missing, and say in \`reasoning\` what the photograph showed.`,
+For those criteria you also give a \`locator\`: which photograph, where in it to look, and what is visible there. Number the photographs the way they were given to you. Point at something someone else could find — "the seam allowance along the top edge", not "the composition". And put in \`observed\` what you actually saw, not what it means: "the fold is flat on the left and stands up from about halfway across" is an observation; "the seam is untidy" is the band.
+
+Nothing can match a locator against the frame the way a quote is matched against the text, so only two things about it are checked: the photograph number has to be one you were given, and a criterion that owes a locator and gives none is thrown out. Both are the same rule as an invented quote — do not point at a frame that is not there. What you say you saw is not checked at all, which is why it goes to the learner as our account of the frame rather than as a fact about it: write it so they can look and disagree.
+
+**Which of the two you owe depends on the criterion, and giving the wrong one deletes it:**
+
+- *judged from the write-up* — a quote, and no locator.
+- *judged from the photographs* — a locator, and no quote. Do not go looking for a sentence to anchor it to. A quote that supports nothing but happens to appear in the text is worse than none, because the check passes and the band rests on air.
+- *judged from the photographs and the write-up* — both. Quote the sentence the photograph confirms or contradicts; if the write-up claims nothing about it, quote the place the claim should have been, exactly as you would for anything else that is missing.`,
 } as const;
 
 export const GRADER_TOOL_SCHEMA = {
@@ -75,14 +86,44 @@ export const GRADER_TOOL_SCHEMA = {
           evidence: {
             type: "string",
             description:
-              "A span copied verbatim from the submission. Checked against it.",
+              "A span copied verbatim from the submission. Checked against it. Required for a criterion judged from the write-up or from both; leave it out for one judged from the photographs alone.",
+          },
+          locator: {
+            type: "object",
+            description:
+              "Where in the photographs the band came from. Required for a criterion judged from the photographs or from both; leave it out otherwise.",
+            properties: {
+              photograph: {
+                type: "integer",
+                description:
+                  "Which photograph, numbered as they were given to you, from 1.",
+              },
+              where: {
+                type: "string",
+                description:
+                  "Where in that photograph to look, so someone else could find it.",
+              },
+              observed: {
+                type: "string",
+                description: "What is visible there. The observation, not the band.",
+              },
+            },
+            required: ["photograph", "where", "observed"],
+            additionalProperties: false,
           },
           reasoning: {
             type: "string",
             description: "Why this band and not the one above, to the learner.",
           },
         },
-        required: ["criterionId", "band", "evidence", "reasoning"],
+        /*
+         * Neither `evidence` nor `locator` is required here, because which one a
+         * criterion owes is a fact about the rubric and a tool schema cannot say
+         * "this field when that value". `verify` enforces it per criterion off
+         * `marks`, which is the same division of labour as everywhere else in
+         * this pipeline: the schema is permissive, the deterministic step is not.
+         */
+        required: ["criterionId", "band", "reasoning"],
         additionalProperties: false,
       },
     },
@@ -177,8 +218,13 @@ export function buildGradeContext(input: GradeInput): string {
     // Said even when there are none, and only when the rubric expects some: a
     // criterion judged from a photograph that did not arrive has to be marked
     // as unevidenced rather than guessed at from the prose around it.
+    //
+    // The second sentence is what stops the collapse phase 2 could otherwise
+    // cause: a locator is checked against the frames in hand, so one invented
+    // for a hand-in with no frames throws its criterion out — and on a rubric
+    // where every criterion reads both halves, that is the whole rubric.
     count === 0 && input.criteria.some((c) => c.marks !== "text")
-      ? "They handed in no photographs, so anything judged from one has not been shown to you."
+      ? "They handed in no photographs, so anything judged from one has not been shown to you. Give no locator at all: there is no frame to point at, and a criterion judged from both halves is decided on the write-up alone this time."
       : "",
     "What they handed in:",
     "---",

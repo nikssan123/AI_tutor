@@ -29,6 +29,34 @@ export const BAND_SCORE: Record<Band, number> = {
 /** At or above this, the work is treated as demonstrating the skill. */
 export const COMPETENT = BAND_SCORE.competent;
 
+/**
+ * §24 E8.5 phase 2 — where in a photograph the band came from.
+ *
+ * The image half of the evidence contract, and it is **weaker than the text
+ * half by construction**: no string match can confirm that a shadow falls where
+ * the grader says it does. So it is not called a quote, it is not folded into
+ * `verifierPassed`, and the one thing about it a computer *can* settle is
+ * settled — the frame it cites has to be a frame that was handed in. A locator
+ * pointing at photograph 5 of a three-frame set is the image-shaped version of
+ * a fabricated quote, and `verify` throws it out for the same reason.
+ */
+export const EvidenceLocator = z.object({
+  /**
+   * Which photograph, 1-based.
+   *
+   * The same numbering the grader was shown — `buildGradeTurn` labels the
+   * frames "Photograph 3 of 4" precisely so that this number and that label
+   * cannot come apart. The learner is shown it too, so it has to mean the order
+   * they chose the files in.
+   */
+  photograph: z.number().int().positive(),
+  /** Where in that frame to look: "the seam allowance along the top edge". */
+  where: z.string().min(1).max(300),
+  /** What is visible there. This is the observation the band rests on. */
+  observed: z.string().min(1).max(600),
+});
+export type EvidenceLocator = z.infer<typeof EvidenceLocator>;
+
 export const CriterionVerdict = z.object({
   /** The rubric criterion's id. Checked against the rubric, never trusted. */
   criterionId: z.string().min(1),
@@ -40,8 +68,34 @@ export const CriterionVerdict = z.object({
    * have been — "the query has no GROUP BY" is a claim about text that exists.
    * The one honest exception is an artefact with nothing in it at all, and the
    * pipeline handles that before it ever reaches a model.
+   *
+   * **Optional here, required by `verify` for every criterion the rubric marks
+   * from the write-up** — which is `text` and `both`, and rule 2 of §24 E8.5
+   * guarantees a rubric always has one. A criterion the rubric marks from the
+   * photograph alone has no text span to copy, and forcing it to produce one is
+   * how the check gets defeated rather than met: the grader either invents a
+   * quote, which invalidates the criterion, or anchors to some unrelated
+   * sentence that *does* match, which passes the string check while supporting
+   * nothing. The second is the worse failure, and it is why this is optional.
+   *
+   * **`nullish` and no `min`, so a shape this schema dislikes costs one
+   * criterion rather than the whole evaluation.** A model asked for an optional
+   * field sometimes answers `null` or `""` instead of omitting it. Rejecting
+   * that here throws away a marking that may be entirely sound, spends the
+   * learner's evaluation on `marker_unavailable`, and tells them nothing — the
+   * exact failure `AdviceList` above documents from the day it happened. An
+   * empty quote is not evidence of anything, `quoteAppearsIn` says so, and
+   * `verify` invalidates that one criterion with a reason.
    */
-  evidence: z.string().min(1).max(2000),
+  evidence: z.string().max(2000).nullish(),
+  /**
+   * Where in the photographs the band came from. Required by `verify` for every
+   * criterion the rubric marks from an image, when an image actually arrived.
+   *
+   * `nullish` for the reason above, and it is the more likely of the two to
+   * arrive as an explicit null: most criteria in most rubrics do not own one.
+   */
+  locator: EvidenceLocator.nullish(),
   /** Why this band and not the one above it. Shown to the learner verbatim. */
   reasoning: z.string().min(1).max(1200),
 });

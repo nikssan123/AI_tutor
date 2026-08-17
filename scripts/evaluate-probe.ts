@@ -94,7 +94,11 @@ async function main() {
 
     for (const c of r.criteria) {
       console.log(`  [${c.band}] ${c.name}`);
-      console.log(`     quote: "${c.evidence.slice(0, 90).replace(/\n/g, " ")}…"`);
+      console.log(
+        c.evidence
+          ? `     quote: "${c.evidence.slice(0, 90).replace(/\n/g, " ")}…"`
+          : `     photo ${c.locator?.photograph}: ${c.locator?.observed.slice(0, 80)}`,
+      );
       console.log(`     why:   ${c.reasoning.slice(0, 140)}`);
     }
     console.log(`  gaps: ${r.gaps.slice(0, 3).join(" | ")}\n`);

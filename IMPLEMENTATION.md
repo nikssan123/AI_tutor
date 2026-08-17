@@ -3573,3 +3573,126 @@ tests with the model stubbed; §24 E8's own precedent is that the interesting
 failures only show up against the real one. Unchanged from pass 32: E8's κ is 20
 bands and an evening, E4's 229 items, E12 at ten pages of fifty, §2.6's week-1
 keyword verification, Lighthouse and GSC/Bing behind a deployed origin.
+
+---
+
+# Delivery record — pass 34: the band that came out of the photograph
+
+§24 E8.5 phase 2, the half held back because it touches the one rule §14.5 calls
+non-negotiable. Phase 1 let the grader *see* a photograph and still made every
+criterion quote the write-up. Phase 2 lets a criterion whose evidence is the
+frame say so, and it does that without widening what the deterministic check
+claims to have checked.
+
+## The quote that would have defeated the check by passing it
+
+The spec's argument for two phases is that a grader told to quote a photograph
+will describe it, the match will fail, and the evaluation collapses. That is the
+loud failure. The quiet one is worse and is the actual reason phase 2 exists.
+
+`light-and-separation` has a criterion for whether a light band clips. On a
+hand-in whose write-up never mentions it, a grader forced to produce a quote has
+two ways out: invent one, which invalidates the criterion — visible, logged, and
+recoverable — or anchor to some unrelated sentence that really is in the text.
+The second passes the string match, records `verifierPassed: true`, and puts a
+band on the screen next to a quote that supports nothing. **The check is
+strongest where it is not asked to cover something it cannot see**, which is why
+the prompt now says, in as many words, that a quote on an image criterion is
+worse than none.
+
+## Both ends of the narrowing, not one
+
+"`verifierPassed` stays a statement about text criteria only" reads as one
+instruction and is two. The obvious half is not letting a thrown-out locator make
+it false — two image criteria pointing at frames nobody handed in should not be
+reported as a quote failure, because no quote failed.
+
+The half that was not written down: a `true` must not imply the whole verdict was
+checked. `confidenceFor` awards 0.6 of its range for a clean verifier pass, and a
+rubric marked three-quarters from photographs would have collected all of it —
+the locator inheriting the quote's credibility one step downstream of the place
+we were careful about it. `quotedWeight` is the share of upheld weight a quote
+anchors, the credit scales by it, and it is **1 on every hand-in that existed
+before this pass**, which is the only reason the change can be made without
+reinterpreting the corpus §21 measures κ against.
+
+## A locator is not unfalsifiable, and that decided its shape
+
+The spec treats the image half as simply unverifiable. That is true of *where* in
+the frame and *what* was visible. It is not true of **which frame**: a locator
+citing photograph 5 of a three-frame hand-in is a claim about a document nobody
+submitted, which is exactly the shape the verifier exists to catch, and a
+computer settles it for free.
+
+So `photograph` is an integer, numbered the way `buildGradeTurn` labels the
+frames it sends — the two cannot come apart, because the label is what the
+grader counts from and the number is what the learner is shown. The other two
+parts go on the screen as the thing *they* can check, which is the honest place
+to put an unverifiable claim about their own work.
+
+## Four things found on the way
+
+- **The screen was reading the live rubric to say something about a past
+  verdict.** Phase 1 derived "judged from a photograph" from `pack.rubrics`,
+  because the verdict could not say it. That asserts a photograph informed a band
+  on the strength of what the pack *intended*, and it goes silent the moment the
+  pack is revised or withdrawn — marked work quietly losing a true statement
+  about itself. `marks` and `locator` are on the criterion result now. The page
+  no longer resolves a rubric at all, and there is a test for a pack that went
+  away.
+- **The collapse case is a hand-in with no photographs, not one with too many.**
+  Every criterion in `light-and-separation` reads both halves. A locator invented
+  for a hand-in that carried no frames is checked against zero frames and throws
+  its criterion out — all four of them, turning a degraded verdict into no
+  verdict. The prompt tells the grader to give no locator at all in that case and
+  settle `both` on the write-up, and `verify` only asks for one when a frame
+  actually arrived.
+- **`verify` was handing out evidence it had not checked.** `VerifiedCriterion`
+  had `quoted: boolean` and the pipeline read the quote off the draft beside it.
+  It is `quote: string | null` and `locator: EvidenceLocator | null` now, each
+  non-null only on the path that checked it, and the pipeline reads nothing off
+  the draft. It also deleted an unreachable branch: a quoted criterion's evidence
+  cannot be absent, because `quoteAppearsIn` rejects an empty needle, so the
+  `?? null` beside it was dead.
+- **Two optional fields nearly reintroduced the `ADVICE_CEILING` defect.** A
+  model asked for an optional field answers `null` or `""` about as readily as
+  it omits it, and `z.string().min(1).optional()` rejects both — which fails the
+  *whole draft*, spends the learner's evaluation on `marker_unavailable`, and
+  tells them nothing about a marking that may be entirely sound. That is the
+  same failure `AdviceList` carries a paragraph about from the day it happened,
+  and the fix is the same one: accept the shape, let the deterministic step
+  decide. `evidence` and `locator` are `nullish` with no `min`, an empty quote
+  is invalidated by `quoteAppearsIn` as it always was, and the cost is one
+  criterion rather than the hand-in.
+
+## What this costs E8's one met criterion
+
+`GRADER_PROMPT.version` goes to 3. **Band stability was measured on version 2**
+— 100% within one band over 16 pairs, pass 28 — and version 3 changes what a
+verdict is made of. The system prompt is one string for every rubric, so even the
+text-only run that figure came from is not the run that happens now.
+
+Re-measuring needs nobody: `--stability-only` was separated from the hand-grades
+in pass 28 for this shape of problem. It should happen **before** the 20 κ bands
+rather than after, because a κ measured across a prompt boundary measures two
+graders at once, and the memo corpus would have to be re-graded to find out.
+
+## Still open
+
+**Nobody has driven a locator through the real API.** The loop is verified with
+the model stubbed, and no shipped pack carries a `marks: image` criterion —
+every criterion in `photography` and `home-cooking` names the write-up somewhere
+in its bands, so they are all honestly `both`, and the image-only path is
+exercised by generated packs and by tests. Two questions only the real model can
+answer: whether it stops volunteering a quote when told not to, and whether
+`observed` comes back as an observation rather than a restatement of the band.
+The rubric-authoring prompt now says the bands decide which of the three a
+criterion is, which is the same question one layer up.
+
+**Phase 1's own open item stands**: the four-frame HTTP run was on the v2
+contract. A rerun of `scripts/photo-submission-probe.ts` covers both it and the
+first question above.
+
+Unchanged: E8's κ is 20 bands and an evening — now behind a stability re-run
+that costs no human time — E4's 229 items, E12 at ten pages of fifty, §2.6's
+week-1 keyword verification, Lighthouse and GSC/Bing behind a deployed origin.

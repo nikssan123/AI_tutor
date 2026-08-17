@@ -124,6 +124,8 @@ const evaluated = (over: Partial<EvaluationView> = {}): EvaluationView => ({
       name: "Framing",
       band: "strong",
       evidence: "the horizon sits on the lower third",
+      locator: null,
+      marks: "text",
       reasoning: "you placed it deliberately rather than by accident",
       weight: 1,
     },
@@ -430,80 +432,139 @@ describe("the result screen", () => {
   });
 
   /**
-   * §24 E8.5 — "the evaluation page says which criteria the photograph
-   * informed."
+   * §24 E8.5 phase 2 — "the surface says which criteria were judged from a
+   * photograph."
    *
-   * Read off the rubric the learner could see before they started, not off the
-   * verdict: it is a property of the criterion, not a claim the grader makes
-   * about itself. And gated on a photograph having actually arrived, because a
-   * criterion the rubric marks from an image, on a hand-in that carried none,
-   * was judged from the write-up like everything else.
+   * Read off the verdict rather than off the rubric, which is the change phase 2
+   * makes: what the rubric *intends* to mark from an image is not evidence that
+   * a band actually came out of one, and the locator the verifier checked is.
+   * Phase 1 derived it from the rubric because there was nothing better; a
+   * criterion that owes a locator and gives none is now thrown out instead, so
+   * anything on this page carrying one had it checked against the frames in hand.
    */
-  describe("the photographs it was read against", () => {
-    const rubric = pack.rubrics.find((r) => r.slug === project.rubric)!;
-    const fromImage = rubric.criteria.find((c) => c.marks !== "text")!;
-    const fromText = rubric.criteria.find((c) => c.marks === "text")!;
+  describe("a band that came out of a photograph", () => {
+    const LOCATOR = {
+      photograph: 2,
+      where: "the seam allowance along the top edge",
+      observed: "the fold stands up from about halfway across",
+    };
 
-    const marked = (id: string) =>
+    const marked = (
+      over: Partial<EvaluationView["criteria"][number]> = {},
+    ) =>
       evaluated({
         criteria: [
           {
-            criterionId: id,
+            criterionId: "framing",
             name: "The criterion",
             band: "competent",
             evidence: "the horizon sits on the lower third",
+            locator: null,
+            marks: "text",
             reasoning: "deliberate rather than lucky",
             weight: 1,
+            ...over,
           },
         ],
       });
 
     const frame = { mediaType: "image/jpeg" as const, data: "AAAA", bytes: 4 };
 
-    it("says so on a criterion the rubric judges from one", async () => {
-      submissionMock.mockResolvedValue(stored({ images: [frame] }));
-      evaluationMock.mockResolvedValue(marked(fromImage.id));
-
-      render(await SubmissionPage({ params: params() }));
-      expect(screen.getByText(/your photograph as well as your words/)).toBeDefined();
-    });
-
-    it("counts them when there was more than one", async () => {
+    it("shows which frame was looked at, and what was seen there", async () => {
       submissionMock.mockResolvedValue(stored({ images: [frame, frame] }));
-      evaluationMock.mockResolvedValue(marked(fromImage.id));
+      evaluationMock.mockResolvedValue(
+        marked({ marks: "both", locator: LOCATOR }),
+      );
 
       render(await SubmissionPage({ params: params() }));
-      expect(screen.getByText(/your photographs as well as your words/)).toBeDefined();
+
+      // "of 2", because a frame number a learner cannot place against the files
+      // they chose is not something they can check.
+      expect(screen.getByText(/Photograph 2 of 2/)).toBeDefined();
+      expect(screen.getByText(/seam allowance along the top edge/)).toBeDefined();
+      expect(screen.getByText(/stands up from about halfway/)).toBeDefined();
     });
 
-    it("says nothing on a criterion judged from the write-up", async () => {
+    it("drops the count when there was only one to look at", async () => {
       submissionMock.mockResolvedValue(stored({ images: [frame] }));
-      evaluationMock.mockResolvedValue(marked(fromText.id));
+      evaluationMock.mockResolvedValue(
+        marked({ marks: "image", evidence: null, locator: { ...LOCATOR, photograph: 1 } }),
+      );
 
       render(await SubmissionPage({ params: params() }));
-      expect(screen.queryByText(/as well as your words/)).toBeNull();
+      expect(screen.getByText(/Photograph 1 —/)).toBeDefined();
+      expect(screen.queryByText(/Photograph 1 of 1/)).toBeNull();
     });
 
-    it("claims nothing when no photograph was handed in", async () => {
-      // The criterion is one the rubric marks from an image. Nothing arrived,
-      // so the verdict rests on the write-up and must not say otherwise.
+    it("shows the quote and the frame together where both decided the band", async () => {
+      submissionMock.mockResolvedValue(stored({ images: [frame, frame] }));
+      evaluationMock.mockResolvedValue(
+        marked({ marks: "both", locator: LOCATOR }),
+      );
+
+      render(await SubmissionPage({ params: params() }));
+      expect(
+        screen.getByText("the horizon sits on the lower third"),
+      ).toBeDefined();
+      expect(screen.getByText(/Photograph 2 of 2/)).toBeDefined();
+    });
+
+    it("shows no empty quote where the photograph decided it alone", async () => {
+      /*
+       * A criterion the rubric marks from the frame alone has no sentence of
+       * theirs behind it, and the grader is told not to hunt for one. An empty
+       * accented rule would read as work we lost.
+       */
+      submissionMock.mockResolvedValue(stored({ images: [frame] }));
+      evaluationMock.mockResolvedValue(
+        marked({
+          marks: "image",
+          evidence: null,
+          locator: { ...LOCATOR, photograph: 1 },
+        }),
+      );
+
+      const { container } = render(await SubmissionPage({ params: params() }));
+      expect(container.querySelector("blockquote")).toBeNull();
+    });
+
+    it("names the weaker contract once, above the cards it applies to", async () => {
+      // §4.2 law 3. A band a learner can audit against their own sentence and a
+      // band they cannot are not the same claim, and the page has to say which.
+      submissionMock.mockResolvedValue(stored({ images: [frame] }));
+      evaluationMock.mockResolvedValue(
+        marked({ marks: "both", locator: { ...LOCATOR, photograph: 1 } }),
+      );
+
+      render(await SubmissionPage({ params: params() }));
+      expect(screen.getByText(/the one you have to check yourself/)).toBeDefined();
+    });
+
+    it("says nothing about photographs on a prose hand-in", async () => {
       submissionMock.mockResolvedValue(stored({ images: [] }));
-      evaluationMock.mockResolvedValue(marked(fromImage.id));
+      evaluationMock.mockResolvedValue(marked());
 
       render(await SubmissionPage({ params: params() }));
-      expect(screen.queryByText(/as well as your words/)).toBeNull();
+      expect(screen.queryByText(/Photograph/)).toBeNull();
+      expect(screen.queryByText(/check yourself/)).toBeNull();
     });
 
-    it("claims nothing when the brief's pack no longer resolves", async () => {
-      // A deployment event: with no rubric there is no `marks` to read, and the
-      // honest reading of an unknown is that nothing was judged from a picture.
+    it("survives the brief's pack going away", async () => {
+      /*
+       * Phase 1 read `marks` off the live rubric, so a withdrawn pack silently
+       * dropped the photograph note from marked work that had been judged
+       * against one. The verdict carries its own now, which is what makes an old
+       * evaluation still readable after the pack is revised or retired.
+       */
       submissionMock.mockResolvedValue(
         stored({ packSlug: "a-pack-that-went-away", images: [frame] }),
       );
-      evaluationMock.mockResolvedValue(marked(fromImage.id));
+      evaluationMock.mockResolvedValue(
+        marked({ marks: "both", locator: { ...LOCATOR, photograph: 1 } }),
+      );
 
       render(await SubmissionPage({ params: params() }));
-      expect(screen.queryByText(/as well as your words/)).toBeNull();
+      expect(screen.getByText(/seam allowance along the top edge/)).toBeDefined();
     });
   });
 

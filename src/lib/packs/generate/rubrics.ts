@@ -48,6 +48,8 @@ Only claim what the evidence can show. If the artefact is a document, the rubric
 
 Then, for every criterion, say what it is judged from: \`text\` for something checkable in the write-up, \`image\` for something only visible in a photograph, \`both\` where the picture shows it and the write-up explains it.
 
+**The bands decide which of those it is, so write them first and then read them back.** If any band asks for something said, explained, named or justified, the criterion reads \`both\` — the marker will be looking for that sentence and quoting it. \`image\` is for a criterion whose four bands can be settled by looking, with nothing owed by the write-up at all. Marking one \`image\` when a band asks for an explanation loses the explanation; marking one \`both\` when nothing is owed makes the marker hunt for a sentence that is not there.
+
 Three rules, and a pack that breaks one is rejected rather than repaired:
 
 - A criterion may be judged from an image only if its project asks for photographs.

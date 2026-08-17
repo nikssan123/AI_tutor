@@ -2231,7 +2231,7 @@ before picking the next thing up.**
 | **E7** Session engine + tutor | ✅ Done | `src/lib/session/`, `/session/{id}` |
 | **E7.5** Generated packs | ✅ Done — *not in the original plan* | `src/lib/packs/generate/`, `/start/building`, `/admin/packs` |
 | **E8** Submission + Evaluation | 🟡 **Built, one criterion of two met** | `src/lib/evaluation/`, `src/lib/submissions/`, `/submission/{id}` — loop verified end to end; **band stability measured 2026-08-14 at 100% within one band over 16 pairs, criterion met**; κ needs 20 bands from Nikolay against `calibration/recommendation-memo.yaml` — five memos, no subject expertise |
-| **E8.5** Image evidence | ✅ **Phase 1 done — driven end to end against the real API** | `src/lib/ai/images.ts`, `src/lib/submissions/images.ts`, `src/lib/content/evidence.ts`, `evidence` on `PackProject` and `marks` on `RubricCriterion` — the photograph reaches the grader, the verifier is untouched (§14.5), and `tierFor` stops calling a prose-only hand-in media review. A four-frame hand-in has been driven through HTTP to a tier-3 mark. See below for the six things building it changed |
+| **E8.5** Image evidence | ✅ **Both phases done in code — phase 1 driven end to end against the real API, phase 2 not yet** | `src/lib/ai/images.ts`, `src/lib/submissions/images.ts`, `src/lib/content/evidence.ts`, `evidence` on `PackProject` and `marks` on `RubricCriterion` — the photograph reaches the grader, and since phase 2 an image criterion carries its own band on a **locator** the verifier checks against the frames in hand. `verifierPassed` is narrowed to a statement about quotes and `provenBy.quotedWeight` says how far it reaches. A four-frame hand-in has been driven through HTTP to a tier-3 mark on phase 1's contract; **the locator has only been driven against a stubbed model** |
 | **E9** Mastery map + progress | ✅ Done | `src/lib/mastery/`, `/mastery`, `/progress` |
 | **E9.5** Calendar | ✅ Done — *not in the original plan* | `src/lib/calendar/`, `/calendar` — §8 screen 14, the surface §2.4's accountability row never had |
 | **E9.6** The signed-out-of-a-course state | ✅ Done — *not in the original plan* | `/subjects`, `src/components/subject-list.tsx`, `src/lib/goals/onboarding.ts` — §8 screens 15 and 6a |
@@ -2840,6 +2840,61 @@ page says which criteria the photograph informed.
 > deliberate rather than pending: the Accept criterion asks which criteria it
 > informed, the learner already has the file, and rendering the bytes needs an
 > auth-scoped route that phase 1 does not otherwise want.
+
+> **Phase 2 is built.** An image criterion returns `locator: { photograph,
+> where, observed }` and no quote; `verifierPassed` is a statement about quotes
+> only; the screen draws the two halves differently. Five things the spec above
+> did not settle:
+>
+> - **A locator is not unfalsifiable, and the one checkable part is what makes
+>   it structured.** The spec treats the image contract as simply weaker —
+>   "cannot be string-matched, so it must never be reported as if it were". True
+>   of *where* in the frame and *what* was visible; not true of **which frame**.
+>   A locator citing photograph 5 of a three-frame hand-in is a claim about a
+>   document nobody submitted, which is precisely the shape §14.5 exists to
+>   catch, and a computer settles it for free. So the frame index is a number
+>   rather than prose, and a locator that overreaches is thrown out for the same
+>   reason as an invented quote. The remaining two parts are shown to the learner
+>   as the thing *they* can check, which is the honest place to put an
+>   unverifiable claim about their own work.
+> - **`verifierPassed` had to be narrowed at both ends, not one.** "A statement
+>   about text criteria only" reads as: do not let an image failure make it
+>   false. It also has to mean: do not let a `true` imply the whole verdict was
+>   checked. A rubric marked three-quarters from photographs earns a clean
+>   `passed` and, under phase 1's arithmetic, the full 0.6 of confidence that
+>   only a quote check can justify — a locator inheriting a quote's credibility
+>   one step downstream of the place we were careful. `provenBy.quotedWeight` is
+>   the share of the score a quote anchors, `confidenceFor` scales by it, and it
+>   is 1 on every hand-in before this epic, so the stored corpus keeps its
+>   numbers.
+> - **The verifier now hands out both halves, and neither is read off the
+>   draft.** `VerifiedCriterion` carries `quote` and `locator`, each non-null
+>   only where this run checked it. A grader that volunteers a quote on an image
+>   criterion gets it dropped rather than displayed: nothing checked it, the
+>   criterion's own declaration says its evidence is elsewhere, and an unchecked
+>   string drawn where a checked one goes is the whole defect.
+> - **The screen stopped reading the rubric, and that is a fix rather than a
+>   simplification.** Phase 1 derived "judged from a photograph" from the live
+>   rubric because the verdict could not say it. That asserted a photograph
+>   informed a band on the strength of what the pack *intended*, and it went
+>   silent whenever the pack was later revised or withdrawn. The verdict carries
+>   its own `marks` and `locator` now, so old marked work stays readable and the
+>   claim is about what happened rather than what was meant.
+> - **The prompt's collapse case is a hand-in with no photographs, not one with
+>   too many.** `light-and-separation`'s four criteria all read both halves; a
+>   locator invented for a hand-in that carried no frames would be checked
+>   against zero frames and throw all four out — a degraded verdict turning into
+>   no verdict. So the grader is told, in the same breath as "you have not been
+>   shown these", to give no locator at all and decide `both` on the write-up
+>   alone.
+>
+> **`GRADER_PROMPT.version` goes to 3, which un-measures E8's one met
+> criterion.** Band stability was 100% within one band over 16 pairs on version
+> 2. Version 3 changes what a verdict is *made of*, and the system prompt is one
+> string for every rubric, so the text-only run that figure was measured on is
+> not the run that happens now. Re-measuring needs no human — `--stability-only`
+> exists for exactly this — and it should happen before κ, not after, because a
+> κ measured across the boundary would be measuring two graders at once.
 
 ---
 

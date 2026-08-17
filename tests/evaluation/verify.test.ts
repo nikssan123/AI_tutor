@@ -10,10 +10,10 @@ import {
 } from "@/lib/evaluation/verify";
 import {
   BAND_SCORE,
+  EvaluationDraft,
   HUMAN_REVIEW_BELOW,
   TIER_CONFIDENCE,
   type Band,
-  type EvaluationDraft,
 } from "@/lib/contracts/evaluation";
 import type { RubricCriterion } from "@/lib/packs/types";
 
@@ -202,6 +202,274 @@ describe("verify", () => {
   });
 });
 
+/**
+ * §24 E8.5 phase 2 — the image half of the evidence contract.
+ *
+ * The rule the whole epic is careful about: a locator is **weaker** evidence
+ * than a quote and must never be reported as though it were the same thing. So
+ * the cases that matter here are the ones where the weaker half could borrow the
+ * stronger half's credibility — a locator pointing at a frame nobody handed in,
+ * a `verifierPassed` widened to cover something no string match touched, and an
+ * `image` criterion marked on a hand-in that carried no photograph at all.
+ */
+describe("verify, on evidence a string match cannot reach", () => {
+  const marking = (id: string, marks: RubricCriterion["marks"], weight = 0.5) =>
+    ({ ...criterion(id, weight), marks }) as RubricCriterion;
+
+  const LOCATOR = {
+    photograph: 1,
+    where: "the top edge of the seam",
+    observed: "the fold stands up from about halfway across",
+  };
+
+  const located = (
+    criterionId: string,
+    over: Partial<EvaluationDraft["criteria"][number]> = {},
+  ): EvaluationDraft["criteria"][number] => ({
+    criterionId,
+    band: "competent",
+    reasoning: "because of what the frame shows",
+    locator: LOCATOR,
+    ...over,
+  });
+
+  it("upholds an image criterion on a locator alone", () => {
+    // The point of the phase: no quote is owed, and none is invented.
+    const criteria = [marking("cut", "image"), marking("method", "text")];
+    const result = verify(
+      draftOf([
+        located("cut"),
+        verdict("method", "strong", "I aggregated the line items"),
+      ]),
+      criteria,
+      ARTEFACT,
+      2,
+    );
+
+    expect(result.upheld.map((u) => u.verdict.criterionId)).toEqual([
+      "cut",
+      "method",
+    ]);
+    expect(result.located).toEqual([{ criterionId: "cut", photograph: 1 }]);
+  });
+
+  it("throws out a locator pointing at a photograph nobody handed in", () => {
+    // The image-shaped fabrication, and the one thing about a locator a computer
+    // can settle. It is why the frame index is a number rather than prose.
+    const result = verify(
+      draftOf([located("cut", { locator: { ...LOCATOR, photograph: 4 } })]),
+      [marking("cut", "image", 1)],
+      ARTEFACT,
+      3,
+    );
+
+    expect(result.upheld).toEqual([]);
+    expect(result.invalidated[0]).toEqual({
+      criterionId: "cut",
+      reason: "photograph 4 was not handed in",
+    });
+  });
+
+  it("throws out an image criterion that pointed at nothing", () => {
+    const result = verify(
+      draftOf([located("cut", { locator: undefined })]),
+      [marking("cut", "image", 1)],
+      ARTEFACT,
+      1,
+    );
+
+    expect(result.invalidated[0]!.reason).toBe(
+      "nothing in the photographs was pointed at",
+    );
+  });
+
+  it("costs one criterion, not the evaluation, when a field arrives as null", () => {
+    /*
+     * A model asked for an optional field sometimes answers `null` rather than
+     * omitting it. The contract accepts that shape so the deterministic step can
+     * decide, because rejecting it in the schema fails the whole draft — and the
+     * learner's evaluation is spent on `marker_unavailable` for a marking that
+     * may be entirely sound. `AdviceList` records the day that happened.
+     */
+    const parsed = EvaluationDraft.safeParse({
+      criteria: [
+        { criterionId: "cut", band: "strong", evidence: null, reasoning: "seen" },
+        {
+          criterionId: "method",
+          band: "competent",
+          evidence: "I aggregated the line items",
+          locator: null,
+          reasoning: "quoted",
+        },
+      ],
+      strengths: [],
+      gaps: [],
+      nextActions: [],
+    });
+    expect(parsed.success).toBe(true);
+
+    const result = verify(
+      parsed.data!,
+      [marking("cut", "text"), marking("method", "text")],
+      ARTEFACT,
+    );
+
+    expect(result.upheld.map((u) => u.verdict.criterionId)).toEqual(["method"]);
+    expect(result.invalidated[0]!.reason).toBe(
+      "the quoted evidence is not in the submitted work",
+    );
+  });
+
+  it("throws out an image criterion when no photograph arrived", () => {
+    /*
+     * Neither half of the contract is left: no quote is owed and there is no
+     * frame to point at. `score` renormalises over what survived, so this costs
+     * coverage and confidence rather than marks — the honest consequence of
+     * handing in less than the brief asked for.
+     */
+    const result = verify(
+      draftOf([
+        located("cut", { locator: undefined }),
+        verdict("method", "strong", "I aggregated the line items"),
+      ]),
+      [marking("cut", "image"), marking("method", "text")],
+      ARTEFACT,
+      0,
+    );
+
+    expect(result.invalidated[0]!.reason).toBe(
+      "judged from a photograph, and none was handed in",
+    );
+    expect(result.upheld.map((u) => u.verdict.criterionId)).toEqual(["method"]);
+  });
+
+  it("asks a both criterion for the quote as well as the frame", () => {
+    const criteria = [marking("cut", "both", 1)];
+
+    const quoted = verify(
+      draftOf([
+        located("cut", { evidence: "the grain stays one row per segment" }),
+      ]),
+      criteria,
+      ARTEFACT,
+      1,
+    );
+    expect(quoted.upheld).toHaveLength(1);
+
+    const unquoted = verify(draftOf([located("cut")]), criteria, ARTEFACT, 1);
+    expect(unquoted.invalidated[0]!.reason).toBe(
+      "the quoted evidence is not in the submitted work",
+    );
+  });
+
+  it("decides a both criterion on the write-up when no frame arrived", () => {
+    /*
+     * The collapse this epic had to avoid. `light-and-separation`'s four criteria
+     * all read both halves; requiring a locator with no photograph in hand would
+     * invalidate every one of them and turn a degraded verdict into no verdict.
+     */
+    const result = verify(
+      draftOf([
+        {
+          criterionId: "cut",
+          band: "competent",
+          evidence: "the grain stays one row per segment",
+          reasoning: "the write-up is what settled it",
+        },
+      ]),
+      [marking("cut", "both", 1)],
+      ARTEFACT,
+      0,
+    );
+
+    expect(result.upheld).toHaveLength(1);
+    expect(result.passed).toBe(true);
+    expect(result.located).toEqual([]);
+  });
+
+  it("keeps only a locator it checked", () => {
+    // A grader may hand one to a text criterion, or to a both criterion on a
+    // hand-in with no frames. Nothing verified those, so they do not come out.
+    const result = verify(
+      draftOf([
+        located("method", {
+          evidence: "I aggregated the line items",
+          band: "strong",
+        }),
+      ]),
+      [marking("method", "text", 1)],
+      ARTEFACT,
+      2,
+    );
+
+    expect(result.upheld[0]!.locator).toBeNull();
+    expect(result.located).toEqual([]);
+  });
+
+  it("keeps verifierPassed a statement about quotes only", () => {
+    /*
+     * The rule the whole phase turns on. Two image criteria were thrown out for
+     * pointing at a frame that was not there — and every quote the rubric owns
+     * was still returned and still found. Reporting `passed: false` would blame
+     * the string match for something it never ran; reporting the image failure
+     * *through* `passed` would make one boolean mean two things.
+     */
+    const result = verify(
+      draftOf([
+        located("cut", { locator: { ...LOCATOR, photograph: 9 } }),
+        located("safety", { locator: { ...LOCATOR, photograph: 9 } }),
+        verdict("method", "strong", "I aggregated the line items"),
+      ]),
+      [
+        marking("cut", "image", 0.3),
+        marking("safety", "image", 0.3),
+        marking("method", "text", 0.4),
+      ],
+      ARTEFACT,
+      1,
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.invalidated).toHaveLength(2);
+    expect(result.quotedWeight).toBe(1);
+  });
+
+  it("still fails verifierPassed when a quote it could check was missing", () => {
+    // The narrowing must not become an escape hatch: a `text` criterion the
+    // grader skipped is exactly what the boolean is for.
+    const result = verify(
+      draftOf([located("cut")]),
+      [marking("cut", "image", 0.5), marking("method", "text", 0.5)],
+      ARTEFACT,
+      1,
+    );
+
+    expect(result.missing).toEqual(["method"]);
+    expect(result.passed).toBe(false);
+  });
+
+  it("reports how much of the score a quote actually anchors", () => {
+    const result = verify(
+      draftOf([
+        located("cut"),
+        verdict("method", "strong", "I aggregated the line items"),
+      ]),
+      [marking("cut", "image", 0.75), marking("method", "text", 0.25)],
+      ARTEFACT,
+      1,
+    );
+
+    expect(result.quotedWeight).toBeCloseTo(0.25);
+  });
+
+  it("calls a verdict with nothing in it fully quoted rather than not at all", () => {
+    // There is no verdict for the share to qualify, and `confidenceFor` already
+    // refuses an empty draft any credit on its own terms — a 0 here would
+    // subtract the same thing twice.
+    expect(verify(draftOf([]), CRITERIA, ARTEFACT).quotedWeight).toBe(1);
+  });
+});
+
 describe("score", () => {
   const upheldOf = (bands: Array<[string, Band, number]>) =>
     verify(
@@ -340,6 +608,68 @@ describe("confidenceFor", () => {
     expect(
       confidenceFor({ tier: 3, verification: nothing, coverage: 0 }),
     ).toBe(TIER_CONFIDENCE[3]!.min);
+  });
+
+  it("will not let a locator inherit a quote's credibility", () => {
+    /*
+     * §24 E8.5 phase 2, and §4.2 law 3 turned on our own confidence number.
+     * Both verdicts below are clean: every quote either rubric owns was returned
+     * and found. But one of them rests three quarters of its score on
+     * photographs nothing deterministic can check, and a number that came out
+     * the same for both would be saying those two verdicts are equally well
+     * evidenced.
+     */
+    const anchored = verify(
+      draftOf([
+        verdict("grain", "strong", "GROUP BY c.segment"),
+        verdict("checked", "competent", "I aggregated the line items"),
+      ]),
+      CRITERIA,
+      ARTEFACT,
+      1,
+    );
+
+    const looked = verify(
+      draftOf([
+        {
+          criterionId: "grain",
+          band: "strong",
+          reasoning: "what the frame shows",
+          locator: { photograph: 1, where: "the top edge", observed: "flat" },
+        },
+        verdict("checked", "competent", "I aggregated the line items"),
+      ]),
+      [
+        { ...criterion("grain", 0.75), marks: "image" },
+        criterion("checked", 0.25),
+      ],
+      ARTEFACT,
+      1,
+    );
+
+    expect(anchored.passed).toBe(true);
+    expect(looked.passed).toBe(true);
+
+    expect(
+      confidenceFor({ tier: 3, verification: looked, coverage: 1, bandSpread: 0 }),
+    ).toBeLessThan(
+      confidenceFor({
+        tier: 3,
+        verification: anchored,
+        coverage: 1,
+        bandSpread: 0,
+      }),
+    );
+  });
+
+  it("leaves a prose verdict's confidence exactly where it was", () => {
+    // The scaling is 1 on every submission before this epic, which is the only
+    // reason it can be introduced without reinterpreting the stored corpus §21
+    // measures κ against.
+    expect(clean.quotedWeight).toBe(1);
+    expect(
+      confidenceFor({ tier: 2, verification: clean, coverage: 1, bandSpread: 0 }),
+    ).toBe(TIER_CONFIDENCE[2]!.max);
   });
 
   it("credits a partial pass that at least invented nothing", () => {

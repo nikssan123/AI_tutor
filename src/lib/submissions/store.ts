@@ -337,6 +337,15 @@ export async function recordEvaluation(
         invalidated: result.verification.invalidated,
         missing: result.verification.missing,
         bandSpread: result.bandSpread ?? null,
+        /*
+         * §24 E8.5 phase 2 — the image half of the contract, recorded here
+         * because `verifierPassed` beside it deliberately says nothing about it.
+         * `located` is which criteria came out of which frame; `quotedWeight` is
+         * how much of the score a quote anchors, which is the number that says
+         * how far the boolean's "passed" actually reaches.
+         */
+        located: result.verification.located,
+        quotedWeight: result.verification.quotedWeight,
       },
       modelUsed: input.model,
       promptVersion: input.promptVersion,

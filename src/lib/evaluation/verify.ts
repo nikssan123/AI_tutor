@@ -5,6 +5,7 @@ import {
   TIER_CONFIDENCE,
   type CriterionVerdict,
   type EvaluationDraft,
+  type EvidenceLocator,
 } from "@/lib/contracts/evaluation";
 import type { RubricCriterion } from "@/lib/packs/types";
 import type { EvalTier } from "@/lib/packs/types";
@@ -48,8 +49,26 @@ export function quoteAppearsIn(artefact: string, quote: string): boolean {
 export interface VerifiedCriterion {
   verdict: CriterionVerdict;
   criterion: RubricCriterion;
-  /** False when the quote is not in the artefact, or the criterion is unknown. */
-  quoted: boolean;
+  /**
+   * The quote, **only when this step found it in the artefact**.
+   *
+   * Non-null for `text` and `both`; **null for `image`**, whose band rests on a
+   * locator instead. It is what keeps §14.5's claim narrow: "every score quotes
+   * your work" is true of the criteria this is non-null on, and of no others.
+   */
+  quote: string | null;
+  /**
+   * The locator, **only when this step checked one**.
+   *
+   * Null on a criterion the rubric marks from the write-up, and null on one it
+   * marks from a photograph that never arrived — in both cases the grader may
+   * still have supplied a locator, and in both cases nothing verified it.
+   *
+   * Both fields work the same way and for the same reason: only evidence this
+   * function actually checked leaves it. Reading either off `verdict` downstream
+   * is how an unchecked string ends up drawn where a checked one goes.
+   */
+  locator: EvidenceLocator | null;
 }
 
 export interface VerificationResult {
@@ -59,27 +78,57 @@ export interface VerificationResult {
   invalidated: Array<{ criterionId: string; reason: string }>;
   /** Rubric criteria the grader never returned a verdict for. */
   missing: string[];
-  /** §15 — the boolean recorded on the evaluation row. */
+  /**
+   * §15 — the boolean recorded on the evaluation row.
+   *
+   * **A statement about quotes, and only about quotes** (§24 E8.5 phase 2). It
+   * is true when every criterion the string match could speak about was
+   * returned, once, with a span found in the submitted text — and it says
+   * nothing at all about criteria judged from a photograph, because nothing
+   * deterministic can. Widening it to cover those would make the column read as
+   * a clean bill of health for evidence that was never checked, which is §4.2
+   * law 3 broken in the one place the product is sold on.
+   */
   passed: boolean;
+  /**
+   * The share of upheld rubric weight whose band a quote actually anchors.
+   *
+   * 1 for a prose hand-in, lower for a verdict resting partly on locators, and
+   * `confidenceFor` reads it — a verdict that was checked less has to say so in
+   * the number, not only in the wording beside it.
+   */
+  quotedWeight: number;
+  /**
+   * Upheld criteria whose band came out of a photograph, and which frame each
+   * one cites. Goes to `provenBy` and to the screen; kept apart from `passed`
+   * for the reason above.
+   */
+  located: Array<{ criterionId: string; photograph: number }>;
 }
 
 /**
- * Checks a draft against the rubric it was graded with and the artefact it
- * claims to quote.
+ * Checks a draft against the rubric it was graded with and the evidence it
+ * claims to rest on.
  *
- * Three things get a criterion thrown out, and all three are cases where the
- * grader has told us something about a document other than the one submitted:
- * a criterion the rubric does not contain, a criterion returned twice, and a
- * quote that is not in the artefact.
+ * A criterion is thrown out whenever the grader has told us something about a
+ * document other than the one submitted: a criterion the rubric does not
+ * contain, a criterion returned twice, a quote that is not in the artefact, and
+ * — since phase 2 — a locator pointing at a photograph nobody handed in.
+ *
+ * @param imageCount how many photographs arrived with the work. Not how many
+ * the brief asked for: a criterion the rubric marks from an image is owed a
+ * locator only if there was an image to locate anything in.
  */
 export function verify(
   draft: EvaluationDraft,
   criteria: RubricCriterion[],
   artefact: string,
+  imageCount = 0,
 ): VerificationResult {
   const byId = new Map(criteria.map((c) => [c.id, c]));
   const upheld: VerifiedCriterion[] = [];
   const invalidated: VerificationResult["invalidated"] = [];
+  const located: VerificationResult["located"] = [];
   const seen = new Set<string>();
 
   for (const verdict of draft.criteria) {
@@ -101,16 +150,71 @@ export function verify(
     }
     seen.add(verdict.criterionId);
 
-    if (!quoteAppearsIn(artefact, verdict.evidence)) {
-      // The failure this whole step exists for.
+    let checkedQuote: string | null = null;
+
+    // `text` and `both` owe a quote; `image` does not have one to owe.
+    if (criterion.marks !== "image") {
+      const quote = verdict.evidence ?? "";
+      if (!quoteAppearsIn(artefact, quote)) {
+        // The failure this whole step exists for. A criterion that gave no
+        // quote at all fails it here rather than in a case of its own: an
+        // absent quote and an invented one are the same amount of evidence.
+        invalidated.push({
+          criterionId: verdict.criterionId,
+          reason: "the quoted evidence is not in the submitted work",
+        });
+        continue;
+      }
+      checkedQuote = quote;
+    } else if (imageCount === 0) {
+      /*
+       * Nothing anchors this one. An `image` criterion owes no quote, so with no
+       * photograph in hand there is neither half of the contract left — and a
+       * band with no evidence under it is exactly what the verifier exists to
+       * remove. `score` renormalises over what survived, so this costs the
+       * learner coverage and confidence rather than marks, which is the honest
+       * consequence of handing in less than the brief asked for.
+       */
       invalidated.push({
         criterionId: verdict.criterionId,
-        reason: "the quoted evidence is not in the submitted work",
+        reason: "judged from a photograph, and none was handed in",
       });
       continue;
     }
 
-    upheld.push({ verdict, criterion, quoted: true });
+    let checkedLocator: EvidenceLocator | null = null;
+
+    if (criterion.marks !== "text" && imageCount > 0) {
+      const locator = verdict.locator;
+      if (!locator) {
+        invalidated.push({
+          criterionId: verdict.criterionId,
+          reason: "nothing in the photographs was pointed at",
+        });
+        continue;
+      }
+      // The one thing about a locator a computer can settle, and the reason the
+      // frame index is structured rather than prose.
+      if (locator.photograph > imageCount) {
+        invalidated.push({
+          criterionId: verdict.criterionId,
+          reason: `photograph ${locator.photograph} was not handed in`,
+        });
+        continue;
+      }
+      checkedLocator = locator;
+      located.push({
+        criterionId: verdict.criterionId,
+        photograph: locator.photograph,
+      });
+    }
+
+    upheld.push({
+      verdict,
+      criterion,
+      quote: checkedQuote,
+      locator: checkedLocator,
+    });
   }
 
   const missing = criteria
@@ -118,13 +222,35 @@ export function verify(
     .filter((id) => !seen.has(id))
     .sort();
 
+  /*
+   * `passed` is scoped to the criteria a quote could have been checked for, and
+   * so is the population it is scoped against: a rubric where two `image`
+   * criteria were thrown out for a missing locator has still had every quote it
+   * owns checked and found. Anything about the image half is reported in
+   * `invalidated`, `located` and `quotedWeight`, all of which reach the row.
+   */
+  const quotable = new Set(
+    criteria.filter((c) => c.marks !== "image").map((c) => c.id),
+  );
+  const quoteFailed = invalidated.some(
+    (i) => !byId.has(i.criterionId) || quotable.has(i.criterionId),
+  );
+
+  const upheldWeight = upheld.reduce((sum, u) => sum + u.criterion.weight, 0);
+  const anchoredWeight = upheld
+    .filter((u) => u.quote !== null)
+    .reduce((sum, u) => sum + u.criterion.weight, 0);
+
   return {
     upheld,
     invalidated,
     missing,
-    // A clean pass means every criterion in the rubric was scored and every
-    // score is anchored in the work. Anything less is reported, not hidden.
-    passed: invalidated.length === 0 && missing.length === 0,
+    passed: !quoteFailed && missing.every((id) => !quotable.has(id)),
+    // 1 when nothing was upheld, because there is no verdict for it to qualify;
+    // `confidenceFor` already refuses credit to an empty draft on its own terms,
+    // and a 0 here would double-count that.
+    quotedWeight: upheldWeight === 0 ? 1 : anchoredWeight / upheldWeight,
+    located,
   };
 }
 
@@ -196,12 +322,20 @@ export function confidenceFor(input: ConfidenceInput): number {
   // Without that guard a grader that returned *nothing* scores as "invented
   // nothing" and earns confidence for it, which is how an evaluation with no
   // evidence behind it ends up looking trustworthy.
-  if (input.verification.passed) earned += 0.6;
-  else if (
+  //
+  // §24 E8.5 phase 2 — scaled by how much of the verdict the string match could
+  // speak about. `passed` is a statement about quotes, so the credit it earns
+  // has to be proportional to the share of the score quotes anchor; a rubric
+  // marked mostly from photographs has been checked less, and awarding it the
+  // full 0.6 would let a locator inherit a quote's credibility. It is 1 for a
+  // prose hand-in, which is every submission before this epic.
+  if (input.verification.passed) {
+    earned += 0.6 * input.verification.quotedWeight;
+  } else if (
     input.verification.invalidated.length === 0 &&
     input.verification.upheld.length > 0
   ) {
-    earned += 0.3;
+    earned += 0.3 * input.verification.quotedWeight;
   }
 
   // Coverage below the whole rubric is a real gap in what we looked at.

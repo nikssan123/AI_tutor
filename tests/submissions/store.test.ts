@@ -43,13 +43,22 @@ const result = (over: Partial<GradedResult> = {}): GradedResult => ({
   overall: 0.75,
   confidence: 0.8,
   evalTier: 2,
-  verification: { upheld: [], invalidated: [], missing: [], passed: true },
+  verification: {
+    upheld: [],
+    invalidated: [],
+    missing: [],
+    passed: true,
+    quotedWeight: 1,
+    located: [],
+  },
   criteria: [
     {
       criterionId: "framing",
       name: "Framing",
       band: "strong",
       evidence: "the horizon sits on the lower third",
+      locator: null,
+      marks: "text",
       reasoning: "you placed it deliberately",
       weight: 1,
     },
@@ -343,6 +352,8 @@ live("submissions", () => {
           invalidated: [{ criterionId: "sharpness", reason: "not in the work" }],
           missing: ["exposure"],
           passed: false,
+          quotedWeight: 1,
+          located: [{ criterionId: "framing", photograph: 2 }],
         },
       });
       expect(outcome.evaluationId).toBeDefined();

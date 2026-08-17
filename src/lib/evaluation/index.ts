@@ -2,8 +2,17 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@/db";
 import { logCall, shouldDegrade, type RunOrigin } from "@/lib/ai/runlog";
 import type { PlanId } from "@/lib/billing/catalog";
-import { BAND_SCORE, type EvaluationDraft } from "@/lib/contracts/evaluation";
-import type { EvalTier, PackProject, RubricCriterion } from "@/lib/packs/types";
+import {
+  BAND_SCORE,
+  type EvaluationDraft,
+  type EvidenceLocator,
+} from "@/lib/contracts/evaluation";
+import type {
+  CriterionMarks,
+  EvalTier,
+  PackProject,
+  RubricCriterion,
+} from "@/lib/packs/types";
 import type { FailureCause } from "@/lib/submissions/failure";
 import type { SubmittedImage } from "@/lib/submissions/images";
 import { gradeSubmission, type GradeInput } from "./grade";
@@ -69,7 +78,19 @@ export interface GradedResult {
     criterionId: string;
     name: string;
     band: EvaluationDraft["criteria"][number]["band"];
-    evidence: string;
+    /**
+     * The quote, or null on a criterion the rubric marks from the photograph
+     * alone — which owes a `locator` instead. Never both null: `verify` throws
+     * out a criterion that produced neither.
+     */
+    evidence: string | null;
+    locator: EvidenceLocator | null;
+    /**
+     * Which half of the hand-in decided the band, carried onto the row so the
+     * screen can say it without re-reading the pack. It is also the thing that
+     * makes an old evaluation still readable after a rubric is revised.
+     */
+    marks: CriterionMarks;
     reasoning: string;
     weight: number;
   }>;
@@ -251,7 +272,9 @@ export async function evaluateSubmission(
   const bandSpread =
     second.status === "ok" ? spreadBetween(first.value, second.value) : undefined;
 
-  const verification = verify(first.value, input.criteria, text);
+  // The frames in hand, not the ones the brief asked for: a locator is checked
+  // against what actually arrived.
+  const verification = verify(first.value, input.criteria, text, images.length);
 
   /*
    * Nothing survived the verifier, so there is no evidence behind any number
@@ -291,7 +314,17 @@ export async function evaluateSubmission(
         criterionId: u.verdict.criterionId,
         name: u.criterion.name,
         band: u.verdict.band,
-        evidence: u.verdict.evidence,
+        /*
+         * Both halves come off the verifier and never off the draft, which is
+         * the rule that matters here: a criterion the rubric marks from the
+         * photograph alone is null even when the grader volunteered a quote,
+         * because nothing checked it, and an unchecked string drawn where a
+         * checked one goes is the claim §14.5 exists to prevent. The locator is
+         * what the screen shows for those.
+         */
+        evidence: u.quote,
+        locator: u.locator,
+        marks: u.criterion.marks,
         reasoning: u.verdict.reasoning,
         weight: u.criterion.weight,
       })),

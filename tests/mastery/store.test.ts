@@ -73,13 +73,22 @@ const graded = (over: Partial<GradedResult> = {}): GradedResult => ({
   overall: 0.8,
   confidence: 0.8,
   evalTier: 2,
-  verification: { upheld: [], invalidated: [], missing: [], passed: true },
+  verification: {
+    upheld: [],
+    invalidated: [],
+    missing: [],
+    passed: true,
+    quotedWeight: 1,
+    located: [],
+  },
   criteria: [
     {
       criterionId: "light",
       name: "Light",
       band: "strong",
       evidence: "the window is behind the subject",
+      locator: null,
+      marks: "text",
       reasoning: "you used it deliberately",
       weight: 1,
     },
