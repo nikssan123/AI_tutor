@@ -68,6 +68,12 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
       INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
+      # IndexNow ownership proof. Blank is a supported state: indexNowKey()
+      # returns null, /indexnow/<key>.txt 404s, and submissions are refused
+      # rather than sent against a host we cannot prove we own. Setting it in
+      # .env.prod alone does nothing — the variable has to be named here too or
+      # it never reaches the container.
+      INDEXNOW_KEY: ${INDEXNOW_KEY:-}
       # Billing — STRIPE-SETUP.md. All blank is a supported state: checkout
       # falls back to an in-memory Stripe and charges nobody. A secret key
       # without a webhook secret is refused at startup rather than silently
