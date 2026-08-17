@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { goalSearchScript } from "@/lib/goal-search-script";
+import { siteUrl } from "@/lib/site";
 import { themeInitScript, themeToggleScript } from "@/lib/theme-script";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  // `siteUrl()` rather than reading the variable with its own `??` fallback:
+  // that was a second, untested copy of logic src/lib/site.ts already owns —
+  // and CI sets NEXT_PUBLIC_SITE_URL, so the fallback arm was unreachable from
+  // the suite and held branch coverage at 99.98%. One origin, one test.
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "Don't just learn it. Prove it.",
     template: "%s · MeritKeep",

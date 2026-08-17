@@ -45,13 +45,7 @@ export interface TopicSummary {
   totalHours: number;
   /** Areas the topic covers, in graph order. */
   areas: string[];
-  /** Whether `/learn/{slug}` may be indexed. See `isTopicIndexable`. */
   indexable: boolean;
-  /**
-   * Whether `/check/{slug}` may be indexed — a weaker gate, because the check is
-   * a working tool rather than a rendered curriculum. See `isCheckIndexable`.
-   */
-  checkIndexable: boolean;
 }
 
 export interface SkillDetail {
@@ -134,39 +128,6 @@ export function isTopicIndexable(pack: DomainPack): boolean {
   return pack.maturity === "curated" && pack.quality.reviewKind !== null;
 }
 
-/**
- * §12.1 for the check page, which is a different page and needs a different gate.
- *
- * `isTopicIndexable` asks two questions at once and they are not the same axis.
- * **`maturity` is a claim about authorship** — Curated means a person wrote the
- * graph, Standard means a model did — and `python-fundamentals/pack.yaml` sets
- * `standard` deliberately and says so at length. **`reviewKind` is a claim about
- * review**, and that pack has one: 43 answer keys worked through, read against
- * CS50P, Think Python and Automate the Boring Stuff, two defects fixed. §12.1
- * rule 4 gates indexing on the gate *and* a recorded read — on review, not on
- * who held the pen.
- *
- * So the line runs between the two page types rather than between the two kinds
- * of pack:
- *
- * - **`/check/{topic}` is a working adaptive assessment.** §12.1 rule 2 asks
- *   every indexable page to carry "a working tool or unique data", and this one
- *   is the tool. What it does for a visitor — ask real items from a real bank and
- *   report where they actually are — does not change with who authored the graph
- *   those items hang off. §9.1 makes it the priority-1 page type and §2.6 calls
- *   its SERP "the crack in the wall".
- * - **`/learn/{topic}` is mostly the graph rendered as a page.** A model-authored
- *   curriculum published as prose-shaped structure is the shape §12 exists to be
- *   careful about, and §9.1 ranks it priority 6 — "won't rank for 18 months" —
- *   so holding it to the stricter gate costs almost nothing.
- *
- * A Generated pack is excluded by `reviewKind` alone: `assemble.ts` writes
- * `null` there and nothing else may.
- */
-export function isCheckIndexable(pack: DomainPack): boolean {
-  return pack.quality.reviewKind !== null;
-}
-
 export function topicSummary(pack: DomainPack): TopicSummary {
   const areas: string[] = [];
   for (const skill of pack.skills) {
@@ -185,7 +146,6 @@ export function topicSummary(pack: DomainPack): TopicSummary {
     totalHours: totalHours(pack),
     areas,
     indexable: isTopicIndexable(pack),
-    checkIndexable: isCheckIndexable(pack),
   };
 }
 

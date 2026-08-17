@@ -19,35 +19,25 @@ import { canonical } from "@/lib/site";
  *     pack;
  *   - authored `SeoPage` rows, filtered in the query itself.
  *
- * Both check pages are here now. Each was excluded in turn on the grounds that
- * the assessment behind it did not exist — true of the subject check until E4,
- * and of the per-skill check until it was built. §2.6 calls the skill-assessment
- * SERP "the crack in the wall", and these are the pages that answer those
- * queries with a working tool rather than an article about one.
- *
- * **The subject check runs on its own gate, and the two below it do not.** See
- * `isCheckIndexable`: a check is the tool §12.1 rule 2 asks every indexable page
- * to carry, and what it does for a visitor does not depend on who authored the
- * graph. That is not true of `/learn/{topic}`, which is largely the graph
- * rendered as a page, so that one keeps the Curated requirement.
+ * Both check pages are here now, on the same gate. Each was excluded in turn on
+ * the grounds that the assessment behind it did not exist — true of the subject
+ * check until E4, and of the per-skill check until it was built. §2.6 calls the
+ * skill-assessment SERP "the crack in the wall", and these are the pages that
+ * answer those queries with a working tool rather than an article about one.
  */
 export function packPages(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
 
   for (const topic of allTopics()) {
-    if (topic.checkIndexable) {
-      entries.push({
-        url: canonical(`/check/${topic.slug}`),
-        changeFrequency: "monthly",
-        priority: 0.8,
-      });
-    }
-
     if (!topic.indexable) continue;
-
     entries.push({
       url: canonical(`/learn/${topic.slug}`),
       changeFrequency: "weekly",
+      priority: 0.8,
+    });
+    entries.push({
+      url: canonical(`/check/${topic.slug}`),
+      changeFrequency: "monthly",
       priority: 0.8,
     });
 
@@ -56,15 +46,6 @@ export function packPages(): MetadataRoute.Sitemap {
      * which is the difference between this and the combinatorial pages §12
      * rules out. The subject check locates a learner across the whole graph and
      * proves nothing; these prove one thing each, and they say so.
-     *
-     * **Held to the stricter gate on purpose, which is the one asymmetry here.**
-     * These are the thinnest inventory the site has — "window frames sql test"
-     * is a real page answering a query almost nobody runs — and §12.2's own
-     * standing rule prunes anything with no clicks and under 50 impressions at
-     * six months. §9.1 says to publish, measure for 90 days, and scale only the
-     * templates that earned impressions; there are 55 of these live and none has
-     * yet had an impression, so doubling them before the first cohort reports is
-     * scaling a template on faith. They follow when there is a number.
      */
     for (const skill of skillDetails(findPack(topic.slug)!)) {
       entries.push({

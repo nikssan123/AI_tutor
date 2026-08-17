@@ -25,7 +25,7 @@ import {
   QuestionScreen,
   SelfMarkScreen,
 } from "@/components/check-screens";
-import { findPack, isCheckIndexable, topicSummary } from "@/lib/content";
+import { findPack, isTopicIndexable, topicSummary } from "@/lib/content";
 import {
   CHECK_MINUTES,
   DEFAULT_BUDGET,
@@ -59,17 +59,10 @@ import {
  * and is still what a missing key, an exhausted daily budget or a failed call
  * degrades to (`lib/check/mark.ts`).
  *
- * **Indexable on its own gate — `isCheckIndexable`, not the subject page's.**
- * §12.1's bar is usefulness to a stranger arriving from search, and this page
- * clears it whoever authored the graph: the check runs, it takes ten minutes,
- * and it needs no account. That is §12.1 rule 2's "working tool", and it is why
- * a Standard pack's check is submitted while its `/learn` page is not.
- *
- * The sentence that used to sit here pointed at a constant named
- * `SKILL_CHECKS_ARE_NEVER_INDEXED`, which stopped existing when the per-skill
- * page was built and indexed. A comment describing a rule the code no longer
- * holds is worse than none — it is the reason the subject check itself sat out
- * of the index for two passes after E4 shipped.
+ * Indexable on the same gate as the subject page it belongs to. §12.1's bar is
+ * usefulness to a stranger arriving from search, and this page clears it: the
+ * check runs, it takes ten minutes, and it needs no account. See
+ * `SKILL_CHECKS_ARE_NEVER_INDEXED` for why the per-skill page below it does not.
  *
  * `force-dynamic` and indexable is not a contradiction — the page is rendered on
  * the server either way, and a crawler arrives with no cookie and so is served
@@ -90,12 +83,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: `${pack.name} — skill check`,
     description: `A ten-minute check across ${pack.skills.length} skills in ${subjectInProse(pack.name)}. The questions change based on your answers.`,
     path: `/check/${topic}`,
-    // The check's own gate, not the subject page's — this page is the working
-    // tool §12.1 rule 2 asks for, and what it does for a visitor does not depend
-    // on who authored the graph. `sitemap.ts` uses the same function, and the
-    // robots tag and the sitemap disagreeing is the one thing that must not
-    // happen: a URL submitted for crawling that tells the crawler to go away.
-    indexable: isCheckIndexable(pack),
+    indexable: isTopicIndexable(pack),
   });
 }
 

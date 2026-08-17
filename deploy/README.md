@@ -251,10 +251,6 @@ INNGEST_SIGNING_KEY=
 # live-mode switch, and it is these two lines plus a dashboard webhook.
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
-
-# IndexNow (§13.3). Blank is fine — `pnpm indexnow` refuses to run without it
-# and nothing else reads it. `openssl rand -hex 16`.
-INDEXNOW_KEY=
 ```
 
 Google sign-in is off until both `GOOGLE_*` halves are set; with one or neither,
@@ -342,37 +338,6 @@ and a localhost sitemap — invisible until the traffic never arrives.
 `src/app/sitemap.ts`, which reads authored `SeoPage` rows out of Postgres. This
 is the same reason `ci.yml` runs `db:migrate` and `packs:seed` before
 `pnpm build`.
-
-## After a deploy: telling the search engines
-
-```sh
-pnpm indexnow --dry     # prints the URLs and the key file, submits nothing
-pnpm indexnow
-```
-
-§13.3's crawl-budget row. It reads `src/app/sitemap.ts` — the one place that
-knows what is indexable — so the submission cannot disagree with the pages'
-own `robots` tags.
-
-**This is Bing, Yandex, Seznam and Naver. Google has never joined IndexNow** and
-still finds pages by crawling the sitemap, so a green line here is not a Google
-signal. It is worth running because a domain with no crawl history gets the
-slowest first crawl it will ever get, and because §13.3 wants Bing Webmaster
-Tools live from day one.
-
-Two things that make it refuse, both before any request goes out:
-
-- **No `INDEXNOW_KEY`**, or one that is not 8–128 hex characters. Generate with
-  `openssl rand -hex 16`, put it in `.env.prod`, and deploy before submitting —
-  the endpoint fetches `https://meritkeep.com/indexnow/<key>.txt` to prove
-  ownership, and a 403 from it says nothing about why.
-- **A URL not on `NEXT_PUBLIC_SITE_URL`'s host.** The endpoint rejects a mixed
-  batch *whole*, with a 422 naming no URL, so this is caught locally instead.
-
-Google's side is Search Console: verify the property, submit
-`https://meritkeep.com/sitemap.xml`, and check Coverage after a week. Nothing in
-this repository automates that and nothing should — it is a one-time
-verification plus a weekly read (§13.3's monitoring row).
 
 ## Changing the Caddy config
 
