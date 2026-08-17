@@ -1,6 +1,10 @@
 import type { Db } from "@/db";
 import { plan } from "@/lib/engine";
-import { toEngineGraph, toEngineItems } from "@/lib/packs/validate";
+import {
+  toEngineGraph,
+  toEngineItems,
+  toEngineProjects,
+} from "@/lib/packs/validate";
 import { resolvePack } from "@/lib/content/resolve";
 import type { DomainPack } from "@/lib/packs/types";
 import type { PlannedSession } from "@/lib/engine";
@@ -117,6 +121,9 @@ export async function todayFor(
     // can-do statement with an instruction in front of it, and the bank sat
     // unread however many questions it held.
     items: toEngineItems(pack),
+    // And the pack's projects, for the same reason: the apply block has to
+    // carry the work it will be marked against, not a sentence about the skill.
+    projects: toEngineProjects(pack),
     constraints: {
       availableMinutes:
         options.availableMinutes ?? (await sessionMinutesFor(db, userId)),

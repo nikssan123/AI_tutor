@@ -166,7 +166,7 @@ live("the session store", () => {
         skillId: skill.id,
         brief: "b",
         rubricId: null,
-        evidenceType: skill.area,
+        evidence: { image: "none" as const, images: 1 },
         estMinutes: 15,
       },
     ];

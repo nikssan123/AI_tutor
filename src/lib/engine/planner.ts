@@ -32,6 +32,7 @@ export function plan(input: PlannerInput): PlannedSession {
     skillsById,
     retrievalQueue: input.retrievalQueue,
     items: input.items,
+    projects: input.projects,
     now: input.now,
     depth,
   });

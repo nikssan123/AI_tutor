@@ -175,7 +175,7 @@ describe("describeBlock", () => {
     [
       {
         type: "apply", skillId: "joins", brief: "write a query",
-        rubricId: null, evidenceType: "sql", estMinutes: 5,
+        rubricId: null, evidence: { image: "none" as const, images: 1 }, estMinutes: 5,
       },
       "working on: write a query",
     ],

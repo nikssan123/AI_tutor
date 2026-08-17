@@ -169,6 +169,53 @@ export interface EngineItem {
   difficulty: number;
 }
 
+/**
+ * A piece of gradeable work the pack authored, flattened for the composer.
+ *
+ * The composer had no idea these existed. An `apply` block was written as
+ * `brief: "Produce work that demonstrates: <can-do statement>"` with
+ * `rubricId: null`, and `projectForBlock` then picked, at submission time, any
+ * project targeting the skill — so the brief the learner read and the rubric
+ * they were marked against were two unrelated documents.
+ *
+ * On a live hand-in that meant an eleven-minute block marked against a
+ * 420-minute project wanting CSV parsing, a README justifying record/class
+ * choices and a zero-warning build. Every criterion came back `absent`; the
+ * learner scored 0% on work they had no way to know was being asked for. §4.2
+ * law 2 — the rubric is published before you start — failing in the one place
+ * the product stakes its whole pitch.
+ */
+/**
+ * What a project accepts as evidence — §24 E8.5, mirrored structurally.
+ *
+ * Declared here rather than imported from `@/lib/packs/types` because the
+ * engine knows nothing about packs and must keep it that way; `toEngineProjects`
+ * copies the pack's own `ProjectEvidence` straight through, and the two are
+ * structurally identical by design.
+ *
+ * There is no `text` key. Every project requires a written method, so it is not
+ * a setting.
+ */
+export interface EngineEvidence {
+  image: "required" | "optional" | "none";
+  images: number;
+}
+
+export interface EngineProject {
+  projectId: string;
+  /** The rubric it is marked against. Carried on the block, never re-derived. */
+  rubricId: string;
+  title: string;
+  brief: string;
+  /** What the learner is told "finished" means, before they begin. */
+  acceptanceCriteria: string[];
+  evidence: EngineEvidence;
+  skillIds: string[];
+  difficulty: number;
+  /** The author's estimate for the whole piece of work, not a session slot. */
+  estimatedMinutes: number;
+}
+
 export interface LearnerConstraints {
   /** Minutes available for today's session. */
   availableMinutes: number;
@@ -205,6 +252,8 @@ export interface PlannerInput {
    * it — which is what every caller did before there was a way to pass them.
    */
   items?: EngineItem[] | undefined;
+  /** The pack's gradeable work. Omitted plans a session with nothing to hand in. */
+  projects?: EngineProject[] | undefined;
   constraints: LearnerConstraints;
   /** Sequence number of the session being planned, 1-based (§16.1 step 4). */
   sessionIndex: number;
@@ -250,9 +299,40 @@ export type SessionBlock =
   | {
       type: "apply";
       skillId: string;
+      /** The project's own brief — the words that will be marked. */
       brief: string;
       rubricId: string | null;
-      evidenceType: string;
+      /**
+       * What this project accepts, per §24 E8.5.
+       *
+       * It replaced `evidenceType`, a free string copied off the project — and
+       * for a while, while that field was being deleted, the pack's workspace
+       * stood in for it. Both were the same mistake at different depths: what a
+       * hand-in may contain varies *per project* inside one pack, so a block
+       * carrying a pack-level value under an evidence-shaped name says
+       * something it cannot know.
+       *
+       * Optional because sessions planned before it have none.
+       */
+      evidence?: EngineEvidence;
+      /**
+       * The project this block is for, and the three things a learner is owed
+       * *before* they start: what it is called, what "finished" means, and how
+       * big it really is.
+       *
+       * `estMinutes` is the session's slot — the time set aside to read the
+       * brief and hand something in. `projectMinutes` is the work itself, which
+       * is frequently hours. Showing the first as if it were the second is how
+       * a seven-hour project came to be offered as eleven minutes.
+       *
+       * Optional because sessions planned before this field have none, and they
+       * degrade to the brief alone rather than to a broken screen.
+       */
+      project?: {
+        title: string;
+        acceptanceCriteria: string[];
+        projectMinutes: number;
+      };
       estMinutes: number;
     }
   | {

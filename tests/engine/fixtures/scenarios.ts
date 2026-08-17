@@ -1,5 +1,6 @@
 import type {
   EngineItem,
+  EngineProject,
   EngineSkillGraph,
   MasteryState,
   PlannerInput,
@@ -129,6 +130,27 @@ export const SQL_ITEMS: EngineItem[] = SQL_GRAPH.skills.flatMap((s) => [
   },
 ]);
 
+/**
+ * One authored project per skill, the way a pack has them.
+ *
+ * Every scenario gets these because production always has them, and without
+ * them the fixtures were snapshotting a session that could not hand anything in
+ * — while the composer wrote a brief off the can-do statement with a null
+ * rubric, which is what marked a learner 0% against a project they had never
+ * read.
+ */
+export const SQL_PROJECTS: EngineProject[] = SQL_GRAPH.skills.map((s) => ({
+  projectId: `${s.id}-build`,
+  rubricId: `${s.id}-rubric`,
+  title: `${s.name}: the piece of work`,
+  brief: `Build something that shows you can ${s.canDoStatement}, end to end.`,
+  acceptanceCriteria: [`It shows you can ${s.canDoStatement}`],
+  evidence: { image: "none", images: 1 },
+  skillIds: [s.id],
+  difficulty: 0.5,
+  estimatedMinutes: 180,
+}));
+
 /** Every foundational skill demonstrated recently and solidly. */
 function foundationsSolid(at = "2026-08-11T09:00:00.000Z"): MasteryState[] {
   return [
@@ -170,6 +192,7 @@ function base(overrides: Partial<PlannerInput> = {}): PlannerInput {
     attempts: [],
     retrievalQueue: [],
     items: SQL_ITEMS,
+    projects: SQL_PROJECTS,
     constraints: constraints({ availableMinutes: 30, weeklyHours: 4 }),
     sessionIndex: 1,
     ...overrides,

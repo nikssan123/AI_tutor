@@ -10,10 +10,16 @@ import {
   MAX_RETRIEVAL_MINUTES,
   MIN_RETRIEVAL_ITEMS,
   selectCheckItem,
+  selectProject,
   selectRetrievalItems,
   shouldBackOff,
 } from "@/lib/engine/session-composer";
-import type { EngineItem, EngineSkill, ScoredSkill } from "@/lib/engine/types";
+import type {
+  EngineItem,
+  EngineProject,
+  EngineSkill,
+  ScoredSkill,
+} from "@/lib/engine/types";
 import { retrieval, skill } from "./support";
 
 const NOW = "2026-08-12T09:00:00.000Z";
@@ -31,6 +37,24 @@ function item(
     expected: `what ${itemId} is looking for`,
     answerFormat: "prose",
     difficulty: 0.5,
+    ...over,
+  };
+}
+
+function project(
+  skillId: string,
+  over: Partial<EngineProject> = {},
+): EngineProject {
+  return {
+    projectId: `${skillId}-project`,
+    rubricId: `${skillId}-rubric`,
+    title: `Build the ${skillId} thing`,
+    brief: `A brief for ${skillId}, long enough to read like one.`,
+    acceptanceCriteria: [`It does the ${skillId} thing`],
+    evidence: { image: "none", images: 1 },
+    skillIds: [skillId],
+    difficulty: 0.5,
+    estimatedMinutes: 240,
     ...over,
   };
 }
@@ -240,6 +264,7 @@ describe("composeSession", () => {
       ranked: [scored("joins")],
       skillsById: skillMap(sql),
       retrievalQueue: [retrieval("joins", "r1", "2026-08-01T00:00:00.000Z", 2)],
+      projects: [project("joins")],
       now: NOW,
     });
 
@@ -256,6 +281,7 @@ describe("composeSession", () => {
       ranked: [scored("joins")],
       skillsById: skillMap(sql),
       retrievalQueue: [],
+      projects: [project("joins")],
       now: NOW,
     });
     expect(result.blocks.some((b) => b.type === "reflect")).toBe(false);
@@ -418,6 +444,7 @@ describe("composeSession", () => {
       skillsById: skillMap(sql),
       retrievalQueue: [],
       items: [],
+      projects: [project("joins")],
       now: NOW,
     });
 
@@ -451,6 +478,41 @@ describe("composeSession", () => {
     expect(
       check({ type: "code_read", answerFormat: "prose" }),
     ).toMatchObject({ answerFormat: "prose" });
+  });
+});
+
+describe("selectProject", () => {
+  it("sets the easiest piece of work for the skill", () => {
+    // A skill's first gradeable artefact should be its smallest. The learner
+    // this was written for was handed a 420-minute project as their first
+    // eleven-minute block.
+    const bank = [
+      project("joins", { projectId: "big", difficulty: 0.9 }),
+      project("joins", { projectId: "small", difficulty: 0.2 }),
+      project("other", { projectId: "elsewhere", difficulty: 0.1 }),
+    ];
+
+    expect(selectProject(bank, "joins")?.projectId).toBe("small");
+  });
+
+  it("breaks a tie on id, so the same state sets the same work", () => {
+    const tied = [
+      project("joins", { projectId: "b" }),
+      project("joins", { projectId: "a" }),
+    ];
+
+    expect(selectProject(tied, "joins")?.projectId).toBe("a");
+  });
+
+  it("finds nothing for a skill no project targets", () => {
+    // Which is what stops an apply block existing at all: a box that files
+    // work nowhere is worse than no box.
+    expect(selectProject([project("joins")], "unclaimed")).toBeUndefined();
+  });
+
+  it("matches a project that targets several skills", () => {
+    const shared = project("joins", { skillIds: ["joins", "windows"] });
+    expect(selectProject([shared], "windows")?.projectId).toBe("joins-project");
   });
 });
 

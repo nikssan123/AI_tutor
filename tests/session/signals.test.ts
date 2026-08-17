@@ -145,7 +145,7 @@ describe("buildSignalPrompt", () => {
     ).toContain("a question: Why?");
     expect(
       buildSignalPrompt({
-        block: { type: "apply", skillId: "s", brief: "Write a query", rubricId: null, evidenceType: "query", estMinutes: 20 },
+        block: { type: "apply", skillId: "s", brief: "Write a query", rubricId: null, evidence: { image: "none" as const, images: 1 }, estMinutes: 20 },
         question: "q",
         answer: "a",
       }),

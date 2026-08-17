@@ -1,6 +1,10 @@
 import { detectCycle } from "@/lib/engine/graph";
 import { gradingModeFor } from "@/lib/engine/diagnostic";
-import type { EngineItem, EngineSkillGraph } from "@/lib/engine/types";
+import type {
+  EngineItem,
+  EngineProject,
+  EngineSkillGraph,
+} from "@/lib/engine/types";
 import { expectedFor } from "@/lib/session/prove";
 import { PRODUCTION_ITEM_TYPES, type DomainPack } from "./types";
 
@@ -145,6 +149,42 @@ export function toEngineItems(pack: DomainPack): EngineItem[] {
           },
         ];
   });
+}
+
+/**
+ * The pack's projects, flattened for the planner.
+ *
+ * The same shape as `toEngineItems` and for the same reason: the engine knows
+ * nothing about packs, and the composer needs the rubric slug on the block so
+ * the brief a learner reads is the brief they are marked against.
+ *
+ * A project whose rubric is not in the pack is dropped. The validator rejects
+ * such a pack, so this is the hand-edited case — and a project with no rubric
+ * cannot be marked, which makes offering it worse than not offering it.
+ */
+export function toEngineProjects(pack: DomainPack): EngineProject[] {
+  const rubrics = new Set(pack.rubrics.map((r) => r.slug));
+
+  return pack.projects.flatMap((project) =>
+    rubrics.has(project.rubric)
+      ? [
+          {
+            projectId: project.slug,
+            rubricId: project.rubric,
+            title: project.title,
+            brief: project.brief,
+            acceptanceCriteria: project.acceptanceCriteria,
+            // Straight through: what the project accepts is the project's
+            // own declaration, and E8.5 is precisely the argument that this
+            // varies inside one pack.
+            evidence: project.evidence,
+            skillIds: project.targetSkills,
+            difficulty: project.difficulty,
+            estimatedMinutes: project.estimatedMinutes,
+          },
+        ]
+      : [],
+  );
 }
 
 export function validatePack(pack: DomainPack): ValidationReport {

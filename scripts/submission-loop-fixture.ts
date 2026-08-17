@@ -98,7 +98,7 @@ async function main() {
         skillId: skill.slug,
         brief: project.brief,
         rubricId: rubric.slug,
-        evidenceType: "text",
+        evidence: { image: "none" as const, images: 1 },
         estMinutes: 30,
       },
     ],

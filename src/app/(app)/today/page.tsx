@@ -99,7 +99,9 @@ function blockDetail(block: SessionBlock, names: Map<string, string>): string {
       // is the only line on the screen where that is visible.
       return block.isRetrieval ? `From memory: ${block.prompt}` : block.prompt;
     case "apply":
-      return block.brief;
+      // The project's name, not its brief: a real brief is a paragraph, and
+      // this is a one-line summary of a session.
+      return block.project?.title ?? block.brief;
     case "review":
       return block.focus;
     case "reflect":

@@ -2,6 +2,7 @@ import { DEFAULT_COURSE_DEPTH } from "./types";
 import type {
   CourseDepth,
   EngineItem,
+  EngineProject,
   EngineSkill,
   RetrievalCandidate,
   ScoredSkill,
@@ -58,6 +59,8 @@ export interface ComposeInput {
   retrievalQueue: RetrievalCandidate[];
   /** The pack's authored questions. Omitted means none are available. */
   items?: EngineItem[] | undefined;
+  /** The pack's authored projects. Omitted means nothing can be handed in. */
+  projects?: EngineProject[] | undefined;
   now: string;
   /** Sets the artefact cadence. Omitted means `standard`. */
   depth?: CourseDepth | undefined;
@@ -68,6 +71,69 @@ export interface ComposeInput {
  * piece of work, which is what the `apply` block is for. */
 const CHECKABLE_ITEM_TYPES = new Set(["short_text", "explain", "code_read"]);
 
+
+/**
+ * The piece of work to set for a skill.
+ *
+ * **The block carries the project, and the project carries the rubric.** It
+ * used to carry neither: the brief was `"Produce work that demonstrates: <can-do
+ * statement>"` and `rubricId` was null, so `projectForBlock` chose a project at
+ * *submission* time — and the words the learner read were not the words they
+ * were marked against. A learner handed in against an eleven-minute line and
+ * was graded on a 420-minute project's acceptance criteria they had never been
+ * shown. §4.2 law 2 says the rubric is published before the work starts; this
+ * is what makes that true rather than intended.
+ *
+ * Easiest first, ties broken on id. A skill's first gradeable artefact should
+ * be its smallest, and the same state must always set the same work.
+ */
+export function selectProject(
+  projects: EngineProject[],
+  skillId: string,
+): EngineProject | undefined {
+  return projects
+    .filter((project) => project.skillIds.includes(skillId))
+    .sort((a, b) =>
+      a.difficulty !== b.difficulty
+        ? a.difficulty - b.difficulty
+        : a.projectId.localeCompare(b.projectId),
+    )[0];
+}
+
+/**
+ * The `apply` block for a project, or nothing when the pack authored none.
+ *
+ * **No project, no block.** An apply block with `rubricId: null` was a box that
+ * filed work nowhere: `submitWorkAction` looks for a project, finds none and
+ * redirects, so the learner's work vanished with no explanation. Asking for
+ * something nobody can mark is worse than not asking.
+ *
+ * `estMinutes` is the session's slot; `projectMinutes` is the work. They are
+ * different numbers and the screen shows both, because an eleven-minute block
+ * containing seven hours of work is a lie the plan used to tell twice — once on
+ * `/today` and once in the session.
+ */
+function applyBlockFor(
+  project: EngineProject | undefined,
+  skillId: string,
+  estMinutes: number,
+): SessionBlock | undefined {
+  if (!project) return undefined;
+
+  return {
+    type: "apply",
+    skillId,
+    brief: project.brief,
+    rubricId: project.rubricId,
+    evidence: project.evidence,
+    project: {
+      title: project.title,
+      acceptanceCriteria: project.acceptanceCriteria,
+      projectMinutes: project.estimatedMinutes,
+    },
+    estMinutes,
+  };
+}
 
 /**
  * The question to ask about a skill, given what is authored and what has
@@ -222,6 +288,18 @@ export function composeSession(input: ComposeInput): ComposeResult {
 
   targetSkillIds.push(top.skillId);
 
+  /*
+   * The work this skill ends in, chosen here rather than at submission time.
+   *
+   * It also decides whether an apply session is possible at all: §16.1 makes
+   * every Nth session produce a gradeable artefact, and a pack with no project
+   * for the skill has no artefact to produce. Such a session falls through to
+   * the learn shape below rather than offering a box that files work nowhere.
+   */
+  const project = input.projects
+    ? selectProject(input.projects, top.skillId)
+    : undefined;
+
   // 2a. Backing off: the learner has failed this twice running and there is
   //     nothing better to offer. Scaffolding goes back *up* (§16.4 — support
   //     fades as mastery rises, so it should return when mastery stalls), and
@@ -258,20 +336,16 @@ export function composeSession(input: ComposeInput): ComposeResult {
   }
 
   // 2b. The main activity.
-  if (isApplySession(input.sessionIndex, input.depth ?? DEFAULT_COURSE_DEPTH)) {
+  if (
+    project &&
+    isApplySession(input.sessionIndex, input.depth ?? DEFAULT_COURSE_DEPTH)
+  ) {
     // §16.1 — "Every 4th session is an `apply` session producing a gradeable
     // artefact. Hard rule, enforced in code — this is what makes mastery move."
     const reflectMinutes = remaining >= 15 ? 5 : 0;
     const applyMinutes = remaining - reflectMinutes;
 
-    blocks.push({
-      type: "apply",
-      skillId: top.skillId,
-      brief: `Produce work that demonstrates: ${topSkill.canDoStatement}`,
-      rubricId: null,
-      evidenceType: topSkill.area,
-      estMinutes: applyMinutes,
-    });
+    blocks.push(applyBlockFor(project, top.skillId, applyMinutes)!);
     used += applyMinutes;
 
     if (reflectMinutes > 0) {
@@ -288,6 +362,31 @@ export function composeSession(input: ComposeInput): ComposeResult {
 
   // 3. A learn session: explain, then check, then practise — with explain
   //    capped at half the *whole* session, per §14.9.2's invariant.
+  //
+  //    What is available decides the shape, so both are resolved before
+  //    anything is scheduled.
+  const item = input.items
+    ? selectCheckItem(
+        input.items,
+        top.skillId,
+        top.effectiveMastery,
+        input.retrievalQueue,
+      )
+    : undefined;
+
+  /*
+   * Nothing to ask and nothing to hand in — so no lesson either.
+   *
+   * §14.9.2 caps reading at half a session, and a session whose only block is
+   * an explain is 100% reading whatever minutes are written on it. A pack thin
+   * enough to have neither a question nor a project for this skill cannot
+   * support a session on it, and saying so is better than composing a lecture
+   * and calling it active learning.
+   */
+  if (!item && !project) {
+    return { blocks, totalMinutes: used, targetSkillIds, backingOff: false };
+  }
+
   const explainBudget = Math.floor(available * MAX_EXPLAIN_RATIO);
   const explainMinutes = Math.min(explainBudget, Math.floor(remaining * 0.4));
 
@@ -319,21 +418,14 @@ export function composeSession(input: ComposeInput): ComposeResult {
    * The bank was reachable all along; nothing had ever passed it in.
    */
   const afterExplain = available - used;
-  const item = input.items
-    ? selectCheckItem(
-        input.items,
-        top.skillId,
-        top.effectiveMastery,
-        input.retrievalQueue,
-      )
-    : undefined;
 
   if (item) {
-    // Explain takes at most 40% of what remains, so a check always fits.
-    const checkMinutes = Math.min(
-      Math.max(1, Math.round(afterExplain * 0.4)),
-      afterExplain,
-    );
+    // Explain takes at most 40% of what remains, so a check always fits. With
+    // no project to follow it, the check takes the rest rather than leaving
+    // the session short of the time the learner set aside.
+    const checkMinutes = project
+      ? Math.min(Math.max(1, Math.round(afterExplain * 0.4)), afterExplain)
+      : afterExplain;
 
     blocks.push({
       type: "check",
@@ -351,18 +443,17 @@ export function composeSession(input: ComposeInput): ComposeResult {
     used += checkMinutes;
   }
 
+  /*
+   * The work, when the pack authored some. A learn session that ends in
+   * nothing to hand in is a shorter session, and an honest one — the
+   * alternative was a brief written from the skill's can-do statement and a
+   * null rubric, which is what marked somebody 0% against a project they had
+   * never read.
+   */
   const afterCheck = available - used;
-  if (afterCheck > 0) {
-    blocks.push({
-      type: "apply",
-      skillId: top.skillId,
-      // The same sentence the apply *session* uses for the same act, rather
-      // than a second phrasing for "make something that proves it".
-      brief: `Produce work that demonstrates: ${topSkill.canDoStatement}`,
-      rubricId: null,
-      evidenceType: topSkill.area,
-      estMinutes: afterCheck,
-    });
+  const apply = applyBlockFor(project, top.skillId, afterCheck);
+  if (afterCheck > 0 && apply) {
+    blocks.push(apply);
     used += afterCheck;
   }
 

@@ -782,7 +782,7 @@ describe("with a plan", () => {
               skillId: pack.skills[2]!.slug,
               brief: "b",
               rubricId: null,
-              evidenceType: "media",
+              evidence: { image: "none" as const, images: 1 },
               estMinutes: 20,
             },
             {
@@ -836,7 +836,7 @@ describe("with a plan", () => {
               skillId: "ghost",
               brief: "b",
               rubricId: null,
-              evidenceType: "media",
+              evidence: { image: "none" as const, images: 1 },
               estMinutes: 9,
             },
           ],

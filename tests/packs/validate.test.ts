@@ -7,6 +7,7 @@ import {
   PackValidationError,
   toEngineGraph,
   toEngineItems,
+  toEngineProjects,
   validatePack,
 } from "@/lib/packs/validate";
 import { PRODUCTION_ITEM_TYPES } from "@/lib/packs/types";
@@ -466,6 +467,42 @@ describe("toEngineItems", () => {
 
     expect(items.map((i) => i.itemId)).not.toContain("ghost");
     expect(items).toHaveLength(pack.items.length);
+  });
+});
+
+describe("toEngineProjects", () => {
+  it("carries the rubric onto the work, so the brief and the marking agree", () => {
+    const pack = fixture("valid-minimal");
+    const projects = toEngineProjects(pack);
+
+    expect(projects).toHaveLength(pack.projects.length);
+    expect(projects[0]).toMatchObject({
+      projectId: pack.projects[0]!.slug,
+      rubricId: pack.projects[0]!.rubric,
+      title: pack.projects[0]!.title,
+      brief: pack.projects[0]!.brief,
+      estimatedMinutes: pack.projects[0]!.estimatedMinutes,
+    });
+    // The three things a learner is owed before they start.
+    expect(projects[0]!.acceptanceCriteria).toEqual(
+      pack.projects[0]!.acceptanceCriteria,
+    );
+  });
+
+  it("drops a project whose rubric is not in the pack", () => {
+    // A project with no rubric cannot be marked, and offering work nobody can
+    // mark is worse than offering none. The validator rejects such a pack, so
+    // this is the hand-edited case.
+    const pack = fixture("valid-minimal");
+    const projects = toEngineProjects({
+      ...pack,
+      projects: [
+        ...pack.projects,
+        { ...pack.projects[0]!, slug: "orphan", rubric: "no-such-rubric" },
+      ],
+    });
+
+    expect(projects.map((p) => p.projectId)).not.toContain("orphan");
   });
 });
 

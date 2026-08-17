@@ -812,17 +812,79 @@ function Marked({
   );
 }
 
+/**
+ * "about 20 minutes" · "about 2 hours" · "about 7 hours".
+ *
+ * No singular. Below ninety minutes this counts in minutes, and ninety or more
+ * can never round to one hour — so a `hour${n === 1 ? "" : "s"}` was a branch
+ * nothing could reach, which is a thing to delete rather than to test around.
+ */
+function workWords(minutes: number): string {
+  if (minutes < 90) return `about ${minutes} minutes`;
+  return `about ${Math.round(minutes / 60)} hours`;
+}
+
 function ApplyBlock(
   props: BodyProps & { block: Extract<SessionBlock, { type: "apply" }> },
 ) {
+  const project = props.block.project;
+
   return (
     <div className="flex flex-col gap-6">
-      <Ask>{props.block.brief}</Ask>
+      {/*
+       * The project's own title and brief, and — the half that was missing —
+       * what it will be marked against.
+       *
+       * This block used to read "Produce work that demonstrates: <can-do
+       * statement>", written by the composer, while `projectForBlock` chose the
+       * actual project at submission time. The words on this screen and the
+       * words the grader used were two different documents: somebody handed in
+       * against an eleven-minute line and was marked on a 420-minute project's
+       * criteria, scoring 0% on work nobody had told them to do. §4.2 law 2 is
+       * that the rubric is public *before* the work starts, and this screen is
+       * where that promise is either kept or broken.
+       */}
+      <Ask>{project?.title ?? props.block.brief}</Ask>
+
+      {project ? <Lead>{props.block.brief}</Lead> : null}
+
+      {project ? (
+        <div className="flex flex-col gap-3">
+          <Meta>It&rsquo;s finished when</Meta>
+          <ul className="flex list-none flex-col gap-2 p-0 m-0 max-w-[var(--measure)]">
+            {project.acceptanceCriteria.map((criterion) => (
+              <li key={criterion} className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-2 size-1.5 shrink-0 rounded-full bg-accent"
+                />
+                <span>{criterion}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <Lead>
         Do this away from the screen, in whatever you normally work in. Paste it
         back here when you are ready and it gets marked against the rubric.
       </Lead>
+
+      {/*
+       * The size of the work, said where it cannot be missed.
+       *
+       * The block's own `estMinutes` is the slot in this session — time to read
+       * the brief and hand something in. The project is frequently hours. The
+       * plan showed the first as though it were the second, so a seven-hour
+       * piece of work was offered as "Do · 11 min", twice: once on `/today` and
+       * once on the block's own header.
+       */}
+      {project ? (
+        <Status tone="attention">
+          {workWords(project.projectMinutes)} of work — not something to finish
+          in this session
+        </Status>
+      ) : null}
 
       {/*
         A hand-in that was nothing but whitespace. `required` does not catch it

@@ -397,6 +397,109 @@ describe("the session screen", () => {
     expect(screen.getByText(/left this one blank/)).toBeDefined();
   });
 
+  /**
+   * §4.2 law 2's other half, and the defect that made it a lie.
+   *
+   * The block used to read "Produce work that demonstrates: <can-do
+   * statement>", written by the composer with `rubricId: null`, while
+   * `projectForBlock` picked the actual project at submission time. A learner
+   * handed in against an eleven-minute line and was marked on a 420-minute
+   * project's acceptance criteria — CSV parsing, a README, timing notes — that
+   * they had never been shown. Every criterion came back `absent`: 0%.
+   */
+  it("shows the brief, the bar and the size of the work before the box", async () => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Process a batch of orders from a CSV and report on them.",
+            rubricId: "order-processing-rubric",
+            evidence: { image: "none" as const, images: 1 },
+            project: {
+              title: "Order Processing Console App",
+              acceptanceCriteria: [
+                "Invalid rows are rejected with a logged reason, not a crash",
+                "A README explains one instance of deferred execution",
+              ],
+              projectMinutes: 420,
+            },
+            estMinutes: 11,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+
+    expect(screen.getByText("Order Processing Console App")).toBeDefined();
+    expect(screen.getByText(/Process a batch of orders/)).toBeDefined();
+    // What "finished" means, in the words it will be marked against.
+    expect(screen.getByText(/Invalid rows are rejected/)).toBeDefined();
+    expect(screen.getByText(/README explains one instance/)).toBeDefined();
+    // And how big it really is — the block's own 11 minutes is the slot for
+    // reading the brief and handing in, not the work.
+    expect(screen.getByText(/about 7 hours of work/)).toBeDefined();
+  });
+
+  /**
+   * The size in words a learner reads rather than a number they convert. A
+   * 45-minute piece of work must not be rounded into hours, and a long one
+   * must not be quoted as three hundred and something minutes.
+   */
+  it.each([
+    [45, /about 45 minutes/],
+    [150, /about 3 hours/],
+  ])("says %i minutes of work in the right units", async (projectMinutes, expected) => {
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Build the thing described here.",
+            rubricId: "a-rubric",
+            evidence: { image: "none" as const, images: 1 },
+            project: {
+              title: "The piece of work",
+              acceptanceCriteria: ["It does the thing"],
+              projectMinutes,
+            },
+            estMinutes: 11,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText(expected)).toBeDefined();
+  });
+
+  it("still renders a block from a session planned before projects were carried", async () => {
+    // Sessions already in the database have no `project` on their apply block.
+    // They degrade to the brief alone rather than to a broken screen.
+    sessionViewMock.mockResolvedValue(
+      view({
+        blocks: [
+          {
+            type: "apply",
+            skillId: skill.id,
+            brief: "Write the query",
+            rubricId: null,
+            evidence: { image: "none" as const, images: 1 },
+            estMinutes: 15,
+          },
+        ],
+      }),
+    );
+
+    await show(await SessionPage({ params, searchParams: search }));
+    expect(screen.getByText("Write the query")).toBeDefined();
+    expect(screen.queryByText(/of work —/)).toBeNull();
+    expect(screen.getByPlaceholderText("Paste your work here…")).toBeDefined();
+  });
+
   it("takes the work, now that there is something to take it", async () => {
     // This used to assert the opposite — §4.2 law 5, a declared limit that was
     // real. E8 made it untrue, so the assertion changed with the behaviour.
@@ -408,7 +511,7 @@ describe("the session screen", () => {
             skillId: skill.id,
             brief: "Write the query",
             rubricId: null,
-            evidenceType: "sql",
+            evidence: { image: "none" as const, images: 1 },
             estMinutes: 15,
           },
         ],
@@ -442,7 +545,7 @@ describe("the session screen", () => {
             skillId: skill.id,
             brief: "Write the query",
             rubricId: null,
-            evidenceType: "sql",
+            evidence: { image: "none" as const, images: 1 },
             estMinutes: 15,
           },
         ],
@@ -613,7 +716,7 @@ describe("looking back at a block already done", () => {
       skillId: skill.id,
       brief: "Write the query",
       rubricId: null,
-      evidenceType: "sql",
+      evidence: { image: "none" as const, images: 1 },
       estMinutes: 15,
     },
   ];
@@ -914,7 +1017,7 @@ describe("when the month's marking is spent", () => {
             skillId: skill.id,
             brief: "Write the query",
             rubricId: null,
-            evidenceType: "sql",
+            evidence: { image: "none" as const, images: 1 },
             estMinutes: 15,
           },
         ],
