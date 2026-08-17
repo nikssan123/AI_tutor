@@ -227,7 +227,7 @@ describe("renderHtml branding", () => {
 
   it("keeps the mark for an origin a stranger can actually resolve", () => {
     for (const origin of [
-      "https://meritkeep.xyz",
+      "https://meritkeep.com",
       "https://preview-abc.vercel.app",
     ]) {
       const html = renderHtml("s", base, "en", {

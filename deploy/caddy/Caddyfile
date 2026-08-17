@@ -2,7 +2,7 @@
 # project on this host — separate image, separate config, separate reload cycle.
 #
 # It does NOT terminate TLS and does not bind a host port. The shared Caddy owns
-# :443, matches meritkeep.xyz, and forwards here over the `web` Docker network.
+# :443, matches meritkeep.com, and forwards here over the `web` Docker network.
 # Everything below the TLS handshake is ours.
 {
 	# The shared Caddy is the immediate client of every request that reaches us,

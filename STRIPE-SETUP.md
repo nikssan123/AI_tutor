@@ -104,7 +104,7 @@ Nothing in the code changes, and no prices need recreating:
 2. **Redo §2 and the portal in live mode.** Tax registrations and portal
    settings are mode-scoped; they do not carry over from the sandbox.
 3. **Add the live webhook** (§3, dashboard form) at
-   `https://meritkeep.xyz/api/billing/webhook`. New `whsec_…`.
+   `https://meritkeep.com/api/billing/webhook`. New `whsec_…`.
 4. **Put both live values** in `/srv/meritkeep/.env.prod` and redeploy
    (`gh workflow run deploy.yml -f ref=main`).
 5. **Buy something with a real card**, then refund it.

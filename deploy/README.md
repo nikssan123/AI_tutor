@@ -63,7 +63,7 @@ swapfile below is belt and braces. This is also why images are built in CI:
    config serving.
 5. **Verify MeritKeep over HTTPS**, and verify webwork.bg is untouched:
    ```sh
-   curl -sI https://meritkeep.xyz | head -1
+   curl -sI https://meritkeep.com | head -1
    curl -sI https://webwork.bg | head -1
    curl -sI https://bot.webwork.bg | head -1
    ```
@@ -102,7 +102,7 @@ deploy.
 # must stay a bare reverse_proxy — importing main_site or security_headers here
 # would apply two sets of headers to every response.
 #
-# It is also what keeps meritkeep.xyz out of the `:443` on-demand-TLS catch-all
+# It is also what keeps meritkeep.com out of the `:443` on-demand-TLS catch-all
 # at the bottom of this file. Delete this block and requests fall through to
 # that handler, which asks site_maker's backend whether it owns the domain,
 # gets "no", and serves the domain-not-found page — to Googlebot included.
@@ -111,7 +111,7 @@ deploy.
 # through to the origin and exempts it from Always Use HTTPS, so HTTP-01 issues
 # and renews normally even with the zone proxied. TLS-ALPN cannot work behind the
 # proxy, but Caddy falls back on its own.
-meritkeep.xyz, www.meritkeep.xyz {
+meritkeep.com, www.meritkeep.com {
 	reverse_proxy meritkeep-caddy:80
 }
 ```
@@ -216,9 +216,9 @@ it is the origin or the edge.
 #### After going orange, verify
 
 ```sh
-curl -sI https://meritkeep.xyz | grep -iE 'cf-cache-status|strict-transport|server'
-curl -s https://meritkeep.xyz/robots.txt
-curl -s https://meritkeep.xyz/sitemap.xml | head -20
+curl -sI https://meritkeep.com | grep -iE 'cf-cache-status|strict-transport|server'
+curl -s https://meritkeep.com/robots.txt
+curl -s https://meritkeep.com/sitemap.xml | head -20
 ```
 
 The sitemap and robots must show the real origin, not `localhost:3000` — if they
@@ -239,7 +239,7 @@ Write `/srv/meritkeep/.env.prod` — never committed, never built into an image:
 ```sh
 POSTGRES_PASSWORD=<generate>
 BETTER_AUTH_SECRET=<32+ chars>
-NEXT_PUBLIC_SITE_URL=https://meritkeep.xyz
+NEXT_PUBLIC_SITE_URL=https://meritkeep.com
 ANTHROPIC_API_KEY=
 RESEND_API_KEY=
 GOOGLE_CLIENT_ID=
@@ -255,7 +255,7 @@ STRIPE_WEBHOOK_SECRET=
 
 Google sign-in is off until both `GOOGLE_*` halves are set; with one or neither,
 the button is not rendered. The authorised redirect URI to register with Google
-is `https://meritkeep.xyz/api/auth/callback/google` — it must match the
+is `https://meritkeep.com/api/auth/callback/google` — it must match the
 `NEXT_PUBLIC_SITE_URL` origin above exactly, scheme and all.
 
 The host has **no swap** and 7.6GB shared with another project. Add some before
@@ -284,7 +284,7 @@ Repository **variable**:
 
 | | |
 |---|---|
-| `NEXT_PUBLIC_SITE_URL` | `https://meritkeep.xyz` — a variable, not a secret; it ships in the client bundle either way |
+| `NEXT_PUBLIC_SITE_URL` | `https://meritkeep.com` — a variable, not a secret; it ships in the client bundle either way |
 
 Environment **secrets**, on an environment named `production`:
 

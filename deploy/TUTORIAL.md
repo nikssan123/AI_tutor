@@ -4,7 +4,7 @@ Getting MeritKeep live on the shared VPS without disturbing webwork.bg. Follow i
 in order — the ordering is the safety. `README.md` in this directory explains why
 each step is shaped the way it is; this file is just the walkthrough.
 
-Replace `meritkeep.xyz` with the real domain throughout, and `<VPS_IP>` /
+Replace `meritkeep.com` with the real domain throughout, and `<VPS_IP>` /
 `<DEPLOY_USER>` with the host and account — kept out of this public repo and
 stored as the `DEPLOY_HOST` / `DEPLOY_USER` secrets on the `production`
 environment (`gh secret list --env production`).
@@ -14,7 +14,7 @@ environment (`gh secret list --env production`).
 ## Before you start
 
 - [ ] Domain bought, added to Cloudflare, zone reads **Active**
-- [ ] Repo variable `NEXT_PUBLIC_SITE_URL` = `https://meritkeep.xyz`
+- [ ] Repo variable `NEXT_PUBLIC_SITE_URL` = `https://meritkeep.com`
 - [ ] Environment `production` created with `DEPLOY_SSH_KEY`, `DEPLOY_HOST`,
       `DEPLOY_USER`, `DEPLOY_KNOWN_HOSTS`
 - [ ] SSH to the box works: `ssh <DEPLOY_USER>@<VPS_IP> true`
@@ -63,7 +63,7 @@ Write `.env.prod` (see `README.md` for the full list):
 ```sh
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-NEXT_PUBLIC_SITE_URL=https://meritkeep.xyz
+NEXT_PUBLIC_SITE_URL=https://meritkeep.com
 ```
 
 ## 4. Start it, and check it from inside the network
@@ -98,7 +98,7 @@ A   www   <VPS_IP>    DNS only (grey)
 Wait for it to resolve:
 
 ```sh
-dig +short meritkeep.xyz
+dig +short meritkeep.com
 ```
 
 ## 6. Add the route to site_maker's Caddy
@@ -115,7 +115,7 @@ blocks at the bottom, so it stays more specific than the catch-all:
 # Deleting this block does not just break MeritKeep: the domain falls through to
 # the :443 on-demand handler below, which asks this backend whether it owns the
 # domain, gets "no", and serves the domain-not-found page — to Googlebot too.
-meritkeep.xyz, www.meritkeep.xyz {
+meritkeep.com, www.meritkeep.com {
 	reverse_proxy meritkeep-caddy:80
 }
 ```
@@ -134,7 +134,7 @@ leaves the running one serving.
 ## 7. Verify — all three, not just yours
 
 ```sh
-curl -sI https://meritkeep.xyz  | head -1
+curl -sI https://meritkeep.com  | head -1
 curl -sI https://webwork.bg     | head -1
 curl -sI https://bot.webwork.bg | head -1
 ```
@@ -156,9 +156,9 @@ Only now, and only in Cloudflare — this touches the VPS not at all.
 Then confirm the edge is in front and the canonical host is right:
 
 ```sh
-curl -sI https://meritkeep.xyz | grep -iE 'cf-cache-status|strict-transport'
-curl -s  https://meritkeep.xyz/robots.txt
-curl -s  https://meritkeep.xyz/sitemap.xml | head -5
+curl -sI https://meritkeep.com | grep -iE 'cf-cache-status|strict-transport'
+curl -s  https://meritkeep.com/robots.txt
+curl -s  https://meritkeep.com/sitemap.xml | head -5
 ```
 
 If robots or the sitemap mention `localhost:3000`, the image was built without
