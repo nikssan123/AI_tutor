@@ -30,6 +30,7 @@ env:
   REGISTRY: ghcr.io
   WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/meritkeep-web
   TOOLS_IMAGE: ghcr.io/${{ github.repository_owner }}/meritkeep-tools
+  CADDY_IMAGE: ghcr.io/${{ github.repository_owner }}/meritkeep-caddy
 
 jobs:
   build:
@@ -135,12 +136,29 @@ jobs:
           fi
           echo "✓ no localhost references in the client bundle"
 
+      # ── 4. caddy image ──────────────────────────────────────────────────────
+      # Built here rather than on the VPS. docker-compose.prod.yml carries a
+      # `build:` stanza for this service, so without this step `up -d` compiles
+      # it on the server — and deploy/caddy/Dockerfile runs `xcaddy build`, a
+      # full Go toolchain compile. That host has 7.6GB shared with webwork.bg's
+      # stack, and the neighbour it would squeeze is their production Postgres.
+      # Nothing here needs the database or the site URL: the Caddyfile is
+      # bind-mounted at runtime, not baked in.
+      - name: Build caddy image
+        run: |
+          docker build \
+            --tag "$CADDY_IMAGE:${{ steps.meta.outputs.sha }}" \
+            --tag "$CADDY_IMAGE:latest" \
+            ./deploy/caddy
+
       - name: Push images
         run: |
           docker push "$TOOLS_IMAGE:${{ steps.meta.outputs.sha }}"
           docker push "$TOOLS_IMAGE:latest"
           docker push "$WEB_IMAGE:${{ steps.meta.outputs.sha }}"
           docker push "$WEB_IMAGE:latest"
+          docker push "$CADDY_IMAGE:${{ steps.meta.outputs.sha }}"
+          docker push "$CADDY_IMAGE:latest"
 
   deploy:
     needs: build
