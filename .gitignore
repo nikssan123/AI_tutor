@@ -15,6 +15,11 @@ dist/
 .env.prod
 .env.prod.*
 
+# The SSH target `./deploy.sh` talks to. Same reasoning as the orange cloud and
+# the `production` environment secrets: this repo is public and that host also
+# fronts webwork.bg's customer domains, so its address stays out of the source.
+deploy/.env.deploy
+
 *.tsbuildinfo
 next-env.d.ts
 
