@@ -391,11 +391,11 @@ describe("handing work in", () => {
         submitWorkAction(form({ skill: skill.slug, work: "the horizon sits low" })),
       ).rejects.toThrow("REDIRECT:/today?error=quota");
 
-      expect(captureMock).toHaveBeenCalledWith("quota_reached", {
-        quota_type: "evaluation",
-        used: 3,
-        limit: 3,
-      });
+      expect(captureMock).toHaveBeenCalledWith(
+        "quota_reached",
+        { quota_type: "evaluation", used: 3, limit: 3 },
+        "u1",
+      );
     });
   });
 });

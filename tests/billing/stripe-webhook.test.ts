@@ -9,6 +9,7 @@ import {
   planFromSubscription,
   secondsToDate,
   type StripeEvent,
+  actorFrom,
   userIdFrom,
 } from "@/lib/billing/stripe/webhook";
 import { receiveWebhook } from "@/lib/billing/stripe/receive";
@@ -60,6 +61,16 @@ describe("userIdFrom", () => {
   it("is null when neither is present", () => {
     expect(userIdFrom({})).toBeNull();
     expect(userIdFrom({ metadata: { userId: "" } })).toBeNull();
+  });
+
+  /**
+   * The analytics sink wants an absent id, not a null one. Stripe sends events
+   * for objects we did not create — a subscription made in their dashboard —
+   * and those are recorded with nobody attached rather than dropped.
+   */
+  it("hands analytics an absent id rather than a null one", () => {
+    expect(actorFrom({ metadata: { userId: "u1" } })).toBe("u1");
+    expect(actorFrom({})).toBeUndefined();
   });
 });
 

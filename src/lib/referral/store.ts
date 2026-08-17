@@ -79,7 +79,7 @@ export async function codeFor(
         .returning({ code: referralCode.code });
 
       // An upsert with `returning` always yields exactly one row.
-      capture("referral_link_created", { surface: "account" });
+      capture("referral_link_created", { surface: "account" }, userId);
       return claimed!.code;
     } catch {
       // A code collision. At 31^8 this is insurance against a broken random
@@ -216,7 +216,11 @@ export async function attribute(
   }
 
   if (!verdict.ok) {
-    capture("referral_signup", { rejected: true, reason: verdict.reason });
+    capture(
+      "referral_signup",
+      { rejected: true, reason: verdict.reason },
+      input.referee.userId,
+    );
     return { status: "rejected", reason: verdict.reason };
   }
 
@@ -233,7 +237,7 @@ export async function attribute(
     now,
   );
 
-  capture("referral_signup", { rejected: false });
+  capture("referral_signup", { rejected: false }, input.referee.userId);
   return { status: "recorded", referralId: rows[0]!.id };
 }
 
@@ -291,7 +295,7 @@ export async function rewardReferral(
     .set({ status: "rewarded", rewardedAt: now, updatedAt: now })
     .where(eq(referral.id, row.id));
 
-  capture("referral_rewarded", { days: REWARD_DAYS });
+  capture("referral_rewarded", { days: REWARD_DAYS }, row.referrerId);
   return { rewarded: true, referrerId: row.referrerId, endsAt };
 }
 

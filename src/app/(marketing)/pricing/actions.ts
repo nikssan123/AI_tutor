@@ -97,7 +97,11 @@ export async function startCheckoutAction(formData: FormData): Promise<void> {
 
   const existing = await latestSubscription(db, session.user.id);
 
-  capture("checkout_started", { plan: planId, interval, currency });
+  capture(
+    "checkout_started",
+    { plan: planId, interval, currency },
+    session.user.id,
+  );
 
   const checkout = await createCheckoutSession(getStripe(), {
     userId: session.user.id,

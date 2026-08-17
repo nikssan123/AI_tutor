@@ -91,11 +91,11 @@ export async function submitWorkAction(formData: FormData): Promise<void> {
   );
 
   if (!quota.ok) {
-    capture("quota_reached", {
-      quota_type: "evaluation",
-      used: quota.used,
-      limit: quota.limit,
-    });
+    capture(
+      "quota_reached",
+      { quota_type: "evaluation", used: quota.used, limit: quota.limit },
+      session.user.id,
+    );
     redirect(`${returnTo}?error=quota`);
   }
 

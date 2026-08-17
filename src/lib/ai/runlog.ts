@@ -123,26 +123,34 @@ export async function recordAgentRun(
       });
   });
 
-  capture("agent_run", {
-    agent: meta.promptName,
-    prompt_version: meta.promptVersion,
-    model: meta.model,
-    status: record.status,
-    attempts: meta.attempts,
-    cost_cents: meta.costCents,
-    // §14.9.4 asks for the caching saving to be verified rather than assumed.
-    // Shipping both numbers is what makes a silent cache miss visible.
-    uncached_cost_cents: meta.uncachedCostCents,
-    cache_read_tokens: meta.usage.cacheReadInputTokens,
-    input_tokens: meta.usage.inputTokens,
-    output_tokens: meta.usage.outputTokens,
-    // Shipped beside the token counts because it is priced on a different
-    // scale: at $10 per 1,000 searches, eight of them cost more than the tokens
-    // of the call that made them, and a cost that moved with no token movement
-    // to explain it would look like a mispricing rather than research.
-    web_search_requests: meta.usage.webSearchRequests,
-    latency_ms: meta.latencyMs,
-  });
+  capture(
+    "agent_run",
+    {
+      agent: meta.promptName,
+      prompt_version: meta.promptVersion,
+      model: meta.model,
+      status: record.status,
+      attempts: meta.attempts,
+      cost_cents: meta.costCents,
+      // §14.9.4 asks for the caching saving to be verified rather than assumed.
+      // Shipping both numbers is what makes a silent cache miss visible.
+      uncached_cost_cents: meta.uncachedCostCents,
+      cache_read_tokens: meta.usage.cacheReadInputTokens,
+      input_tokens: meta.usage.inputTokens,
+      output_tokens: meta.usage.outputTokens,
+      // Shipped beside the token counts because it is priced on a different
+      // scale: at $10 per 1,000 searches, eight of them cost more than the
+      // tokens of the call that made them, and a cost that moved with no token
+      // movement to explain it would look like a mispricing rather than
+      // research.
+      web_search_requests: meta.usage.webSearchRequests,
+      latency_ms: meta.latencyMs,
+    },
+    // Null for the runs that belong to nobody — pack generation, the nightly
+    // jobs — which is exactly the set §14.9.4's cost-per-active-user must not
+    // charge to a learner.
+    record.userId ?? undefined,
+  );
 }
 
 /**

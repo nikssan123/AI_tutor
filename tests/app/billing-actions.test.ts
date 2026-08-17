@@ -238,11 +238,13 @@ describe("startCheckoutAction", () => {
     await expect(startCheckoutAction(form({ plan: "pro" }))).rejects.toThrow(
       /REDIRECT:https/,
     );
-    expect(captureMock).toHaveBeenCalledWith("checkout_started", {
-      plan: "pro",
-      interval: "month",
-      currency: "usd",
-    });
+    // The third argument is the learner. Without it every server-side event
+    // lands on one anonymous id and the funnel reads as one very busy user.
+    expect(captureMock).toHaveBeenCalledWith(
+      "checkout_started",
+      { plan: "pro", interval: "month", currency: "usd" },
+      "u1",
+    );
   });
 
   it("says so rather than redirecting nowhere when Stripe hosts no session", async () => {
@@ -318,9 +320,11 @@ describe("resumeSubscriptionAction", () => {
       { cancel_at_period_end: false },
       "resume:sub_1",
     );
-    expect(captureMock).toHaveBeenCalledWith("subscription_reactivated", {
-      plan: "pro",
-    });
+    expect(captureMock).toHaveBeenCalledWith(
+      "subscription_reactivated",
+      { plan: "pro" },
+      "u1",
+    );
   });
 
   it("has nothing to resume without a subscription", async () => {

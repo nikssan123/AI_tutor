@@ -82,7 +82,7 @@ export async function cancelSubscriptionAction(
     `cancel:${subscription.stripeSubscriptionId}`,
   );
 
-  capture("subscription_cancelled", { at_period_end: true, reason });
+  capture("subscription_cancelled", { at_period_end: true, reason }, user.id);
   revalidatePath(BILLING);
   done("Cancelled. You keep everything until the end of this period.");
 }
@@ -100,7 +100,7 @@ export async function resumeSubscriptionAction(): Promise<void> {
     `resume:${subscription.stripeSubscriptionId}`,
   );
 
-  capture("subscription_reactivated", { plan: subscription.planId });
+  capture("subscription_reactivated", { plan: subscription.planId }, user.id);
   revalidatePath(BILLING);
   done("Welcome back. Your subscription will renew as normal.");
 }

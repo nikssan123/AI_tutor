@@ -1,4 +1,5 @@
 import type { EnvLike } from "@/lib/env-types";
+import { PosthogSink, posthogHost, posthogKey } from "./posthog";
 
 /**
  * §14.8 / §25 — observability, wired from day one but requiring no accounts to
@@ -8,6 +9,9 @@ import type { EnvLike } from "@/lib/env-types";
  * from the first commit — which matters, because the day-60 kill-criteria review
  * (§17.3) depends on events having been recorded from launch, not added later
  * once someone noticed the funnel was unmeasurable.
+ *
+ * PostHog is the first of the three to become real. Sentry and Langfuse are
+ * still `NoopSink`s, and the class stays for them rather than as scaffolding.
  */
 
 /** §25.1 — the activation event the whole product is measured on. */
@@ -77,10 +81,24 @@ export type AnalyticsEvent =
 
 export type EventProperties = Record<string, string | number | boolean | null>;
 
+/**
+ * Who an event happened to.
+ *
+ * Optional, and passed rather than looked up, because half the call sites have
+ * no request to look it up from — a Stripe webhook and an Inngest job both fire
+ * events for an account nobody is currently sitting in front of. Where it is
+ * the learner's id it is the same string `posthog.identify` sends from the
+ * browser, which is what makes the two halves of a funnel one funnel: the
+ * anonymous visit, the signup, and the first mark line up on one person.
+ */
 export interface Sink {
   readonly name: string;
   readonly enabled: boolean;
-  capture(event: AnalyticsEvent, properties?: EventProperties): void;
+  capture(
+    event: AnalyticsEvent,
+    properties?: EventProperties,
+    distinctId?: string,
+  ): void;
 }
 
 /** Records events in memory. Used when no key is configured, and by tests. */
@@ -90,10 +108,15 @@ export class MemorySink implements Sink {
   readonly events: Array<{
     event: AnalyticsEvent;
     properties: EventProperties;
+    distinctId?: string;
   }> = [];
 
-  capture(event: AnalyticsEvent, properties: EventProperties = {}): void {
-    this.events.push({ event, properties });
+  capture(
+    event: AnalyticsEvent,
+    properties: EventProperties = {},
+    distinctId?: string,
+  ): void {
+    this.events.push({ event, properties, distinctId });
   }
 
   clear(): void {
@@ -102,9 +125,10 @@ export class MemorySink implements Sink {
 }
 
 /**
- * A sink that is configured but deliberately does nothing yet. PostHog, Sentry
- * and Langfuse all arrive in E13; until then this records that the key exists
- * without pulling three SDKs into the bundle.
+ * A sink that is configured but deliberately does nothing yet — Sentry and
+ * Langfuse, which record that a key exists without pulling an SDK in behind it.
+ * It also stands in for a sink whose key is absent, which is every one of them
+ * on a developer's machine.
  */
 export class NoopSink implements Sink {
   constructor(
@@ -118,8 +142,11 @@ export class NoopSink implements Sink {
 }
 
 export function resolveSinks(env: EnvLike = process.env): Sink[] {
+  const key = posthogKey(env);
   return [
-    new NoopSink("posthog", Boolean(env.NEXT_PUBLIC_POSTHOG_KEY)),
+    key
+      ? new PosthogSink(key, posthogHost(env))
+      : new NoopSink("posthog", false),
     new NoopSink("sentry", Boolean(env.SENTRY_DSN)),
     new NoopSink("langfuse", Boolean(env.LANGFUSE_PUBLIC_KEY)),
   ];
@@ -140,8 +167,9 @@ export function setSinks(next: Sink[] | undefined): void {
 export function capture(
   event: AnalyticsEvent,
   properties?: EventProperties,
+  distinctId?: string,
 ): void {
   for (const sink of getSinks()) {
-    if (sink.enabled) sink.capture(event, properties);
+    if (sink.enabled) sink.capture(event, properties, distinctId);
   }
 }

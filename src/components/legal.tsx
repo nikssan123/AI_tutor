@@ -18,7 +18,7 @@ import { supportAddress } from "@/lib/site";
  */
 
 /** Moves only when the text does. Both pages show it; neither computes it. */
-export const LEGAL_UPDATED = "15 August 2026";
+export const LEGAL_UPDATED = "17 August 2026";
 
 export function LegalSection({
   title,

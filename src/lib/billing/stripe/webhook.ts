@@ -94,6 +94,19 @@ export function userIdFrom(object: Record<string, unknown>): string | null {
 }
 
 /**
+ * The same account in the shape `capture` wants: absent rather than null.
+ *
+ * A one-line adapter, and it exists rather than being inlined at each of the
+ * four events below because `?? undefined` written four times is four branches
+ * to cover for one decision. Stripe sends events for objects we did not create
+ * — a subscription made in their dashboard — and those genuinely have no
+ * account on them, so the event is still recorded with nobody attached to it.
+ */
+export function actorFrom(object: Record<string, unknown>): string | undefined {
+  return userIdFrom(object) ?? undefined;
+}
+
+/**
  * A subscription object, written to our row.
  *
  * The amount and currency are read off the first item's price rather than off
@@ -174,7 +187,7 @@ async function qualifyReferral(
 
   if (rows.length === 0) return;
 
-  capture("referral_qualified", { referral_id: rows[0]!.id });
+  capture("referral_qualified", { referral_id: rows[0]!.id }, userId);
 
   // §9.2 — the referrer's fourteen days, now that the money has arrived.
   await rewardReferral(db, userId, now);
@@ -269,30 +282,44 @@ export async function handleEvent(
         // `customer.subscription.created` tells us what was actually bought,
         // arrives for every subscription however it was started, and is the
         // only one of the two that carries the price.
-        capture("checkout_started", {
-          plan: str((object.metadata as Record<string, unknown>)?.planId),
-        });
+        capture(
+          "checkout_started",
+          { plan: str((object.metadata as Record<string, unknown>)?.planId) },
+          actorFrom(object),
+        );
         break;
 
       case "customer.subscription.created":
         if (await writeSubscription(db, object, now)) {
-          capture("subscription_created", {
-            plan: planFromSubscription(object),
-            trial: str(object.status) === "trialing",
-          });
+          capture(
+            "subscription_created",
+            {
+              plan: planFromSubscription(object),
+              trial: str(object.status) === "trialing",
+            },
+            actorFrom(object),
+          );
         }
         break;
 
       case "customer.subscription.updated":
         await writeSubscription(db, object, now);
         if (object.cancel_at_period_end === true) {
-          capture("subscription_cancelled", { at_period_end: true });
+          capture(
+            "subscription_cancelled",
+            { at_period_end: true },
+            actorFrom(object),
+          );
         }
         break;
 
       case "customer.subscription.deleted":
         await writeSubscription(db, { ...object, status: "canceled" }, now);
-        capture("subscription_cancelled", { at_period_end: false });
+        capture(
+          "subscription_cancelled",
+          { at_period_end: false },
+          actorFrom(object),
+        );
         break;
 
       case "invoice.paid":

@@ -89,7 +89,7 @@ export async function startSessionAction(): Promise<void> {
   const limit = entitlements.sessionsPerMonth;
 
   if (limit !== null && (await sessionsThisPeriod(db, user.id, now)) >= limit) {
-    capture("quota_reached", { quota_type: "session", limit });
+    capture("quota_reached", { quota_type: "session", limit }, user.id);
     redirect("/today?error=sessions");
   }
 

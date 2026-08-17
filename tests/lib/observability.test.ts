@@ -7,6 +7,7 @@ import {
   resolveSinks,
   setSinks,
 } from "@/lib/observability";
+import { PosthogSink } from "@/lib/observability/posthog";
 
 afterEach(() => setSinks(undefined));
 
@@ -24,6 +25,17 @@ describe("resolveSinks", () => {
     });
     const byName = Object.fromEntries(sinks.map((s) => [s.name, s.enabled]));
     expect(byName).toEqual({ posthog: true, sentry: false, langfuse: true });
+  });
+
+  /**
+   * PostHog is the one that stopped being scaffolding. The other two are still
+   * `NoopSink`s and this pins which is which — a real sink quietly reverting to
+   * a no-op is a funnel that reads as zero rather than as broken.
+   */
+  it("builds a real PostHog sink once a key exists", () => {
+    const [posthog] = resolveSinks({ NEXT_PUBLIC_POSTHOG_KEY: "phc_x" });
+    expect(posthog).toBeInstanceOf(PosthogSink);
+    expect(resolveSinks({})[0]).toBeInstanceOf(NoopSink);
   });
 
   it("covers the three sinks §14.8 and §25 name", () => {
@@ -45,16 +57,28 @@ describe("capture", () => {
     const b = new MemorySink();
     setSinks([a, b]);
 
-    capture("first_evaluation_received", { tier: 1, confidence: 0.9 });
+    capture("first_evaluation_received", { tier: 1, confidence: 0.9 }, "u1");
 
     for (const sink of [a, b]) {
       expect(sink.events).toEqual([
         {
           event: "first_evaluation_received",
           properties: { tier: 1, confidence: 0.9 },
+          distinctId: "u1",
         },
       ]);
     }
+  });
+
+  /**
+   * The identity is optional, and has to stay optional: a Stripe webhook and a
+   * nightly job both fire events with nobody sitting in front of them.
+   */
+  it("carries no identity when none is given", () => {
+    const sink = new MemorySink();
+    setSinks([sink]);
+    capture("referral_visit", { code: "abc" });
+    expect(sink.events[0]!.distinctId).toBeUndefined();
   });
 
   it("skips disabled sinks", () => {

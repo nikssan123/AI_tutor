@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { currentUser } from "@/lib/account/session";
 import { VERIFY_SNOOZE_COOKIE } from "@/lib/account/verify-banner";
+import { Analytics, analyticsContext } from "@/components/analytics";
 import { AppNav } from "@/components/app-nav";
 import { AssistantPanel } from "@/components/assistant-panel";
 import { CloseIcon } from "@/components/icons";
@@ -88,10 +89,33 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await currentUser();
+  const analytics = await analyticsContext();
+
+  /*
+   * `data-private` marks this whole tree as unrecordable text.
+   *
+   * The session replay is configured to blank the text of anything inside a
+   * `[data-private]` element (`posthog-client.tsx`), and rrweb carries that
+   * down to every descendant — so one attribute on the outermost node is what
+   * makes the promise on `/privacy` true for every signed-in screen at once,
+   * including the ones nobody has written yet. Tagging surfaces individually
+   * would have been the same guarantee with a hole in it the first time
+   * somebody added a page and forgot.
+   *
+   * It is on both branches below because the signed-out one is `/sign-in` and
+   * `/reset-password`, which is where the email addresses are.
+   */
 
   // Signed out, or on a screen that has no session to navigate from — the page
   // below still guards itself. Nothing to draw around it.
-  if (!user) return <div className="min-h-screen bg-ground text-ink">{children}</div>;
+  if (!user) {
+    return (
+      <div data-private className="min-h-screen bg-ground text-ink">
+        {children}
+        <Analytics context={analytics} />
+      </div>
+    );
+  }
 
   // The jar is only opened for an account that would see the banner: a
   // confirmed one never reads a cookie it cannot act on.
@@ -99,7 +123,10 @@ export default async function AppLayout({
     !user.emailVerified && !(await cookies()).has(VERIFY_SNOOZE_COOKIE);
 
   return (
-    <div className="min-h-screen bg-ground text-ink lg:flex lg:items-start">
+    <div
+      data-private
+      className="min-h-screen bg-ground text-ink lg:flex lg:items-start"
+    >
       <AppNav />
       {/* `min-w-0` so a wide child — the path graph's horizontal scroller —
           shrinks inside the flex row instead of stretching it and pushing the
@@ -111,6 +138,7 @@ export default async function AppLayout({
             for a session that exists, because every question it answers is
             about the account asking (ASSISTANT-PLAN.md §8.1). */}
         <AssistantPanel />
+        <Analytics context={analytics} />
       </div>
     </div>
   );

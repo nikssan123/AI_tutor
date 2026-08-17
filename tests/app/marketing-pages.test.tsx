@@ -73,7 +73,7 @@ const subjectsBand = (container: HTMLElement): HTMLElement =>
   )!;
 
 describe("marketing layout", () => {
-  it("wraps content in the site header and footer", () => {
+  it("wraps content in the site header and footer", async () => {
     /*
      * Asserted structurally rather than by rendering. `SiteHeader` reads the
      * session, so it is an async component — a client-side render pass cannot
@@ -81,10 +81,14 @@ describe("marketing layout", () => {
      * (tests/components/marketing.test.tsx) where it can be awaited. What the
      * layout is responsible for is the composition, and that is what this
      * checks: header, then children, then footer.
+     *
+     * The layout itself is awaited now: it reads the consent cookie so that
+     * `Analytics` below it can stay a synchronous component. See
+     * `analyticsContext` for why that split exists.
      */
-    const tree = MarketingLayout({
+    const tree = (await MarketingLayout({
       children: <p>content</p>,
-    }) as React.ReactElement<{ children: React.ReactNode }>;
+    })) as React.ReactElement<{ children: React.ReactNode }>;
     const [header, main, footer] = React.Children.toArray(
       tree.props.children,
     ) as React.ReactElement<{ children: React.ReactNode }>[];

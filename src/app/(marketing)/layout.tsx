@@ -1,3 +1,4 @@
+import { Analytics, analyticsContext } from "@/components/analytics";
 import { SiteFooter, SiteHeader } from "@/components/marketing";
 
 /**
@@ -16,7 +17,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing";
  * want, and it is what comes back into effect if the header ever stops reading
  * the session. The comments beside those exports still describe the old mode.
  */
-export default function MarketingLayout({
+export default async function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -26,6 +27,12 @@ export default function MarketingLayout({
       <SiteHeader />
       <div className="flex-1">{children}</div>
       <SiteFooter />
+      {/*
+       * These pages are recorded as they look — there is nothing on them that
+       * is not already public, and the funnel a replay is for lives here. The
+       * signed-in tree is the opposite case and marks itself `data-private`.
+       */}
+      <Analytics context={await analyticsContext()} />
     </div>
   );
 }
