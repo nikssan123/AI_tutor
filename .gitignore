@@ -7,6 +7,13 @@ dist/
 .env
 .env.local
 .env*.local
+# The production env file lives at /srv/meritkeep/.env.prod on the VPS, inside
+# this same checkout. This repo is public, so without these two lines a stray
+# `git add -A` on that box stages the Postgres password, the auth secret and
+# four API keys. The trailing-glob rule also covers editor swap files, which
+# hold the same plaintext.
+.env.prod
+.env.prod.*
 
 *.tsbuildinfo
 next-env.d.ts
