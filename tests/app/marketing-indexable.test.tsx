@@ -78,11 +78,11 @@ describe("a reviewed pack (§12.1 gate open)", () => {
   it("is submitted for indexing — topic, both checks, and projects alike", () => {
     // Each check joined this list when the assessment behind it shipped: the
     // subject check with E4, the per-skill ones when a check for one skill was
-    // built. All are gated on the same review the curriculum is, because an
-    // unreviewed pack's questions are exactly as unreviewed as its skill graph.
+    // built. A Curated pack clears both gates, so all five are here — the
+    // ordering puts the check first because that gate is now the wider one.
     expect(packPages().map((e) => e.url)).toEqual([
-      "https://example.com/learn/valid-minimal",
       "https://example.com/check/valid-minimal",
+      "https://example.com/learn/valid-minimal",
       "https://example.com/check/valid-minimal/alpha",
       "https://example.com/check/valid-minimal/beta",
       "https://example.com/projects/minimal-project",
@@ -145,6 +145,82 @@ describe("a reviewed pack (§12.1 gate open)", () => {
       projects: pack.projects.map((p) => ({ ...p, isPublic: false })),
     });
     expect(detail!.indexable).toBe(false);
+  });
+});
+
+/**
+ * §12.1 for a Standard pack — model-authored, and read by somebody.
+ *
+ * The gate used to ask one question for both page types, and the two are not the
+ * same axis: `maturity` is a claim about who held the pen, `reviewKind` a claim
+ * about whether anyone read it. `python-fundamentals` is `standard` on purpose
+ * and documents why at length, and it also carries 43 hand-worked answer keys
+ * and a read against three published curricula. §9.1 makes the check the
+ * priority-1 page type and §2.6 calls its SERP the crack in the wall, so holding
+ * the tool behind a claim about authorship was costing the one page that matters
+ * most for a reason that is not about the page.
+ */
+describe("a reviewed Standard pack", () => {
+  const standard = (): DomainPack => ({ ...reviewed(), maturity: "standard" });
+
+  const onlyStandard = async () => {
+    const loader = await import("@/lib/packs/loader");
+    vi.spyOn(loader, "loadAllPacks").mockReturnValue([standard()]);
+    const { resetContentCache } = await import("@/lib/content");
+    resetContentCache();
+  };
+
+  it("submits the check and withholds the subject page", async () => {
+    await onlyStandard();
+
+    // The check is the working tool §12.1 rule 2 asks every indexable page to
+    // carry, and what it does for a visitor does not change with authorship.
+    // The subject page is largely the graph rendered, so it keeps the Curated
+    // requirement — §9.1 ranks it priority 6 anyway.
+    expect(packPages().map((e) => e.url)).toEqual([
+      "https://example.com/check/valid-minimal",
+    ]);
+  });
+
+  it("keeps the per-skill checks out until the thin ones have a number", async () => {
+    await onlyStandard();
+
+    // Deliberate asymmetry, and the plan's own rule: §9.1 says publish, measure
+    // for 90 days, and scale only the templates that earned impressions. These
+    // are the thinnest inventory the site has and none has had an impression.
+    expect(packPages().map((e) => e.url)).not.toContain(
+      "https://example.com/check/valid-minimal/alpha",
+    );
+  });
+
+  it("says the same thing in the robots tag as in the sitemap", async () => {
+    // The one disagreement that must never happen: a URL submitted for crawling
+    // that greets the crawler with `noindex`.
+    await onlyStandard();
+
+    const run = await import("@/app/(marketing)/check/[topic]/page");
+    expect(
+      (await run.generateMetadata({ params: params({ topic: "valid-minimal" }) }))
+        .robots,
+    ).toBeUndefined();
+
+    expect(
+      (await topic.generateMetadata({ params: params({ topic: "valid-minimal" }) }))
+        .robots,
+    ).toEqual({ index: false, follow: true });
+  });
+
+  it("still submits nothing at all for a pack nobody has read", async () => {
+    const loader = await import("@/lib/packs/loader");
+    vi.spyOn(loader, "loadAllPacks").mockReturnValue([
+      { ...standard(), quality: { ...standard().quality, reviewKind: null } },
+    ]);
+    const { resetContentCache } = await import("@/lib/content");
+    resetContentCache();
+
+    // Which is also how a Generated pack is excluded: `assemble.ts` writes
+    // `reviewKind: null` and there is no second condition to keep in step.
+    expect(packPages()).toEqual([]);
   });
 });
 

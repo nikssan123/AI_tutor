@@ -31,6 +31,7 @@ function topic(overrides: Partial<TopicSummary> = {}): TopicSummary {
     totalHours: 40,
     areas: ["Exposure", "Composition"],
     indexable: true,
+    checkIndexable: true,
     ...overrides,
   };
 }
