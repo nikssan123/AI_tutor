@@ -279,11 +279,28 @@ describe("/terms", () => {
     expect(container.textContent).toContain("It stays yours.");
   });
 
-  /** Billing is not built. Terms describing a subscription would be fiction. */
-  it("says there is no money rather than describing a plan that does not exist", () => {
+  /**
+   * Billing went live on 2026-08-17, so the assertion this replaces had started
+   * pinning a falsehood in place: it required the page to keep telling a reader
+   * there was no money on a site that was charging them.
+   */
+  it("describes the billing that exists rather than denying it", () => {
     const { container } = render(<Terms />);
-    expect(container.textContent).toContain("There is none yet");
-    expect(container.textContent).not.toMatch(/per month|subscription fee/i);
+    expect(container.textContent).not.toMatch(
+      /There is none yet|nothing to cancel|before anyone is charged/i,
+    );
+    expect(container.textContent).toMatch(/within 14 days/i);
+  });
+
+  /**
+   * prices.ts is the single source of every amount and /pricing renders from
+   * it. A price typed into the terms by hand goes stale the first time that
+   * table moves — and of everywhere a stale number could sit, the contract is
+   * the worst, because it is the one a subscriber can hold us to.
+   */
+  it("quotes no amount, leaving prices.ts the only place a price lives", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).not.toMatch(/[$€]\s?\d/);
   });
 
   it("is indexable and canonical to itself", () => {

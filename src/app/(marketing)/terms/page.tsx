@@ -6,11 +6,17 @@ import { breadcrumbs } from "@/lib/seo/jsonld";
 import { marketingMetadata } from "@/lib/seo/metadata";
 
 /**
- * Written against what the product does today, which is why the money section
- * says there is no money. Terms describing a subscription that does not exist
- * would be the same failure as a privacy page describing an export button that
- * does not exist — a document that is technically about us and factually about
+ * Written against what the product does today. That principle is why the money
+ * section said there was none — and why, since live Stripe keys and a public
+ * domain both landed on 2026-08-17, it no longer can. A page promising "before
+ * anyone is charged anything" to a reader who is about to be charged is the
+ * same failure in the opposite direction: technically about us, factually about
  * some other product.
+ *
+ * No price is quoted here on purpose. `prices.ts` is the only place an amount
+ * lives and /pricing renders from it; a figure typed into this page by hand
+ * goes stale the first time that table moves, and a stale number in the terms
+ * is the one a subscriber can hold us to.
  */
 export const revalidate = 86_400;
 
@@ -104,10 +110,25 @@ export default function TermsPage() {
 
         <LegalSection title="Money">
           <p>
-            There is none yet. MeritKeep is free while it is being built, and
-            there is nothing to cancel. When paid plans arrive this page will
-            say what they cost and what happens if you stop paying, before
-            anyone is charged anything.
+            There is a free plan and there are paid ones;{" "}
+            <Link href="/pricing" className="text-accent">
+              Pricing
+            </Link>{" "}
+            says what each costs. The figure shown there is the figure you are
+            charged — prices in euros include VAT, and prices in dollars have
+            sales tax added at checkout where we are obliged to collect it.
+          </p>
+          <p>
+            <strong>You can have your money back within 14 days.</strong> Ask
+            within a fortnight of a payment and we refund it, without asking
+            why. That covers renewals as well as first payments, and it applies
+            wherever you live rather than only where the law compels it.
+          </p>
+          <p>
+            Cancelling stops the next payment and takes nothing away in the
+            meantime: you keep the plan you have paid for until the end of the
+            period it covers, and you can undo the cancellation at any point
+            before it runs out.
           </p>
         </LegalSection>
 
